@@ -1,0 +1,35 @@
+# PDF to Markdown Agent Configuration
+
+# OCR Settings
+ocr:
+  # 默认使用 glm-ocr（需要 ollama <= 0.17.1）
+  # 可选: glm-ocr, qwen3-vl, qwen3-vl:4b, qwen3-vl-fast
+  model: "glm-ocr"
+  ollama_base_url: "http://127.0.0.1:11434"
+  # 每次OCR的超时时间(秒)
+  timeout: 180
+  # 图片DPI设置
+  dpi: 150
+
+# PDF Processing
+pdf:
+  # pdftoppm路径 (空则使用PATH中的)
+  pdftoppm_path: ""
+  # 输出图片格式
+  image_format: "png"
+  # 图片质量
+  quality: 100
+
+# Image Extraction
+image:
+  # 图片输出子文件夹名称
+  output_folder: "images"
+  # 支持的图片格式
+  formats: ["png", "jpg", "jpeg", "svg"]
+
+# Output Settings
+output:
+  # 是否保留中间图片文件
+  keep_temp_images: false
+  # Markdown文件编码
+  encoding: "utf-8"

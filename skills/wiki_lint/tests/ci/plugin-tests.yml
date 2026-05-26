@@ -1,0 +1,98 @@
+name: llm-wiki Plugin Tests
+
+on:
+  push:
+    paths:
+      - 'claude-plugin/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'AGENTS.md'
+  pull_request:
+    paths:
+      - 'claude-plugin/**'
+      - 'scripts/**'
+      - 'tests/**'
+
+jobs:
+  structural:
+    name: "Layer 1: Structural Validation"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate plugin manifest
+        run: chmod +x tests/test-plugin-validate.sh && ./tests/test-plugin-validate.sh
+
+      - name: Generate defect fixtures
+        run: chmod +x tests/generate-defect-fixtures.sh && ./tests/generate-defect-fixtures.sh
+
+      - name: Run structural tests
+        run: chmod +x tests/test-structure.sh && ./tests/test-structure.sh
+
+      - name: Run local CLI lint tests
+        run: chmod +x tests/test-local-cli-lint.sh && ./tests/test-local-cli-lint.sh
+
+      - name: Verify Codex plugin sync
+        run: chmod +x tests/test-codex-sync.sh && ./tests/test-codex-sync.sh
+
+  behavioral:
+    name: "Layer 2: Behavioral Evals"
+    runs-on: ubuntu-latest
+    needs: structural
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Cache Promptfoo
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/promptfoo
+          key: ${{ runner.os }}-promptfoo-v1
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Prepare workspace
+        run: |
+          mkdir -p tests/workspace
+          cp -r tests/fixtures/golden-wiki/* tests/workspace/
+
+      - name: Run behavioral evals
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          npx promptfoo@latest eval \
+            -c tests/promptfooconfig.yaml \
+            -o tests/results.json \
+            --repeat 3
+
+      - name: Quality gate
+        run: |
+          FAILURES=$(jq '.results.stats.failures' tests/results.json)
+          TOTAL=$(jq '.results.stats.successes + .results.stats.failures' tests/results.json)
+          echo "Failures: $FAILURES / Total: $TOTAL"
+          if [ "$FAILURES" -gt 0 ]; then
+            echo "::error::Behavioral evals failed: $FAILURES assertion failures"
+            exit 1
+          fi
+
+      - name: Post results to PR
+        if: always() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SUCCESSES=$(jq '.results.stats.successes // 0' tests/results.json)
+          FAILURES=$(jq '.results.stats.failures // 0' tests/results.json)
+          TOTAL=$((SUCCESSES + FAILURES))
+          if [ "$TOTAL" -gt 0 ]; then
+            PASS_RATE=$((SUCCESSES * 100 / TOTAL))
+          else
+            PASS_RATE=0
+          fi
+          gh pr comment ${{ github.event.pull_request.number }} \
+            --body "**Plugin Eval Results**: ${PASS_RATE}% pass rate (${SUCCESSES}/${TOTAL})"
