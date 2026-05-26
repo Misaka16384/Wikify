@@ -6,6 +6,9 @@
 
 An enterprise-grade, agentic markdown-based knowledge management and compilation pipeline for high-entropy **mathematical and physical academic literature**. Designed specifically for autonomous coding assistants (such as `Antigravity`), this repository provides a suite of 14 highly hardened, portable, and script-validated skills that automatically ingest, compile, sync, enrich, and audit dense academic sources.
 
+> [!NOTE]
+> This project is adapted and built upon the foundational work in [nvk/llm-wiki](https://github.com/nvk/llm-wiki).
+
 ---
 
 ## 1. System Dependencies
