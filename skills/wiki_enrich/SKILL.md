@@ -16,7 +16,7 @@ When the user asks to enrich, deep-dive, or查漏补缺 (fill gaps) on a paper:
 
 2.  **Density Check (Main Agent — DETERMINISTIC SCRIPT)**:
     *   Run the deterministic density counter — do NOT count links manually:
-        `python $HOME/.gemini\config\bin\llm-wiki.py stats <TOPIC_DIR> concept-density "<compiled_file>"`
+        `python .agents/bin/llm-wiki.py stats <TOPIC_DIR> concept-density "<compiled_file>"`
     *   Read the JSON output. Proceed to enrichment if `total_wikilinks < 5` OR `density_per_1k_words < 2.0`.
     *   Otherwise, inform the user the density is sufficient, unless they force enrichment.
 
@@ -43,7 +43,7 @@ When the user asks to enrich, deep-dive, or查漏补缺 (fill gaps) on a paper:
 
 6.  **Post-Enrichment Verification (MANDATORY)**:
     *   Run the reference verifier to check that all new `[[Concept]]` links point to existing files:
-        `python $HOME/.gemini\config\bin\llm-wiki.py stats <TOPIC_DIR> verify-refs "<compiled_file>"`
+        `python .agents/bin/llm-wiki.py stats <TOPIC_DIR> verify-refs "<compiled_file>"`
     *   If `dangling_count > 0`, you MUST create concept files for each dangling reference (at minimum with correct frontmatter and a core definition section). Do NOT leave orphan links.
 
 7.  **Mark Enriched**: Add or update `enriched: YYYY-MM-DD` in the compiled paper's YAML frontmatter.

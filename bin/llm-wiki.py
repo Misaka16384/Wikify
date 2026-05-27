@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -421,7 +422,7 @@ def is_schema_checked_path(root: Path, path: Path) -> bool:
     except ValueError:
         return False
     parts = rel.parts
-    if not parts:
+    if not parts or any(part.startswith(".") for part in parts[:-1]):
         return False
     return parts[0] in {"raw", "wiki", "inventory", "datasets"}
 
@@ -840,7 +841,7 @@ def check_unknown_files(ctx: LintContext) -> None:
             if not path.exists():
                 continue
             for child in sorted(path.iterdir()):
-                if child.name == "_index.md":
+                if child.name in {"_index.md", ".backup"}:
                     continue
                 if not child.is_file() or child.suffix != ".md":
                     handle_unknown(ctx, child, f"Unexpected file in {ctx.rel(path)}/.")
@@ -1573,7 +1574,10 @@ def resolve_wiki_root(args: argparse.Namespace) -> Path:
         ):
             return fallback_archived_topic
         return registry_path
-    local = Path.cwd() / ".wiki"
+    cwd = Path.cwd()
+    if (cwd / "wiki").is_dir() or is_initialized_topic(cwd):
+        return cwd
+    local = cwd / ".wiki"
     if local.exists():
         return local
     return hub
@@ -2031,6 +2035,113 @@ def run_stats(args: argparse.Namespace) -> int:
     raise SystemExit(f"unknown stats subcommand: {subcmd}")
 
 
+def run_graph(args: argparse.Namespace) -> int:
+    root = resolve_wiki_root(args)
+    wiki_dir = root / "wiki"
+    if not wiki_dir.exists():
+        raise SystemExit(f"wiki directory not found: {wiki_dir}")
+    
+    output_dir = root / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    db_path = output_dir / "graph.db"
+    
+    print(f"llm-wiki graph: building index at {db_path}...")
+    
+    conn = sqlite3.connect(str(db_path))
+    cursor = conn.cursor()
+    
+    # Create tables
+    cursor.executescript("""
+    CREATE TABLE IF NOT EXISTS nodes (
+        id TEXT PRIMARY KEY,
+        path TEXT,
+        title TEXT,
+        type TEXT,
+        category TEXT,
+        summary TEXT,
+        created TEXT,
+        updated TEXT
+    );
+    CREATE TABLE IF NOT EXISTS edges (
+        source_id TEXT,
+        target_id TEXT,
+        type TEXT,
+        UNIQUE(source_id, target_id, type)
+    );
+    CREATE TABLE IF NOT EXISTS tags (
+        node_id TEXT,
+        tag TEXT,
+        UNIQUE(node_id, tag)
+    );
+    CREATE TABLE IF NOT EXISTS aliases (
+        node_id TEXT,
+        alias TEXT,
+        UNIQUE(node_id, alias)
+    );
+    """)
+    
+    # Clear existing data to do a full rebuild
+    cursor.executescript("""
+    DELETE FROM nodes;
+    DELETE FROM edges;
+    DELETE FROM tags;
+    DELETE FROM aliases;
+    """)
+    
+    nodes_count = 0
+    edges_count = 0
+    
+    for md_file in sorted(wiki_dir.rglob("*.md")):
+        if md_file.name == "_index.md":
+            continue
+            
+        try:
+            rel = md_file.relative_to(root)
+            text = md_file.read_text(encoding="utf-8", errors="replace")
+        except (ValueError, OSError):
+            continue
+            
+        parts = split_markdown_frontmatter(text)
+        fm = parse_frontmatter_block(parts[0]) if parts else {}
+        body = parts[1] if parts else text
+        
+        node_id = md_file.stem
+        title = str(fm.get("title") or md_file.stem)
+        node_type = str(fm.get("type") or "")
+        category = str(fm.get("category") or "")
+        summary = str(fm.get("summary") or "")
+        created = str(fm.get("created") or "")
+        updated = str(fm.get("updated") or "")
+        
+        cursor.execute(
+            "INSERT OR REPLACE INTO nodes (id, path, title, type, category, summary, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (node_id, str(rel).replace("\\", "/"), title, node_type, category, summary, created, updated)
+        )
+        nodes_count += 1
+        
+        tags = fm.get("tags")
+        if isinstance(tags, list):
+            for tag in tags:
+                cursor.execute("INSERT OR IGNORE INTO tags (node_id, tag) VALUES (?, ?)", (node_id, str(tag)))
+                
+        aliases = fm.get("aliases")
+        if isinstance(aliases, list):
+            for alias in aliases:
+                cursor.execute("INSERT OR IGNORE INTO aliases (node_id, alias) VALUES (?, ?)", (node_id, str(alias)))
+                
+        links = extract_wikilinks(body)
+        for link in links:
+            target_id = link.replace(" ", "_")
+            cursor.execute("INSERT OR IGNORE INTO edges (source_id, target_id, type) VALUES (?, ?, ?)", (node_id, target_id, "wikilink"))
+            edges_count += 1
+
+    conn.commit()
+    conn.close()
+    
+    print(f"Indexed {nodes_count} nodes and {edges_count} edges.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="llm-wiki",
@@ -2119,6 +2230,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     stats.set_defaults(func=run_stats)
+
+    graph = subparsers.add_parser(
+        "graph",
+        help="Extract a SQLite knowledge graph from the wiki.",
+        description=(
+            "Parse [[wikilinks]], tags, and aliases from the wiki/ folder "
+            "and build an AI-friendly SQLite graph database in output/graph.db."
+        ),
+    )
+    graph.add_argument("--local", action="store_true", help="Use .wiki/ in the current directory.")
+    graph.add_argument("--wiki", help="Named wiki from the hub registry.")
+    graph.add_argument("--hub", help="Override hub path.")
+    graph.add_argument("path", nargs="?", help="Wiki root path.")
+    graph.set_defaults(func=run_graph)
 
     return parser
 

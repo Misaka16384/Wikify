@@ -38,6 +38,6 @@ This phase builds a comprehensive definition of a concept by reading every paper
     *   Rewrite the `wiki/concepts/<Concept Name>.md` file.
     *   **Structure**: Ensure the new file adheres to the Concept Template (e.g., `## 1. Core Definition & Physical Intuition`, `## 2. Mathematical Formalism`). 
     *   **Multi-Perspective Citing**: Integrate the subagent findings into a "Cross-Reference Applications" section. Explicitly state how the concept is used differently across the papers (e.g., "In [[Paper A]], it serves as a boundary condition, while [[Paper B]] extends it to...").
-    *   **Post-Write Validation**: Run `python $HOME/.gemini\config\bin\llm-wiki.py lint <TOPIC_DIR>` to verify the rewritten file passes structural checks.
+    *   **Post-Write Validation**: Run `python .agents/bin/llm-wiki.py lint <TOPIC_DIR>` to verify the rewritten file passes structural checks.
 4.  **Log**: Update `log.md` with the synthesis outcome, listing which concepts were merged/rewritten/split.
 

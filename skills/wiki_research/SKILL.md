@@ -14,6 +14,7 @@ When the user asks to research a topic:
 1.  **Draft a Dynamic Research Plan**: Analyze the user's research query and determine the domain (e.g., Mathematics, Theoretical Physics, Computer Science). Subdivide the query into 3 or more distinct, domain-specific investigative dimensions.
     *   *Example (Physics/Math)*: "Axiomatic Consistency Auditor", "Phenomenology & Experimental Reviewer", "Theoretical Extrapolator".
     *   *Example (CS)*: "Technical Deep Dive", "Critical Reviewer", "Empirical Auditor".
+    *   **Graph Context**: Before finalizing the plan, you are encouraged to query the local SQLite graph database (`output/graph.db`) to identify existing nodes related to the query. Ensure the index is up to date by running `python .agents/bin/llm-wiki.py graph` first. This helps contextualize your research plan within the existing knowledge graph.
 
 2.  **Orchestrate Background Subagents**: Spawn the parallel subagents using the `invoke_subagent` tool according to your dynamic research plan.
     *   Assign each subagent a clear, focused `Role` and `Prompt` tailored to their specific investigative dimension.
@@ -57,8 +58,8 @@ When the user asks to research a topic:
     *   If `[UNVERIFIED]` findings exist, include them under a clearly marked `## Unverified Claims` section at the end. Do NOT mix unverified claims into the main body.
 
 5.  **Post-Write Validation (MANDATORY)**:
-    *   Run: `python $HOME/.gemini\config\bin\validate-output.py "<output_file>" --schema research --wiki-root "<TOPIC_DIR>"`
+    *   Run: `python .agents/bin/validate-output.py "<output_file>" --schema research --wiki-root "<TOPIC_DIR>"`
         If validation reports issues, fix them before proceeding.
-    *   Run: `python $HOME/.gemini\config\bin\llm-wiki.py lint --fix <TOPIC_DIR>`
+    *   Run: `python .agents/bin/llm-wiki.py lint --fix <TOPIC_DIR>`
 
 6.  **Log**: Append a log entry in `log.md` with: research query, subagent count, verified findings count, unverified findings count, output file path.

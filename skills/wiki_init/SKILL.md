@@ -11,7 +11,7 @@ This skill handles the physical bootstrapping of a new academic/personal topic w
 
 When the user asks to initialize, configure, or set up a new wiki in a folder:
 1.  **Strict Dispatcher Rule**: Run the local deterministic Python script inside this skill directory using the `lint --fix` action to automatically bootstrap all missing folders (raw/, wiki/, inbox/, output/) and default index files:
-    `python $HOME/.gemini\config\bin\llm-wiki.py lint --fix <path_to_initialize>`
+    `python .agents/bin/llm-wiki.py lint --fix <path_to_initialize>`
 2.  **Create Required Config Files**: After running the bootstrap command, create these files at the root level using the exact templates below. Only fill in the `<PLACEHOLDER>` values — do NOT invent additional fields or sections.
 
     **`config.md`** — use this template verbatim:
@@ -64,5 +64,5 @@ When the user asks to initialize, configure, or set up a new wiki in a folder:
     - Concepts: 0
     ```
 
-3.  **Approve**: Run `python $HOME/.gemini\config\bin\llm-wiki.py lint <path_to_initialize>` to verify that the initialized workspace achieves a perfect green `Result: PASS`. If it fails, fix the reported issues and re-run until PASS.
+3.  **Approve**: Run `python .agents/bin/llm-wiki.py lint <path_to_initialize>` to verify that the initialized workspace achieves a perfect green `Result: PASS`. If it fails, fix the reported issues and re-run until PASS.
 

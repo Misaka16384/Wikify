@@ -1,10 +1,10 @@
-# Gemini Agentic Wiki Skills — GitHub Release
+# Agentic Wiki Skills
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python: 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
 [![Model: GLM-OCR](https://img.shields.io/badge/Model-GLM--OCR-orange.svg)](https://ollama.com/)
 
-An enterprise-grade, agentic markdown-based knowledge management and compilation pipeline for high-entropy **mathematical and physical academic literature**. Designed specifically for autonomous coding assistants (such as `Antigravity`), this repository provides a suite of 14 highly hardened, portable, and script-validated skills that automatically ingest, compile, sync, enrich, and audit dense academic sources.
+An enterprise-grade, agentic markdown-based knowledge management and compilation pipeline for high-entropy **mathematical and physical academic literature**. Designed specifically for autonomous coding assistants (such as `Antigravity`), this repository provides a suite of 16 highly hardened, portable, and script-validated skills that automatically ingest, compile, sync, enrich, and audit dense academic sources.
 
 > [!NOTE]
 > This project is adapted and built upon the foundational work in [nvk/llm-wiki](https://github.com/nvk/llm-wiki).
@@ -29,6 +29,8 @@ pip install -r requirements.txt
 *   `pydantic>=2.0.0` — Enforces structural schemas on thesis and research outputs.
 *   `rich>=13.0.0` — Drives beautiful console styling, layout logging, and progress rendering.
 *   `pdf2image>=1.16.0` — Converts incoming PDF pages into high-fidelity raster images.
+*   `scikit-learn>=1.0.0` — Computes cosine similarity matrices for semantic linking.
+*   `numpy>=1.20.0` — Handles vectorized math operations for embedding processing.
 
 ### 1.2 System-Level External Binaries
 The pipeline relies on several external utilities that must be present in your system's `PATH`:
@@ -43,9 +45,14 @@ The pipeline relies on several external utilities that must be present in your s
     *   *Windows (Choco)*: `choco install ripgrep`
     *   *macOS (Homebrew)*: `brew install ripgrep`
     *   *Linux (APT)*: `sudo apt-get install ripgrep`
+3.  **Pandoc** — Required for automated ingestion and conversion of LaTeX (`.tex`) documents to Markdown.
+    *   *Windows (Scoop)*: `scoop install pandoc`
+    *   *Windows (Choco)*: `choco install pandoc`
+    *   *macOS (Homebrew)*: `brew install pandoc`
+    *   *Linux (APT)*: `sudo apt-get install pandoc`
 
 > [!IMPORTANT]
-> Verify that the binaries are correctly added to your environment `PATH` by running `pdftoppm -v` and `rg --version` in your terminal.
+> Verify that the binaries are correctly added to your environment `PATH` by running `pdftoppm -v`, `rg --version`, and `pandoc --version` in your terminal.
 
 ### 1.3 Ollama Local visual OCR Engine
 The local offline PDF-to-Markdown transcription relies on Ollama running as a background service (default: `http://127.0.0.1:11434`). Pull the required visual model:
@@ -93,7 +100,7 @@ python "$HOME/.gemini/config/bin/llm-wiki.py" --help
 
 ## 3. Comprehensive Skill Directory
 
-The repository contains **14 specialized skills** designed to handle academic ingestion, compilation, and semantic organization. They are deployed to `$HOME/.gemini/config/skills/` and work in tandem with the canonical scripts in `$HOME/.gemini/config/bin/`.
+The repository contains **16 specialized skills** designed to handle academic ingestion, compilation, and semantic organization. They are deployed to `$HOME/.gemini/config/skills/` and work in tandem with the canonical scripts in `$HOME/.gemini/config/bin/`.
 
 ```
   Ingestion Phase (OCR)  →  Compilation Phase  →  Analysis & Sync  →  Auditing & Research
@@ -103,8 +110,8 @@ The repository contains **14 specialized skills** designed to handle academic in
 ### 3.1 Core Ingestion & Compilation Skills
 
 #### 1. `wiki_ingest` (Multimodal Ingestion)
-*   **Role**: Converts external files (notes, web articles, PDFs inside `inbox/`) into raw Markdown files under `raw/`.
-*   **Math Ingestion Hardening**: Orchestrates PDF transcription by spawning parallel subagents (up to 10 concurrently) to transcribe pages using their native multimodal vision. Incorporates page count validation to prevent silent page truncation.
+*   **Role**: Converts external files (notes, web articles, LaTeX `.tex` files, PDFs inside `inbox/`) into raw Markdown files under `raw/`.
+*   **Math Ingestion Hardening**: Orchestrates PDF transcription by spawning parallel subagents (up to 10 concurrently) to transcribe pages using their native multimodal vision. Incorporates page count validation to prevent silent page truncation. Supports automated LaTeX processing using Pandoc for seamless conversion of bibliographies, equations, and citations.
 *   **Commands**: `ingest`
 
 #### 2. `wiki_ingest_ocr` (Offline local OCR Ingestion)
@@ -131,52 +138,62 @@ The repository contains **14 specialized skills** designed to handle academic in
 *   **Hardening**: Enforces mandatory automatic backup of files before executing destructive operations (file deletion or complete rewrites). Uses automated regex-escaping guards to prevent malformed symbolic concept titles (such as group symmetries or operator formulas) from crashing the parser.
 *   **Commands**: `sync_concept`, `sync_all_concepts`
 
+#### 6. `wiki_semantic_link` (Automated Semantic Linker)
+*   **Role**: Automatically builds semantic links between concept markdown files by calculating vector similarity using a local Ollama embedding model.
+*   **Hardening**: Safely backups all concepts before execution. Employs cosine similarity thresholds to idempotently inject bi-directional Obsidian-style links and suggest merges for highly similar nodes, maintaining semantic cohesiveness without breaking the graph.
+*   **Commands**: `link_concepts`
+
 ---
 
 ### 3.3 Auditing, Research & Navigation Skills
 
-#### 6. `wiki_audit` (Vault Auditor & Thesis Generator)
+#### 7. `wiki_audit` (Vault Auditor & Thesis Generator)
 *   **Role**: Executes vault-wide factual audits, cross-checks scientific claims, and synthesizes unified verdicts (Theses) under a Map-Reduce architecture.
 *   **Hardening**: Feeds subagents with a deterministic JSON summary seed instead of relying on open-ended keyword guesses. Enforces structured subagent contracts and strict citation verification (asserts supporting quotes actually exist in source files).
 *   **Commands**: `audit`
 
-#### 7. `wiki_research` (Academic Researcher)
+#### 8. `wiki_research` (Academic Researcher)
 *   **Role**: Orchestrates background subagents to perform deep, multi-perspective academic research on specialized topics, gathering evidence locally and from the web.
 *   **Hardening**: Restricts subagents from making claims from parametric memory alone. Filters out fabricated citations by validating sources against structural schemas via `validate-output.py`.
 *   **Commands**: `research`
 
-#### 8. `wiki_lint` (Structural Validator)
+#### 9. `wiki_lint` (Structural Validator)
 *   **Role**: Statically checks and repairs bidirectional linkages, path resolutions, and YAML frontmatter constraints across the entire workspace.
 *   **Hardening**: Deploys an idempotent `--fix` engine that repairs broken metadata automatically. Incorporates checks against Windows-illegal filename characters in wikilinks to prevent target terminal execution crashes.
 *   **Commands**: `lint`
 
-#### 9. `wiki_router` (Workspace Path Resolver)
+#### 10. `wiki_router` (Workspace Path Resolver)
 *   **Role**: Resolves workspace path slugs dynamically, converting user-provided relative directories or leading tildes to absolute system paths.
 *   **Hardening**: Fully synchronized path resolution engine supporting absolute paths, tilde prefixes, and `<HUB>/` path conventions.
 *   **Commands**: `route`
 
-#### 10. `wiki_init` (Workspace Initializer)
+#### 11. `wiki_init` (Workspace Initializer)
 *   **Role**: Bootstraps a fresh workspace directory with standard `raw/`, `wiki/`, and `inbox/` subfolders.
 *   **Hardening**: Replaces free-form file generation with strict verbatim file templates for `config.md`, `log.md`, and `_index.md`.
 *   **Commands**: `initialize`
+
+#### 12. `wiki_graph_index` (Graph Database Extractor)
+*   **Role**: Extracts Obsidian-style relationships (wikilinks, tags, aliases) into a structured AI-friendly SQLite graph database (`output/graph.db`).
+*   **Hardening**: Employs deterministic parsing to isolate Markdown frontmatter and inline links without rendering engines, enabling subsequent complex SQL traversals of the knowledge graph by autonomous agents.
+*   **Commands**: `graph`
 
 ---
 
 ### 3.4 Topic & Hub Lifecycle Skills
 
-#### 11. `wiki_hub_init` (Central Registry Bootstrapper)
+#### 13. `wiki_hub_init` (Central Registry Bootstrapper)
 *   **Role**: Initializes a central registry Hub directory for managing multiple topic vaults.
 *   **Hardening**: Validates `wikis.json` schema automatically on every run.
 
-#### 12. `wiki_hub_list` (Registry Auditor)
+#### 14. `wiki_hub_list` (Registry Auditor)
 *   **Role**: Lists all active and archived topics, auditing directories to register untracked workspaces.
 *   **Hardening**: Incorporates robust error-handling for registry reading.
 
-#### 13. `wiki_hub_archive` (Vault Archiver)
+#### 15. `wiki_hub_archive` (Vault Archiver)
 *   **Role**: Moves active topic workspaces to `.archive/` and updates registries.
 *   **Hardening**: Restricts archiver from touching hub roots or running destructive operations on non-empty destinations.
 
-#### 14. `wiki_hub_restore` (Vault Restorer)
+#### 16. `wiki_hub_restore` (Vault Restorer)
 *   **Role**: Restores archived topic workspaces back into the active Hub registry.
 *   **Hardening**: Cleans up registry files and verifies destination paths safely before moving.
 

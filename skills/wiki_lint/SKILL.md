@@ -11,7 +11,7 @@ This skill handles static validation, claim mapping, and link structural checks 
 
 When the user asks to lint, repair, or audit the links in their vault:
 1.  **Execute Local Python CLI**: Bypass semantic guesswork. Run the complete, 511-line Python validator script bundled inside this skill:
-    `python $HOME/.gemini\config\bin\llm-wiki.py lint --fix`
+    `python .agents/bin/llm-wiki.py lint --fix`
 2.  **Report to User**: Present all parsed warnings, dangling double-brackets `[[links]]`, missing metadata frontmatter properties, or directory structure discrepancies.
 3.  **Self-Contained Sandbox Verification**: For developer test runs, you can utilize the sandboxed directories in `<SKILL_DIR>/tests/fixtures/` to benchmark and verify the validator's performance:
     *   `golden-wiki/` contains a flawless mock vault.

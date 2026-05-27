@@ -11,4 +11,4 @@ This skill restores an archived topic, moving its directory back from `.archive/
 
 When the user asks to restore an archived topic or unarchive a topic:
 1.  **Strict Dispatcher Rule**: Run the local deterministic Python script inside this skill directory.
-    `python $HOME/.gemini\config\bin\llm-wiki.py archive --hub <path_to_hub> restore <slug>`
+    `python .agents/bin/llm-wiki.py archive --hub <path_to_hub> restore <slug>`

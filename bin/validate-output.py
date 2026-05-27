@@ -104,7 +104,16 @@ def validate_research(file_path: Path, fm: dict[str, str], body: str, wiki_root:
         if not source_path.is_absolute():
             source_path = wiki_root / source
         if not source_path.exists():
-            issues.append(f"source does not exist: {source}")
+            if source_path.is_absolute():
+                parts = source_path.parts
+                for i, p in enumerate(parts):
+                    if p in ("wiki", "raw", "inventory", "datasets"):
+                        fallback = wiki_root / Path(*parts[i:])
+                        if fallback.exists():
+                            source_path = fallback
+                            break
+            if not source_path.exists():
+                issues.append(f"source does not exist: {source}")
 
     paragraphs = re.split(r"\n\n+", body)
     unsupported = 0
