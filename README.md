@@ -95,5 +95,11 @@ Once installed, simply ask your AI assistant to perform the following workflows 
 - **`wiki_ask "Your Question"`**: Ask the AI any question about your vault. The AI will use RAG and Graph SQL to answer you with strict `[[Citations]]` and zero hallucinations.
 - **`wiki_audit` / `wiki_research`**: Ask the AI to perform a comprehensive literature review or audit the knowledge base for scientific contradictions.
 
+### Utilities & Workspace Lifecycle
+- **`wiki_init`**: Tell the AI to bootstrap a fresh, clean topic workspace with all necessary directories and config files.
+- **`wiki_lint`**: Runs a structural validation across the vault to fix broken links and metadata.
+- **`wiki_graph_index`**: Forces a manual update of the SQLite `graph.db` used by the AI for querying relationships.
+- **`wiki_hub_init` / `wiki_hub_manager`**: Use these to initialize a central Hub and manage (list/archive/restore) multiple topic vaults simultaneously.
+
 ---
 *Note: All destructive operations (merging, rewriting) automatically create backups in `.backup/` folders.*
