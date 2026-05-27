@@ -16,28 +16,36 @@ When the user asks to perform an audit or truth check on their vault:
         `python .agents/bin/llm-wiki.py stats <TOPIC_DIR> wiki-summary`
     *   Parse the JSON output to understand the vault structure: total files, per-directory counts, file titles, and which files have sources.
     *   **Graph Analysis (MANDATORY)**: Run `python .agents/bin/llm-wiki.py graph` to ensure the local graph database is strictly up to date. Do NOT skip this, otherwise you will read stale data!
-    *   Then query the knowledge graph using `python .agents/bin/query-graph.py "<SQL>"`. Do not use direct `sqlite3` command line execution to avoid shell escaping issues.
-    *   Use the inventory and graph results to select the files most relevant to the user's audit query. Then use `python .agents/bin/search-wiki.py "<regex>" <files...>` for targeted keyword searches within those specific files (do not rely on system `grep` or `grep_search` tool if the environment lacks it).
+    *   Then query the knowledge graph using `python .agents/bin/query-graph.py "<SQL>"`. Do not use direct `sqlite3` command line execution.
+        **Graph DB Schema:**
+        - `nodes(id TEXT PRIMARY KEY, path TEXT, title TEXT, type TEXT, category TEXT, summary TEXT, created TEXT, updated TEXT)`
+        - `edges(source_id TEXT, target_id TEXT, type TEXT)`
+        - `tags(node_id TEXT, tag TEXT)`
+        - `aliases(node_id TEXT, alias TEXT)`
+        **Example Queries:**
+        - `SELECT path FROM nodes WHERE category='reference' AND id IN (SELECT node_id FROM tags WHERE tag='quantum-mechanics')`
+        - `SELECT n.path, e.type FROM nodes n JOIN edges e ON n.id = e.target_id WHERE e.source_id = 'some-concept-id'`
+    *   Use the inventory and graph results to select the files most relevant to the user's audit query. Then use `python .agents/bin/search-wiki.py "<regex>" <files...>` for targeted keyword searches within those specific files.
     *   Do NOT attempt to read all compiled cards manually.
 
 2.  **Reduce (Subagent Phase)**:
     *   Use the `invoke_subagent` tool to spawn one or more "Audit Subagents". Assign each subagent a specific subset of the relevant files.
     *   **Subagent Output Contract (MANDATORY)**: Each subagent MUST structure findings as:
         ```
-        CLAIM: "<exact quote from file>"
+        CLAIM: "<exact quote from conflicting file>"
+        EVIDENCE: "<exact quote from file>"
+        SOURCE_TYPE: local_wiki
         SOURCE: <wiki file path>
-        CONTRADICTS: "<exact quote from conflicting file>"
-        CONTRA_SOURCE: <wiki file path>
+        CONTRADICTS_SOURCE: <conflicting wiki file path>
         SEVERITY: high|medium|low
         EXPLANATION: <why these claims conflict>
         ```
     *   If a subagent fails or times out, log the failure and proceed with available results.
 
 3.  **Verify Citations (MANDATORY)**:
-    *   Before including any finding in the thesis, the main agent MUST verify:
-        a. Both `SOURCE` and `CONTRA_SOURCE` file paths exist (use `view_file` or `list_dir`)
-        b. The quoted claims actually appear in those files (use `python .agents/bin/search-wiki.py` or `view_file`)
-    *   Discard any finding where the file paths don't exist or quotes can't be verified. Log discarded findings separately.
+    *   Save all subagent outputs to `scratch/temp_claims.txt`.
+    *   Run `python .agents/bin/verify_claims.py scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>"`
+    *   Discard any finding that is reported as `[UNVERIFIED]`. Log discarded findings separately.
 
 4.  **Synthesize**: Merge the verified findings into a structured investigation report (Thesis).
 

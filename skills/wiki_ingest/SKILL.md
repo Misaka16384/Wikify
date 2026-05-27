@@ -38,11 +38,8 @@ When the user asks to ingest documents (or runs the command without a path):
     ---
     ```
     **Frontmatter Validation (MANDATORY)**: After writing, run `python .agents/bin/llm-wiki.py lint <TOPIC_DIR>` and check if the new file has any frontmatter-related critical or warning issues. Fix them before proceeding.
-5.  **Register Ingest**: If successfully processed from `inbox/`, move the original file to `inbox/.processed/`.
-6.  **Format Math Formulas**: Run the math formatting helper script on the active topic workspace directory to automatically clean, isolate, and align LaTeX double-dollar block equations and prevent rendering errors across all `.md` files in the workspace:
-    `python .agents/bin/format_math.py "<TOPIC_DIR>"`
-    If this script exits with a non-zero code, log the error and alert the user — do NOT silently continue.
-7.  **Index Update**: Run the local helper to rebuild raw directory index entries:
-    `python .agents/bin/llm-wiki.py lint --fix`
-8.  **Log**: Append an entry in `log.md`, including: file count ingested, page counts for PDFs, any errors encountered.
+5.  **Post-Processing Pipeline**: Trigger the automated pipeline script to handle moving, formatting, linting, and logging:
+    ```bash
+    python .agents/bin/ingest_pipeline.py "<ORIGINAL_FILE_PATH>" --topic-dir "<TOPIC_DIR>" --log-msg "Ingested <DOC_TITLE>"
+    ```
 

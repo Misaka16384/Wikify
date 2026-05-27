@@ -14,30 +14,23 @@ This skill maintains the semantic integrity and comprehensive depth of the knowl
 
 The user can ask to refine/sync a **single concept** (e.g., `wiki_concept_sync "Quantum Entanglement"`) or run a **global sync** (`wiki_concept_sync_all`). If not specified, default to asking the user or assuming the concept currently being discussed.
 
-### Phase 1: Discovery & Deduplication (Global Only)
-1.  **Scan**: List all concept files in `wiki/concepts/`.
-2.  **Semantic Merge**: Identify semantically identical concepts (e.g., `Neural_Network.md` and `Artificial_Neural_Networks.md`).
-3.  **Resolve**: Choose a canonical name. Merge the content into the canonical file.
-4.  **Backup Before Delete (MANDATORY)**: Before deleting any file, copy it to `wiki/concepts/.backup/` with a timestamped suffix (e.g., `Neural_Network_2026-05-26.md`). Create the `.backup/` directory if it does not exist.
-5.  **Refactor Links**: Use `grep_search` across `wiki/` to find all `[[Old Concept]]` links. Then use the `replace_file_content` or `multi_replace_file_content` tool to update each file that contains the old link. Only after all references have been updated, delete the duplicate file (after backup per step 4).
-6.  **Idempotency Check**: Before merging, check if `wiki/concepts/.backup/` already contains a backup for this concept from a previous run. If so, skip the merge and log that it was already processed.
+### Phase 1: Deduplication Discovery
+1.  **Semantic Duplicates Search**: Run the semantic linker in deduplication-only mode to find highly identical concepts:
+    `python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> --merge-threshold 0.8 --dedup-only`
+2.  **Agent Review**: Carefully review the `[MERGE_SUGGESTION]` output logs from the script.
+3.  **Resolve & Merge (Principle)**: If you verify that a pair is genuinely the same or strongly overlapping, choose a canonical name. **CRITICAL PRINCIPLE**: Always merge sub-concepts into their parent concepts (e.g., merge `gauge_redundancy` into `gauge_symmetry`). The parent concept becomes the Canonical Name.
+4.  **Refactor Links**: Run the deterministic python script to safely update all `[[Old Concept]]` links to `[[Canonical Name]]`, and handle backups and deletions automatically:
+    `python .agents/bin/refactor_concept.py --topic-dir "<TOPIC_DIR>" --old "Old Concept" --new "Canonical Name"`
 
-### Phase 2: Breadth Analysis (Sub-Concept Splitting)
-1.  **Evaluate**: Assess if the target concept is too broad (e.g., "Machine Learning") but lacks detailed sub-concept links.
-2.  **Split**: If it's a broad umbrella, extract specific subtypes mentioned in the content. Create new concept files for these subtypes and update the origin papers to link to the more precise sub-concepts rather than just the umbrella term.
-
-### Phase 3: Multi-Source Synthesis (Core Function)
-This phase builds a comprehensive definition of a concept by reading every paper that mentions it.
-1.  **Search References**: Use the `grep_search` tool to find all occurrences of `[[Concept Name]]` within the `wiki/references/` directory.
-2.  **Parallel Subagent Mining**:
-    *   For *each* paper found, use `invoke_subagent` to spawn a "Context Reader" subagent.
-    *   **Prompt for Subagent**: "Read the following paper. Extract exactly how 'Concept Name' is defined, applied, or modified in the specific context of this paper. Return a focused summary of its role here."
+### Phase 2: Multi-Source Synthesis (Post-Merge RAG)
+After resolving duplicates, you must synthesize their definitions to ensure no knowledge is lost.
+1.  **Extract RAG Context**: Run the context extractor script to globally search all references for this Canonical Concept and compile the surrounding paragraphs:
+    `python .agents/bin/extract_concept_context.py --name "Canonical Name" --topic-dir "<TOPIC_DIR>"`
+    This script will output the path to a `scratch/concept_context_<slug>.md` file.
+2.  **Single-Pass Reading**: Use the `view_file` tool to read the generated context file.
 3.  **Comprehensive Synthesis**:
-    *   Wait for all subagents to report back. If any subagent fails, log the failure and proceed with available results.
-    *   **Backup Before Rewrite (MANDATORY)**: Before rewriting any concept file, copy the current version to `wiki/concepts/.backup/<filename>_<YYYY-MM-DD>.md`.
-    *   Rewrite the `wiki/concepts/<Concept Name>.md` file.
-    *   **Structure**: Ensure the new file adheres to the Concept Template (e.g., `## 1. Core Definition & Physical Intuition`, `## 2. Mathematical Formalism`). 
-    *   **Multi-Perspective Citing**: Integrate the subagent findings into a "Cross-Reference Applications" section. Explicitly state how the concept is used differently across the papers (e.g., "In [[Paper A]], it serves as a boundary condition, while [[Paper B]] extends it to...").
-    *   **Post-Write Validation**: Run `python .agents/bin/llm-wiki.py lint <TOPIC_DIR>` to verify the rewritten file passes structural checks.
-4.  **Log**: Update `log.md` with the synthesis outcome, listing which concepts were merged/rewritten/split.
+    *   **Backup Before Rewrite**: Backup the concept file to `wiki/concepts/.backup/`.
+    *   Rewrite `wiki/concepts/<Canonical Name>.md` to fuse the definitions, ensuring no loss of detail from the merged duplicate.
+    *   **Post-Write Validation**: Run `python .agents/bin/llm-wiki.py lint <TOPIC_DIR>`.
+4.  **Log**: Update `log.md` with the deduplication and synthesis outcome.
 

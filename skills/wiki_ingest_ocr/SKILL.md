@@ -27,9 +27,7 @@ When the user asks to ingest PDFs using local OCR (or runs the command without a
     *   **For `.tex` files**: You **MUST** use the Pandoc conversion script instead of OCR. Run:
         `python .agents/bin/tex2md.py "<TEX_PATH>" -o "<TOPIC_DIR>\raw\<type>"`
         *Note: This script automatically generates YAML frontmatter and writes the file.*
-4.  **Register Ingest**: If successfully processed from `inbox/`, move the original PDF file to `inbox/.processed/`.
-5.  **Format Math Formulas**: Run the math formatting helper script on the active topic workspace directory to automatically clean, isolate, and align LaTeX double-dollar block equations:
-    `python .agents/bin/format_math.py "<TOPIC_DIR>"`
-6.  **Index Update**: Run the local helper to rebuild the topic's raw directory index entries:
-    `python .agents/bin/llm-wiki.py lint --fix`
-7.  **Log**: Append an entry in the topic's `log.md`.
+4.  **Post-Processing Pipeline**: Once the above conversion is done, trigger the automated pipeline script to handle moving, formatting, linting, and logging in one shot:
+    ```bash
+    python .agents/bin/ingest_pipeline.py "<ORIGINAL_FILE_PATH>" --topic-dir "<TOPIC_DIR>" --log-msg "Ingested <DOC_TITLE> via OCR"
+    ```

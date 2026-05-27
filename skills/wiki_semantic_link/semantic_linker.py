@@ -15,6 +15,7 @@ def setup_argparse():
     parser.add_argument("topic_dir", help="Path to the root of the topic wiki (containing wiki/concepts/)")
     parser.add_argument("--threshold", type=float, default=0.75, help="Cosine similarity threshold for linking (default: 0.75)")
     parser.add_argument("--merge-threshold", type=float, default=0.85, help="Cosine similarity threshold for merge suggestions (default: 0.85)")
+    parser.add_argument("--dedup-only", action="store_true", help="Only output merge suggestions, do not inject links.")
     parser.add_argument("--model", type=str, default="qwen3-embedding:0.6b", help="Ollama embedding model to use")
     parser.add_argument("--ollama-url", type=str, default="http://localhost:11434/api/embeddings", help="Ollama API endpoint")
     return parser.parse_args()
@@ -98,6 +99,8 @@ def main():
         
     print(f"[Info] Starting semantic link generation for: {concepts_dir}")
     print(f"[Info] Model: {args.model}, Threshold: {args.threshold}")
+    if args.dedup_only:
+        print("[Info] Running in DEDUP-ONLY mode. Links will not be injected.")
     
     # 1. Backup
     backup_concepts(concepts_dir)
@@ -119,7 +122,7 @@ def main():
                 concept_names.append(filename[:-3]) # remove .md
     
     if len(files) < 2:
-        print("[Info] Not enough concepts to link.")
+        print("[Info] Not enough concepts to analyze.")
         sys.exit(0)
         
     # 3. Generate embeddings
@@ -149,24 +152,26 @@ def main():
         for j in range(i + 1, len(files)):
             score = similarity_matrix[i][j]
             
-            if score >= args.merge_threshold:
-                # Suggest merge instead of just linking
-                print(f"[MERGE_SUGGESTION] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f})")
-                merge_suggestions += 1
-            elif score >= args.threshold:
-                # Add link to i (linking to j)
-                if inject_link(files[i], concept_names[j]):
-                    links_added += 1
-                    print(f"  [Linked] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f})")
-                
-                # Add link to j (linking to i)
-                if inject_link(files[j], concept_names[i]):
-                    links_added += 1
-                    # Don't print twice to avoid spam
+            if args.dedup_only:
+                if score >= args.merge_threshold:
+                    print(f"[MERGE_SUGGESTION] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f})")
+                    merge_suggestions += 1
+            else:
+                if score >= args.threshold:
+                    # Add link to i (linking to j)
+                    if inject_link(files[i], concept_names[j]):
+                        links_added += 1
+                        print(f"  [Linked] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f})")
                     
-    print(f"[Success] Added {links_added} new semantic links.")
-    if merge_suggestions > 0:
-        print(f"[Attention] Found {merge_suggestions} potential merges. AI Agent should prompt the user for merge approval.")
+                    # Add link to j (linking to i)
+                    if inject_link(files[j], concept_names[i]):
+                        links_added += 1
+                        # Don't print twice to avoid spam
+                    
+    if args.dedup_only:
+        print(f"[Success] Found {merge_suggestions} potential merges.")
+    else:
+        print(f"[Success] Added {links_added} new semantic links.")
 
 if __name__ == "__main__":
     main()

@@ -33,10 +33,7 @@ python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> [--thres
 2. Filters out identical pairs (similarity = 1.0, i.e., self-links) and pairs below the defined threshold (e.g., `< 0.85`).
 
 ### Phase 4: Idempotent Injection
-1. For every highly-related pair `(A, B)` (where `threshold <= score < merge_threshold`), checks if `A.md` already contains `[[B]]`.
+1. For every highly-related pair `(A, B)` (where `score >= threshold`), checks if `A.md` already contains `[[B]]`.
 2. If not, it safely injects it at the bottom under the heading `## 语义关联 (Semantic Links)`.
 
-### Phase 5: Agent Merge Execution (Merge Suggestions)
-1. If the similarity score is `>= merge_threshold` (default `0.95`), the script will output `[MERGE_SUGGESTION] A <--> B`.
-2. **AI Action Required**: When the AI Agent reads this log, it MUST pause and ask the user for approval to merge the suggested concepts.
-3. If approved, the AI Agent will manually (or via `wiki_concept_sync`) merge the files, update all wikilinks pointing to the old name, and move the deprecated file to `.backup/`.
+*Note: This skill no longer handles merge suggestions. Deduplication is strictly handled by the `wiki_concept_sync` skill.*

@@ -14,7 +14,16 @@ When the user asks to research a topic:
 1.  **Draft a Dynamic Research Plan**: Analyze the user's research query and determine the domain (e.g., Mathematics, Theoretical Physics, Computer Science). Subdivide the query into 3 or more distinct, domain-specific investigative dimensions.
     *   *Example (Physics/Math)*: "Axiomatic Consistency Auditor", "Phenomenology & Experimental Reviewer", "Theoretical Extrapolator".
     *   *Example (CS)*: "Technical Deep Dive", "Critical Reviewer", "Empirical Auditor".
-    *   **Graph Context**: Before finalizing the plan, you are encouraged to query the local SQLite graph database (`output/graph.db`) to identify existing nodes related to the query. Ensure the index is up to date by running `python .agents/bin/llm-wiki.py graph` first. This helps contextualize your research plan within the existing knowledge graph.
+    *   **Graph Context**: Before finalizing the plan, you are encouraged to query the local SQLite graph database (`output/graph.db`) to identify existing nodes related to the query. Ensure the index is up to date by running `python .agents/bin/llm-wiki.py graph` first. Use `python .agents/bin/query-graph.py "<SQL>"` to query the knowledge graph. Do not use direct `sqlite3` command line execution.
+        **Graph DB Schema:**
+        - `nodes(id TEXT PRIMARY KEY, path TEXT, title TEXT, type TEXT, category TEXT, summary TEXT, created TEXT, updated TEXT)`
+        - `edges(source_id TEXT, target_id TEXT, type TEXT)`
+        - `tags(node_id TEXT, tag TEXT)`
+        - `aliases(node_id TEXT, alias TEXT)`
+        **Example Queries:**
+        - `SELECT path FROM nodes WHERE category='reference' AND id IN (SELECT node_id FROM tags WHERE tag='quantum-mechanics')`
+        - `SELECT n.path, e.type FROM nodes n JOIN edges e ON n.id = e.target_id WHERE e.source_id = 'some-concept-id'`
+        This helps contextualize your research plan within the existing knowledge graph.
 
 2.  **Orchestrate Background Subagents**: Spawn the parallel subagents using the `invoke_subagent` tool according to your dynamic research plan.
     *   Assign each subagent a clear, focused `Role` and `Prompt` tailored to their specific investigative dimension.
@@ -31,9 +40,10 @@ When the user asks to research a topic:
 
 3.  **Verify and Filter Subagent Results**:
     *   Wait for all subagents to report back. If any subagent fails, log the failure and proceed with available results.
-    *   For each finding with `SOURCE_TYPE: local_wiki`, verify the file path exists.
-    *   For each finding with `SOURCE_TYPE: web`, verify it includes a real URL (starts with `http://` or `https://`).
-    *   Reject any finding with no source or a fabricated source. Collect `[UNVERIFIED]` findings separately.
+    *   Save all reported findings exactly as returned into a temporary file: `scratch/temp_claims.txt`.
+    *   Run the verification script to automatically check the citations:
+        `python .agents/bin/verify_claims.py scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>"`
+    *   Only use `[VERIFIED]` claims in your final synthesis. Collect `[UNVERIFIED]` findings separately.
 
 4.  **Synthesize Findings**:
     *   Merge verified findings into a detailed, authoritative synthesis document.

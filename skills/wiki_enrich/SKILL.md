@@ -22,29 +22,33 @@ When the user asks to enrich, deep-dive, or查漏补缺 (fill gaps) on a paper:
 
 3.  **Chunk & Assign (Main Agent)**:
     *   Locate the corresponding raw source file in `raw/papers/`.
-    *   Logically divide the raw paper into discrete sections (e.g., Section 2: Theoretical Framework, Section 3: Experiments).
+    *   Run the deterministic chunking script to automatically divide the large raw file into smaller pieces in the `scratch/` directory:
+        `python .agents/bin/chunker.py "path/to/raw/file.md" --topic-dir "<TOPIC_DIR>"`
+    *   The script will output the number of chunks created.
 
 4.  **Parallel Mining (Subagents)**:
-    *   Use the `invoke_subagent` tool to spawn multiple "Concept Miner" subagents.
-    *   Assign each subagent a specific, localized chunk of the raw text.
+    *   Use the `invoke_subagent` tool to spawn one "Concept Miner" subagent per chunk.
+    *   Assign each subagent a specific chunk from the `scratch/` directory.
     *   Instruct them to deeply extract *only* mathematical axioms, theoretical models, theorems, and boundary conditions that are NOT already present in the initial compilation.
-    *   **Subagent Output Contract (MANDATORY)**: Each subagent MUST return findings as a structured list:
-        ```
-        CONCEPT: <concept name>
-        SECTION: <section of raw source where found>
-        VERBATIM_QUOTE: "<exact quote from raw source proving concept exists>"
-        ```
-        The main agent MUST verify each `VERBATIM_QUOTE` appears in the raw source file (using `grep_search` or `view_file`). Reject any concept whose quote cannot be found — it is likely hallucinated.
+    *   **Subagent Output Contract**: For each discovered concept, the subagent MUST securely register it using the centralized concept addition script:
+        `python .agents/bin/add_concept.py --name "Concept Name" --source "Source Paper Name" --content "Detailed quote and explanation from the chunk."`
+    *   The subagents should also report the names of the concepts they discovered in their response message to the main agent.
 
 5.  **Synthesize & Append**:
     *   Wait for all subagents to report back. If any subagent fails, log the failure and proceed with available results.
-    *   Filter out duplicates and synthesize the newly discovered concepts.
-    *   Edit the target compiled paper in `wiki/references/`, appending these new concepts using strict `[[Concept]]` formatting under the appropriate sections.
+    *   Collect the names of the newly discovered concepts from the subagent reports.
+    *   Edit the target compiled paper in `wiki/references/`, safely appending a new section at the very bottom (do NOT surgically splice into existing paragraphs):
+        ```markdown
+        ## 5. Enriched Secondary Concepts
+        *   [[New Concept A]]
+        *   [[New Concept B]]
+        ```
 
 6.  **Post-Enrichment Verification (MANDATORY)**:
+    *   Run the concept builder to sequentially generate any missing concept files correctly:
+        `python .agents/bin/concept_builder.py "<TOPIC_DIR>"`
     *   Run the reference verifier to check that all new `[[Concept]]` links point to existing files:
         `python .agents/bin/llm-wiki.py stats <TOPIC_DIR> verify-refs "<compiled_file>"`
-    *   If `dangling_count > 0`, you MUST create concept files for each dangling reference (at minimum with correct frontmatter and a core definition section). Do NOT leave orphan links.
 
 7.  **Mark Enriched**: Add or update `enriched: YYYY-MM-DD` in the compiled paper's YAML frontmatter.
 
