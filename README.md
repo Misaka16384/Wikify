@@ -1,4 +1,5 @@
 # Agentic Wiki Skills
+*[English](README.md) | [中文](README_zh.md)*
 
 This project provides a suite of agentic skills for AI coding assistants (like Gemini/Antigravity) to automatically ingest, compile, organize, and query academic papers (PDFs and LaTeX) into an Obsidian-compatible Markdown knowledge base.
 
