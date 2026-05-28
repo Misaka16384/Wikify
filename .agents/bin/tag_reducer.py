@@ -148,10 +148,12 @@ def cmd_apply(topic_dir: Path, tag_map_path: Path, alias_map_path: Path):
     
     # Save ontology
     ontology_list = sorted(list(final_ontology))
-    ontology_path = topic_dir / "wiki" / "ontology.txt"
+    output_dir = topic_dir / "output"
+    output_dir.mkdir(exist_ok=True)
+    ontology_path = output_dir / "ontology.txt"
     with open(ontology_path, "w", encoding="utf-8") as f:
         f.write("\n".join(ontology_list))
-    print(f"Saved {len(ontology_list)} canonical tags to wiki/ontology.txt")
+    print(f"Saved {len(ontology_list)} canonical tags to output/ontology.txt")
 
 def main():
     parser = argparse.ArgumentParser(description="Wiki Tag and Alias Reducer")
