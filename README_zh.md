@@ -28,6 +28,7 @@
 - **编译 (Compile)**：将数学定义、定理和概念提取为一张张相互链接的 Obsidian 独立卡片。
 - **去重与链接 (Deduplicate & Link)**：自动发现重复概念，通过 RAG 技术安全合并，并使用本地向量嵌入实现相关文件的语义链接。
 - **交互式问答 (Interactive Q&A)**：与你的整个知识库对话（使用 `wiki_ask`），AI 将严格使用本地 RAG、图数据库 SQL 查询和正则搜索来回答你——**保证零幻觉**，并附带精确引用。
+- **智能自愈 (Auto-Healing)**：智能 Linter 能够在合并重构期间自动检测死链，并借助全局别名路由系统（Alias Routing）全自动自愈知识图谱中的失效链接。
 
 ---
 
@@ -90,7 +91,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 ### 知识图谱维护 (Knowledge Graph Maintenance)
 - **`wiki_enrich`**: 让 AI 扫描论文，挖掘遗漏的引理或定理，补充为新的概念卡片。
 - **`wiki_concept_sync`**: 让 AI 去重。它会找出重复概念并智能地合并它们。
-- **`wiki_semantic_link`**: 这是一个静默运行的技能。它会对所有概念进行向量扫描，并在卡片底部自动注入 `[[相关链接]]`。
+- **`wiki_semantic_link`**: 这是一个静默运行的技能。它会对所有概念进行向量扫描，并在卡片底部自动注入 `[[相关链接]]`。搭载了极速 MD5 增量缓存机制，未更改概念实现 API 零开销。
 
 ### 问答与学术研究 (Chat & Research)
 - **`wiki_ask "你的问题"`**: 向 AI 提出任何关于你知识库的问题。AI 将严格遵循 `[[文献引用]]`，利用 RAG 和图谱 SQL 为你解答，杜绝幻觉。
@@ -98,8 +99,8 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 ### 基建与生命周期 (Utilities & Workspace Lifecycle)
 - **`wiki_init`**: 让 AI 自动生成一个带有标准化目录和配置文件的全新主题工作区。
-- **`wiki_lint`**: 在整个知识库中执行结构检查，修复失效链接和元数据。
-- **`wiki_graph_index`**: 强制手动更新用于 AI 图谱关系查询的 SQLite `graph.db`。
+- **`wiki_lint`**: 在整个知识库中执行结构检查，修复失效链接和元数据。它搭载了全局别名映射系统，能自动为您接驳和修复断裂的死链。
+- **`wiki_graph_index`**: 强制手动更新用于 AI 图谱关系查询的 SQLite `graph.db`，并在此过程中无缝静默刷新底层的语义向量缓存库。
 - **`wiki_hub_init` / `wiki_hub_manager`**: 用于初始化中央枢纽库 (Hub)，并同时管理（列出/归档/恢复）多个主题仓库。
 
 ---

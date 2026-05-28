@@ -28,6 +28,7 @@ When loaded into your AI assistant, you can ask the AI to:
 - **Compile**: Extract mathematical definitions, theorems, and concepts into individual, interlinked Obsidian cards.
 - **Deduplicate & Link**: Automatically find duplicate concepts, merge them safely via RAG, and semantically link related files using local vector embeddings.
 - **Interactive Q&A**: Chat with your entire knowledge base (`wiki_ask`) where the AI strictly answers using local RAG, Graph SQL queries, and regex search—guaranteeing zero hallucinations and exact citations.
+- **Auto-Healing**: The intelligent linter automatically detects dead links and self-heals the knowledge graph using a global concept alias routing system.
 
 ---
 
@@ -90,7 +91,7 @@ Once installed, simply ask your AI assistant to perform the following workflows 
 ### Knowledge Graph Maintenance
 - **`wiki_enrich`**: Tell the AI to scan a paper and extract missing lemmas or theorems into new concept cards.
 - **`wiki_concept_sync`**: Ask the AI to deduplicate concepts. It will find duplicates and merge them intelligently.
-- **`wiki_semantic_link`**: Runs silently to vector-scan all your concepts and inject `[[Related Links]]` at the bottom of cards.
+- **`wiki_semantic_link`**: Runs silently to vector-scan all your concepts and inject `[[Related Links]]` at the bottom of cards. Features blazing-fast incremental MD5 caching for zero API overhead on unchanged concepts.
 
 ### Chat & Research
 - **`wiki_ask "Your Question"`**: Ask the AI any question about your vault. The AI will use RAG and Graph SQL to answer you with strict `[[Citations]]` and zero hallucinations.
@@ -98,8 +99,8 @@ Once installed, simply ask your AI assistant to perform the following workflows 
 
 ### Utilities & Workspace Lifecycle
 - **`wiki_init`**: Tell the AI to bootstrap a fresh, clean topic workspace with all necessary directories and config files.
-- **`wiki_lint`**: Runs a structural validation across the vault to fix broken links and metadata.
-- **`wiki_graph_index`**: Forces a manual update of the SQLite `graph.db` used by the AI for querying relationships.
+- **`wiki_lint`**: Runs a structural validation across the vault to fix broken links and metadata. It features an auto-healer that routes dead links to their new canonical files using alias maps.
+- **`wiki_graph_index`**: Forces a manual update of the SQLite `graph.db` used by the AI for querying relationships, while simultaneously refreshing the underlying semantic vector cache.
 - **`wiki_hub_init` / `wiki_hub_manager`**: Use these to initialize a central Hub and manage (list/archive/restore) multiple topic vaults simultaneously.
 
 ---
