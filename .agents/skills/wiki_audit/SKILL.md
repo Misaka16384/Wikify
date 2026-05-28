@@ -71,3 +71,6 @@ When the user asks to perform an audit or truth check on their vault:
         to ensure all `[[references]]` in the thesis point to existing files.
 
 6.  **Log**: Update the activity log `log.md` with: audit query, files examined count, findings count, findings discarded count.
+
+7.  **Global Validation**: Finally, run the global static linter to verify the overall integrity of the wiki:
+    `python .agents/bin/llm-wiki.py lint <TOPIC_DIR>`

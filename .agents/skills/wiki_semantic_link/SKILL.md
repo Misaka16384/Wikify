@@ -36,4 +36,8 @@ python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> [--thres
 1. For every highly-related pair `(A, B)` (where `score >= threshold`), checks if `A.md` already contains `[[B]]`.
 2. If not, it safely injects it at the bottom under the heading `## 语义关联 (Semantic Links)`.
 
+### Phase 5: Global Validation
+1.  **Global Validation (MANDATORY)**: Since multiple concept files have been modified, run the global static linter to verify the overall integrity of the wiki:
+    `python .agents/bin/llm-wiki.py lint <TOPIC_DIR>`
+
 *Note: This skill no longer handles merge suggestions. Deduplication is strictly handled by the `wiki_concept_sync` skill.*

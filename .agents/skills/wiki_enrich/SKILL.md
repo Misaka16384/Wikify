@@ -56,3 +56,6 @@ When the user asks to enrich, deep-dive, or查漏补缺 (fill gaps) on a paper:
 7.  **Mark Enriched**: Add or update `enriched: YYYY-MM-DD` in the compiled paper's YAML frontmatter.
 
 8.  **Log**: Update the activity log `log.md` with: paper enriched, concepts added count, dangling refs resolved count.
+
+9.  **Global Validation**: Finally, run the global static linter to verify the overall integrity of the wiki:
+    `python .agents/bin/llm-wiki.py lint <TOPIC_DIR>`
