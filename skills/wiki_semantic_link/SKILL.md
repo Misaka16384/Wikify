@@ -11,11 +11,14 @@ This skill scans all markdown files within the `wiki/concepts/` directory, extra
 
 ## Execution
 
-This skill is executed via the Python script located within the skill directory:
+This skill is executed via the Python script located within the skill directory.
 
-```bash
-python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> [--threshold 0.85] [--model qwen3-embedding:0.6b]
-```
+**Crucial Parameter Selection**:
+Depending on the objective, you MUST use the correct parameters:
+1. **Normal Link Injection**: If the user just wants to inject semantic links (default behavior):
+   `python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> --threshold 0.75 --model qwen3-embedding:0.6b`
+2. **Deduplication Scan (Auto-Merge)**: If the user is running the `wiki_concept_sync` pipeline to merge duplicates:
+   `python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> --dedup-only --auto-merge`
 
 > **Prerequisites**: Ensure the embedding model is available locally via `ollama pull qwen3-embedding:0.6b` before running. Requires `numpy` and `scikit-learn` Python packages.
 
