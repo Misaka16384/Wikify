@@ -26,14 +26,16 @@ class ExtractedImage:
 class ImageHandler:
     """图片处理器，负责提取和处理 PDF 中的图片"""
 
-    def __init__(self, output_folder: str = "images"):
+    def __init__(self, output_folder: str = "images", pdfimages_path: str = ""):
         """
         初始化图片处理器
 
         Args:
             output_folder: 图片输出子文件夹名称
+            pdfimages_path: pdfimages 可执行文件路径，空则使用 PATH 中的
         """
         self.output_folder = output_folder
+        self.pdfimages_path = pdfimages_path or self._find_pdfimages()
 
     def setup_output_dir(self, base_dir: str) -> Path:
         """创建图片输出目录"""
@@ -67,7 +69,7 @@ class ImageHandler:
         images = []
 
         # 查找 pdfimages 工具
-        pdfimages_path = self._find_pdfimages()
+        pdfimages_path = self.pdfimages_path
         if not pdfimages_path:
             print("警告: pdfimages 未找到，跳过图片提取")
             return images
@@ -108,11 +110,26 @@ class ImageHandler:
 
     def _find_pdfimages(self) -> str:
         """查找 pdfimages 工具"""
+        # 1. 检查环境变量
+        env_path = os.environ.get("PDFIMAGES_PATH")
+        if env_path and os.path.exists(env_path):
+            return env_path
+
+        # 2. 优先使用 PATH 中的 pdfimages
         result = shutil.which("pdfimages")
         if result:
             return result
 
-        # 尝试常见 texlive 路径
+        # 3. Linux / macOS 常见路径
+        unix_paths = [
+            "/usr/bin/pdfimages",
+            "/usr/local/bin/pdfimages",
+        ]
+        for path in unix_paths:
+            if os.path.exists(path):
+                return path
+
+        # 4. Windows 常见路径 (fallback)
         common_paths = [
             r"D:\texlive\2024\bin\windows\pdfimages.exe",
             r"C:\texlive\2024\bin\windows\pdfimages.exe",

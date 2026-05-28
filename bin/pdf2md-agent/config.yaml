@@ -15,6 +15,8 @@ ocr:
 pdf:
   # pdftoppm路径 (空则使用PATH中的)
   pdftoppm_path: ""
+  # pdfimages路径 (空则使用PATH中的)
+  pdfimages_path: ""
   # 输出图片格式
   image_format: "png"
   # 图片质量

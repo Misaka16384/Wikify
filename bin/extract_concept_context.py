@@ -11,8 +11,8 @@ def extract_frontmatter(content):
             try:
                 fm = yaml.safe_load(parts[1])
                 return fm if fm else {}
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Warning: YAML parse error: {e}", file=sys.stderr)
     return {}
 
 def slugify(text):

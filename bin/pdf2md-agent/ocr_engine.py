@@ -10,11 +10,11 @@ OCR Engine Module
 import base64
 import io
 import json
+import sys
 import time
 import requests
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
-from pathlib import Path
 from PIL import Image
 
 
@@ -268,8 +268,8 @@ class OCREngine:
                 models = response.json().get("models", [])
                 model_names = [m.get("name", "") for m in models]
                 return any(self.model in name for name in model_names)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: check_model_available failed: {e}", file=sys.stderr)
         return False
 
     def is_model_loaded(self) -> Tuple[bool, Optional[Dict]]:
@@ -287,8 +287,8 @@ class OCREngine:
                 for m in models:
                     if self.model in m.get("name", ""):
                         return True, m
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: is_model_loaded failed: {e}", file=sys.stderr)
         return False, None
 
     def get_model_info(self) -> Optional[Dict]:
@@ -301,8 +301,8 @@ class OCREngine:
                 for m in models:
                     if self.model in m.get("name", ""):
                         return m
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: get_model_info failed: {e}", file=sys.stderr)
         return None
 
     def warmup(self, timeout: int = 300) -> Tuple[bool, str]:

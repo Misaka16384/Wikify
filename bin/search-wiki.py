@@ -8,6 +8,7 @@ import argparse
 import json
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from pathlib import Path
 
 MAX_RESULTS = 200
@@ -21,7 +22,12 @@ def main():
 
     flags = re.IGNORECASE if args.ignore_case else 0
     try:
-        pattern = re.compile(args.query, flags)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(re.compile, args.query, flags)
+            pattern = future.result(timeout=5)
+    except TimeoutError:
+        print(json.dumps({"error": "Regex compilation timed out (possible ReDoS attack)"}))
+        sys.exit(1)
     except re.error as e:
         print(json.dumps({"error": f"Invalid regex: {e}"}))
         sys.exit(1)

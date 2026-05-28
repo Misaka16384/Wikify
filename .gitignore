@@ -1,3 +1,6 @@
+# Environments
+.venv/
+
 # Python cache
 __pycache__/
 *.pyc
@@ -12,6 +15,12 @@ Desktop.ini
 
 # Deployed copies (do not commit)
 .agents/
+
+# Environment variables
+.env
+
+# Output directories
+output/
 
 # Lock files from filelock
 *.lock

@@ -42,6 +42,14 @@
 pip install -r requirements.txt
 ```
 
+> **提示**：建议使用虚拟环境以避免依赖冲突：
+> ```powershell
+> python -m venv .venv
+> .\.venv\Scripts\activate  # Windows
+> # source .venv/bin/activate  # Linux/macOS
+> pip install -r requirements.txt
+> ```
+
 ### 2.2 系统级外部程序
 本流水线依赖一些外部工具，必须将它们添加到系统的 `PATH` 环境变量中：
 
@@ -68,14 +76,46 @@ ollama pull glm-ocr
 ollama pull qwen3-embedding:0.6b
 ```
 
+### 2.4 自定义工具路径（可选）
+如果您的工具不在 `PATH` 中，可以通过环境变量或 `config.yaml` 配置自定义路径：
+
+**方式 1：环境变量**（从 `.env.example` 创建 `.env` 文件）
+```bash
+PDFTOPPM_PATH=/path/to/pdftoppm
+PDFIMAGES_PATH=/path/to/pdfimages
+PANDOC_PATH=/path/to/pandoc
+```
+
+**方式 2：编辑 `config.yaml`**（在 agent 目录下）
+```yaml
+pdf:
+  pdftoppm_path: "/path/to/pdftoppm"
+  pdfimages_path: "/path/to/pdfimages"
+```
+
+详见 `.env.example` 文件中的所有可用选项。
+
 ---
 
 ## 3. 安装与部署
 
-运行提供的 PowerShell 安装脚本，将所有技能拷贝到您的 AI 配置目录 (`$HOME\.gemini\config\`)：
+### Windows（推荐）
+运行提供的 PowerShell 安装脚本，将所有技能拷贝到您的 AI 配置目录：
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\install.ps1
+```
+
+### Linux / macOS（手动安装）
+```bash
+# 将技能和脚本复制到 AI 配置目录
+TARGET="$HOME/.gemini/config"
+mkdir -p "$TARGET/skills" "$TARGET/bin"
+cp -r skills/* "$TARGET/skills/"
+cp -r bin/* "$TARGET/bin/"
+
+# 安装 Python 依赖
+pip install -r requirements.txt
 ```
 
 ---

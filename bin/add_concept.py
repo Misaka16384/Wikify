@@ -6,6 +6,11 @@ import re
 from filelock import FileLock
 
 def resolve_source(topic_dir, source_arg):
+    # Path traversal protection: reject source containing directory separators
+    if '..' in source_arg:
+        print(f"Warning: Invalid source '{source_arg}' — path traversal detected")
+        return None, None
+
     slug = re.sub(r'[^a-zA-Z0-9]+', '-', source_arg.lower()).strip('-')
     
     # 1. Check in raw/papers/
@@ -62,7 +67,9 @@ def main():
                 content = "---\ntitle: \"Concept Name\"\ncategory: concept\ncreated: YYYY-MM-DD\nupdated: YYYY-MM-DD\n---\n\n# Concept Name\n"
             
             resolved_source_path, resolved_source_name = resolve_source(args.topic_dir, args.source)
-            
+            if resolved_source_path is None:
+                sys.exit(1)
+
             new_frontmatter = f"""---
 title: "{args.name}"
 category: concept
@@ -112,8 +119,8 @@ summary: 'Dynamically mined concept tracking {args.name}.'
     try:
         if os.path.exists(lock_file):
             os.remove(lock_file)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Warning: lock cleanup failed: {e}", file=sys.stderr)
 
 if __name__ == "__main__":
     main()

@@ -1,3 +1,8 @@
+# Allow user to specify target via argument or prompt
+param(
+    [string]$Target = ""
+)
+
 # Gemini Wiki Skills — Automated Installer for Windows PowerShell
 # Deploys bin/ and skills/ to a user-specified target directory.
 $ErrorActionPreference = "Stop"
@@ -5,11 +10,6 @@ $ErrorActionPreference = "Stop"
 Write-Host "=========================================" -ForegroundColor Cyan
 Write-Host "  Gemini Wiki Skills Installer" -ForegroundColor Cyan
 Write-Host "=========================================" -ForegroundColor Cyan
-
-# Allow user to specify target via argument or prompt
-param(
-    [string]$Target = ""
-)
 
 if (-not $Target) {
     $Target = Read-Host "Enter target project directory (e.g. D:\文档\MindPalace\.agents)"
@@ -20,11 +20,11 @@ if (-not $Target -or -not (Test-Path $Target -IsValid)) {
     exit 1
 }
 
-$Target = (Resolve-Path -LiteralPath $Target -ErrorAction SilentlyContinue)?.Path
-if (-not $Target) {
-    # Target doesn't exist yet, create it
-    $Target = $args[0]
+$Resolved = Resolve-Path -LiteralPath $Target -ErrorAction SilentlyContinue
+if ($Resolved) {
+    $Target = $Resolved.Path
 }
+# If not resolved, keep $Target as-is (user-provided path that may not exist yet)
 
 Write-Host "Target Directory: $Target" -ForegroundColor Yellow
 
@@ -33,6 +33,8 @@ Write-Host "`n[1/3] Checking system dependencies..." -ForegroundColor Cyan
 $missing = @()
 if (-not (Get-Command "pandoc" -ErrorAction SilentlyContinue)) { $missing += "pandoc" }
 if (-not (Get-Command "pandoc-crossref" -ErrorAction SilentlyContinue)) { $missing += "pandoc-crossref" }
+if (-not (Get-Command "pdftoppm" -ErrorAction SilentlyContinue)) { $missing += "poppler" }
+if (-not (Get-Command "rg" -ErrorAction SilentlyContinue)) { $missing += "ripgrep" }
 if ($missing.Count -gt 0) {
     Write-Host "[!] Missing: $($missing -join ', '). Required for LaTeX (.tex) ingestion." -ForegroundColor Yellow
     $install = Read-Host "Would you like to automatically install them via Scoop? (Y/n)"
@@ -66,6 +68,16 @@ Copy-Item -Recurse -Force ".\skills\*" "$Target\skills\" -Exclude "__pycache__",
 # Copy bin scripts
 Write-Host "`n[3/3] Copying bin scripts..." -ForegroundColor Cyan
 Copy-Item -Recurse -Force ".\bin\*" "$Target\bin\" -Exclude "__pycache__","*.pyc"
+
+# Copy requirements.txt and .env.example
+Copy-Item -Force ".\requirements.txt" "$Target\"
+if (Test-Path ".\.env.example") {
+    Copy-Item -Force ".\.env.example" "$Target\"
+}
+
+# Install Python dependencies
+Write-Host "`n[*] Installing Python dependencies..." -ForegroundColor Cyan
+pip install -r "$Target\requirements.txt" -q
 
 # Final Verification
 if (Test-Path "$Target\bin\llm-wiki.py") {

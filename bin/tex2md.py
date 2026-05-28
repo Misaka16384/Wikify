@@ -2,6 +2,7 @@ import argparse
 import os
 import re
 import subprocess
+import sys
 import tarfile
 import tempfile
 from datetime import datetime
@@ -108,12 +109,19 @@ def main():
     pandoc_crossref_path = os.path.join(script_dir, "pandoc-crossref.exe")
 
     import shutil
-    pandoc_crossref_exec = shutil.which("pandoc-crossref")
+    
+    # 查找 pandoc-crossref：环境变量 > PATH > 脚本目录
+    pandoc_crossref_exec = os.environ.get("PANDOC_CROSSREF_PATH")
+    if not pandoc_crossref_exec or not os.path.exists(pandoc_crossref_exec):
+        pandoc_crossref_exec = shutil.which("pandoc-crossref")
     if not pandoc_crossref_exec:
         if os.path.exists(pandoc_crossref_path):
             pandoc_crossref_exec = pandoc_crossref_path
             
-    pandoc_exec = shutil.which("pandoc")
+    # 查找 pandoc：环境变量 > PATH > LOCALAPPDATA
+    pandoc_exec = os.environ.get("PANDOC_PATH")
+    if not pandoc_exec or not os.path.exists(pandoc_exec):
+        pandoc_exec = shutil.which("pandoc")
     if not pandoc_exec:
         # Fallback to standard local installation path
         local_appdata = os.environ.get("LOCALAPPDATA", "")

@@ -42,8 +42,16 @@ def verify_claims(filepath, topic_dir):
             abs_path = source
             if not os.path.isabs(abs_path):
                 abs_path = os.path.join(topic_dir, source)
-                
-            if not os.path.exists(abs_path):
+
+            # Path traversal protection: verify the resolved path is within topic_dir
+            real_path = os.path.realpath(abs_path)
+            real_topic_dir = os.path.realpath(topic_dir)
+            if not real_path.startswith(real_topic_dir + os.sep) and real_path != real_topic_dir:
+                reason = f"Path traversal detected: {abs_path} resolves outside {topic_dir}"
+                print(f"Warning: {reason}", file=sys.stderr)
+                is_valid = False
+                # Skip the rest of processing for this entry
+            elif not os.path.exists(real_path):
                 reason = f"File not found: {abs_path}"
             else:
                 with open(abs_path, "r", encoding="utf-8") as sf:

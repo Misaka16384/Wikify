@@ -42,6 +42,14 @@ Before deploying the skills, ensure your system has the following runtime depend
 pip install -r requirements.txt
 ```
 
+> **Tip**: Consider using a virtual environment to avoid conflicts:
+> ```powershell
+> python -m venv .venv
+> .\.venv\Scripts\activate  # Windows
+> # source .venv/bin/activate  # Linux/macOS
+> pip install -r requirements.txt
+> ```
+
 ### 2.2 System-Level External Binaries
 The pipeline relies on several external utilities that must be present in your system's `PATH`:
 
@@ -68,14 +76,46 @@ ollama pull glm-ocr
 ollama pull qwen3-embedding:0.6b
 ```
 
+### 2.4 Custom Tool Paths (Optional)
+If your tools are not in `PATH`, you can configure custom paths via environment variables or `config.yaml`:
+
+**Option 1: Environment Variables** (create `.env` file from `.env.example`)
+```bash
+PDFTOPPM_PATH=/path/to/pdftoppm
+PDFIMAGES_PATH=/path/to/pdfimages
+PANDOC_PATH=/path/to/pandoc
+```
+
+**Option 2: Edit `config.yaml`** (in the agent directory)
+```yaml
+pdf:
+  pdftoppm_path: "/path/to/pdftoppm"
+  pdfimages_path: "/path/to/pdfimages"
+```
+
+See `.env.example` for all available options.
+
 ---
 
 ## 3. Deployment
 
-Run the provided PowerShell installer to copy the skills into your AI's configuration directory (`$HOME\.gemini\config\`):
+### Windows (Recommended)
+Run the provided PowerShell installer to copy the skills into your AI's configuration directory:
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\install.ps1
+```
+
+### Linux / macOS (Manual)
+```bash
+# Copy skills and scripts to your AI's config directory
+TARGET="$HOME/.gemini/config"
+mkdir -p "$TARGET/skills" "$TARGET/bin"
+cp -r skills/* "$TARGET/skills/"
+cp -r bin/* "$TARGET/bin/"
+
+# Install Python dependencies
+pip install -r requirements.txt
 ```
 
 ---

@@ -77,11 +77,12 @@ class PDF2MarkdownAgent:
             "ocr": {
                 "model": "glm-ocr",
                 "ollama_base_url": "http://127.0.0.1:11434",
-                "timeout": 120,
+                "timeout": 180,
                 "dpi": 150
             },
             "pdf": {
                 "pdftoppm_path": "",
+                "pdfimages_path": "",
                 "image_format": "png",
                 "quality": 100
             },
@@ -114,7 +115,8 @@ class PDF2MarkdownAgent:
         )
 
         self.image_handler = ImageHandler(
-            output_folder=image_config.get("output_folder", "images")
+            output_folder=image_config.get("output_folder", "images"),
+            pdfimages_path=pdf_config.get("pdfimages_path", "")
         )
 
         self.markdown_cleaner = MarkdownCleaner()
@@ -330,6 +332,8 @@ class PDF2MarkdownAgent:
                 errors=errors
             )
 
+        except (KeyboardInterrupt, SystemExit):
+            raise
         except Exception as e:
             console.print(f"[red]✗ 转换失败: {e}[/red]")
             return ConversionResult(

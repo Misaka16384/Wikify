@@ -1102,9 +1102,9 @@ def check_wikilinks_formatting(ctx: LintContext) -> None:
         for link in links:
             # Check for Windows illegal filename characters
             illegal_chars = ['\\', '/', ':', '*', '?', '"', '<', '>', '|']
-            found_illegal = [c for c in illegal_chars if c in link]
-            if found_illegal:
-                ctx.issue("warning", f"Wikilink [[{link}]] contains Windows-illegal filename character(s) '{''.join(found_illegal)}'. This will fail or crash on Windows.", doc.path)
+            has_illegal = any(c in link for c in illegal_chars)
+            if has_illegal:
+                ctx.issue("warning", f"Wikilink [[{link}]] contains Windows-illegal filename character(s). This will fail or crash on Windows.", doc.path)
                 continue
             
             # Check for raw LaTeX equations or formula markers

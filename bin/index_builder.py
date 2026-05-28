@@ -9,7 +9,8 @@ def extract_frontmatter(filepath):
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
-    except Exception:
+    except Exception as e:
+        print(f"Warning: file read error: {e}", file=sys.stderr)
         return {}
     
     if content.startswith('---'):
@@ -18,8 +19,8 @@ def extract_frontmatter(filepath):
             try:
                 fm = yaml.safe_load(parts[1])
                 return fm if fm else {}
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Warning: YAML parse error: {e}", file=sys.stderr)
     return {}
 
 def build_index_for_dir(dir_path, title):

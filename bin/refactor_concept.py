@@ -2,6 +2,7 @@ import argparse
 import os
 import re
 import shutil
+import sys
 import yaml
 from datetime import datetime
 
@@ -12,8 +13,8 @@ def extract_frontmatter(content):
             fm = yaml.safe_load(fm_match.group(1)) or {}
             body = content[fm_match.end():]
             return fm, body
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: YAML parse error in frontmatter: {e}", file=sys.stderr)
     return {}, content
 
 def merge_frontmatter(fm1, fm2):
@@ -24,10 +25,7 @@ def merge_frontmatter(fm1, fm2):
         l2 = fm2.get(key, [])
         if isinstance(l1, str): l1 = [l1]
         if isinstance(l2, str): l2 = [l2]
-        merged = []
-        for item in (l1 + l2):
-            if item not in merged:
-                merged.append(item)
+        merged = list(dict.fromkeys(l1 + l2))
         if merged:
             res[key] = merged
             
@@ -96,7 +94,13 @@ def main():
     
     old_name = args.old
     new_name = args.new
-    
+
+    # Path traversal protection: reject names containing directory separators
+    for name in [old_name, new_name]:
+        if '..' in name or '/' in name or '\\' in name:
+            print(f"Error: Invalid concept name '{name}' — path traversal detected")
+            sys.exit(1)
+
     # Backup old concept file
     old_file_path = os.path.join(concepts_dir, f"{old_name}.md")
     new_file_path = os.path.join(concepts_dir, f"{new_name}.md")

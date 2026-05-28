@@ -5,6 +5,7 @@ PDF Processor Module
 
 import os
 import subprocess
+import sys
 import shutil
 from pathlib import Path
 from typing import List, Optional
@@ -41,12 +42,26 @@ class PDFProcessor:
 
     def _find_pdftoppm(self) -> str:
         """查找 pdftoppm 可执行文件"""
-        # Windows 下查找
+        # 1. 检查环境变量
+        env_path = os.environ.get("PDFTOPPM_PATH")
+        if env_path and os.path.exists(env_path):
+            return env_path
+
+        # 2. 优先使用 PATH 中的 pdftoppm
         result = shutil.which("pdftoppm")
         if result:
             return result
 
-        # 尝试常见路径
+        # 3. Linux / macOS 常见路径
+        unix_paths = [
+            "/usr/bin/pdftoppm",
+            "/usr/local/bin/pdftoppm",
+        ]
+        for path in unix_paths:
+            if os.path.exists(path):
+                return path
+
+        # 4. Windows 常见路径 (fallback)
         common_paths = [
             r"D:\texlive\2024\bin\windows\pdftoppm.exe",
             r"C:\texlive\2024\bin\windows\pdftoppm.exe",
@@ -126,7 +141,12 @@ class PDFProcessor:
             )
             for line in result.stdout.split("\n"):
                 if line.startswith("Pages:"):
-                    return int(line.split(":")[1].strip())
+                    try:
+                        page_count = int(line.split(":")[1].strip())
+                    except (ValueError, IndexError) as e:
+                        print(f"Warning: failed to parse page count: {e}", file=sys.stderr)
+                        page_count = 0
+                    return page_count
 
         # 备用方法：通过转换第一页来验证文件有效
         return -1  # 未知页数

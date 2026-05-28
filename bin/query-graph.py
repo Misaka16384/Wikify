@@ -27,7 +27,15 @@ def main():
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("PRAGMA query_only = ON")
-        cursor.execute(args.query)
+
+        # SQL injection protection: only allow SELECT queries
+        query_stripped = args.query.strip()
+        query_upper = query_stripped.upper()
+        if not query_upper.startswith("SELECT"):
+            print(json.dumps({"error": "Only SELECT queries are allowed"}))
+            sys.exit(1)
+
+        cursor.execute(query_stripped)
         rows = [dict(row) for row in cursor.fetchall()]
         print(json.dumps({"results": rows}, indent=2))
     except Exception as e:
