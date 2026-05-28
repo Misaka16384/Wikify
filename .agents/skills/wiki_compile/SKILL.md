@@ -23,6 +23,7 @@ When the user asks to compile the wiki or process raw files, follow this paralle
         *   **Bidirectional Linking**: Apply standard Obsidian double bracket linking: `[[Concept]]` or `[[Concept|Alias]]`. Do NOT use standard markdown relative links for these.
         *   **Concept Extraction (Thread-Safe)**: To extract novel concepts, do NOT write directly to `wiki/concepts/`. Instead, use the provided script to safely append your perspective. For each extracted concept, run:
             `python .agents/bin/add_concept.py --name "Concept Name" --source "Source Paper Name" --content "Your detailed definition and perspective on this concept based on the paper you just read."`
+            **CRITICAL**: If you cannot find a detailed mathematical or physical definition for a concept in the paper, you MUST use the exact placeholder: `[STUB: Awaiting synthesis]` as the content.
     *   **Write Compiled Files**: Save output ONLY under `wiki/references/`.
     *   **Report Status**: The subagent must report back to the main agent once the reference file is written and all concepts are extracted via the script.
 

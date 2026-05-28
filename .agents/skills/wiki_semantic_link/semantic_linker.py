@@ -45,6 +45,7 @@ def clean_markdown_text(text):
     # Remove template boilerplate that causes false-positive similarity
     text = text.replace("No explicit definition extracted from literature perspective.", "")
     text = text.replace("No explicit mathematical representation extracted from literature perspective.", "")
+    text = text.replace("[STUB: Awaiting synthesis]", "")
     return text.strip()
 
 def get_embedding(text, model, url):
