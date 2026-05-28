@@ -36,6 +36,23 @@ def backup_concepts(concepts_dir):
 
 def clean_markdown_text(text):
     """Strip frontmatter and markdown links to get raw text for better embeddings."""
+    import yaml
+    
+    tags = []
+    aliases = []
+    
+    # Extract YAML frontmatter before removing it
+    fm_match = re.search(r'^---([\s\S]*?)---\n', text)
+    if fm_match:
+        try:
+            fm = yaml.safe_load(fm_match.group(1)) or {}
+            tags = fm.get("tags", [])
+            if isinstance(tags, str): tags = [tags]
+            aliases = fm.get("aliases", [])
+            if isinstance(aliases, str): aliases = [aliases]
+        except Exception:
+            pass
+            
     # Remove YAML frontmatter
     text = re.sub(r'^---[\s\S]*?---\n', '', text)
     # Remove markdown links but keep the text (e.g., [[Concept]] -> Concept, [text](url) -> text)
@@ -46,7 +63,19 @@ def clean_markdown_text(text):
     text = text.replace("No explicit definition extracted from literature perspective.", "")
     text = text.replace("No explicit mathematical representation extracted from literature perspective.", "")
     text = text.replace("[STUB: Awaiting synthesis]", "")
-    return text.strip()
+    text = text.strip()
+    
+    # Append Metadata Context for Embedding Augmentation
+    context_parts = []
+    if tags:
+        context_parts.append(f"Tags include {', '.join(tags)}.")
+    if aliases:
+        context_parts.append(f"Known aliases: {', '.join(aliases)}.")
+        
+    if context_parts:
+        text += f"\n\n[Metadata Context: {' '.join(context_parts)}]"
+        
+    return text, tags, aliases
 
 def get_embedding(text, model, url):
     data = {
@@ -118,17 +147,21 @@ def main():
     files = []
     texts = []
     concept_names = []
+    concept_tags = []
+    concept_aliases = []
     
     for filename in os.listdir(concepts_dir):
         if filename.endswith(".md") and not filename.startswith("_"):
             filepath = os.path.join(concepts_dir, filename)
             with open(filepath, 'r', encoding='utf-8') as f:
                 raw_text = f.read()
-            clean_text = clean_markdown_text(raw_text)
+            clean_text, tags, aliases = clean_markdown_text(raw_text)
             if clean_text:
                 files.append(filepath)
                 texts.append(clean_text)
                 concept_names.append(filename[:-3]) # remove .md
+                concept_tags.append(tags)
+                concept_aliases.append(aliases)
     
     if len(files) < 2:
         print("[Info] Not enough concepts to analyze.")
@@ -206,16 +239,44 @@ def main():
         for j in range(i + 1, len(files)):
             score = similarity_matrix[i][j]
             
+            # --- Meta-Data Hard Boosting Logic ---
+            tags_i = set(t.lower() for t in concept_tags[i])
+            tags_j = set(t.lower() for t in concept_tags[j])
+            shared_tags = len(tags_i.intersection(tags_j))
+            
+            aliases_i = set(a.lower() for a in concept_aliases[i])
+            aliases_j = set(a.lower() for a in concept_aliases[j])
+            
+            # Alias Collision / Crossmatch Boost
+            has_alias_collision = False
+            if aliases_i.intersection(aliases_j):
+                has_alias_collision = True
+            
+            # Check if title of i is in alias of j, or vice versa
+            title_i = concept_names[i].replace("-", " ").replace("_", " ").lower()
+            title_j = concept_names[j].replace("-", " ").replace("_", " ").lower()
+            if title_i in aliases_j or title_j in aliases_i:
+                has_alias_collision = True
+                
+            boost_reason = ""
+            original_score = score
+            if has_alias_collision:
+                score = min(1.0, score + 0.10)
+                boost_reason = f" [Alias Boost: {original_score:.3f}->{score:.3f}]"
+            elif shared_tags > 0:
+                score = min(1.0, score + (shared_tags * 0.05))
+                boost_reason = f" [Tag Boost: {original_score:.3f}->{score:.3f}]"
+            
             if args.dedup_only:
                 if score >= args.merge_threshold:
-                    print(f"[MERGE_SUGGESTION] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f})")
+                    print(f"[MERGE_SUGGESTION] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f}){boost_reason}")
                     merge_suggestions += 1
             else:
                 if score >= args.threshold:
                     # Add link to i (linking to j)
                     if inject_link(files[i], concept_names[j]):
                         links_added += 1
-                        print(f"  [Linked] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f})")
+                        print(f"  [Linked] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f}){boost_reason}")
                     
                     # Add link to j (linking to i)
                     if inject_link(files[j], concept_names[i]):
