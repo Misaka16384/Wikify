@@ -43,14 +43,10 @@ Now that the YAML metadata is pristine, the semantic linker can utilize the norm
 For every pair of duplicate concepts in your final target list:
 
 1.  **Resolve & Merge (Principle)**: Choose a canonical name. **CRITICAL PRINCIPLE**: Always merge sub-concepts into their parent concepts (e.g., merge `gauge_redundancy` into `gauge_symmetry`). The parent concept becomes the Canonical Name.
-2.  **Refactor Links**: Run the deterministic python script to safely update all `[[Old Concept]]` links to `[[Canonical Name]]`, and handle backups and deletions automatically:
+2.  **Refactor & Concatenate**: Run the deterministic python script to safely update all `[[Old Concept]]` links to `[[Canonical Name]]`, merge their frontmatter tags, append the old concept's text body to the new concept's body, and handle deletions automatically:
     `python .agents/bin/refactor_concept.py --topic-dir "<TOPIC_DIR>" --old "Old Concept" --new "Canonical Name"`
-3.  **Extract RAG Context**: Run the context extractor script to globally search all references for this Canonical Concept and compile the surrounding paragraphs:
-    `python .agents/bin/extract_concept_context.py --name "Canonical Name" --topic-dir "<TOPIC_DIR>"`
-4.  **Comprehensive Synthesis**:
-    *   Read the generated `scratch/concept_context_<slug>.md` file using `view_file`.
-    *   Rewrite `wiki/concepts/<Canonical Name>.md` to seamlessly fuse the definitions, ensuring no loss of mathematical detail or physical corollaries from the merged duplicate.
-5.  **Post-Write Validation**: Once all merges and synthesis are complete, run the global linter.
+3.  **No LLM Synthesis Needed**: The script automatically stitches the contents. Do NOT spawn subagents or attempt to manually read/rewrite the files via LLM.
+4.  **Post-Write Validation**: Once all merges are complete, run the global linter.
     `python .agents/bin/llm-wiki.py lint <TOPIC_DIR>`
 
 ### 4. Final Reporting
