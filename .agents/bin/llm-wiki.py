@@ -1971,7 +1971,7 @@ def run_stats(args: argparse.Namespace) -> int:
     subcmd = args.stats_command
 
     if subcmd == "concept-density":
-        target = Path(args.file).resolve()
+        target = (root / args.file).resolve()
         if not target.exists():
             raise SystemExit(f"file not found: {target}")
         text = target.read_text(encoding="utf-8")
@@ -1999,7 +1999,7 @@ def run_stats(args: argparse.Namespace) -> int:
         return 0
 
     if subcmd == "verify-refs":
-        target = Path(args.file).resolve()
+        target = (root / args.file).resolve()
         if not target.exists():
             raise SystemExit(f"file not found: {target}")
         text = target.read_text(encoding="utf-8")

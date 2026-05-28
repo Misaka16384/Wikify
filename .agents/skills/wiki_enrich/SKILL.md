@@ -32,11 +32,11 @@ When the user asks to enrich, deep-dive, or查漏补缺 (fill gaps) on a paper:
     *   The script will output the number of chunks created.
 
 4.  **Parallel Mining (Subagents)**:
-    *   Use the `invoke_subagent` tool to spawn one "Concept Miner" subagent per chunk.
+    *   Use the `invoke_subagent` tool (with `TypeName: "self"`) to spawn one "Concept Miner" subagent per chunk.
     *   Assign each subagent a specific chunk from the `scratch/` directory.
     *   Instruct them to deeply extract *only* mathematical axioms, theoretical models, theorems, and boundary conditions that are NOT already present in the initial compilation.
     *   **Subagent Output Contract**: For each discovered concept, the subagent MUST securely register it using the centralized concept addition script:
-        `python .agents/bin/add_concept.py --name "Concept Name" --source "Source Paper Name" --content "Detailed quote and explanation from the chunk."`
+        `python .agents/bin/add_concept.py --name "Concept Name" --source "raw/papers/filename.md" --content "Detailed quote and explanation from the chunk."`
     *   The subagents should also report the names of the concepts they discovered in their response message to the main agent.
 
 5.  **Synthesize & Append**:

@@ -70,10 +70,12 @@ created: {today}
 updated: {today}
 tags:
   - mined-concept
+aliases: []
+volatility: warm
 sources:
   - "{resolved_source_path}"
 confidence: medium
-summary: "Dynamically mined concept tracking {args.name}."
+summary: 'Dynamically mined concept tracking {args.name}.'
 ---"""
             # Wipe and replace dummy frontmatter
             content = re.sub(r'^---\n.*?\n---\n', new_frontmatter + '\n', content, flags=re.DOTALL)
