@@ -41,8 +41,10 @@ def clean_markdown_text(text):
     # Remove markdown links but keep the text (e.g., [[Concept]] -> Concept, [text](url) -> text)
     text = re.sub(r'\[\[(.*?)\]\]', r'\1', text)
     text = re.sub(r'\[(.*?)\]\(.*?\)', r'\1', text)
-    # Remove headings syntax
     text = re.sub(r'#+\s*', '', text)
+    # Remove template boilerplate that causes false-positive similarity
+    text = text.replace("No explicit definition extracted from literature perspective.", "")
+    text = text.replace("No explicit mathematical representation extracted from literature perspective.", "")
     return text.strip()
 
 def get_embedding(text, model, url):
@@ -65,16 +67,20 @@ def inject_link(filepath, related_concept_name):
         content = f.read()
     
     # Idempotency check
-    link_syntax = f"[[{related_concept_name}]]"
-    if link_syntax in content:
+    link_syntax_plain = f"[[{related_concept_name}]]"
+    link_syntax_alias = f"[[{related_concept_name}|"
+    if link_syntax_plain in content or link_syntax_alias in content:
         return False # Already exists
     
+    display_name = related_concept_name.replace('-', ' ').title()
+    link_syntax = f"[[{related_concept_name}|{display_name}]]"
     heading = "## 语义关联 (Semantic Links)"
     
     if heading in content:
         # Append to existing section
+        safe_heading = re.escape(heading)
         content = re.sub(
-            f"({heading}.*?)(?=\\n##|$)",
+            f"({safe_heading}.*?)(?=\\n##|$)",
             f"\\1\n- {link_syntax}",
             content,
             flags=re.DOTALL
