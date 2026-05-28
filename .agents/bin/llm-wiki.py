@@ -1003,6 +1003,15 @@ def resolve_link_target(base_dir: Path, link: str) -> Path:
 
 
 def check_links(ctx: LintContext) -> None:
+    alias_map: dict[str, str] = {}
+    for doc in ctx.documents.values():
+        if doc.path.parent.name == "concepts":
+            aliases = doc.frontmatter.get("aliases", [])
+            if isinstance(aliases, list):
+                for a in aliases:
+                    alias_slug = str(a).lower().replace(" ", "_").replace("-", "_")
+                    alias_map[alias_slug] = doc.path.name
+
     for doc in sorted(ctx.documents.values(), key=lambda item: str(item.path)):
         try:
             rel = doc.path.resolve().relative_to(ctx.root)
@@ -1011,12 +1020,25 @@ def check_links(ctx: LintContext) -> None:
         if rel.parts[0] not in {"wiki", "inventory"}:
             continue
         full_text = doc.path.read_text(encoding="utf-8")
+        modified = False
         for link in extract_markdown_links(full_text):
             if not is_local_markdown_link(link):
                 continue
             target = resolve_link_target(doc.path.parent, link)
             if not target.exists():
-                ctx.issue("warning", f"Markdown link points to missing file: {link}.", doc.path)
+                target_stem = target.stem
+                if target_stem in alias_map:
+                    new_target_name = alias_map[target_stem]
+                    new_link = link.replace(target.name, new_target_name)
+                    full_text = full_text.replace(f"]({link})", f"]({new_link})")
+                    full_text = full_text.replace(f"](<{link}>)", f"](<{new_link}>)")
+                    ctx.issue("info", f"Auto-fixed markdown link {link} -> {new_link} via alias mapping.", doc.path, fixable=True, fixed=True)
+                    modified = True
+                    ctx.fixes += 1
+                else:
+                    ctx.issue("warning", f"Markdown link points to missing file: {link}.", doc.path)
+        if modified:
+            doc.path.write_text(full_text, encoding="utf-8")
 
 
 def check_wikilinks_formatting(ctx: LintContext) -> None:
