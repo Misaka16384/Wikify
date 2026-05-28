@@ -13,12 +13,13 @@ This skill extracts the Markdown-based knowledge graph (comprised of `[[wikilink
 
 When the user asks to extract, index, or query the knowledge graph of their wiki:
 
-### 1. Build the Graph Database
-Run the deterministic python script to extract the graph from the markdown files:
+### 1. Build the Indexes
+Run the deterministic python script to extract the graph from the markdown files, and then refresh the semantic embedding cache:
 ```bash
 python .agents/bin/llm-wiki.py graph
+python .agents/skills/wiki_semantic_link/semantic_linker.py . --update-cache-only
 ```
-*This will parse all markdown files under `wiki/` (ignoring `_index.md`), extract frontmatter (tags, aliases) and body links, and rebuild the SQLite database located at `output/graph.db`.*
+*This will parse all markdown files under `wiki/` (ignoring `_index.md`), extract frontmatter (tags, aliases) and body links, rebuild the SQLite database located at `output/graph.db`, and silently update the Ollama semantic embedding cache for rapid similarity calculations.*
 
 ### 2. Query the Graph Database
 Once built, you (the AI) can query `output/graph.db` using Python's `sqlite3` module to traverse the graph and answer the user's questions.

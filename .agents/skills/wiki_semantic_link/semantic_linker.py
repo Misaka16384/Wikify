@@ -17,6 +17,7 @@ def setup_argparse():
     parser.add_argument("--threshold", type=float, default=0.75, help="Cosine similarity threshold for linking (default: 0.75)")
     parser.add_argument("--merge-threshold", type=float, default=0.85, help="Cosine similarity threshold for merge suggestions (default: 0.85)")
     parser.add_argument("--dedup-only", action="store_true", help="Only output merge suggestions, do not inject links.")
+    parser.add_argument("--update-cache-only", action="store_true", help="Only update the embedding cache and exit. Skips all similarity calculations.")
     parser.add_argument("--model", type=str, default="qwen3-embedding:0.6b", help="Ollama embedding model to use")
     parser.add_argument("--ollama-url", type=str, default="http://localhost:11434/api/embeddings", help="Ollama API endpoint")
     return parser.parse_args()
@@ -180,6 +181,10 @@ def main():
             json.dump(new_cache, f)
     except Exception as e:
         print(f"[Warning] Failed to save cache: {e}")
+
+    if args.update_cache_only:
+        print("[Success] Cache updated successfully. Exiting.")
+        sys.exit(0)
     
     # 4. Calculate similarities
     embeddings_matrix = np.array(embeddings)
