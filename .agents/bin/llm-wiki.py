@@ -15,6 +15,8 @@ import re
 import shutil
 import sqlite3
 import sys
+import yaml
+from yaml.scanner import ScannerError
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -385,6 +387,25 @@ def read_document(ctx: LintContext, path: Path) -> Document | None:
         return None
     frontmatter_text = text[4:end]
     body = text[end + 4 :]
+
+    try:
+        yaml.safe_load(frontmatter_text)
+    except ScannerError:
+        fixed_text = re.sub(
+            r'\nsummary:\s*"(.*?)"\n',
+            lambda m: '\nsummary: "' + m.group(1).replace('\\', '\\\\').replace('\\\\\\\\', '\\\\') + '"\n',
+            "\n" + frontmatter_text + "\n",
+            flags=re.DOTALL
+        )
+        if fixed_text != "\n" + frontmatter_text + "\n":
+            frontmatter_text = fixed_text.strip("\n")
+            ctx.issue("info", "Auto-escaped backslashes in YAML summary.", path, fixable=True, fixed=True)
+            if ctx.fix:
+                write_markdown_frontmatter(path, frontmatter_text, body)
+                ctx.fixed(f"Auto-escaped backslashes in {path.name} YAML summary.")
+        else:
+            ctx.issue("critical", "YAML syntax error (likely unescaped backslashes).", path)
+
     return Document(path=path, frontmatter=parse_frontmatter_block(frontmatter_text), body=body)
 
 
@@ -1034,7 +1055,7 @@ def check_links(ctx: LintContext) -> None:
                     full_text = full_text.replace(f"](<{link}>)", f"](<{new_link}>)")
                     ctx.issue("info", f"Auto-fixed markdown link {link} -> {new_link} via alias mapping.", doc.path, fixable=True, fixed=True)
                     modified = True
-                    ctx.fixes += 1
+                    ctx.fixed(f"Auto-fixed markdown link {link} -> {new_link} in {doc.path.name}")
                 else:
                     ctx.issue("warning", f"Markdown link points to missing file: {link}.", doc.path)
         if modified:
