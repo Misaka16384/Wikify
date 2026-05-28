@@ -28,7 +28,7 @@ When loaded into your AI assistant, you can ask the AI to:
 - **Compile**: Extract mathematical definitions, theorems, and concepts into individual, interlinked Obsidian cards.
 - **Deduplicate & Link**: Automatically find duplicate concepts, merge them safely via RAG, and semantically link related files using local vector embeddings.
 - **Interactive Q&A**: Chat with your entire knowledge base (`wiki_ask`) where the AI strictly answers using local RAG, Graph SQL queries, and regex search—guaranteeing zero hallucinations and exact citations.
-- **Auto-Healing**: The intelligent linter automatically detects dead links and self-heals the knowledge graph using a global concept alias routing system.
+- **Auto-Healing**: The intelligent linter automatically detects dead links and self-heals the knowledge graph using a global concept alias routing system. It also features robust YAML self-healing to automatically repair LLM-hallucinated syntax errors (like unescaped LaTeX backslashes) in frontmatter.
 
 ---
 
@@ -91,7 +91,7 @@ Once installed, simply ask your AI assistant to perform the following workflows 
 ### Knowledge Graph Maintenance
 - **`wiki_enrich`**: Tell the AI to scan a paper and extract missing lemmas or theorems into new concept cards.
 - **`wiki_concept_sync`**: Ask the AI to deduplicate concepts. It will find duplicates and merge them intelligently.
-- **`wiki_semantic_link`**: Runs silently to vector-scan all your concepts and inject `[[Related Links]]` at the bottom of cards. Features blazing-fast incremental MD5 caching for zero API overhead on unchanged concepts.
+- **`wiki_semantic_link`**: Runs silently to vector-scan all your concepts and inject `[[Related Links|Aliases]]` at the bottom of cards. Features blazing-fast incremental MD5 caching for zero API overhead on unchanged concepts, and intelligent pre-filtering to prevent false-positive clustering of empty concept stubs.
 
 ### Chat & Research
 - **`wiki_ask "Your Question"`**: Ask the AI any question about your vault. The AI will use RAG and Graph SQL to answer you with strict `[[Citations]]` and zero hallucinations.
