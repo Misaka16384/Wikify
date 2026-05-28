@@ -90,6 +90,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 
 ### 知识图谱维护 (Knowledge Graph Maintenance)
 - **`wiki_enrich`**: 让 AI 扫描论文，挖掘遗漏的引理或定理，补充为新的概念卡片。
+- **`wiki_tag_sync`**: 利用 Map-Reduce 架构对全图谱的元数据（Tags & Aliases）进行降维清洗。能够自动归并碎片化、复数形式的同义词标签，输出全库标准的本体论 (Ontology) 白名单。
 - **`wiki_concept_sync`**: 让 AI 去重。内置了基于本地脚本的物理合并引擎（零大模型幻觉），自动挑选母子概念，实现全局无损级联与双链安全重定向。
 - **`wiki_semantic_link`**: 这是一个极速的语义连接引擎。它不仅会在卡片底部自动注入美观的 `[[相关链接|别名]]`，还搭载了 **`--auto-merge`** 无人值守合并功能——当向量置信度 $\ge 0.95$ 时，会在底层瞬间自动完成物理重构。支持基于极速 MD5 的零开销增量更新。
 

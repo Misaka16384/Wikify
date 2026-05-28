@@ -90,6 +90,7 @@ Once installed, simply ask your AI assistant to perform the following workflows 
 
 ### Knowledge Graph Maintenance
 - **`wiki_enrich`**: Tell the AI to scan a paper and extract missing lemmas or theorems into new concept cards.
+- **`wiki_tag_sync`**: Utilizes a Map-Reduce architecture to normalize metadata (Tags & Aliases) across the entire graph. It automatically deduplicates fragmented and plural synonyms, outputting a global standardized Ontology whitelist.
 - **`wiki_concept_sync`**: Ask the AI to deduplicate concepts. It features a local, deterministic script-based physical merging engine (zero LLM hallucinations) that automatically picks parent-child concepts to ensure lossless concatenation and safe wikilink redirection globally.
 - **`wiki_semantic_link`**: A blazing-fast semantic embedding engine. It not only injects beautiful `[[Related Links|Aliases]]` at the bottom of cards, but now features an **`--auto-merge`** unattended capability—automatically restructuring and physically merging duplicate concepts behind the scenes if their vector confidence hits $\ge 0.95$. Features incremental MD5 caching for zero API overhead on unchanged concepts.
 
