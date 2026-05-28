@@ -30,10 +30,12 @@ def main():
         print(f"Warning: Old concept file not found at {old_file_path}")
 
     # Refactor links in all markdown files
-    # We want to replace [[Old]] with [[New]]
-    # and [[Old|alias]] with [[New|alias]]
+    # We want to replace [[Old]] with [[New]],
+    # [[Old|alias]] with [[New|alias]],
+    # and standard links like ../concepts/old.md) with ../concepts/new.md)
     pattern_strict = re.compile(r'\[\[' + re.escape(old_name) + r'\]\]', re.IGNORECASE)
     pattern_alias = re.compile(r'\[\[' + re.escape(old_name) + r'\|', re.IGNORECASE)
+    pattern_md_link = re.compile(r'([/\\])' + re.escape(old_name) + r'\.md([)#\s])', re.IGNORECASE)
     
     modified_count = 0
     for root, _, files in os.walk(wiki_dir):
@@ -45,6 +47,7 @@ def main():
                 
                 new_content = pattern_strict.sub(f"[[{new_name}]]", content)
                 new_content = pattern_alias.sub(f"[[{new_name}|", new_content)
+                new_content = pattern_md_link.sub(rf"\1{new_name}.md\2", new_content)
                 
                 if new_content != content:
                     with open(filepath, "w", encoding="utf-8") as f:
