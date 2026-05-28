@@ -14,7 +14,7 @@ This skill scans all markdown files within the `wiki/concepts/` directory, extra
 This skill is executed via the Python script located within the skill directory:
 
 ```bash
-python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> [--threshold 0.85] [--model qwen3-embedding:0.6b]
+python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> [--threshold 0.75] [--model qwen3-embedding:0.6b]
 ```
 
 ## Internal Phases
@@ -30,7 +30,7 @@ python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> [--thres
 
 ### Phase 3: Similarity Calculation & Filtering
 1. Uses `scikit-learn` to compute a Cosine Similarity matrix for all generated vectors.
-2. Filters out identical pairs (similarity = 1.0, i.e., self-links) and pairs below the defined threshold (e.g., `< 0.85`).
+2. Filters out identical pairs (similarity = 1.0, i.e., self-links) and pairs below the defined threshold (e.g., `< 0.75`).
 
 ### Phase 4: Idempotent Injection
 1. For every highly-related pair `(A, B)` (where `score >= threshold`), checks if `A.md` already contains `[[B]]`.
