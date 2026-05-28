@@ -626,17 +626,19 @@ def check_body_structure(ctx: LintContext) -> None:
         
         # Papers Structure Check
         if parts[0] == "wiki" and len(parts) >= 2 and parts[1] == "references":
-            if "## 1. Key Contributions" not in body:
-                ctx.issue("critical", "Paper is missing required structural heading: '## 1. Key Contributions...'", doc.path)
-            if "## 2. Theoretical Framework" not in body:
-                ctx.issue("critical", "Paper is missing required structural heading: '## 2. Theoretical Framework...'", doc.path)
+            if str(doc.frontmatter.get("exclude_structure_check")).lower() != "true":
+                if "## 1. Key Contributions" not in body:
+                    ctx.issue("critical", "Paper is missing required structural heading: '## 1. Key Contributions...'", doc.path)
+                if "## 2. Theoretical Framework" not in body:
+                    ctx.issue("critical", "Paper is missing required structural heading: '## 2. Theoretical Framework...'", doc.path)
                 
         # Concepts Structure Check
         elif parts[0] == "wiki" and len(parts) >= 2 and parts[1] == "concepts":
-            if "## 1. Core Definition" not in body:
-                ctx.issue("critical", "Concept is missing required structural heading: '## 1. Core Definition...'", doc.path)
-            if "## 2. Mathematical Formalism" not in body:
-                ctx.issue("critical", "Concept is missing required structural heading: '## 2. Mathematical Formalism...'", doc.path)
+            if str(doc.frontmatter.get("exclude_structure_check")).lower() != "true":
+                if "## 1. Core Definition" not in body:
+                    ctx.issue("critical", "Concept is missing required structural heading: '## 1. Core Definition...'", doc.path)
+                if "## 2. Mathematical Formalism" not in body:
+                    ctx.issue("critical", "Concept is missing required structural heading: '## 2. Mathematical Formalism...'", doc.path)
 
 
 def fix_legacy_wiki_frontmatter(ctx: LintContext) -> None:
@@ -1266,6 +1268,7 @@ def create_or_update_coverage_reference(ctx: LintContext, unreferenced: list[Pat
             "confidence: low",
             "volatility: warm",
             'summary: "Reference backlog for raw sources that existed in the wiki but were not yet referenced by compiled articles during lint repair."',
+            "exclude_structure_check: true",
             "---",
             "",
             "# Uncompiled Source Coverage",
