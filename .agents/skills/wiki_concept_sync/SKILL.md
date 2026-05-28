@@ -1,36 +1,57 @@
 ---
 name: wiki_concept_sync
-description: "Deduplicates concepts, splits overly broad concepts, and synthesizes multi-source concept definitions by dynamically searching and analyzing all papers that reference them."
+description: "Master Orchestrator Pipeline: Deduplicates metadata (tags/aliases), discovers semantic collisions, and synthesizes redundant concepts across the entire knowledge vault."
 commands:
+  refactor_vault: "Run the full 3-Stage Vault Refactoring Pipeline (Tag Sync -> Semantic Link -> Concept Merge)."
   sync_concept: "Synthesize a specific concept across all referencing papers."
-  sync_all_concepts: "Run a global deduplication and refinement pass over all concepts."
 ---
 
-# LLM Wiki — Concept Synthesizer Skill (wiki_concept_sync)
+# LLM Wiki — Master Vault Refactoring Skill (wiki_concept_sync)
 
-This skill maintains the semantic integrity and comprehensive depth of the knowledge graph's "Concept" nodes. It resolves duplicate concepts, expands overly broad concepts, and, most importantly, synthesizes multi-source definitions by reading all papers that reference a concept.
+This skill is the **Master Orchestrator** for maintaining the semantic integrity and structural purity of the knowledge graph. It unifies metadata cleaning (`wiki_tag_sync`) and semantic collision detection (`wiki_semantic_link`) into a single deterministic pipeline, culminating in the physical merging and synthesis of duplicate concepts.
 
-## Execution Modes
+When the user asks to clean, refactor, deduplicate, or globally sync the vault, you MUST execute the following **3-Stage Pipeline** strictly in order.
 
-The user can ask to refine/sync a **single concept** (e.g., `wiki_concept_sync "Quantum Entanglement"`) or run a **global sync** (`wiki_concept_sync_all`). If not specified, default to asking the user or assuming the concept currently being discussed.
+---
 
-### Phase 1: Deduplication Discovery
-1.  **Semantic Duplicates Search**: Run the semantic linker in deduplication-only mode to find highly identical concepts:
-    `python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> --dedup-only --merge-threshold 0.8`
-2.  **Agent Review**: Carefully review the `[MERGE_SUGGESTION]` output logs from the script.
-3.  **Resolve & Merge (Principle)**: If you verify that a pair is genuinely the same or strongly overlapping, choose a canonical name. **CRITICAL PRINCIPLE**: Always merge sub-concepts into their parent concepts (e.g., merge `gauge_redundancy` into `gauge_symmetry`). The parent concept becomes the Canonical Name.
-4.  **Refactor Links**: Run the deterministic python script to safely update all `[[Old Concept]]` links to `[[Canonical Name]]`, and handle backups and deletions automatically:
+### Stage 1: Metadata Normalization (Tag Sync)
+
+1.  **Extract**: Run the tag extractor script to gather all unique metadata.
+    `python .agents/bin/tag_reducer.py extract <TOPIC_DIR>`
+2.  **LLM Map-Reduce**: Read `scratch/raw_tags.json` and `scratch/raw_aliases.json` via `view_file`.
+    *   Analyze the tags and aliases to find synonyms, abbreviations, and plural/singular variations.
+    *   **Alias Collision Hook (CRITICAL)**: If you notice that two distinct sets of aliases heavily overlap, these are highly likely identical physical concepts. Note their names down in your internal `Merge_Suspects` list.
+    *   Create `scratch/tag_mapping.json` and `scratch/alias_mapping.json` with the reduced canonical mappings.
+3.  **Apply**: Run the python apply script to normalize the vault's frontmatter.
+    `python .agents/bin/tag_reducer.py apply <TOPIC_DIR> <TOPIC_DIR>/scratch/tag_mapping.json <TOPIC_DIR>/scratch/alias_mapping.json`
+
+---
+
+### Stage 2: Semantic Collision Discovery (Semantic Link)
+
+Now that the YAML metadata is pristine, the semantic linker can utilize the normalized tags and aliases to apply `+0.05` Tag Boosts and `+0.10` Alias Crossmatch Boosts.
+
+1.  **Update Cache & Calculate**: Run the semantic linker in deduplication mode.
+    `python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> --dedup-only --merge-threshold 0.80`
+2.  **Semantic Collision Hook**: Read the console output. Extract all `[MERGE_SUGGESTION]` pairs.
+3.  **Consolidate Targets**: Combine the suspects from Stage 1 (Alias Collisions) and Stage 2 (Semantic Collisions) into a final deduplication target list.
+
+---
+
+### Stage 3: Physics Merging & Synthesis (Concept Merge)
+
+For every pair of duplicate concepts in your final target list:
+
+1.  **Resolve & Merge (Principle)**: Choose a canonical name. **CRITICAL PRINCIPLE**: Always merge sub-concepts into their parent concepts (e.g., merge `gauge_redundancy` into `gauge_symmetry`). The parent concept becomes the Canonical Name.
+2.  **Refactor Links**: Run the deterministic python script to safely update all `[[Old Concept]]` links to `[[Canonical Name]]`, and handle backups and deletions automatically:
     `python .agents/bin/refactor_concept.py --topic-dir "<TOPIC_DIR>" --old "Old Concept" --new "Canonical Name"`
-
-### Phase 2: Multi-Source Synthesis (Post-Merge RAG)
-After resolving duplicates, you must synthesize their definitions to ensure no knowledge is lost.
-1.  **Extract RAG Context**: Run the context extractor script to globally search all references for this Canonical Concept and compile the surrounding paragraphs:
+3.  **Extract RAG Context**: Run the context extractor script to globally search all references for this Canonical Concept and compile the surrounding paragraphs:
     `python .agents/bin/extract_concept_context.py --name "Canonical Name" --topic-dir "<TOPIC_DIR>"`
-    This script will output the path to a `scratch/concept_context_<slug>.md` file.
-2.  **Single-Pass Reading**: Use the `view_file` tool to read the generated context file.
-3.  **Comprehensive Synthesis**:
-    *   **Backup Before Rewrite**: Backup the concept file to `wiki/concepts/.backup/`.
-    *   Rewrite `wiki/concepts/<Canonical Name>.md` to fuse the definitions, ensuring no loss of detail from the merged duplicate.
-    *   **Post-Write Validation**: Run `python .agents/bin/llm-wiki.py lint <TOPIC_DIR>`.
-4.  **Log**: Update `log.md` with the deduplication and synthesis outcome.
+4.  **Comprehensive Synthesis**:
+    *   Read the generated `scratch/concept_context_<slug>.md` file using `view_file`.
+    *   Rewrite `wiki/concepts/<Canonical Name>.md` to seamlessly fuse the definitions, ensuring no loss of mathematical detail or physical corollaries from the merged duplicate.
+5.  **Post-Write Validation**: Once all merges and synthesis are complete, run the global linter.
+    `python .agents/bin/llm-wiki.py lint <TOPIC_DIR>`
 
+### 4. Final Reporting
+Update `log.md` with the number of tags normalized, and list the exact concept merges that were executed. Present a detailed success summary to the user.

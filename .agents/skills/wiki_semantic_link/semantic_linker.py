@@ -8,6 +8,7 @@ import hashlib
 import urllib.request
 import urllib.error
 import numpy as np
+import yaml
 from sklearn.metrics.pairwise import cosine_similarity
 from pathlib import Path
 
@@ -36,8 +37,6 @@ def backup_concepts(concepts_dir):
 
 def clean_markdown_text(text):
     """Strip frontmatter and markdown links to get raw text for better embeddings."""
-    import yaml
-    
     tags = []
     aliases = []
     
