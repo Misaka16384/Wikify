@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import argparse
+import hashlib
 import urllib.request
 import urllib.error
 import numpy as np
@@ -127,17 +128,58 @@ def main():
         
     # 3. Generate embeddings
     print(f"[Info] Generating embeddings for {len(files)} concepts...")
+    
+    # --- Caching Logic ---
+    safe_model_name = args.model.replace(":", "_").replace("/", "_")
+    cache_path = os.path.join(concepts_dir, f".embeddings_cache_{safe_model_name}.json")
+    cache = {}
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                cache = json.load(f)
+            print(f"[Info] Loaded embedding cache from {os.path.basename(cache_path)}")
+        except Exception as e:
+            print(f"[Warning] Failed to load cache: {e}. Starting fresh.")
+    
+    new_cache = {}
     embeddings = []
+    api_calls = 0
+    cache_hits = 0
+    
     for i, text in enumerate(texts):
-        # Print progress
-        print(f"\r  - Embedding {i+1}/{len(texts)}: {concept_names[i]}", end='', flush=True)
-        emb = get_embedding(text, args.model, args.ollama_url)
-        if emb:
-            embeddings.append(emb)
+        concept_name = concept_names[i]
+        print(f"\r  - Embedding {i+1}/{len(texts)}: {concept_name}", end='', flush=True)
+        
+        # Calculate MD5 of clean text
+        text_md5 = hashlib.md5(text.encode('utf-8')).hexdigest()
+        
+        # Check cache
+        cached_data = cache.get(concept_name)
+        if cached_data and cached_data.get("hash") == text_md5 and "embedding" in cached_data:
+            emb = cached_data["embedding"]
+            cache_hits += 1
         else:
-            print(f"\n[Error] Failed to get embedding for {concept_names[i]}")
-            sys.exit(1)
-    print() # New line after progress
+            # API Call
+            emb = get_embedding(text, args.model, args.ollama_url)
+            if not emb:
+                print(f"\n[Error] Failed to get embedding for {concept_name}")
+                sys.exit(1)
+            api_calls += 1
+            
+        embeddings.append(emb)
+        new_cache[concept_name] = {
+            "hash": text_md5,
+            "embedding": emb
+        }
+        
+    print(f"\n[Info] Embeddings ready. Cache hits: {cache_hits}, API calls: {api_calls}")
+    
+    # Save pruned cache (only contains active concepts)
+    try:
+        with open(cache_path, 'w', encoding='utf-8') as f:
+            json.dump(new_cache, f)
+    except Exception as e:
+        print(f"[Warning] Failed to save cache: {e}")
     
     # 4. Calculate similarities
     embeddings_matrix = np.array(embeddings)

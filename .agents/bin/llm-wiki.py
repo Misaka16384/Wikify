@@ -843,7 +843,7 @@ def check_unknown_files(ctx: LintContext) -> None:
             if not path.exists():
                 continue
             for child in sorted(path.iterdir()):
-                if child.name in {"_index.md", ".backup"}:
+                if child.name in {"_index.md", ".backup"} or child.name.startswith(".embeddings_cache"):
                     continue
                 if not child.is_file() or child.suffix != ".md":
                     handle_unknown(ctx, child, f"Unexpected file in {ctx.rel(path)}/.")
