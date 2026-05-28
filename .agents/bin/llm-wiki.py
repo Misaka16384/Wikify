@@ -2044,7 +2044,7 @@ def run_stats(args: argparse.Namespace) -> int:
         total_wikilinks = 0
         file_list: list[dict[str, Any]] = []
         for md_file in sorted(wiki_dir.rglob("*.md")):
-            if md_file.name == "_index.md":
+            if md_file.name == "_index.md" or ".backup" in md_file.parts:
                 continue
             try:
                 rel = md_file.relative_to(wiki_dir)
@@ -2142,7 +2142,7 @@ def run_graph(args: argparse.Namespace) -> int:
     edges_count = 0
     
     for md_file in sorted(wiki_dir.rglob("*.md")):
-        if md_file.name == "_index.md":
+        if md_file.name == "_index.md" or ".backup" in md_file.parts:
             continue
             
         try:
