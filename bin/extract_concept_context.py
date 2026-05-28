@@ -45,6 +45,10 @@ def extract_concept_context(concept_name, topic_dir):
     
     results = []
     
+    if not os.path.isdir(refs_dir):
+        import json
+        print(json.dumps({"error": f"References directory not found: {refs_dir}"}))
+        sys.exit(2)
     for filename in os.listdir(refs_dir):
         if not filename.endswith(".md"): continue
         

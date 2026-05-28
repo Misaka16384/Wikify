@@ -296,14 +296,14 @@ class PDF2MarkdownAgent:
 
             # 自动生成 Slug 和保存 Markdown
             import re
-            safe_title = re.sub(r'[^a-zA-Z0-9\u4e00-\u9fa5]+', '-', title).strip('-').lower()
+            safe_title = re.sub(r'[^\w]+', '-', title, flags=re.UNICODE).strip('-').lower()
             if not safe_title:
                 safe_title = "document"
             today_str = datetime.now().strftime('%Y-%m-%d')
             slug_name = f"{today_str}-{safe_title}.md"
             md_path = output_dir / slug_name
             
-            markdown_content = builder.build()
+            markdown_content = builder.build(include_metadata=False)
             
             # 注入 YAML Frontmatter
             yaml_frontmatter = f"---\ntitle: \"{title}\"\nsource: \"{pdf_path.name}\"\ntype: papers\ningested: {today_str}\ntags: []\nsummary: \"\"\n---\n\n"

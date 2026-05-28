@@ -46,7 +46,7 @@ When the user asks to enrich, deep-dive, or查漏补缺 (fill gaps) on a paper:
 
 6.  **Post-Enrichment Verification (MANDATORY)**:
     *   Run the concept builder to sequentially generate any missing concept files correctly:
-        `python .agents/bin/concept_builder.py "<TOPIC_DIR>"`
+        `python .agents/bin/index_builder.py "<TOPIC_DIR>"`
     *   Run the reference verifier to check that all new `[[Concept]]` links point to existing files:
         `python .agents/bin/llm-wiki.py stats <TOPIC_DIR> verify-refs "<compiled_file>"`
 

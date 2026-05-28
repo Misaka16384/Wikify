@@ -16,6 +16,7 @@ SCHEMAS = {"thesis", "research", "enrichment-log"}
 
 
 def split_frontmatter(text: str) -> tuple[dict[str, str], str] | None:
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
     if not text.startswith("---\n"):
         return None
     end = text.find("\n---", 4)

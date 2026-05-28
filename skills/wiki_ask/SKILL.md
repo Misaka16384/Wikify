@@ -49,3 +49,10 @@ Once you have gathered sufficient context using the strategies above:
 1.  Draft a clear, conversational response.
 2.  Ensure every major claim is immediately followed by its source: "As demonstrated in [[2023-06-12-graph_gauge_theory]], the mechanism..."
 3.  If you cannot find the answer using these tools, explicitly state: "I could not find information regarding this in the current knowledge base." Do not attempt to fill in the blanks with external knowledge.
+
+## Error Handling
+
+*   If any script exits with non-zero code, report the full stderr output to the user and stop.
+*   If a file cannot be read or parsed, log a warning and continue with remaining files.
+*   Do NOT silently skip errors or proceed with partial results without reporting.
+

@@ -58,9 +58,12 @@ class MarkdownBuilder:
                 content=[content]
             ))
 
-    def build(self) -> str:
+    def build(self, include_metadata: bool = True) -> str:
         """
         构建完整的 Markdown 文档
+
+        Args:
+            include_metadata: 是否包含 YAML front matter
 
         Returns:
             Markdown 文本
@@ -68,7 +71,7 @@ class MarkdownBuilder:
         parts = []
 
         # 添加 YAML front matter
-        if self.metadata:
+        if include_metadata and self.metadata:
             parts.append("---")
             for key, value in self.metadata.items():
                 parts.append(f"{key}: {value}")
@@ -128,8 +131,7 @@ class MarkdownCleaner:
         text = re.sub(r'\$\$\s*([^\n])', r'$$\n\n\1', text)
 
         # 修复常见的 LaTeX 错误
-        # 修复 \int 缺少下标
-        text = re.sub(r'\\int\s+(\d+)', r'\\int_\1', text)
+        # Note: removed aggressive \int_N heuristic — it corrupts legitimate text like "int 10"
 
         return text
 

@@ -40,7 +40,7 @@ def main():
 
     if not os.path.isfile(input_path):
         print(f"Error: File '{input_path}' not found.")
-        exit(1)
+        sys.exit(1)
 
     base_name = os.path.basename(input_path)
     if base_name.endswith('.tar.gz'):
@@ -56,11 +56,20 @@ def main():
         extract_dir = temp_dir_obj.name
         print(f"Extracting tar.gz to {extract_dir}...")
         with tarfile.open(input_path, "r:gz") as tar:
-            tar.extractall(path=extract_dir)
+            # Safe extraction: prevent path traversal (CVE-2007-4559)
+            for member in tar.getmembers():
+                member_path = os.path.normpath(os.path.join(extract_dir, member.name))
+                if not member_path.startswith(os.path.normpath(extract_dir)):
+                    raise ValueError(f"Attempted path traversal in tar: {member.name}")
+            try:
+                tar.extractall(path=extract_dir, filter='data')
+            except TypeError:
+                # Python < 3.12 fallback
+                tar.extractall(path=extract_dir)
         tex_path = find_main_tex(extract_dir)
         if not tex_path:
             print("Error: Could not find main .tex file in the archive.")
-            exit(1)
+            sys.exit(1)
         tex_dir = os.path.dirname(tex_path)
     else:
         tex_path = input_path
@@ -143,7 +152,7 @@ def main():
             os.remove(temp_md_path)
         if temp_dir_obj:
             temp_dir_obj.cleanup()
-        exit(1)
+        sys.exit(1)
 
     with open(temp_md_path, 'r', encoding='utf-8') as f:
         md_content = f.read()

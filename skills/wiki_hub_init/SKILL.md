@@ -13,3 +13,10 @@ When the user asks to initialize or set up a new Hub:
 1.  **Strict Dispatcher Rule**: Run the local deterministic Python script inside this skill directory to safely create the required structure.
     `python .agents/bin/hub-init.py <path_to_hub>`
 2.  **Verify**: Ensure the script executes successfully and confirms the creation of `wikis.json` and `topics/`.
+
+## Error Handling
+
+*   If any script exits with non-zero code, report the full stderr output to the user and stop.
+*   If a file cannot be read or parsed, log a warning and continue with remaining files.
+*   Do NOT silently skip errors or proceed with partial results without reporting.
+

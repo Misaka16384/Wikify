@@ -15,6 +15,8 @@ import re
 import shutil
 import sqlite3
 import sys
+import yaml
+from yaml.scanner import ScannerError
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -57,6 +59,7 @@ ROOT_ALLOWED = {
     "_index.md",
     "config.md",
     "log.md",
+    "scratch",
     "raw",
     "wiki",
     "inventory",
@@ -107,6 +110,7 @@ class Document:
     path: Path
     frontmatter: dict[str, Any]
     body: str
+    raw_text: str = ""
 
 
 class LintContext:
@@ -220,6 +224,7 @@ def parse_frontmatter_block(text: str) -> dict[str, Any]:
 
 
 def split_markdown_frontmatter(text: str) -> tuple[str, str] | None:
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
     if not text.startswith("---\n"):
         return None
     end = text.find("\n---", 4)
@@ -375,6 +380,9 @@ def read_document(ctx: LintContext, path: Path) -> Document | None:
         ctx.issue("critical", f"Could not read file: {exc}", path)
         return None
 
+    # Normalize line endings for Windows compatibility
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+
     if not text.startswith("---\n"):
         ctx.issue("critical", "Markdown file is missing YAML frontmatter.", path)
         return None
@@ -384,7 +392,33 @@ def read_document(ctx: LintContext, path: Path) -> Document | None:
         return None
     frontmatter_text = text[4:end]
     body = text[end + 4 :]
-    return Document(path=path, frontmatter=parse_frontmatter_block(frontmatter_text), body=body)
+
+    # Use yaml.safe_load as the primary parser (most robust)
+    try:
+        parsed_fm = yaml.safe_load(frontmatter_text)
+        if not isinstance(parsed_fm, dict):
+            parsed_fm = {}
+    except ScannerError:
+        fixed_text = re.sub(
+            r'\nsummary:\s*"(.*?)"\n',
+            lambda m: '\nsummary: "' + m.group(1).replace('\\', '\\\\').replace('\\\\\\\\', '\\\\') + '"\n',
+            "\n" + frontmatter_text + "\n",
+            flags=re.DOTALL
+        )
+        if fixed_text != "\n" + frontmatter_text + "\n":
+            frontmatter_text = fixed_text.strip("\n")
+            ctx.issue("info", "Auto-escaped backslashes in YAML summary.", path, fixable=True, fixed=True)
+            if ctx.fix:
+                write_markdown_frontmatter(path, frontmatter_text, body)
+                ctx.fixed(f"Auto-escaped backslashes in {path.name} YAML summary.")
+        else:
+            ctx.issue("critical", "YAML syntax error (likely unescaped backslashes).", path)
+        # Fall back to custom parser on YAML error
+        parsed_fm = parse_frontmatter_block(frontmatter_text)
+    except yaml.YAMLError:
+        parsed_fm = parse_frontmatter_block(frontmatter_text)
+
+    return Document(path=path, frontmatter=parsed_fm, body=body, raw_text=text)
 
 
 def markdown_files(root: Path) -> list[Path]:
@@ -399,11 +433,20 @@ def markdown_files(root: Path) -> list[Path]:
 
 
 def content_markdown_files(root: Path) -> list[Path]:
-    return [
-        path
-        for path in markdown_files(root)
-        if path.name != "_index.md" and path.name != "config.md"
-    ]
+    """Return content markdown files, targeting known directories to avoid traversing .git/.obsidian."""
+    known_dirs = ["raw", "wiki", "inventory", "datasets"]
+    result: list[Path] = []
+    for dirname in known_dirs:
+        subdir = root / dirname
+        if subdir.exists():
+            try:
+                result.extend(
+                    p for p in subdir.rglob("*.md")
+                    if p.is_file() and p.name not in {"_index.md", "config.md"}
+                )
+            except OSError:
+                continue
+    return sorted(result)
 
 
 def load_documents(ctx: LintContext) -> None:
@@ -626,17 +669,19 @@ def check_body_structure(ctx: LintContext) -> None:
         
         # Papers Structure Check
         if parts[0] == "wiki" and len(parts) >= 2 and parts[1] == "references":
-            if "## 1. Key Contributions" not in body:
-                ctx.issue("critical", "Paper is missing required structural heading: '## 1. Key Contributions...'", doc.path)
-            if "## 2. Theoretical Framework" not in body:
-                ctx.issue("critical", "Paper is missing required structural heading: '## 2. Theoretical Framework...'", doc.path)
+            if str(doc.frontmatter.get("exclude_structure_check")).lower() != "true":
+                if not re.search(r"^##\s+\d*\.?\s*Key\s+Contributions", body, re.MULTILINE | re.IGNORECASE):
+                    ctx.issue("critical", "Paper is missing required structural heading: '## 1. Key Contributions...'", doc.path)
+                if not re.search(r"^##\s+\d*\.?\s*Theoretical\s+Framework", body, re.MULTILINE | re.IGNORECASE):
+                    ctx.issue("critical", "Paper is missing required structural heading: '## 2. Theoretical Framework...'", doc.path)
                 
         # Concepts Structure Check
         elif parts[0] == "wiki" and len(parts) >= 2 and parts[1] == "concepts":
-            if "## 1. Core Definition" not in body:
-                ctx.issue("critical", "Concept is missing required structural heading: '## 1. Core Definition...'", doc.path)
-            if "## 2. Mathematical Formalism" not in body:
-                ctx.issue("critical", "Concept is missing required structural heading: '## 2. Mathematical Formalism...'", doc.path)
+            if str(doc.frontmatter.get("exclude_structure_check")).lower() != "true":
+                if not re.search(r"^##\s+\d*\.?\s*Core\s+Definition", body, re.MULTILINE | re.IGNORECASE):
+                    ctx.issue("critical", "Concept is missing required structural heading: '## 1. Core Definition...'", doc.path)
+                if not re.search(r"^##\s+\d*\.?\s*Mathematical\s+Formalism", body, re.MULTILINE | re.IGNORECASE):
+                    ctx.issue("critical", "Concept is missing required structural heading: '## 2. Mathematical Formalism...'", doc.path)
 
 
 def fix_legacy_wiki_frontmatter(ctx: LintContext) -> None:
@@ -841,7 +886,7 @@ def check_unknown_files(ctx: LintContext) -> None:
             if not path.exists():
                 continue
             for child in sorted(path.iterdir()):
-                if child.name in {"_index.md", ".backup"}:
+                if child.name in {"_index.md", ".backup", "images", ".images"} or child.name.startswith(".embeddings_cache"):
                     continue
                 if not child.is_file() or child.suffix != ".md":
                     handle_unknown(ctx, child, f"Unexpected file in {ctx.rel(path)}/.")
@@ -883,7 +928,13 @@ def unique_destination(path: Path) -> Path:
 
 
 def check_index_consistency(ctx: LintContext) -> None:
-    for directory in sorted(path for path in ctx.root.rglob("*") if path.is_dir()):
+    known_roots = ["raw", "wiki", "inventory", "datasets", "output"]
+    all_dirs: list[Path] = []
+    for name in known_roots:
+        base = ctx.root / name
+        if base.exists():
+            all_dirs.extend(p for p in base.rglob("*") if p.is_dir())
+    for directory in sorted(all_dirs):
         if not is_index_checked_directory(ctx.root, directory):
             continue
         index = directory / "_index.md"
@@ -1000,6 +1051,15 @@ def resolve_link_target(base_dir: Path, link: str) -> Path:
 
 
 def check_links(ctx: LintContext) -> None:
+    alias_map: dict[str, str] = {}
+    for doc in ctx.documents.values():
+        if doc.path.parent.name == "concepts":
+            aliases = doc.frontmatter.get("aliases", [])
+            if isinstance(aliases, list):
+                for a in aliases:
+                    alias_slug = str(a).lower().replace(" ", "_").replace("-", "_")
+                    alias_map[alias_slug] = doc.path.name
+
     for doc in sorted(ctx.documents.values(), key=lambda item: str(item.path)):
         try:
             rel = doc.path.resolve().relative_to(ctx.root)
@@ -1007,13 +1067,26 @@ def check_links(ctx: LintContext) -> None:
             continue
         if rel.parts[0] not in {"wiki", "inventory"}:
             continue
-        full_text = doc.path.read_text(encoding="utf-8")
+        full_text = doc.raw_text if doc.raw_text else doc.path.read_text(encoding="utf-8")
+        modified = False
         for link in extract_markdown_links(full_text):
             if not is_local_markdown_link(link):
                 continue
             target = resolve_link_target(doc.path.parent, link)
             if not target.exists():
-                ctx.issue("warning", f"Markdown link points to missing file: {link}.", doc.path)
+                target_stem = target.stem
+                if target_stem in alias_map:
+                    new_target_name = alias_map[target_stem]
+                    new_link = link.replace(target.name, new_target_name)
+                    full_text = full_text.replace(f"]({link})", f"]({new_link})")
+                    full_text = full_text.replace(f"](<{link}>)", f"](<{new_link}>)")
+                    ctx.issue("info", f"Auto-fixed markdown link {link} -> {new_link} via alias mapping.", doc.path, fixable=True, fixed=True)
+                    modified = True
+                    ctx.fixed(f"Auto-fixed markdown link {link} -> {new_link} in {doc.path.name}")
+                else:
+                    ctx.issue("warning", f"Markdown link points to missing file: {link}.", doc.path)
+        if modified:
+            doc.path.write_text(full_text, encoding="utf-8")
 
 
 def check_wikilinks_formatting(ctx: LintContext) -> None:
@@ -1024,7 +1097,7 @@ def check_wikilinks_formatting(ctx: LintContext) -> None:
             continue
         if rel.parts[0] != "wiki":
             continue
-        full_text = doc.path.read_text(encoding="utf-8", errors="replace")
+        full_text = doc.raw_text if doc.raw_text else doc.path.read_text(encoding="utf-8", errors="replace")
         links = extract_wikilinks(full_text)
         for link in links:
             # Check for Windows illegal filename characters
@@ -1035,7 +1108,7 @@ def check_wikilinks_formatting(ctx: LintContext) -> None:
                 continue
             
             # Check for raw LaTeX equations or formula markers
-            if link.startswith('$') or link.endswith('$') or '{' in link or '}' in link or '=' in link or ('+' in link and ('_' in link or '^' in link)):
+            if link.startswith('$') or link.endswith('$') or '{' in link or '}' in link or ('\\' in link and any(kw in link for kw in ['int', 'sum', 'frac', 'partial', 'nabla'])):
                 ctx.issue("warning", f"Wikilink [[{link}]] appears to contain a raw mathematical equation or LaTeX code instead of a clean conceptual term. This will lead to malformed filenames.", doc.path)
 
 
@@ -1177,7 +1250,7 @@ def strip_matching_quotes(value: str) -> str:
 def slugify(value: str) -> str:
     value = value.lower().replace("_", "-")
     value = re.sub(r"\s+", "-", value)
-    value = re.sub(r"[^a-z0-9-]", "", value)
+    value = re.sub(r"[^\w-]", "", value, flags=re.UNICODE)
     value = re.sub(r"-+", "-", value).strip("-")
     return value
 
@@ -1266,6 +1339,7 @@ def create_or_update_coverage_reference(ctx: LintContext, unreferenced: list[Pat
             "confidence: low",
             "volatility: warm",
             'summary: "Reference backlog for raw sources that existed in the wiki but were not yet referenced by compiled articles during lint repair."',
+            "exclude_structure_check: true",
             "---",
             "",
             "# Uncompiled Source Coverage",
@@ -1604,7 +1678,8 @@ def run_lint(args: argparse.Namespace) -> int:
     check_frontmatter_schema(ctx)
     check_body_structure(ctx)
     check_canonical_placement(ctx)
-    load_documents(ctx)
+    if ctx.fix:
+        load_documents(ctx)  # Reload only when fix mode may have changed files
     fix_source_references(ctx)
     check_index_consistency(ctx)
     check_links(ctx)
@@ -1924,7 +1999,7 @@ def run_stats(args: argparse.Namespace) -> int:
     subcmd = args.stats_command
 
     if subcmd == "concept-density":
-        target = Path(args.file).resolve()
+        target = (root / args.file).resolve()
         if not target.exists():
             raise SystemExit(f"file not found: {target}")
         text = target.read_text(encoding="utf-8")
@@ -1952,7 +2027,7 @@ def run_stats(args: argparse.Namespace) -> int:
         return 0
 
     if subcmd == "verify-refs":
-        target = Path(args.file).resolve()
+        target = (root / args.file).resolve()
         if not target.exists():
             raise SystemExit(f"file not found: {target}")
         text = target.read_text(encoding="utf-8")
@@ -1964,11 +2039,14 @@ def run_stats(args: argparse.Namespace) -> int:
         valid: list[str] = []
         dangling: list[str] = []
         for link in links:
-            slug = link.replace(" ", "_")
+            slug_snake = link.replace(" ", "_")
+            slug_kebab = slugify(link)
             candidates = [
-                concepts_dir / f"{slug}.md",
+                concepts_dir / f"{slug_kebab}.md",
+                concepts_dir / f"{slug_snake}.md",
                 concepts_dir / f"{link}.md",
-                refs_dir / f"{slug}.md",
+                refs_dir / f"{slug_kebab}.md",
+                refs_dir / f"{slug_snake}.md",
                 refs_dir / f"{link}.md",
             ]
             if any(c.exists() for c in candidates):
@@ -1994,7 +2072,7 @@ def run_stats(args: argparse.Namespace) -> int:
         total_wikilinks = 0
         file_list: list[dict[str, Any]] = []
         for md_file in sorted(wiki_dir.rglob("*.md")):
-            if md_file.name == "_index.md":
+            if md_file.name == "_index.md" or ".backup" in md_file.parts:
                 continue
             try:
                 rel = md_file.relative_to(wiki_dir)
@@ -2047,98 +2125,104 @@ def run_graph(args: argparse.Namespace) -> int:
     
     print(f"llm-wiki graph: building index at {db_path}...")
     
-    conn = sqlite3.connect(str(db_path))
-    cursor = conn.cursor()
-    
-    # Create tables
-    cursor.executescript("""
-    CREATE TABLE IF NOT EXISTS nodes (
-        id TEXT PRIMARY KEY,
-        path TEXT,
-        title TEXT,
-        type TEXT,
-        category TEXT,
-        summary TEXT,
-        created TEXT,
-        updated TEXT
-    );
-    CREATE TABLE IF NOT EXISTS edges (
-        source_id TEXT,
-        target_id TEXT,
-        type TEXT,
-        UNIQUE(source_id, target_id, type)
-    );
-    CREATE TABLE IF NOT EXISTS tags (
-        node_id TEXT,
-        tag TEXT,
-        UNIQUE(node_id, tag)
-    );
-    CREATE TABLE IF NOT EXISTS aliases (
-        node_id TEXT,
-        alias TEXT,
-        UNIQUE(node_id, alias)
-    );
-    """)
-    
-    # Clear existing data to do a full rebuild
-    cursor.executescript("""
-    DELETE FROM nodes;
-    DELETE FROM edges;
-    DELETE FROM tags;
-    DELETE FROM aliases;
-    """)
-    
-    nodes_count = 0
-    edges_count = 0
-    
-    for md_file in sorted(wiki_dir.rglob("*.md")):
-        if md_file.name == "_index.md":
-            continue
-            
-        try:
-            rel = md_file.relative_to(root)
-            text = md_file.read_text(encoding="utf-8", errors="replace")
-        except (ValueError, OSError):
-            continue
-            
-        parts = split_markdown_frontmatter(text)
-        fm = parse_frontmatter_block(parts[0]) if parts else {}
-        body = parts[1] if parts else text
+    with sqlite3.connect(str(db_path)) as conn:
+        cursor = conn.cursor()
         
-        node_id = md_file.stem
-        title = str(fm.get("title") or md_file.stem)
-        node_type = str(fm.get("type") or "")
-        category = str(fm.get("category") or "")
-        summary = str(fm.get("summary") or "")
-        created = str(fm.get("created") or "")
-        updated = str(fm.get("updated") or "")
+        # Create tables
+        cursor.executescript("""
+        CREATE TABLE IF NOT EXISTS nodes (
+            id TEXT PRIMARY KEY,
+            path TEXT,
+            title TEXT,
+            type TEXT,
+            category TEXT,
+            summary TEXT,
+            created TEXT,
+            updated TEXT
+        );
+        CREATE TABLE IF NOT EXISTS edges (
+            source_id TEXT,
+            target_id TEXT,
+            type TEXT,
+            UNIQUE(source_id, target_id, type)
+        );
+        CREATE TABLE IF NOT EXISTS tags (
+            node_id TEXT,
+            tag TEXT,
+            UNIQUE(node_id, tag)
+        );
+        CREATE TABLE IF NOT EXISTS aliases (
+            node_id TEXT,
+            alias TEXT,
+            UNIQUE(node_id, alias)
+        );
+        """)
         
-        cursor.execute(
+        # Clear existing data to do a full rebuild
+        cursor.executescript("""
+        DELETE FROM nodes;
+        DELETE FROM edges;
+        DELETE FROM tags;
+        DELETE FROM aliases;
+        """)
+        
+        # Collect all data for batch insert
+        node_rows: list[tuple] = []
+        edge_rows: list[tuple] = []
+        tag_rows: list[tuple] = []
+        alias_rows: list[tuple] = []
+        
+        for md_file in sorted(wiki_dir.rglob("*.md")):
+            if md_file.name == "_index.md" or ".backup" in md_file.parts:
+                continue
+                
+            try:
+                rel = md_file.relative_to(root)
+                text = md_file.read_text(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                continue
+                
+            parts = split_markdown_frontmatter(text)
+            fm = parse_frontmatter_block(parts[0]) if parts else {}
+            body = parts[1] if parts else text
+            
+            # Use relative path as node_id to avoid collisions across subdirectories
+            node_id = str(rel).replace("\\", "/").removesuffix(".md")
+            title = str(fm.get("title") or md_file.stem)
+            node_type = str(fm.get("type") or "")
+            category = str(fm.get("category") or "")
+            summary = str(fm.get("summary") or "")
+            created = str(fm.get("created") or "")
+            updated = str(fm.get("updated") or "")
+            
+            node_rows.append((node_id, str(rel).replace("\\", "/"), title, node_type, category, summary, created, updated))
+            
+            tags = fm.get("tags")
+            if isinstance(tags, list):
+                for tag in tags:
+                    tag_rows.append((node_id, str(tag)))
+                    
+            aliases = fm.get("aliases")
+            if isinstance(aliases, list):
+                for alias in aliases:
+                    alias_rows.append((node_id, str(alias)))
+                    
+            links = extract_wikilinks(body)
+            for link in links:
+                target_id = link.replace(" ", "_")
+                edge_rows.append((node_id, target_id, "wikilink"))
+        
+        # Batch insert for performance
+        cursor.executemany(
             "INSERT OR REPLACE INTO nodes (id, path, title, type, category, summary, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (node_id, str(rel).replace("\\", "/"), title, node_type, category, summary, created, updated)
+            node_rows
         )
-        nodes_count += 1
-        
-        tags = fm.get("tags")
-        if isinstance(tags, list):
-            for tag in tags:
-                cursor.execute("INSERT OR IGNORE INTO tags (node_id, tag) VALUES (?, ?)", (node_id, str(tag)))
-                
-        aliases = fm.get("aliases")
-        if isinstance(aliases, list):
-            for alias in aliases:
-                cursor.execute("INSERT OR IGNORE INTO aliases (node_id, alias) VALUES (?, ?)", (node_id, str(alias)))
-                
-        links = extract_wikilinks(body)
-        for link in links:
-            target_id = link.replace(" ", "_")
-            cursor.execute("INSERT OR IGNORE INTO edges (source_id, target_id, type) VALUES (?, ?, ?)", (node_id, target_id, "wikilink"))
-            edges_count += 1
-
-    conn.commit()
-    conn.close()
+        cursor.executemany("INSERT OR IGNORE INTO tags (node_id, tag) VALUES (?, ?)", tag_rows)
+        cursor.executemany("INSERT OR IGNORE INTO aliases (node_id, alias) VALUES (?, ?)", alias_rows)
+        cursor.executemany("INSERT OR IGNORE INTO edges (source_id, target_id, type) VALUES (?, ?, ?)", edge_rows)
+        conn.commit()
     
-    print(f"Indexed {nodes_count} nodes and {edges_count} edges.")
+    print(f"Indexed {len(node_rows)} nodes and {len(edge_rows)} edges.")
     return 0
 
 

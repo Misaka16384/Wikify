@@ -16,7 +16,7 @@ When the user asks to extract, index, or query the knowledge graph of their wiki
 ### 1. Build the Graph Database
 Run the deterministic python script to extract the graph from the markdown files:
 ```bash
-python .agents/bin/llm-wiki.py graph
+python .agents/bin/llm-wiki.py graph <TOPIC_DIR>
 ```
 *This will parse all markdown files under `wiki/` (ignoring `_index.md`), extract frontmatter (tags, aliases) and body links, and rebuild the SQLite database located at `output/graph.db`.*
 
@@ -31,12 +31,19 @@ The database schema is as follows:
 - `tags(node_id, tag)`
 - `aliases(node_id, alias)`
 
-**Example Query:**
-You can query it via command line:
+Use `python .agents/bin/query-graph.py "<SQL>" --db <TOPIC_DIR>/output/graph.db` to query the knowledge graph. Do not use direct `sqlite3` command line execution.
+
+**Example:**
 ```bash
-sqlite3 output/graph.db "SELECT source_id FROM edges WHERE target_id = 'Transformer';"
+python .agents/bin/query-graph.py "SELECT source_id FROM edges WHERE target_id = 'Transformer';" --db <TOPIC_DIR>/output/graph.db
 ```
 Or via a temporary Python script if you need complex graph traversal.
 
 ### 3. Report
 Present the findings of your graph queries to the user.
+
+## Error Handling
+
+*   If any script exits with non-zero code, report the full stderr output to the user and stop.
+*   If a file cannot be read or parsed, log a warning and continue with remaining files.
+*   Do NOT silently skip errors or proceed with partial results without reporting.

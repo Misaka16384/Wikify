@@ -20,7 +20,7 @@ When the user asks to ingest PDFs using local OCR (or runs the command without a
     *   **For `.pdf` files (Execute Local GLM-OCR Conversion)**:
         *   Run the upgraded local `pdf2md-agent` script on the PDF:
             ```bash
-            python .agents/bin/pdf2md-agent\agent.py "<PDF_PATH>" -o "<TOPIC_DIR>\raw\<type>" -t "<DOC_TITLE>"
+            python .agents/bin/pdf2md-agent/agent.py "<PDF_PATH>" -o "<TOPIC_DIR>/raw/<type>" -t "<DOC_TITLE>"
             ```
         *   *Note: This script now automatically generates the standard YAML frontmatter and writes the file as `YYYY-MM-DD-slug.md` directly into your output directory. You do NOT need to rename the file or append YAML manually.*
     *   **For `.md` files**: Do not run any conversion. Directly inject standard YAML frontmatter, rename to `YYYY-MM-DD-slug.md`, and copy to `raw/<type>/`.
@@ -31,3 +31,10 @@ When the user asks to ingest PDFs using local OCR (or runs the command without a
     ```bash
     python .agents/bin/ingest_pipeline.py "<ORIGINAL_FILE_PATH>" --topic-dir "<TOPIC_DIR>" --log-msg "Ingested <DOC_TITLE> via OCR"
     ```
+
+## Error Handling
+
+*   If any script exits with non-zero code, report the full stderr output to the user and stop.
+*   If a file cannot be read or parsed, log a warning and continue with remaining files.
+*   Do NOT silently skip errors or proceed with partial results without reporting.
+

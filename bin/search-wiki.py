@@ -10,6 +10,8 @@ import re
 import sys
 from pathlib import Path
 
+MAX_RESULTS = 200
+
 def main():
     parser = argparse.ArgumentParser(description="Search for regex patterns in files.")
     parser.add_argument("query", help="Regex pattern to search for.")
@@ -30,7 +32,7 @@ def main():
         if not path.is_file():
             continue
         try:
-            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
                 for i, line in enumerate(f, 1):
                     if pattern.search(line):
                         results.append({
@@ -38,9 +40,12 @@ def main():
                             "line": i,
                             "content": line.rstrip("\n")
                         })
-        except Exception:
-            # Skip unreadable files
-            pass
+                        if len(results) >= MAX_RESULTS:
+                            break
+            if len(results) >= MAX_RESULTS:
+                break
+        except (IOError, PermissionError) as e:
+            print(f"Warning: skipped {path}: {e}", file=sys.stderr)
 
     print(json.dumps({"matches": results}, indent=2))
 

@@ -22,16 +22,20 @@ def main():
         sys.exit(1)
 
     try:
-        conn = sqlite3.connect(str(db_path))
+        # Open database in read-only mode to prevent accidental writes
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
+        cursor.execute("PRAGMA query_only = ON")
         cursor.execute(args.query)
         rows = [dict(row) for row in cursor.fetchall()]
         print(json.dumps({"results": rows}, indent=2))
-        conn.close()
     except Exception as e:
         print(json.dumps({"error": str(e)}))
         sys.exit(1)
+    finally:
+        if 'conn' in locals():
+            conn.close()
 
 if __name__ == "__main__":
     main()

@@ -322,7 +322,7 @@ class OCREngine:
 
         # 获取模型大小
         model_info = self.get_model_info()
-        size_gb = model_info.get("size", 0) / (1024**3) if model_info else "未知"
+        size_gb = model_info.get("size", 0) / (1024**3) if model_info else 0
         
         # 发送一个简单请求来加载模型
         try:

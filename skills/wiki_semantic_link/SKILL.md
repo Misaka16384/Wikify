@@ -17,6 +17,8 @@ This skill is executed via the Python script located within the skill directory:
 python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> [--threshold 0.85] [--model qwen3-embedding:0.6b]
 ```
 
+> **Prerequisites**: Ensure the embedding model is available locally via `ollama pull qwen3-embedding:0.6b` before running. Requires `numpy` and `scikit-learn` Python packages.
+
 ## Internal Phases
 
 ### Phase 1: Preparation & Backup

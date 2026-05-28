@@ -6,8 +6,8 @@ def clean_math_delimiters(content):
     # Ensure standard LaTeX block environments have preceding and trailing newlines
     environments = ['align', 'equation', 'gather', 'multline', 'split']
     for env in environments:
-        content = re.sub(rf'(?<!\n)\\begin\{{{env}\}}', f'\n\\\\begin{{{env}}}', content)
-        content = re.sub(rf'\\end\{{{env}\}}(?!\n)', f'\\\\end{{{env}}}\n', content)
+        content = re.sub(rf'(?<!\n)(\\begin\{{{env}\}})', r'\n\1', content)
+        content = re.sub(rf'(\\end\{{{env}\}})(?!\n)', r'\1\n', content)
 
     # Standardize single-line block math:
     # $$equation$$  -->  $$\nmath\n$$
@@ -158,6 +158,7 @@ def process_directory(directory):
                 try:
                     with open(file_path, 'r', encoding='utf-8') as f:
                         content = f.read()
+                    content = content.replace('\r\n', '\n')
                     
                     formatted = clean_math_delimiters(content)
                     
@@ -165,7 +166,7 @@ def process_directory(directory):
                         with open(file_path, 'w', encoding='utf-8') as f:
                             f.write(formatted)
                         print(f"  Formatted: {os.path.relpath(file_path, directory)}")
-                except Exception as e:
+                except (IOError, UnicodeDecodeError) as e:
                     print(f"  Error processing {file_path}: {e}")
 
 if __name__ == '__main__':

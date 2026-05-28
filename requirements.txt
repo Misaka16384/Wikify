@@ -1,9 +1,12 @@
-requests>=2.28.0
-pillow>=9.0.0
-pyyaml>=6.0
-pydantic>=2.0.0
-rich>=13.0.0
-pdf2image>=1.16.0
-scikit-learn>=1.0.0
-numpy>=1.20.0
-filelock>=3.12.0
+# Core dependencies (llm-wiki.py, bin scripts)
+pyyaml>=6.0             # YAML parsing (llm-wiki.py frontmatter)
+filelock>=3.12.0        # Concurrent concept file writes (add_concept.py)
+
+# pdf2md-agent dependencies
+requests>=2.28.0        # Ollama API calls (ocr_engine.py)
+pillow>=9.0.0           # Image preprocessing (ocr_engine.py, pdf_processor.py)
+rich>=13.0.0            # Console output (agent.py)
+
+# wiki_semantic_link dependencies
+scikit-learn>=1.0.0     # Cosine similarity (semantic_linker.py)
+numpy>=1.20.0           # Vector operations (semantic_linker.py)

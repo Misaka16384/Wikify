@@ -90,7 +90,7 @@ class PDFProcessor:
         ]
 
         # 执行转换
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         if result.returncode != 0:
             raise RuntimeError(f"pdftoppm 转换失败: {result.stderr}")
 
@@ -117,11 +117,12 @@ class PDFProcessor:
     def get_page_count(self, pdf_path: str) -> int:
         """获取 PDF 页数"""
         # 使用 pdfinfo 或通过转换获取
-        pdfinfo_path = self.pdftoppm_path.replace("pdftoppm", "pdfinfo")
+        pdfinfo_name = Path(self.pdftoppm_path).name.replace("pdftoppm", "pdfinfo")
+        pdfinfo_path = str(Path(self.pdftoppm_path).parent / pdfinfo_name)
         if os.path.exists(pdfinfo_path):
             result = subprocess.run(
                 [pdfinfo_path, pdf_path],
-                capture_output=True, text=True
+                capture_output=True, text=True, timeout=30
             )
             for line in result.stdout.split("\n"):
                 if line.startswith("Pages:"):

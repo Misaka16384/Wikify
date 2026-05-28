@@ -9,3 +9,9 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 .DS_Store
+
+# Deployed copies (do not commit)
+.agents/
+
+# Lock files from filelock
+*.lock

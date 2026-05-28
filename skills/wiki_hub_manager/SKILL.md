@@ -28,3 +28,10 @@ This skill consolidates all Hub-related operations into a single dispatcher.
 4. **Restore an Archived Topic**
    To unarchive a topic and move it back into the active working set:
    `python .agents/bin/llm-wiki.py archive --hub <path_to_hub> restore <slug>`
+
+## Error Handling
+
+*   If any script exits with non-zero code, report the full stderr output to the user and stop.
+*   If a file cannot be read or parsed, log a warning and continue with remaining files.
+*   Do NOT silently skip errors or proceed with partial results without reporting.
+

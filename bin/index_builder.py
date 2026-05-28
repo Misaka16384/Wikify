@@ -43,7 +43,7 @@ def build_index_for_dir(dir_path, title):
         if not summary:
             summary = "No summary provided."
             
-        tags = fm.get('tags', [])
+        tags = fm.get('tags') or []
         if isinstance(tags, str):
             tags = [tags]
         tags_str = ", ".join(tags) if tags else ""

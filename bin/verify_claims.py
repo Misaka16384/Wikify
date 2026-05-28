@@ -1,10 +1,12 @@
 import argparse
 import os
 import re
-import urllib.request
-import urllib.error
+import sys
 
 def verify_claims(filepath, topic_dir):
+    if not os.path.isfile(filepath):
+        print(f"Error: claims file not found: {filepath}", file=sys.stderr)
+        sys.exit(2)
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
 
@@ -52,8 +54,11 @@ def verify_claims(filepath, topic_dir):
                         reason = f"Evidence string not exactly found in file."
         elif source_type == "web":
             if source.startswith("http://") or source.startswith("https://"):
-                # Basic check
-                is_valid = True
+                # Only validates URL format, not content — honest label
+                print(f"[URL-FORMAT-OK] {claim}")
+                print(f"  Source: {source}")
+                verified_count += 1
+                continue
             else:
                 reason = f"Invalid URL format: {source}"
         else:
