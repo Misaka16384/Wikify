@@ -9,6 +9,7 @@ import urllib.request
 import urllib.error
 import numpy as np
 import yaml
+import subprocess
 from sklearn.metrics.pairwise import cosine_similarity
 from pathlib import Path
 
@@ -17,6 +18,8 @@ def setup_argparse():
     parser.add_argument("topic_dir", help="Path to the root of the topic wiki (containing wiki/concepts/)")
     parser.add_argument("--threshold", type=float, default=0.75, help="Cosine similarity threshold for linking (default: 0.75)")
     parser.add_argument("--merge-threshold", type=float, default=0.85, help="Cosine similarity threshold for merge suggestions (default: 0.85)")
+    parser.add_argument("--auto-merge", action="store_true", help="Automatically merge concepts with score >= auto-merge-threshold")
+    parser.add_argument("--auto-merge-threshold", type=float, default=0.95, help="Cosine similarity threshold for auto-merging (default: 0.95)")
     parser.add_argument("--dedup-only", action="store_true", help="Only output merge suggestions, do not inject links.")
     parser.add_argument("--update-cache-only", action="store_true", help="Only update the embedding cache and exit. Skips all similarity calculations.")
     parser.add_argument("--model", type=str, default="qwen3-embedding:0.6b", help="Ollama embedding model to use")
@@ -270,6 +273,18 @@ def main():
                 if score >= args.merge_threshold:
                     print(f"[MERGE_SUGGESTION] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f}){boost_reason}")
                     merge_suggestions += 1
+                    
+                    if args.auto_merge and score >= args.auto_merge_threshold:
+                        if len(concept_names[i]) <= len(concept_names[j]):
+                            canonical = concept_names[i]
+                            old = concept_names[j]
+                        else:
+                            canonical = concept_names[j]
+                            old = concept_names[i]
+                            
+                        print(f"  [AUTO-MERGING] {old} -> {canonical}")
+                        refactor_script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "bin", "refactor_concept.py")
+                        subprocess.run([sys.executable, refactor_script, "--topic-dir", topic_dir, "--old", old, "--new", canonical])
             else:
                 if score >= args.threshold:
                     # Add link to i (linking to j)

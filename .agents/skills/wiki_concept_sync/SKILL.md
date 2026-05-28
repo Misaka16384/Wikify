@@ -27,20 +27,19 @@ When the user asks to clean, refactor, deduplicate, or globally sync the vault, 
 
 ---
 
-### Stage 2: Semantic Collision Discovery (Semantic Link)
+### Stage 2: Discover and Auto-Merge Semantic Collisions (Semantic Linker)
 
-Now that the YAML metadata is pristine, the semantic linker can utilize the normalized tags and aliases to apply `+0.05` Tag Boosts and `+0.10` Alias Crossmatch Boosts.
-
-1.  **Update Cache & Calculate**: Run the semantic linker in deduplication mode.
-    `python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> --dedup-only --merge-threshold 0.80`
-2.  **Semantic Collision Hook**: Read the console output. Extract all `[MERGE_SUGGESTION]` pairs.
-3.  **Consolidate Targets**: Combine the suspects from Stage 1 (Alias Collisions) and Stage 2 (Semantic Collisions) into a final deduplication target list.
+Use the local Ollama embedding engine to scan the entire workspace for semantic overlaps and auto-merge high-confidence identical concepts:
+1. Run `python .agents/skills/wiki_semantic_link/semantic_linker.py "<TOPIC_DIR>" --dedup-only --auto-merge`
+2. **Analysis**: The script will output a list of `[MERGE_SUGGESTION] A <--> B (Score)`. 
+   - **Auto-Merged**: Any pair with a score >= 0.95 will be physically merged by the script automatically. You do not need to do anything for these.
+   - **Manual Review**: Any pair with a score between 0.85 and 0.949 will remain unmerged. Note down these remaining high-score suggestions (e.g., >0.90) as your final target list for manual review.
 
 ---
 
 ### Stage 3: Physics Merging & Synthesis (Concept Merge)
 
-For every pair of duplicate concepts in your final target list:
+For every pair of duplicate concepts in your final target list (the 0.85-0.949 range that you deem necessary to merge):
 
 1.  **Resolve & Merge (Principle)**: Choose a canonical name. **CRITICAL PRINCIPLE**: Always merge sub-concepts into their parent concepts (e.g., merge `gauge_redundancy` into `gauge_symmetry`). The parent concept becomes the Canonical Name.
 2.  **Refactor & Concatenate**: Run the deterministic python script to safely update all `[[Old Concept]]` links to `[[Canonical Name]]`, merge their frontmatter tags, append the old concept's text body to the new concept's body, and handle deletions automatically:
