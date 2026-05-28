@@ -29,7 +29,7 @@ When the user asks to perform an audit or truth check on their vault:
     *   Do NOT attempt to read all compiled cards manually.
 
 2.  **Reduce (Subagent Phase)**:
-    *   Use the `invoke_subagent` tool to spawn one or more "Audit Subagents". Assign each subagent a specific subset of the relevant files.
+    *   Use the `invoke_subagent` tool (with `TypeName: "self"`) to spawn one or more "Audit Subagents". Assign each subagent a specific subset of the relevant files.
     *   **Subagent Output Contract (MANDATORY)**: Each subagent MUST structure findings as:
         ```
         CLAIM: "<exact quote from conflicting file>"

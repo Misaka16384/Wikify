@@ -15,6 +15,8 @@ concepts:
 sources:
   - "raw/papers/YYYY-MM-DD-paper-slug.md"
 tags: [tag1, tag2]
+aliases: []
+volatility: warm
 summary: 'A 2-3 sentence overview explaining the core theorem proved, the physical model proposed, or the main phenomenon explained. (Use single quotes if using LaTeX math)'
 ---
 

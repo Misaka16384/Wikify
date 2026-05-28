@@ -6,6 +6,7 @@ updated: YYYY-MM-DD
 tags: [tag1, tag2]
 aliases: [Alternative Term 1, Alternative Term 2]
 confidence: high|medium|low
+volatility: warm
 summary: 'A concise 2-3 sentence definition of the mathematical concept, physical theory, or theorem. (Use single quotes if using LaTeX math)'
 ---
 

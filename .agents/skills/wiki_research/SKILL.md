@@ -25,7 +25,7 @@ When the user asks to research a topic:
         - `SELECT n.path, e.type FROM nodes n JOIN edges e ON n.id = e.target_id WHERE e.source_id = 'some-concept-id'`
         This helps contextualize your research plan within the existing knowledge graph.
 
-2.  **Orchestrate Background Subagents**: Spawn the parallel subagents using the `invoke_subagent` tool according to your dynamic research plan.
+2.  **Orchestrate Background Subagents**: Spawn the parallel subagents using the `invoke_subagent` tool (with `TypeName: "self"`) according to your dynamic research plan.
     *   Assign each subagent a clear, focused `Role` and `Prompt` tailored to their specific investigative dimension.
     *   **Source Constraint (CRITICAL)**: Every subagent prompt MUST include this instruction:
         > "You MUST use `search_web` or `view_file` tools to gather evidence. Do NOT make factual claims from parametric memory alone. Every claim must cite either a specific URL from web search or a specific local file path that you read with `view_file`. If you cannot find a source for a claim, mark it explicitly as `[UNVERIFIED]`."

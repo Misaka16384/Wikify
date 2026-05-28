@@ -16,7 +16,7 @@ The user can ask to refine/sync a **single concept** (e.g., `wiki_concept_sync "
 
 ### Phase 1: Deduplication Discovery
 1.  **Semantic Duplicates Search**: Run the semantic linker in deduplication-only mode to find highly identical concepts:
-    `python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> --dedup-only`
+    `python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> --dedup-only --merge-threshold 0.8`
 2.  **Agent Review**: Carefully review the `[MERGE_SUGGESTION]` output logs from the script.
 3.  **Resolve & Merge (Principle)**: If you verify that a pair is genuinely the same or strongly overlapping, choose a canonical name. **CRITICAL PRINCIPLE**: Always merge sub-concepts into their parent concepts (e.g., merge `gauge_redundancy` into `gauge_symmetry`). The parent concept becomes the Canonical Name.
 4.  **Refactor Links**: Run the deterministic python script to safely update all `[[Old Concept]]` links to `[[Canonical Name]]`, and handle backups and deletions automatically:
