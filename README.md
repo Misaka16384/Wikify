@@ -90,8 +90,8 @@ Once installed, simply ask your AI assistant to perform the following workflows 
 
 ### Knowledge Graph Maintenance
 - **`wiki_enrich`**: Tell the AI to scan a paper and extract missing lemmas or theorems into new concept cards.
-- **`wiki_concept_sync`**: Ask the AI to deduplicate concepts. It will find duplicates and merge them intelligently.
-- **`wiki_semantic_link`**: Runs silently to vector-scan all your concepts and inject `[[Related Links|Aliases]]` at the bottom of cards. Features blazing-fast incremental MD5 caching for zero API overhead on unchanged concepts, and intelligent pre-filtering to prevent false-positive clustering of empty concept stubs.
+- **`wiki_concept_sync`**: Ask the AI to deduplicate concepts. It features a local, deterministic script-based physical merging engine (zero LLM hallucinations) that automatically picks parent-child concepts to ensure lossless concatenation and safe wikilink redirection globally.
+- **`wiki_semantic_link`**: A blazing-fast semantic embedding engine. It not only injects beautiful `[[Related Links|Aliases]]` at the bottom of cards, but now features an **`--auto-merge`** unattended capability—automatically restructuring and physically merging duplicate concepts behind the scenes if their vector confidence hits $\ge 0.95$. Features incremental MD5 caching for zero API overhead on unchanged concepts.
 
 ### Chat & Research
 - **`wiki_ask "Your Question"`**: Ask the AI any question about your vault. The AI will use RAG and Graph SQL to answer you with strict `[[Citations]]` and zero hallucinations.
