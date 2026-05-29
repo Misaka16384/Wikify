@@ -20,6 +20,12 @@ This skill handles "gap-filling" for concept extraction. Due to token limits, in
 > **Tooling (framework-agnostic):** This skill is written tool-agnostic. Map each capability to your own agent's tool — *read-file* (`Read` in Claude Code, `view_file` in Antigravity), *sub-agent / parallel task* (`Task`/`Agent` in Claude Code, `invoke_subagent` in Antigravity), *shell* (`Bash`/`PowerShell`). Use the closest equivalent your framework provides; if a parallel sub-agent tool is unavailable, mine the chunks sequentially yourself.
 
 When the user asks to enrich, deep-dive, or查漏补缺 (fill gaps) on a paper:
+0.  **Pre-enrichment Placeholder Fill (Main Agent)**:
+    *   Run the placeholder detection script:
+        `python <BIN>/find_placeholders.py "<compiled_file>"`
+    *   For each detected placeholder (e.g. `[STUB: Awaiting synthesis]`), scan the original `raw/papers/` source file to see if an "exactly matching semantic context" exists.
+    *   **Anti-Hallucination Guardrail**: If you find what you believe to be the matching context, **prompt the user for confirmation** before surgically replacing the placeholder. Only proceed with the fill if the user confirms. If you do not find a clear match, skip the placeholder.
+
 1.  **Idempotency Check (Main Agent)**:
     *   Read the target compiled paper's YAML frontmatter.
     *   If `enriched: <date>` is present, inform the user the paper was already enriched on that date. Only proceed if the user explicitly forces re-enrichment.

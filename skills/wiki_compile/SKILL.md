@@ -29,7 +29,7 @@ When the user asks to compile the wiki or process raw files, follow this paralle
 3.  **Subagent Task Instructions**: Instruct each subagent to process its specifically assigned raw file independently:
     *   **Strict Template Adherence**: Read the raw document and apply the template `<SKILL_DIR>/templates/paper_template.md`.
     *   **Ensure High-Density Output**:
-        *   **No stubs**: The compiled markdown must have rich sections covering math formulas (LaTeX), experimental metrics, contributions, and critical limits.
+        *   **No vague stubs**: The compiled markdown must have rich sections covering math formulas (LaTeX), experimental metrics, contributions, and critical limits. If critical information is completely missing from the raw text, you MUST ONLY use the exact string `[STUB: Awaiting synthesis]` as the placeholder. Do not generate other variations like "No explicit definition".
         *   **Bidirectional Linking**: Apply standard Obsidian double bracket linking: `[[Concept]]` or `[[Concept|Alias]]`. Do NOT use standard markdown relative links for these.
         *   **Concept Extraction (Thread-Safe)**: To extract novel concepts, do NOT write directly to `wiki/concepts/`. Instead, use the provided script to safely append your perspective. For each extracted concept, run:
             `python <BIN>/add_concept.py --name "Concept Name" --source "Source Paper Name" --content "Your detailed definition and perspective on this concept based on the paper you just read."`
