@@ -25,9 +25,9 @@ Once built, you (the AI) can query `output/graph.db` using Python's `sqlite3` mo
 
 The database schema is as follows:
 - `nodes(id, path, title, type, category, summary, created, updated)`
-  - `id`: The file stem (e.g., 'concept_name')
+  - `id`: The file path without extension (e.g., 'concepts/concept_name') or a tag (e.g., 'tag:machine-learning').
 - `edges(source_id, target_id, type)`
-  - `type` is currently always 'wikilink'.
+  - `type` can be 'wikilink' (between files) or 'has_tag' (from file to tag node).
 - `tags(node_id, tag)`
 - `aliases(node_id, alias)`
 

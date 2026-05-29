@@ -2224,6 +2224,18 @@ def run_graph(args: argparse.Namespace) -> int:
         cursor.executemany("INSERT OR IGNORE INTO tags (node_id, tag) VALUES (?, ?)", tag_rows)
         cursor.executemany("INSERT OR IGNORE INTO aliases (node_id, alias) VALUES (?, ?)", alias_rows)
         cursor.executemany("INSERT OR IGNORE INTO edges (source_id, target_id, type) VALUES (?, ?, ?)", edge_rows)
+        
+        # Insert tags as nodes and create has_tag edges
+        cursor.executescript("""
+        INSERT OR REPLACE INTO nodes (id, path, title, type, category, summary, created, updated)
+        SELECT 'tag:' || tag, '', tag, 'tag', 'tag', '', '', ''
+        FROM tags GROUP BY tag;
+        
+        INSERT OR IGNORE INTO edges (source_id, target_id, type)
+        SELECT node_id, 'tag:' || tag, 'has_tag'
+        FROM tags;
+        """)
+        
         conn.commit()
     
     print(f"Indexed {len(node_rows)} nodes and {len(edge_rows)} edges.")
