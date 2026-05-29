@@ -33,9 +33,9 @@ When the user asks to ingest documents (or runs the command without a path):
     *   Once all subagents return their page transcriptions, assemble them in order into a single standard Markdown document.
     *   **Alternative (Local OCR)**: If the user explicitly requests high-performance local offline OCR or wants to save external API tokens for long documents, you **MUST** use the `wiki_ingest_ocr` skill instead. Do not mix native multimodal with local Python OCR scripts inside this skill.
     *   **For `.md` files**: Do not run any conversion. Directly inject standard YAML frontmatter (see Step 4), rename to `YYYY-MM-DD-slug.md`, and copy to `raw/<type>/`.
-    *   **For `.tex` files**: You **MUST** use the Pandoc conversion script. Run:
-        `python <BIN>/tex2md.py "<TEX_PATH>" -o "<TOPIC_DIR>\raw\<type>"`
-        *Note: This script automatically generates YAML frontmatter and writes the file. Skip Step 4.*
+    *   **For `.tex` files (and arXiv `.tar.gz` source bundles)**: You **MUST** use the Pandoc conversion script. Run:
+        `python <BIN>/tex2md.py "<TEX_OR_TARGZ_PATH>" -o "<TOPIC_DIR>\raw\<type>"`
+        *Note: This script automatically generates YAML frontmatter, writes the file, and extracts referenced figures into `images/` (rasterising `.pdf`/`.eps` figures to PNG, prefixed with the doc slug). Skip Step 4. Check the printed `Figures: N embedded, M unresolved` line.*
 4.  **Assign Slug & YAML**: Write to `raw/<type>/YYYY-MM-DD-slug.md` with standard frontmatter:
     ```yaml
     ---

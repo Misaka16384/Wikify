@@ -147,6 +147,12 @@ class PDF2MarkdownAgent:
         if title is None:
             title = pdf_path.stem
 
+        # 文档 slug（同时用于 Markdown 文件名与图片前缀，避免多篇论文图片重名冲突）
+        import re as _re
+        safe_title = _re.sub(r'[^\w]+', '-', title, flags=_re.UNICODE).strip('-').lower() or "document"
+        today_str = datetime.now().strftime('%Y-%m-%d')
+        doc_stem = f"{today_str}-{safe_title}"
+
         # 创建临时目录
         temp_dir = output_dir / ".temp"
         temp_dir.mkdir(parents=True, exist_ok=True)
@@ -273,7 +279,7 @@ class PDF2MarkdownAgent:
 
             # Step 4: 提取图表（按标题锚定裁剪页面区域，矢量图/位图通用）
             console.print(Panel("[bold blue]Step 4: 提取图表[/bold blue]", expand=False))
-            figures = extract_figures(str(pdf_path), str(images_dir))
+            figures = extract_figures(str(pdf_path), str(images_dir), prefix=doc_stem)
             figures_by_page = {}
             for fig in figures:
                 figures_by_page.setdefault(fig.page, []).append(fig)
@@ -295,13 +301,8 @@ class PDF2MarkdownAgent:
                     cleaned_content = inject_figures(cleaned_content, page_figs, img_folder)
                 builder.add_page_content(result.page_number, cleaned_content)
 
-            # 自动生成 Slug 和保存 Markdown
-            import re
-            safe_title = re.sub(r'[^\w]+', '-', title, flags=re.UNICODE).strip('-').lower()
-            if not safe_title:
-                safe_title = "document"
-            today_str = datetime.now().strftime('%Y-%m-%d')
-            slug_name = f"{today_str}-{safe_title}.md"
+            # 保存 Markdown（slug 已在前面计算）
+            slug_name = f"{doc_stem}.md"
             md_path = output_dir / slug_name
             
             markdown_content = builder.build(include_metadata=False)

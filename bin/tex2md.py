@@ -1,6 +1,7 @@
 import argparse
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -36,6 +37,122 @@ def find_main_tex(directory):
             if file.endswith('.tex'):
                 return os.path.join(root, file)
     return None
+
+# Figure extensions we can resolve from a \includegraphics target.
+_IMG_EXTS = (".pdf", ".eps", ".ps", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".svg")
+
+
+def _graphics_search_dirs(tex_content, tex_dir):
+    """Directories to look for figures in: tex dir + \\graphicspath + common subdirs."""
+    dirs = [tex_dir]
+    for m in re.finditer(r'\\graphicspath\s*\{(.+?)\}', tex_content, re.S):
+        for p in re.findall(r'\{([^{}]*)\}', m.group(1)):
+            p = p.strip().replace('\\', '/')
+            if p:
+                dirs.append(os.path.normpath(os.path.join(tex_dir, p)))
+    for sub in ('figures', 'figs', 'fig', 'images', 'img', 'plots', 'graphics'):
+        d = os.path.join(tex_dir, sub)
+        if os.path.isdir(d):
+            dirs.append(d)
+    seen, out = set(), []
+    for d in dirs:
+        if d not in seen:
+            seen.add(d)
+            out.append(d)
+    return out
+
+
+def _resolve_figure(target, search_dirs):
+    """Resolve a possibly extension-less / sub-pathed \\includegraphics target to a real file."""
+    target = target.strip().strip('"').replace('\\', '/')
+    base, ext = os.path.splitext(target)
+    for d in search_dirs:
+        if ext.lower() in _IMG_EXTS and os.path.isfile(os.path.join(d, target)):
+            return os.path.join(d, target)
+        for e in _IMG_EXTS:                       # handle missing or wrong extension
+            cand = os.path.join(d, base + e)
+            if os.path.isfile(cand):
+                return cand
+    return None
+
+
+def _convert_figure(src, images_dir, out_stem):
+    """Copy/convert a figure into images_dir as a web-renderable file. Returns (filename, warning)."""
+    ext = os.path.splitext(src)[1].lower()
+    if ext == ".pdf":
+        try:
+            import fitz
+            doc = fitz.open(src)
+            pix = doc[0].get_pixmap(dpi=200)
+            name = out_stem + ".png"
+            pix.save(os.path.join(images_dir, name))
+            doc.close()
+            return name, None
+        except Exception as e:
+            return None, f"PDF figure conversion failed ({os.path.basename(src)}): {e}"
+    if ext in (".eps", ".ps"):
+        try:
+            from PIL import Image
+            img = Image.open(src)
+            try:
+                img.load(scale=3)                 # higher-res EPS raster (needs Ghostscript)
+            except Exception:
+                pass
+            name = out_stem + ".png"
+            img.convert("RGB").save(os.path.join(images_dir, name))
+            return name, None
+        except Exception as e:
+            name = out_stem + ext                 # Ghostscript missing: keep raw so it isn't lost
+            shutil.copy2(src, os.path.join(images_dir, name))
+            return name, f"EPS not rasterized (install Ghostscript); copied raw {name}"
+    name = out_stem + ext                         # raster / svg: copy as-is
+    shutil.copy2(src, os.path.join(images_dir, name))
+    return name, None
+
+
+def handle_figures(md_content, tex_content, tex_dir, output_dir, slug):
+    """Copy/convert every figure referenced in the Pandoc markdown into output_dir/images/
+    and rewrite the links. Figure files are prefixed with the doc slug to avoid collisions
+    between papers sharing one raw/<type>/images/ folder. Returns (md, n_ok, n_missing)."""
+    search_dirs = _graphics_search_dirs(tex_content, tex_dir)
+    images_dir = os.path.join(output_dir, "images")
+    img_re = re.compile(r'!\[([^\]]*)\]\(([^)]+?)\)(\{[^}]*\})?')
+    cache, used = {}, set()
+    stats = {"ok": 0, "missing": 0}
+
+    def repl(m):
+        cap, target = m.group(1), m.group(2)
+        if target.startswith(("http://", "https://", "images/")):
+            return m.group(0)
+        if target in cache:
+            nm = cache[target]
+            return f'![{cap}](images/{nm})' if nm else m.group(0)
+        src = _resolve_figure(target, search_dirs)
+        if not src:
+            stats["missing"] += 1
+            cache[target] = None
+            print(f"  [fig] WARNING: could not resolve figure '{target}'")
+            return m.group(0)
+        os.makedirs(images_dir, exist_ok=True)
+        base = re.sub(r'[^\w.-]+', '_', os.path.splitext(os.path.basename(src))[0])
+        stem, i = f"{slug}-{base}", 2
+        while stem in used:
+            stem = f"{slug}-{base}-{i}"
+            i += 1
+        used.add(stem)
+        name, warn = _convert_figure(src, images_dir, stem)
+        if warn:
+            print(f"  [fig] {warn}")
+        if name:
+            cache[target] = name
+            stats["ok"] += 1
+            return f'![{cap}](images/{name})'
+        stats["missing"] += 1
+        cache[target] = None
+        return m.group(0)
+
+    return img_re.sub(repl, md_content), stats["ok"], stats["missing"]
+
 
 def main():
     parser = argparse.ArgumentParser(description="Convert TeX/arXiv tar.gz to Markdown using Pandoc.")
@@ -178,8 +295,14 @@ def main():
 
     with open(temp_md_path, 'r', encoding='utf-8') as f:
         md_content = f.read()
-    
+
     os.remove(temp_md_path)
+
+    # Copy/convert figures into output_dir/images/ and rewrite links.
+    # MUST run before the temp dir (containing the extracted figures) is cleaned up.
+    md_content, n_fig_ok, n_fig_missing = handle_figures(
+        md_content, tex_content, tex_dir, output_dir, slug)
+    print(f"Figures: {n_fig_ok} embedded into images/, {n_fig_missing} unresolved")
 
     frontmatter = f"""---
 title: "{title}"

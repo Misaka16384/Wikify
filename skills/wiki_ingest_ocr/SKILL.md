@@ -15,7 +15,9 @@ commands:
 >
 > Do **not** hardcode a fixed prefix like `.agents/bin` or `../bin`: shell relative paths resolve against the current working directory (usually the topic root), not this skill's location. Once resolved, `<BIN>` is typically `.agents/bin` when invoked from the hub root, or `.claude/bin` from inside a topic directory.
 
-This skill handles converting external PDF documents (especially academic papers or scanned articles inside `inbox/` or custom local paths) into high-fidelity clean Markdown using the local OCR model configured in `config.yaml` (default: `glm-ocr` at 150 DPI).
+This skill handles converting external PDF documents (especially academic papers or scanned articles inside `inbox/` or custom local paths) into high-fidelity clean Markdown using the local OCR model configured in `config.yaml` (default: `glm-ocr` at 130 DPI).
+
+> **Figures are handled automatically.** Both the PDF path (`pdf2md-agent`) and the TeX path (`tex2md.py`) extract figures into an `images/` folder beside the output Markdown and embed them inline (`![caption](images/<slug>-...png)`). Figure files are prefixed with the document slug, so multiple papers can share one `raw/<type>/images/` folder without collisions. Vector figures and `.pdf`/`.eps` sources are rasterised to PNG. You do **not** need to handle figures manually.
 
 When the user asks to ingest PDFs using local OCR (or runs the command without a path):
 1.  **Resolve Ingestion Targets**:
@@ -32,9 +34,9 @@ When the user asks to ingest PDFs using local OCR (or runs the command without a
             ```
         *   *Note: This script now automatically generates the standard YAML frontmatter and writes the file as `YYYY-MM-DD-slug.md` directly into your output directory. You do NOT need to rename the file or append YAML manually.*
     *   **For `.md` files**: Do not run any conversion. Directly inject standard YAML frontmatter, rename to `YYYY-MM-DD-slug.md`, and copy to `raw/<type>/`.
-    *   **For `.tex` files**: You **MUST** use the Pandoc conversion script instead of OCR. Run:
-        `python <BIN>/tex2md.py "<TEX_PATH>" -o "<TOPIC_DIR>\raw\<type>"`
-        *Note: This script automatically generates YAML frontmatter and writes the file.*
+    *   **For `.tex` files (and arXiv `.tar.gz` source bundles)**: You **MUST** use the Pandoc conversion script instead of OCR. Run:
+        `python <BIN>/tex2md.py "<TEX_OR_TARGZ_PATH>" -o "<TOPIC_DIR>\raw\<type>"`
+        *Note: This script automatically generates YAML frontmatter, writes the file, and extracts/converts referenced figures into `images/` (rasterising `.pdf`/`.eps` figures to PNG). Check the printed `Figures: N embedded, M unresolved` line; if any are unresolved, the source bundle may be missing those figure files.*
 4.  **Post-Processing Pipeline**: Once the above conversion is done, trigger the automated pipeline script to handle moving, formatting, linting, and logging in one shot:
     ```bash
     python <BIN>/ingest_pipeline.py "<ORIGINAL_FILE_PATH>" --topic-dir "<TOPIC_DIR>" --log-msg "Ingested <DOC_TITLE> via OCR"
