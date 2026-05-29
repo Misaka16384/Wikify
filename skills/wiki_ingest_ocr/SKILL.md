@@ -7,6 +7,14 @@ commands:
 
 # LLM Wiki — Ingest Local OCR Skill (wiki_ingest_ocr)
 
+> **Resolving script paths (read first):** Commands below invoke scripts as `<BIN>/X.py` (and a few as `<SKILLS>/...`). Resolve these to **absolute paths once** before running anything:
+>
+> - `<SKILL_DIR>` = the directory this `SKILL.md` lives in.
+> - `<SKILLS>` = the `skills/` folder containing this skill = `<SKILL_DIR>/..`
+> - `<BIN>` = the `bin/` folder beside it = `<SKILL_DIR>/../../bin`
+>
+> Do **not** hardcode a fixed prefix like `.agents/bin` or `../bin`: shell relative paths resolve against the current working directory (usually the topic root), not this skill's location. Once resolved, `<BIN>` is typically `.agents/bin` when invoked from the hub root, or `.claude/bin` from inside a topic directory.
+
 This skill handles converting external PDF documents (especially academic papers or scanned articles inside `inbox/` or custom local paths) into high-fidelity clean Markdown using the local OCR model configured in `config.yaml` (default: `glm-ocr` at 150 DPI).
 
 When the user asks to ingest PDFs using local OCR (or runs the command without a path):
@@ -20,16 +28,16 @@ When the user asks to ingest PDFs using local OCR (or runs the command without a
     *   **For `.pdf` files (Execute Local GLM-OCR Conversion)**:
         *   Run the upgraded local `pdf2md-agent` script on the PDF:
             ```bash
-            python .agents/bin/pdf2md-agent/agent.py "<PDF_PATH>" -o "<TOPIC_DIR>/raw/<type>" -t "<DOC_TITLE>"
+            python <BIN>/pdf2md-agent/agent.py "<PDF_PATH>" -o "<TOPIC_DIR>/raw/<type>" -t "<DOC_TITLE>"
             ```
         *   *Note: This script now automatically generates the standard YAML frontmatter and writes the file as `YYYY-MM-DD-slug.md` directly into your output directory. You do NOT need to rename the file or append YAML manually.*
     *   **For `.md` files**: Do not run any conversion. Directly inject standard YAML frontmatter, rename to `YYYY-MM-DD-slug.md`, and copy to `raw/<type>/`.
     *   **For `.tex` files**: You **MUST** use the Pandoc conversion script instead of OCR. Run:
-        `python .agents/bin/tex2md.py "<TEX_PATH>" -o "<TOPIC_DIR>\raw\<type>"`
+        `python <BIN>/tex2md.py "<TEX_PATH>" -o "<TOPIC_DIR>\raw\<type>"`
         *Note: This script automatically generates YAML frontmatter and writes the file.*
 4.  **Post-Processing Pipeline**: Once the above conversion is done, trigger the automated pipeline script to handle moving, formatting, linting, and logging in one shot:
     ```bash
-    python .agents/bin/ingest_pipeline.py "<ORIGINAL_FILE_PATH>" --topic-dir "<TOPIC_DIR>" --log-msg "Ingested <DOC_TITLE> via OCR"
+    python <BIN>/ingest_pipeline.py "<ORIGINAL_FILE_PATH>" --topic-dir "<TOPIC_DIR>" --log-msg "Ingested <DOC_TITLE> via OCR"
     ```
 
 ## Error Handling

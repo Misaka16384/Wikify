@@ -7,7 +7,17 @@ commands:
 
 # LLM Wiki — Knowledge Base Q&A Skill (wiki_ask)
 
+> **Resolving script paths (read first):** Commands below invoke scripts as `<BIN>/X.py` (and a few as `<SKILLS>/...`). Resolve these to **absolute paths once** before running anything:
+>
+> - `<SKILL_DIR>` = the directory this `SKILL.md` lives in.
+> - `<SKILLS>` = the `skills/` folder containing this skill = `<SKILL_DIR>/..`
+> - `<BIN>` = the `bin/` folder beside it = `<SKILL_DIR>/../../bin`
+>
+> Do **not** hardcode a fixed prefix like `.agents/bin` or `../bin`: shell relative paths resolve against the current working directory (usually the topic root), not this skill's location. Once resolved, `<BIN>` is typically `.agents/bin` when invoked from the hub root, or `.claude/bin` from inside a topic directory.
+
 This skill transforms the agent into a conversational interface for the knowledge base. When the user asks a question, you must intelligently deploy a combination of deterministic search tools to retrieve context and provide a highly rigorous, cited answer.
+
+> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Where it says *file-read tool*, use your agent's equivalent (`Read` in Claude Code, `view_file` in Antigravity, `cat`/open elsewhere). Shell commands run via `Bash`/`PowerShell` (Claude Code) or your framework's shell tool.
 
 ## Core Rule: Zero Hallucination
 > **CRITICAL INSTRUCTION**: Do NOT answer questions using your parametric memory. Every factual claim or summary you provide MUST be grounded in the local knowledge base and explicitly cited using Obsidian wikilinks (e.g., `[[Concept Name]]` or `[[Paper Title]]`).
@@ -19,35 +29,37 @@ When tasked with answering a question, follow these strategies depending on the 
 ### Strategy 1: Concept Extraction (RAG)
 If the user asks about the definition, lineage, or application of a specific concept (e.g., "What is Haag Duality?"):
 1.  Run the context extractor script:
-    `python .agents/bin/extract_concept_context.py --name "Target Concept" --topic-dir "<TOPIC_DIR>"`
-2.  Read the resulting `scratch/concept_context_<slug>.md` file using the `view_file` tool.
+    `python <BIN>/extract_concept_context.py --name "Target Concept" --topic-dir "<TOPIC_DIR>"`
+2.  Read the resulting `scratch/concept_context_<slug>.md` file with your **file-read tool**.
 3.  Synthesize your answer directly from this condensed RAG context, citing the sources listed in the context file.
 
 ### Strategy 2: Graph Traversal
 If the user asks broad survey questions or inquiries about relationships (e.g., "What papers discuss quantum error correction?"):
 1.  Query the local SQLite graph database using:
-    `python .agents/bin/query-graph.py "<SQL>"`
+    `python <BIN>/query-graph.py "<SQL>"`
 2.  **Graph DB Schema (MANDATORY)**: Do not guess table names. Use only this schema:
     - `nodes(id TEXT PRIMARY KEY, path TEXT, title TEXT, type TEXT, category TEXT, summary TEXT, created TEXT, updated TEXT)`
     - `edges(source_id TEXT, target_id TEXT, type TEXT)`
     - `tags(node_id TEXT, tag TEXT)`
     - `aliases(node_id TEXT, alias TEXT)`
+    - **NOTE on `type`**: every node has a non-empty `type` — taken from frontmatter when present (papers use `type='papers'`), otherwise derived from the containing folder (`concept`, `reference`, `thesis`, `topic`). `category` is the broader bucket (`concept`/`reference`/`topic`). You can filter by either column.
 3.  **Example Queries**:
     - `SELECT title, summary FROM nodes WHERE type='papers' AND id IN (SELECT node_id FROM tags WHERE tag='quantum-error-correction')`
+    - `SELECT title, summary FROM nodes WHERE type='concept' AND id IN (SELECT node_id FROM tags WHERE tag='duality')`
     - `SELECT n.title, e.type FROM nodes n JOIN edges e ON n.id = e.target_id WHERE e.source_id = 'some-concept-id'`
 
 ### Strategy 3: Targeted Search
 If the user asks highly specific, detail-oriented questions requiring deep dives into math or specific mechanisms:
 1.  First, use Strategy 2 to narrow down the relevant files.
 2.  Run the targeted search script:
-    `python .agents/bin/search-wiki.py "<regex>" <files...>`
-3.  Read the most promising returned files using the `view_file` tool.
+    `python <BIN>/search-wiki.py "<regex>" <files...>`
+3.  Read the most promising returned files with your **file-read tool**.
 
 ### Strategy 4: Path Finding & Multi-Hop Reasoning
 If the user asks about the connection or path between two distinct concepts (e.g., "How is Concept A connected to Concept B?"):
 1.  Query the local SQLite graph database using a `WITH RECURSIVE` SQL query to find paths up to 3 hops.
 2.  **Example Path-Finding Query**:
-    `python .agents/bin/query-graph.py "WITH RECURSIVE undirected_edges(node1, node2) AS (SELECT source_id, target_id FROM edges UNION SELECT target_id, source_id FROM edges), path_search(current_node, path, depth) AS (SELECT 'node-A-id', 'node-A-id', 0 UNION ALL SELECT u.node2, p.path || ' -> ' || u.node2, p.depth + 1 FROM undirected_edges u JOIN path_search p ON u.node1 = p.current_node WHERE p.depth < 3 AND p.path NOT LIKE '%' || u.node2 || '%') SELECT path FROM path_search WHERE current_node = 'node-B-id' LIMIT 5"`
+    `python <BIN>/query-graph.py "WITH RECURSIVE undirected_edges(node1, node2) AS (SELECT source_id, target_id FROM edges UNION SELECT target_id, source_id FROM edges), path_search(current_node, path, depth) AS (SELECT 'node-A-id', 'node-A-id', 0 UNION ALL SELECT u.node2, p.path || ' -> ' || u.node2, p.depth + 1 FROM undirected_edges u JOIN path_search p ON u.node1 = p.current_node WHERE p.depth < 3 AND p.path NOT LIKE '%' || u.node2 || '%') SELECT path FROM path_search WHERE current_node = 'node-B-id' LIMIT 5"`
 3.  Analyze the returned path and read the intermediate concepts if needed to explain *why* they are connected.
 
 ## Synthesizing the Final Answer

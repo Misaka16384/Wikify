@@ -7,14 +7,24 @@ commands:
 
 # LLM Wiki — Research Skill (wiki_research)
 
+> **Resolving script paths (read first):** Commands below invoke scripts as `<BIN>/X.py` (and a few as `<SKILLS>/...`). Resolve these to **absolute paths once** before running anything:
+>
+> - `<SKILL_DIR>` = the directory this `SKILL.md` lives in.
+> - `<SKILLS>` = the `skills/` folder containing this skill = `<SKILL_DIR>/..`
+> - `<BIN>` = the `bin/` folder beside it = `<SKILL_DIR>/../../bin`
+>
+> Do **not** hardcode a fixed prefix like `.agents/bin` or `../bin`: shell relative paths resolve against the current working directory (usually the topic root), not this skill's location. Once resolved, `<BIN>` is typically `.agents/bin` when invoked from the hub root, or `.claude/bin` from inside a topic directory.
+
 This skill handles deep, parallel academic research, spinning up multi-perspective subagents to drill into complex topics and compile unified verdicts.
+
+> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Map each capability to your own agent's tool — *read-file* (`Read` in Claude Code, `view_file` in Antigravity), *sub-agent / parallel task* (`Task`/`Agent` in Claude Code, `invoke_subagent` in Antigravity), *web-search* (`WebSearch` in Claude Code, `search_web`), *shell* (`Bash`/`PowerShell`). Use the closest equivalent your framework provides; if a parallel sub-agent tool is unavailable, investigate each research dimension sequentially yourself.
 
 When the user asks to research a topic:
 
 1.  **Draft a Dynamic Research Plan**: Analyze the user's research query and determine the domain (e.g., Mathematics, Theoretical Physics, Computer Science). Subdivide the query into 3 or more distinct, domain-specific investigative dimensions.
     *   *Example (Physics/Math)*: "Axiomatic Consistency Auditor", "Phenomenology & Experimental Reviewer", "Theoretical Extrapolator".
     *   *Example (CS)*: "Technical Deep Dive", "Critical Reviewer", "Empirical Auditor".
-    *   **Graph Context**: Before finalizing the plan, you are encouraged to query the local SQLite graph database (`output/graph.db`) to identify existing nodes related to the query. Ensure the index is up to date by running `python .agents/bin/llm-wiki.py graph` first. Use `python .agents/bin/query-graph.py "<SQL>"` to query the knowledge graph. Do not use direct `sqlite3` command line execution.
+    *   **Graph Context**: Before finalizing the plan, you are encouraged to query the local SQLite graph database (`output/graph.db`) to identify existing nodes related to the query. Ensure the index is up to date by running `python <BIN>/llm-wiki.py graph` first. Use `python <BIN>/query-graph.py "<SQL>"` to query the knowledge graph. Do not use direct `sqlite3` command line execution.
         **Graph DB Schema:**
         - `nodes(id TEXT PRIMARY KEY, path TEXT, title TEXT, type TEXT, category TEXT, summary TEXT, created TEXT, updated TEXT)`
         - `edges(source_id TEXT, target_id TEXT, type TEXT)`
@@ -25,10 +35,10 @@ When the user asks to research a topic:
         - `SELECT n.path, e.type FROM nodes n JOIN edges e ON n.id = e.target_id WHERE e.source_id = 'some-concept-id'`
         This helps contextualize your research plan within the existing knowledge graph.
 
-2.  **Orchestrate Background Subagents**: Spawn the parallel subagents using the `invoke_subagent` tool according to your dynamic research plan.
+2.  **Orchestrate Background Subagents**: Spawn the parallel sub-agents using your agent's **sub-agent / parallel-task tool** according to your dynamic research plan. (If no sub-agent tool exists, investigate each dimension sequentially yourself.)
     *   Assign each subagent a clear, focused `Role` and `Prompt` tailored to their specific investigative dimension.
     *   **Source Constraint (CRITICAL)**: Every subagent prompt MUST include this instruction:
-        > "You MUST use `search_web` or `view_file` tools to gather evidence. Do NOT make factual claims from parametric memory alone. Every claim must cite either a specific URL from web search or a specific local file path that you read with `view_file`. If you cannot find a source for a claim, mark it explicitly as `[UNVERIFIED]`."
+        > "You MUST use your **web-search tool** or **file-read tool** to gather evidence. Do NOT make factual claims from parametric memory alone. Every claim must cite either a specific URL from web search or a specific local file path that you read. If you cannot find a source for a claim, mark it explicitly as `[UNVERIFIED]`."
     *   **Subagent Output Contract (MANDATORY)**: Each subagent MUST return findings in this structure:
         ```
         FINDING: <summary of finding>
@@ -42,7 +52,7 @@ When the user asks to research a topic:
     *   Wait for all subagents to report back. If any subagent fails, log the failure and proceed with available results.
     *   Save all reported findings exactly as returned into a temporary file: `scratch/temp_claims.txt`.
     *   Run the verification script to automatically check the citations:
-        `python .agents/bin/verify_claims.py scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>"`
+        `python <BIN>/verify_claims.py scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>"`
     *   Only use `[VERIFIED]` claims in your final synthesis. Collect `[UNVERIFIED]` findings separately.
 
 4.  **Synthesize Findings**:
@@ -68,8 +78,8 @@ When the user asks to research a topic:
     *   If `[UNVERIFIED]` findings exist, include them under a clearly marked `## Unverified Claims` section at the end. Do NOT mix unverified claims into the main body.
 
 5.  **Post-Write Validation (MANDATORY)**:
-    *   Run: `python .agents/bin/validate-output.py "<output_file>" --schema research --wiki-root "<TOPIC_DIR>"`
+    *   Run: `python <BIN>/validate-output.py "<output_file>" --schema research --wiki-root "<TOPIC_DIR>"`
         If validation reports issues, fix them before proceeding.
-    *   Run: `python .agents/bin/llm-wiki.py lint --fix <TOPIC_DIR>`
+    *   Run: `python <BIN>/llm-wiki.py lint --fix <TOPIC_DIR>`
 
 6.  **Log**: Append a log entry in `log.md` with: research query, subagent count, verified findings count, unverified findings count, output file path.

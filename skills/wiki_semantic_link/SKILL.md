@@ -7,6 +7,14 @@ commands:
 
 # LLM Wiki — Semantic Linker Skill (wiki_semantic_link)
 
+> **Resolving script paths (read first):** Commands below invoke scripts as `<BIN>/X.py` (and a few as `<SKILLS>/...`). Resolve these to **absolute paths once** before running anything:
+>
+> - `<SKILL_DIR>` = the directory this `SKILL.md` lives in.
+> - `<SKILLS>` = the `skills/` folder containing this skill = `<SKILL_DIR>/..`
+> - `<BIN>` = the `bin/` folder beside it = `<SKILL_DIR>/../../bin`
+>
+> Do **not** hardcode a fixed prefix like `.agents/bin` or `../bin`: shell relative paths resolve against the current working directory (usually the topic root), not this skill's location. Once resolved, `<BIN>` is typically `.agents/bin` when invoked from the hub root, or `.claude/bin` from inside a topic directory.
+
 This skill scans all markdown files within the `wiki/concepts/` directory, extracts their text, and generates embeddings using a local Ollama model (configured in `config.yaml`, default: `qwen3-embedding:0.6b`). It then calculates pairwise cosine similarity between all concepts and automatically injects bi-directional Obsidian-style links (`[[Concept Name]]`) for pairs that exceed a given similarity threshold.
 
 ## Execution
@@ -16,10 +24,10 @@ This skill is executed via the Python script located within the skill directory.
 **Crucial Parameter Selection**:
 Depending on the objective, you MUST use the correct parameters:
 1. **Normal Link Injection**: If the user just wants to inject semantic links (default behavior):
-   `python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR>`
+   `python <SKILLS>/wiki_semantic_link/semantic_linker.py <TOPIC_DIR>`
    Model, threshold, and Ollama URL are read from `config.yaml`. Override via CLI flags if needed (e.g. `--threshold 0.80 --model <model>`).
 2. **Deduplication Scan (Auto-Merge)**: If the user is running the `wiki_concept_sync` pipeline to merge duplicates:
-   `python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> --dedup-only --auto-merge`
+   `python <SKILLS>/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> --dedup-only --auto-merge`
 
 > **Prerequisites**: Ensure the embedding model is available locally via `ollama pull <model>` (check `config.yaml` for the configured model name). Requires `numpy` and `scikit-learn` Python packages.
 

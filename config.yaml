@@ -14,7 +14,7 @@ models:
   # 可选: glm-ocr, glm-ocr-16k, qwen3-vl, qwen3-vl:4b, qwen3-vl-fast
   ocr: "glm-ocr"
   # 嵌入模型（semantic_linker 使用）
-  embedding: "qwen3-embedding:latest"
+  embedding: "qwen3-embedding:0.6b"
 
 # OCR 处理参数
 ocr:

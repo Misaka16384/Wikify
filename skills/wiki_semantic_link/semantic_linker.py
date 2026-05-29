@@ -48,8 +48,40 @@ def setup_argparse():
 
     return args
 
-def backup_concepts(concepts_dir):
-    backup_dir = os.path.join(concepts_dir, ".backup")
+def check_model_available(ollama_url, model):
+    """Preflight: confirm the embedding model is installed before doing any work.
+
+    Fails fast with a clear message instead of 404-ing mid-run (after backups
+    and partial embedding). `ollama_url` is the full embeddings endpoint; we
+    derive the /api/tags endpoint from it.
+    """
+    base = ollama_url.rsplit("/api/", 1)[0]
+    tags_url = f"{base}/api/tags"
+    try:
+        with urllib.request.urlopen(tags_url, timeout=10) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.URLError as e:
+        print(f"[Error] Cannot reach Ollama at {base}: {e}")
+        print("[Hint] Is the Ollama server running? Try `ollama serve`.")
+        sys.exit(1)
+    available = [m.get("name", "") for m in data.get("models", [])]
+    if model in available:
+        return
+    base_name = model.split(":")[0]
+    matches = [m for m in available if m.split(":")[0] == base_name]
+    print(f"[Error] Embedding model '{model}' is not installed in Ollama.")
+    if matches:
+        print(f"[Hint] Found related tag(s): {', '.join(matches)}.")
+        print(f"[Hint] Set models.embedding in config.yaml to one of those, or pass --model.")
+    else:
+        print(f"[Hint] Installed models: {', '.join(available) or '(none)'}")
+        print(f"[Hint] Install it with: ollama pull {model}")
+    sys.exit(1)
+
+def backup_concepts(topic_dir, concepts_dir):
+    # Store backups OUTSIDE the scanned wiki/ tree (under scratch/) so backup
+    # copies are never parsed as concept files by the graph/lint/density tools.
+    backup_dir = os.path.join(topic_dir, "scratch", "concept_backups")
     os.makedirs(backup_dir, exist_ok=True)
     count = 0
     for filename in os.listdir(concepts_dir):
@@ -163,9 +195,17 @@ def main():
     print(f"[Info] Model: {args.model}, Threshold: {args.threshold}")
     if args.dedup_only:
         print("[Info] Running in DEDUP-ONLY mode. Links will not be injected.")
-    
-    # 1. Backup
-    backup_concepts(concepts_dir)
+
+    # 0. Preflight: fail fast if the embedding model is missing.
+    check_model_available(args.ollama_url, args.model)
+
+    # 1. Backup — only when this run will actually modify files. A read-only
+    #    pass (dedup-only with no auto-merge) needs no backup.
+    will_modify = (not args.dedup_only) or args.auto_merge
+    if will_modify:
+        backup_concepts(topic_dir, concepts_dir)
+    else:
+        print("[Info] Read-only run (dedup-only, no --auto-merge): skipping backup.")
     
     # 2. Read and extract text
     files = []
@@ -195,8 +235,12 @@ def main():
     print(f"[Info] Generating embeddings for {len(files)} concepts...")
     
     # --- Caching Logic ---
+    # Cache lives under output/ (a generated-artifacts dir), not inside the
+    # scanned wiki/concepts/ tree.
     safe_model_name = args.model.replace(":", "_").replace("/", "_")
-    cache_path = os.path.join(concepts_dir, f".embeddings_cache_{safe_model_name}.json")
+    cache_dir = os.path.join(topic_dir, "output")
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_path = os.path.join(cache_dir, f".embeddings_cache_{safe_model_name}.json")
     cache = {}
     if os.path.exists(cache_path):
         try:

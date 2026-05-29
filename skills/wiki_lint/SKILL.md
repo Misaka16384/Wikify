@@ -7,11 +7,19 @@ commands:
 
 # LLM Wiki — Lint Skill (wiki_lint)
 
+> **Resolving script paths (read first):** Commands below invoke scripts as `<BIN>/X.py` (and a few as `<SKILLS>/...`). Resolve these to **absolute paths once** before running anything:
+>
+> - `<SKILL_DIR>` = the directory this `SKILL.md` lives in.
+> - `<SKILLS>` = the `skills/` folder containing this skill = `<SKILL_DIR>/..`
+> - `<BIN>` = the `bin/` folder beside it = `<SKILL_DIR>/../../bin`
+>
+> Do **not** hardcode a fixed prefix like `.agents/bin` or `../bin`: shell relative paths resolve against the current working directory (usually the topic root), not this skill's location. Once resolved, `<BIN>` is typically `.agents/bin` when invoked from the hub root, or `.claude/bin` from inside a topic directory.
+
 This skill handles static validation, claim mapping, and link structural checks to keep the personal knowledge base completely healthy and integrated.
 
 When the user asks to lint, repair, or audit the links in their vault:
 1.  **Execute Local Python CLI**: Bypass semantic guesswork. Run the complete, 511-line Python validator script bundled inside this skill:
-    `python .agents/bin/llm-wiki.py lint --fix <TOPIC_DIR>`
+    `python <BIN>/llm-wiki.py lint --fix <TOPIC_DIR>`
 2.  **Report to User**: Present all parsed warnings, dangling double-brackets `[[links]]`, missing metadata frontmatter properties, or directory structure discrepancies.
 3.  **Self-Contained Sandbox Verification**: For developer test runs, you can utilize the sandboxed directories in `<SKILL_DIR>/tests/fixtures/` to benchmark and verify the validator's performance:
     *   `golden-wiki/` contains a flawless mock vault.

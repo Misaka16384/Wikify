@@ -67,6 +67,12 @@ ROOT_ALLOWED = {
     "output",
     "inbox",
     ".obsidian",
+    ".claude",
+    ".agents",
+    ".git",
+    ".gitignore",
+    ".vscode",
+    ".idea",
     ".librarian",
     ".audit",
     ".research-session.json",
@@ -1843,6 +1849,8 @@ def run_archive(args: argparse.Namespace) -> int:
         return archive_topic(hub, data, args.slug, args.reason)
     if subcommand == "restore":
         return restore_topic(hub, data, args.slug)
+    if subcommand == "register":
+        return register_topic(hub, data, args.slug, args.path, args.description)
     raise SystemExit("unknown archive subcommand")
 
 
@@ -1880,6 +1888,23 @@ def archive_list(
                         "slug": topic.name,
                         "path": f"topics/.archive/{topic.name}",
                         "description": "(missing from registry)",
+                        "archived": "",
+                        "reason": "registry repair needed",
+                    }
+                )
+
+    topics_dir = hub / "topics"
+    if topics_dir.exists():
+        registered_active = {row["slug"] for row in active}
+        for topic in sorted(child for child in topics_dir.iterdir() if child.is_dir()):
+            if topic.name == ".archive":
+                continue
+            if topic.name not in registered_active and initialized_wiki_root(topic):
+                active.append(
+                    {
+                        "slug": topic.name,
+                        "path": f"topics/{topic.name}",
+                        "description": "(missing from registry — run `archive register`)",
                         "archived": "",
                         "reason": "registry repair needed",
                     }
@@ -1990,6 +2015,42 @@ def restore_topic(hub: Path, data: dict[str, Any], slug: str) -> int:
     append_log(dest, "archive", f"restored topic {slug}")
     print(f"Restored topic `{slug}`")
     print(f"Path: {dest}")
+    return 0
+
+
+def register_topic(
+    hub: Path,
+    data: dict[str, Any],
+    slug: str,
+    path: str | None,
+    description: str | None,
+) -> int:
+    if slug == "hub":
+        raise SystemExit("cannot register the synthetic hub entry")
+    rel_path = path or f"topics/{slug}"
+    target = resolve_registry_path(rel_path, hub)
+    if not initialized_wiki_root(target):
+        raise SystemExit(f"topic not initialized (no _index.md): {target}")
+
+    wikis = data.setdefault("wikis", {})
+    if not isinstance(wikis, dict):
+        raise SystemExit("invalid registry: wikis must be an object")
+
+    entry = wikis.setdefault(slug, {})
+    if not isinstance(entry, dict):
+        entry = {}
+        wikis[slug] = entry
+    existed = bool(entry.get("path")) and not is_archived_registry_entry(entry)
+    entry["description"] = description or entry.get("description") or topic_title(target, slug)
+    entry["path"] = rel_path
+    entry["status"] = "active"
+    entry.pop("archived", None)
+    entry.pop("archive_reason", None)
+    write_registry(hub, data)
+    write_hub_index(hub, data)
+    append_log(hub, "register", f"registered topic {slug}")
+    append_log(target, "register", f"registered topic {slug}")
+    print(f"{'Updated' if existed else 'Registered'} topic `{slug}` -> {rel_path}")
     return 0
 
 
@@ -2194,6 +2255,18 @@ def run_graph(args: argparse.Namespace) -> int:
             node_id = str(rel).replace("\\", "/").removesuffix(".md")
             title = str(fm.get("title") or md_file.stem)
             node_type = str(fm.get("type") or "")
+            if not node_type:
+                # Fall back to the containing directory so concept/reference
+                # nodes get a non-empty `type` even when frontmatter omits it.
+                # Use the singular canonical form so it lines up with `category`
+                # (e.g. concepts/foo.md -> "concept"). Frontmatter still wins.
+                parent_name = md_file.parent.name
+                node_type = {
+                    "concepts": "concept",
+                    "references": "reference",
+                    "theses": "thesis",
+                    "topics": "topic",
+                }.get(parent_name, parent_name)
             category = str(fm.get("category") or "")
             summary = str(fm.get("summary") or "")
             created = str(fm.get("created") or "")
@@ -2295,6 +2368,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     archive_restore_parser = archive_sub.add_parser("restore", help="Restore an archived topic wiki.")
     archive_restore_parser.add_argument("slug", help="Topic slug to restore.")
+
+    archive_register_parser = archive_sub.add_parser(
+        "register",
+        help="Register an existing active topic in the hub registry (idempotent).",
+    )
+    archive_register_parser.add_argument("slug", help="Topic slug to register.")
+    archive_register_parser.add_argument(
+        "--path",
+        help="Registry-relative path to the topic (default: topics/<slug>).",
+    )
+    archive_register_parser.add_argument("--description", help="Optional topic description.")
 
     archive.set_defaults(func=run_archive)
 

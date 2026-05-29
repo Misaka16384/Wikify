@@ -7,11 +7,19 @@ commands:
 
 # LLM Wiki — Hub Initialize Skill (wiki_hub_init)
 
+> **Resolving script paths (read first):** Commands below invoke scripts as `<BIN>/X.py` (and a few as `<SKILLS>/...`). Resolve these to **absolute paths once** before running anything:
+>
+> - `<SKILL_DIR>` = the directory this `SKILL.md` lives in.
+> - `<SKILLS>` = the `skills/` folder containing this skill = `<SKILL_DIR>/..`
+> - `<BIN>` = the `bin/` folder beside it = `<SKILL_DIR>/../../bin`
+>
+> Do **not** hardcode a fixed prefix like `.agents/bin` or `../bin`: shell relative paths resolve against the current working directory (usually the topic root), not this skill's location. Once resolved, `<BIN>` is typically `.agents/bin` when invoked from the hub root, or `.claude/bin` from inside a topic directory.
+
 This skill bootstraps the root Hub directory that manages multiple individual topic wikis.
 
 When the user asks to initialize or set up a new Hub:
 1.  **Strict Dispatcher Rule**: Run the local deterministic Python script inside this skill directory to safely create the required structure.
-    `python .agents/bin/hub-init.py <path_to_hub>`
+    `python <BIN>/hub-init.py <path_to_hub>`
 2.  **Verify**: Ensure the script executes successfully and confirms the creation of `wikis.json` and `topics/`.
 
 ## Error Handling
