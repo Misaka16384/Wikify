@@ -27,6 +27,7 @@ from pdf_processor import PDFProcessor, PDFPage
 from ocr_engine import OCREngine, OCRResult
 from image_handler import ImageHandler, ExtractedImage
 from markdown_builder import MarkdownBuilder, MarkdownCleaner
+from figure_extractor import extract_figures, inject_figures
 from config_loader import load_config, get as cfg_get
 
 from rich.console import Console
@@ -270,12 +271,14 @@ class PDF2MarkdownAgent:
             avg_time = total_ocr_time / len(pages) if pages else 0
             console.print(f"[green]✓[/green] OCR 完成，总耗时 {total_ocr_time:.1f}秒，平均 {avg_time:.1f}秒/页")
 
-            # Step 4: 提取图片（可选）
-            console.print(Panel("[bold blue]Step 4: 提取嵌入图片[/bold blue]", expand=False))
-            extracted_images = self.image_handler.extract_images_from_pdf(
-                str(pdf_path), str(images_dir)
-            )
-            console.print(f"[green]✓[/green] 提取了 {len(extracted_images)} 张图片")
+            # Step 4: 提取图表（按标题锚定裁剪页面区域，矢量图/位图通用）
+            console.print(Panel("[bold blue]Step 4: 提取图表[/bold blue]", expand=False))
+            figures = extract_figures(str(pdf_path), str(images_dir))
+            figures_by_page = {}
+            for fig in figures:
+                figures_by_page.setdefault(fig.page, []).append(fig)
+            labeled = sum(1 for f in figures if f.label)
+            console.print(f"[green]✓[/green] 提取了 {len(figures)} 张图表（{labeled} 张带标题）")
 
             # Step 5: 构建 Markdown
             console.print(Panel("[bold blue]Step 5: 生成 Markdown[/bold blue]", expand=False))
@@ -284,8 +287,12 @@ class PDF2MarkdownAgent:
             builder.add_metadata("converted", datetime.now().isoformat())
             builder.add_metadata("pages", len(pages))
 
+            img_folder = self.config["image"]["output_folder"]
             for result in ocr_results:
                 cleaned_content = self.markdown_cleaner.clean(result.markdown)
+                page_figs = figures_by_page.get(result.page_number, [])
+                if page_figs:
+                    cleaned_content = inject_figures(cleaned_content, page_figs, img_folder)
                 builder.add_page_content(result.page_number, cleaned_content)
 
             # 自动生成 Slug 和保存 Markdown
