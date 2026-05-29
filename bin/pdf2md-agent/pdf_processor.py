@@ -24,7 +24,7 @@ class PDFPage:
 class PDFProcessor:
     """PDF 处理器，负责将 PDF 转换为图片"""
 
-    def __init__(self, pdftoppm_path: str = "", dpi: int = 300, image_format: str = "png"):
+    def __init__(self, pdftoppm_path: str = "", dpi: int = 150, image_format: str = "png"):
         """
         初始化 PDF 处理器
 

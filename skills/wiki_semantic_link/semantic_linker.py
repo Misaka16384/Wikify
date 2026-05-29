@@ -13,18 +13,40 @@ import subprocess
 from sklearn.metrics.pairwise import cosine_similarity
 from pathlib import Path
 
+# Add bin/ directory to path for config_loader
+_bin_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "bin")
+if _bin_dir not in sys.path:
+    sys.path.insert(0, _bin_dir)
+from config_loader import load_config, get as cfg_get
+
 def setup_argparse():
     parser = argparse.ArgumentParser(description="Wiki Semantic Linker using Ollama")
     parser.add_argument("topic_dir", help="Path to the root of the topic wiki (containing wiki/concepts/)")
-    parser.add_argument("--threshold", type=float, default=0.75, help="Cosine similarity threshold for linking (default: 0.75)")
-    parser.add_argument("--merge-threshold", type=float, default=0.85, help="Cosine similarity threshold for merge suggestions (default: 0.85)")
+    parser.add_argument("--threshold", type=float, default=None, help="Cosine similarity threshold for linking (default: from config.yaml)")
+    parser.add_argument("--merge-threshold", type=float, default=None, help="Cosine similarity threshold for merge suggestions (default: from config.yaml)")
     parser.add_argument("--auto-merge", action="store_true", help="Automatically merge concepts with score >= auto-merge-threshold")
-    parser.add_argument("--auto-merge-threshold", type=float, default=0.95, help="Cosine similarity threshold for auto-merging (default: 0.95)")
+    parser.add_argument("--auto-merge-threshold", type=float, default=None, help="Cosine similarity threshold for auto-merging (default: from config.yaml)")
     parser.add_argument("--dedup-only", action="store_true", help="Only output merge suggestions, do not inject links.")
     parser.add_argument("--update-cache-only", action="store_true", help="Only update the embedding cache and exit. Skips all similarity calculations.")
-    parser.add_argument("--model", type=str, default="qwen3-embedding:0.6b", help="Ollama embedding model to use")
-    parser.add_argument("--ollama-url", type=str, default="http://localhost:11434/api/embeddings", help="Ollama API endpoint")
-    return parser.parse_args()
+    parser.add_argument("--model", type=str, default=None, help="Ollama embedding model to use (default: from config.yaml)")
+    parser.add_argument("--ollama-url", type=str, default=None, help="Ollama API endpoint (default: from config.yaml)")
+    args = parser.parse_args()
+
+    # Resolve defaults from unified config
+    cfg = load_config()
+    if args.model is None:
+        args.model = cfg_get(cfg, "models.embedding", "qwen3-embedding:0.6b")
+    if args.ollama_url is None:
+        base = cfg_get(cfg, "ollama.base_url", "http://localhost:11434")
+        args.ollama_url = f"{base.rstrip('/')}/api/embeddings"
+    if args.threshold is None:
+        args.threshold = cfg_get(cfg, "semantic_link.threshold", 0.75)
+    if args.merge_threshold is None:
+        args.merge_threshold = cfg_get(cfg, "semantic_link.merge_threshold", 0.85)
+    if args.auto_merge_threshold is None:
+        args.auto_merge_threshold = cfg_get(cfg, "semantic_link.auto_merge_threshold", 0.95)
+
+    return args
 
 def backup_concepts(concepts_dir):
     backup_dir = os.path.join(concepts_dir, ".backup")

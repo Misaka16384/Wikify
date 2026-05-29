@@ -70,8 +70,8 @@ class OCREngine:
 
     def __init__(
         self,
-        model: str = "qwen3-vl:4b",  # 默认使用 qwen3-vl:4b，更稳定
-        base_url: str = "http://localhost:11434",
+        model: str = None,
+        base_url: str = None,
         timeout: int = 180
     ):
         """
@@ -82,12 +82,12 @@ class OCREngine:
             base_url: Ollama API 基础 URL
             timeout: API 调用超时时间
         """
-        self.model = model
-        self.base_url = base_url.rstrip("/")
+        self.model = model or "glm-ocr"
+        self.base_url = (base_url or "http://127.0.0.1:11434").rstrip("/")
         self.timeout = timeout
 
         # 获取模型配置
-        self.model_config = self._get_model_config(model)
+        self.model_config = self._get_model_config(self.model)
 
     def _get_model_config(self, model: str) -> Dict:
         """获取模型配置"""

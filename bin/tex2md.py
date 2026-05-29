@@ -6,6 +6,13 @@ import sys
 import tarfile
 import tempfile
 from datetime import datetime
+from pathlib import Path
+
+# Add bin/ directory to path for config_loader
+_bin_dir = os.path.dirname(os.path.abspath(__file__))
+if _bin_dir not in sys.path:
+    sys.path.insert(0, _bin_dir)
+from config_loader import load_config, get as cfg_get
 
 def extract_title(tex_content):
     match = re.search(r'\\title\{([^}]+)\}', tex_content)
@@ -109,17 +116,24 @@ def main():
     pandoc_crossref_path = os.path.join(script_dir, "pandoc-crossref.exe")
 
     import shutil
-    
-    # 查找 pandoc-crossref：环境变量 > PATH > 脚本目录
+
+    # Load unified config for tool paths
+    _cfg = load_config()
+
+    # 查找 pandoc-crossref：环境变量 > 统一配置 > PATH > 脚本目录
     pandoc_crossref_exec = os.environ.get("PANDOC_CROSSREF_PATH")
+    if not pandoc_crossref_exec or not os.path.exists(pandoc_crossref_exec):
+        pandoc_crossref_exec = cfg_get(_cfg, "tools.pandoc_crossref_path", "") or None
     if not pandoc_crossref_exec or not os.path.exists(pandoc_crossref_exec):
         pandoc_crossref_exec = shutil.which("pandoc-crossref")
     if not pandoc_crossref_exec:
         if os.path.exists(pandoc_crossref_path):
             pandoc_crossref_exec = pandoc_crossref_path
-            
-    # 查找 pandoc：环境变量 > PATH > LOCALAPPDATA
+
+    # 查找 pandoc：环境变量 > 统一配置 > PATH > LOCALAPPDATA
     pandoc_exec = os.environ.get("PANDOC_PATH")
+    if not pandoc_exec or not os.path.exists(pandoc_exec):
+        pandoc_exec = cfg_get(_cfg, "tools.pandoc_path", "") or None
     if not pandoc_exec or not os.path.exists(pandoc_exec):
         pandoc_exec = shutil.which("pandoc")
     if not pandoc_exec:

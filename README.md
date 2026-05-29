@@ -63,7 +63,7 @@ The pipeline relies on several external utilities that must be present in your s
     *   *Windows (Choco)*: `choco install ripgrep`
     *   *macOS (Homebrew)*: `brew install ripgrep`
     *   *Linux (APT)*: `sudo apt-get install ripgrep`
-3.  **Pandoc** — Required for automated ingestion and conversion of LaTeX (`.tex`) documents to Markdown.
+3.  **Pandoc** — Required for automated ingestion and conversion of LaTeX (`.tex`) documents to Markdown. *(Note: `pandoc-crossref` is already bundled with this repository for Windows users)*.
     *   *Windows (Scoop)*: `scoop install pandoc`
     *   *Windows (Choco)*: `choco install pandoc`
     *   *macOS (Homebrew)*: `brew install pandoc`

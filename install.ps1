@@ -41,7 +41,6 @@ if ((Split-Path $Target -Leaf) -ne ".agents") {
 Write-Host "`n[1/3] Checking system dependencies..." -ForegroundColor Cyan
 $missing = @()
 if (-not (Get-Command "pandoc" -ErrorAction SilentlyContinue)) { $missing += "pandoc" }
-if (-not (Get-Command "pandoc-crossref" -ErrorAction SilentlyContinue)) { $missing += "pandoc-crossref" }
 if (-not (Get-Command "pdftoppm" -ErrorAction SilentlyContinue)) { $missing += "poppler" }
 if (-not (Get-Command "rg" -ErrorAction SilentlyContinue)) { $missing += "ripgrep" }
 if ($missing.Count -gt 0) {
@@ -56,7 +55,7 @@ if ($missing.Count -gt 0) {
         }
     }
 } else {
-    Write-Host "✓ Pandoc and pandoc-crossref are installed." -ForegroundColor Green
+    Write-Host "✓ System dependencies found." -ForegroundColor Green
 }
 
 # Create target folders
@@ -82,6 +81,19 @@ Copy-Item -Recurse -Force ".\bin\*" "$Target\bin\" -Exclude "__pycache__","*.pyc
 Copy-Item -Force ".\requirements.txt" "$Target\"
 if (Test-Path ".\.env.example") {
     Copy-Item -Force ".\.env.example" "$Target\"
+}
+
+# Copy unified config.yaml (do NOT overwrite existing user config)
+if (Test-Path ".\config.yaml") {
+    $targetConfig = Join-Path $Target "config.yaml"
+    if (Test-Path $targetConfig) {
+        Write-Host "[!] config.yaml already exists at target. Skipping to preserve your settings." -ForegroundColor Yellow
+        Write-Host "    New template saved as config.yaml.new for reference." -ForegroundColor Yellow
+        Copy-Item -Force ".\config.yaml" (Join-Path $Target "config.yaml.new")
+    } else {
+        Copy-Item -Force ".\config.yaml" $targetConfig
+        Write-Host "✓ Deployed config.yaml" -ForegroundColor Green
+    }
 }
 
 # Install Python dependencies

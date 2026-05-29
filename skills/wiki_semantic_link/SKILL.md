@@ -7,7 +7,7 @@ commands:
 
 # LLM Wiki — Semantic Linker Skill (wiki_semantic_link)
 
-This skill scans all markdown files within the `wiki/concepts/` directory, extracts their text, and generates embeddings using a local Ollama model (default: `qwen3-embedding:0.6b`). It then calculates pairwise cosine similarity between all concepts and automatically injects bi-directional Obsidian-style links (`[[Concept Name]]`) for pairs that exceed a given similarity threshold.
+This skill scans all markdown files within the `wiki/concepts/` directory, extracts their text, and generates embeddings using a local Ollama model (configured in `config.yaml`, default: `qwen3-embedding:0.6b`). It then calculates pairwise cosine similarity between all concepts and automatically injects bi-directional Obsidian-style links (`[[Concept Name]]`) for pairs that exceed a given similarity threshold.
 
 ## Execution
 
@@ -16,11 +16,12 @@ This skill is executed via the Python script located within the skill directory.
 **Crucial Parameter Selection**:
 Depending on the objective, you MUST use the correct parameters:
 1. **Normal Link Injection**: If the user just wants to inject semantic links (default behavior):
-   `python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> --threshold 0.75 --model qwen3-embedding:0.6b`
+   `python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR>`
+   Model, threshold, and Ollama URL are read from `config.yaml`. Override via CLI flags if needed (e.g. `--threshold 0.80 --model <model>`).
 2. **Deduplication Scan (Auto-Merge)**: If the user is running the `wiki_concept_sync` pipeline to merge duplicates:
    `python .agents/skills/wiki_semantic_link/semantic_linker.py <TOPIC_DIR> --dedup-only --auto-merge`
 
-> **Prerequisites**: Ensure the embedding model is available locally via `ollama pull qwen3-embedding:0.6b` before running. Requires `numpy` and `scikit-learn` Python packages.
+> **Prerequisites**: Ensure the embedding model is available locally via `ollama pull <model>` (check `config.yaml` for the configured model name). Requires `numpy` and `scikit-learn` Python packages.
 
 ## Internal Phases
 
@@ -31,7 +32,7 @@ Depending on the objective, you MUST use the correct parameters:
 ### Phase 2: Embedding Generation
 1. Reads all concept markdown files.
 2. Strips existing YAML frontmatter and internal links to focus on the pure definition/content for unbiased embeddings.
-3. Calls the local Ollama instance (`http://localhost:11434/api/embeddings`) to generate vector representations.
+3. Calls the local Ollama instance (configured in `config.yaml`) to generate vector representations.
 
 ### Phase 3: Similarity Calculation & Filtering
 1. Uses `scikit-learn` to compute a Cosine Similarity matrix for all generated vectors.

@@ -13,20 +13,21 @@ PDF to Markdown Agent
 import os
 import sys
 import time
-import yaml
 import argparse
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
 from dataclasses import dataclass
 
-# 添加当前目录到 path
+# 添加当前目录和 bin/ 目录到 path
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pdf_processor import PDFProcessor, PDFPage
 from ocr_engine import OCREngine, OCRResult
 from image_handler import ImageHandler, ExtractedImage
 from markdown_builder import MarkdownBuilder, MarkdownCleaner
+from config_loader import load_config, get as cfg_get
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
@@ -60,40 +61,31 @@ class PDF2MarkdownAgent:
         self._setup_components()
 
     def _load_config(self, config_path: Optional[str]) -> dict:
-        """加载配置文件"""
-        if config_path is None:
-            config_path = Path(__file__).parent / "config.yaml"
+        """加载统一配置"""
+        unified = load_config(config_path)
 
-        if Path(config_path).exists():
-            with open(config_path, "r", encoding="utf-8") as f:
-                return yaml.safe_load(f)
-        else:
-            console.print(f"[yellow]警告: 配置文件不存在，使用默认配置[/yellow]")
-            return self._default_config()
-
-    def _default_config(self) -> dict:
-        """默认配置"""
+        # 将统一配置映射为 agent 内部期望的结构
         return {
             "ocr": {
-                "model": "glm-ocr",
-                "ollama_base_url": "http://127.0.0.1:11434",
-                "timeout": 180,
-                "dpi": 150
+                "model": cfg_get(unified, "models.ocr", "glm-ocr"),
+                "ollama_base_url": cfg_get(unified, "ollama.base_url", "http://127.0.0.1:11434"),
+                "timeout": cfg_get(unified, "ocr.timeout", 180),
+                "dpi": cfg_get(unified, "ocr.dpi", 150),
             },
             "pdf": {
-                "pdftoppm_path": "",
-                "pdfimages_path": "",
-                "image_format": "png",
-                "quality": 100
+                "pdftoppm_path": cfg_get(unified, "tools.pdftoppm_path", ""),
+                "pdfimages_path": cfg_get(unified, "tools.pdfimages_path", ""),
+                "image_format": cfg_get(unified, "pdf.image_format", "png"),
+                "quality": cfg_get(unified, "pdf.quality", 100),
             },
             "image": {
-                "output_folder": "images",
-                "formats": ["png", "jpg", "jpeg", "svg"]
+                "output_folder": cfg_get(unified, "output.image_folder", "images"),
+                "formats": ["png", "jpg", "jpeg", "svg"],
             },
             "output": {
-                "keep_temp_images": False,
-                "encoding": "utf-8"
-            }
+                "keep_temp_images": cfg_get(unified, "output.keep_temp_images", False),
+                "encoding": cfg_get(unified, "output.encoding", "utf-8"),
+            },
         }
 
     def _setup_components(self):
@@ -110,8 +102,8 @@ class PDF2MarkdownAgent:
 
         self.ocr_engine = OCREngine(
             model=ocr_config.get("model", "glm-ocr"),
-            base_url=ocr_config.get("ollama_base_url", "http://localhost:11434"),
-            timeout=ocr_config.get("timeout", 120)
+            base_url=ocr_config.get("ollama_base_url", "http://127.0.0.1:11434"),
+            timeout=ocr_config.get("timeout", 180)
         )
 
         self.image_handler = ImageHandler(

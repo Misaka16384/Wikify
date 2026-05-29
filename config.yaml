@@ -1,0 +1,57 @@
+# ==========================================
+#  Gemini Wiki Skills — 统一配置
+#  所有脚本共享此文件，用户只需编辑此处。
+#  优先级: 命令行参数 > 环境变量 > 本文件 > 代码默认值
+# ==========================================
+
+# Ollama 服务配置（所有使用 Ollama 的脚本共享）
+ollama:
+  base_url: "http://127.0.0.1:11434"
+
+# 模型配置
+models:
+  # OCR 模型（pdf2md-agent 使用）
+  # 可选: glm-ocr, glm-ocr-16k, qwen3-vl, qwen3-vl:4b, qwen3-vl-fast
+  ocr: "glm-ocr"
+  # 嵌入模型（semantic_linker 使用）
+  embedding: "qwen3-embedding:0.6b"
+
+# OCR 处理参数
+ocr:
+  # 每次 OCR 的超时时间（秒）
+  timeout: 180
+  # 图片 DPI 设置
+  dpi: 150
+
+# 语义链接参数
+semantic_link:
+  # 注入链接的相似度阈值
+  threshold: 0.75
+  # 合并建议的相似度阈值
+  merge_threshold: 0.85
+  # 自动合并的相似度阈值
+  auto_merge_threshold: 0.95
+
+# 外部工具路径（留空则自动查找 PATH 和系统常见路径）
+# 也可通过同名环境变量覆盖（PDFTOPPM_PATH, PDFIMAGES_PATH 等）
+tools:
+  pdftoppm_path: ""
+  pdfimages_path: ""
+  pandoc_path: ""
+  pandoc_crossref_path: ""
+
+# PDF 处理
+pdf:
+  # 输出图片格式
+  image_format: "png"
+  # 图片质量
+  quality: 100
+
+# 输出设置
+output:
+  # 是否保留中间图片文件
+  keep_temp_images: false
+  # 图片输出子文件夹名称
+  image_folder: "images"
+  # Markdown 文件编码
+  encoding: "utf-8"

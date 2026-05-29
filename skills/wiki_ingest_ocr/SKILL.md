@@ -1,13 +1,13 @@
 ---
 name: wiki_ingest_ocr
-description: "Ingest new academic papers or PDFs into the raw/ folder of your active topic wiki using local high-fidelity GLM-OCR model at 150 DPI."
+description: "Ingest new academic papers or PDFs into the raw/ folder of your active topic wiki using the local OCR model configured in config.yaml."
 commands:
   ingest_ocr: "Ingest new PDFs (from inbox/ or a specific path) using local GLM-OCR into the raw/ directory."
 ---
 
 # LLM Wiki — Ingest Local OCR Skill (wiki_ingest_ocr)
 
-This skill handles converting external PDF documents (especially academic papers or scanned articles inside `inbox/` or custom local paths) into high-fidelity clean Markdown using the local offline `glm-ocr` model at **150 DPI**.
+This skill handles converting external PDF documents (especially academic papers or scanned articles inside `inbox/` or custom local paths) into high-fidelity clean Markdown using the local OCR model configured in `config.yaml` (default: `glm-ocr` at 150 DPI).
 
 When the user asks to ingest PDFs using local OCR (or runs the command without a path):
 1.  **Resolve Ingestion Targets**:

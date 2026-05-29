@@ -63,7 +63,7 @@ pip install -r requirements.txt
     *   *Windows (Choco)*: `choco install ripgrep`
     *   *macOS (Homebrew)*: `brew install ripgrep`
     *   *Linux (APT)*: `sudo apt-get install ripgrep`
-3.  **Pandoc** — 用于自动摄入并将 LaTeX (`.tex`) 文档转换为 Markdown。
+3.  **Pandoc** — 用于自动摄入并将 LaTeX (`.tex`) 文档转换为 Markdown。*(注：本仓库已为 Windows 用户内置了 `pandoc-crossref`，无需额外安装)*
     *   *Windows (Scoop)*: `scoop install pandoc`
     *   *Windows (Choco)*: `choco install pandoc`
     *   *macOS (Homebrew)*: `brew install pandoc`
