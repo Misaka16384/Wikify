@@ -28,11 +28,11 @@ def main():
         cursor = conn.cursor()
         cursor.execute("PRAGMA query_only = ON")
 
-        # SQL injection protection: only allow SELECT queries
+        # SQL injection protection: allow SELECT, WITH (for recursive CTEs)
         query_stripped = args.query.strip()
         query_upper = query_stripped.upper()
-        if not query_upper.startswith("SELECT"):
-            print(json.dumps({"error": "Only SELECT queries are allowed"}))
+        if not (query_upper.startswith("SELECT") or query_upper.startswith("WITH") or query_upper.startswith("PRAGMA")):
+            print(json.dumps({"error": "Only SELECT, WITH, or PRAGMA queries are allowed"}))
             sys.exit(1)
 
         cursor.execute(query_stripped)

@@ -43,6 +43,13 @@ If the user asks highly specific, detail-oriented questions requiring deep dives
     `python .agents/bin/search-wiki.py "<regex>" <files...>`
 3.  Read the most promising returned files using the `view_file` tool.
 
+### Strategy 4: Path Finding & Multi-Hop Reasoning
+If the user asks about the connection or path between two distinct concepts (e.g., "How is Concept A connected to Concept B?"):
+1.  Query the local SQLite graph database using a `WITH RECURSIVE` SQL query to find paths up to 3 hops.
+2.  **Example Path-Finding Query**:
+    `python .agents/bin/query-graph.py "WITH RECURSIVE undirected_edges(node1, node2) AS (SELECT source_id, target_id FROM edges UNION SELECT target_id, source_id FROM edges), path_search(current_node, path, depth) AS (SELECT 'node-A-id', 'node-A-id', 0 UNION ALL SELECT u.node2, p.path || ' -> ' || u.node2, p.depth + 1 FROM undirected_edges u JOIN path_search p ON u.node1 = p.current_node WHERE p.depth < 3 AND p.path NOT LIKE '%' || u.node2 || '%') SELECT path FROM path_search WHERE current_node = 'node-B-id' LIMIT 5"`
+3.  Analyze the returned path and read the intermediate concepts if needed to explain *why* they are connected.
+
 ## Synthesizing the Final Answer
 
 Once you have gathered sufficient context using the strategies above:
