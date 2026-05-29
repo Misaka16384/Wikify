@@ -152,5 +152,16 @@ def main():
         
     print(f"Refactoring complete. Modified {modified_count} files.")
 
+    # Update knowledge graph and indexes automatically
+    import subprocess
+    print("Triggering graph database and index updates...")
+    agents_bin = os.path.dirname(os.path.abspath(__file__))
+    try:
+        subprocess.run([sys.executable, os.path.join(agents_bin, "llm-wiki.py"), "graph", args.topic_dir], check=True)
+        subprocess.run([sys.executable, os.path.join(agents_bin, "index_builder.py"), args.topic_dir], check=True)
+        print("Successfully updated graph.db and _index.md files.")
+    except Exception as e:
+        print(f"Warning: Failed to update graph database or indexes: {e}")
+
 if __name__ == "__main__":
     main()

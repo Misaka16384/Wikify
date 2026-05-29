@@ -20,8 +20,9 @@ The user can ask to refine/sync a **single concept** (e.g., `wiki_concept_sync "
     The merge threshold is read from `config.yaml`. Override via `--merge-threshold <value>` if needed.
 2.  **Agent Review**: Carefully review the `[MERGE_SUGGESTION]` output logs from the script.
 3.  **Resolve & Merge (Principle)**: If you verify that a pair is genuinely the same or strongly overlapping, choose a canonical name. **CRITICAL PRINCIPLE**: Always merge sub-concepts into their parent concepts (e.g., merge `gauge_redundancy` into `gauge_symmetry`). The parent concept becomes the Canonical Name.
-4.  **Refactor Links**: Run the deterministic python script to safely update all `[[Old Concept]]` links to `[[Canonical Name]]`, and handle backups and deletions automatically:
+4.  **Refactor Links**: Run the deterministic python script to safely update all `[[Old Concept]]` links to `[[Canonical Name]]`, handle backups, and delete the old concept automatically:
     `python .agents/bin/refactor_concept.py --topic-dir "<TOPIC_DIR>" --old "Old Concept" --new "Canonical Name"`
+    *(This script will also automatically rebuild the SQLite knowledge graph and markdown indexes upon completion).*
 
 ### Phase 2: Multi-Source Synthesis (Post-Merge RAG)
 After resolving duplicates, you must synthesize their definitions to ensure no knowledge is lost.

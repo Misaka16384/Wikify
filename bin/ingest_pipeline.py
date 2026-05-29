@@ -58,6 +58,13 @@ def main():
     lint_script = os.path.join(bin_dir, "llm-wiki.py")
     if not run_cmd([sys.executable, lint_script, "lint", "--fix", topic_dir]):
         print("Warning: llm-wiki.py lint failed", file=sys.stderr)
+        
+    if not run_cmd([sys.executable, lint_script, "graph", topic_dir]):
+        print("Warning: llm-wiki.py graph failed", file=sys.stderr)
+        
+    index_script = os.path.join(bin_dir, "index_builder.py")
+    if not run_cmd([sys.executable, index_script, topic_dir]):
+        print("Warning: index_builder.py failed", file=sys.stderr)
     
     # 4. Log to log.md
     log_file = os.path.join(topic_dir, "log.md")

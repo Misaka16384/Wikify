@@ -22,14 +22,12 @@ def split_markdown_frontmatter(text: str) -> tuple[str, str]:
 def replace_yaml_list(text: str, field: str, new_list: list) -> str:
     import re
     if not new_list:
-        efield = re.escape(field)
-        return re.sub(rf"(?m)^{efield}:\s*\[.*?\]\n|^{efield}:\s*\n(?:\s+-\s+.*?\n)*", f"{field}: []\n", text)
-    
-    # Format new list as inline JSON array if short, or block list if long. Block is safer for Markdown.
-    formatted_list = f"{field}:\n" + "\n".join(f"  - {item}" for item in new_list) + "\n"
-    
+        formatted_list = f"{field}: []\n"
+    else:
+        formatted_list = f"{field}:\n" + "\n".join(f"  - {item}" for item in new_list) + "\n"
+        
     efield = re.escape(field)
-    pattern = rf"(?m)^{efield}:\s*\[.*?\]\n|^{efield}:\s*\n(?:\s+-\s+.*?\n)*"
+    pattern = rf"(?m)^{efield}:\s*\[.*?\][ \t]*(?:\n|$)|^{efield}:\s*[ \t]*(?:\n|$)(?:\s+-\s+.*(?:\n|$))*"
     
     if re.search(pattern, text):
         return re.sub(pattern, formatted_list, text)
@@ -41,11 +39,12 @@ def cmd_extract(topic_dir: Path):
     print(f"Extracting metadata from {topic_dir}...")
     wiki_dir = topic_dir / "wiki"
     
-    all_tags = []
-    all_aliases = []
+    from collections import defaultdict
+    tag_files = defaultdict(list)
+    alias_files = defaultdict(list)
     
     for filepath in wiki_dir.rglob("*.md"):
-        if filepath.name.startswith("_"):
+        if filepath.name.startswith("_") or ".backup" in filepath.parts or "scratch" in filepath.parts or "output" in filepath.parts:
             continue
         try:
             content = filepath.read_text(encoding="utf-8")
@@ -54,23 +53,29 @@ def cmd_extract(topic_dir: Path):
                 continue
                 
             fm = parse_frontmatter_text(fm_text)
+            rel_path = filepath.relative_to(topic_dir).as_posix()
             
             tags = fm.get("tags", [])
             if isinstance(tags, str):
                 tags = [tags]
-            all_tags.extend(tags)
+            for t in tags:
+                tag_files[t].append(rel_path)
             
             aliases = fm.get("aliases", [])
             if isinstance(aliases, str):
                 aliases = [aliases]
-            all_aliases.extend(aliases)
+            for a in aliases:
+                alias_files[a].append(rel_path)
             
         except Exception as e:
             print(f"Warning: Could not parse {filepath.name}: {e}")
             
-    # Count frequencies
-    tag_counts = dict(Counter(all_tags).most_common())
-    alias_counts = dict(Counter(all_aliases).most_common())
+    # Format inverted index
+    tag_counts = {t: {"count": len(fs), "files": fs} for t, fs in tag_files.items()}
+    tag_counts = dict(sorted(tag_counts.items(), key=lambda x: x[1]["count"], reverse=True))
+    
+    alias_counts = {a: {"count": len(fs), "files": fs} for a, fs in alias_files.items()}
+    alias_counts = dict(sorted(alias_counts.items(), key=lambda x: x[1]["count"], reverse=True))
     
     scratch_dir = topic_dir / "scratch"
     scratch_dir.mkdir(exist_ok=True)
@@ -100,7 +105,7 @@ def cmd_apply(topic_dir: Path, tag_map_path: Path, alias_map_path: Path):
     final_ontology = set()
     
     for filepath in wiki_dir.rglob("*.md"):
-        if filepath.name.startswith("_"):
+        if filepath.name.startswith("_") or ".backup" in filepath.parts or "scratch" in filepath.parts or "output" in filepath.parts:
             continue
         try:
             content = filepath.read_text(encoding="utf-8")
@@ -154,6 +159,17 @@ def cmd_apply(topic_dir: Path, tag_map_path: Path, alias_map_path: Path):
     with open(ontology_path, "w", encoding="utf-8") as f:
         f.write("\n".join(ontology_list))
     print(f"Saved {len(ontology_list)} canonical tags to output/ontology.txt")
+
+    # Update knowledge graph and indexes automatically
+    import subprocess
+    print("Triggering graph database and index updates...")
+    agents_bin = Path(__file__).parent
+    try:
+        subprocess.run([sys.executable, str(agents_bin / "llm-wiki.py"), "graph", str(topic_dir)], check=True)
+        subprocess.run([sys.executable, str(agents_bin / "index_builder.py"), str(topic_dir)], check=True)
+        print("Successfully updated graph.db and _index.md files.")
+    except Exception as e:
+        print(f"Warning: Failed to update graph database or indexes: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="Wiki Tag and Alias Reducer")

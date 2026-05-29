@@ -14,9 +14,10 @@ When the user asks to sync, reduce, deduplicate, or normalize tags and aliases:
 ### 1. Map Phase (Extraction)
 *   **Action**: Run the deterministic python extractor to gather all unique metadata.
     `python .agents/bin/tag_reducer.py extract <TOPIC_DIR>`
-*   **Result**: This will silently generate two statistical files:
+*   **Result**: This will silently generate two statistical inverted index files:
     1. `<TOPIC_DIR>/scratch/raw_tags.json`
     2. `<TOPIC_DIR>/scratch/raw_aliases.json`
+    *(These JSONs output an inverted index in the format: `{"Tag_Name": {"count": 2, "files": ["wiki/concepts/file.md"]}}`)*
 
 ### 2. Reduce Phase (LLM Decision)
 *   **Action**: Read the contents of both `raw_tags.json` and `raw_aliases.json` using the `view_file` tool.
@@ -47,7 +48,7 @@ When the user asks to sync, reduce, deduplicate, or normalize tags and aliases:
 ### 3. Apply Phase (Global Replacement)
 *   **Action**: Run the python apply script to rewrite the frontmatter of all affected Markdown files safely:
     `python .agents/bin/tag_reducer.py apply <TOPIC_DIR> <TOPIC_DIR>/scratch/tag_mapping.json <TOPIC_DIR>/scratch/alias_mapping.json`
-*   **Result**: The script will update the YAML frontmatter across the vault and generate a final `wiki/ontology.txt` file containing the canonical whitelisted tags.
+*   **Result**: The script will update the YAML frontmatter across the vault, generate a final `wiki/ontology.txt` file containing the canonical whitelisted tags, and **automatically rebuild the SQLite knowledge graph (`output/graph.db`) and Markdown indexes**.
 
 ### 4. Semantic Linker Integration (Optional but Recommended)
 *   After applying the new tags, ask the user if they want to re-run the `wiki_semantic_link` skill, as the newly normalized tags and aliases will now provide a massive accuracy boost to the semantic similarity engine.
