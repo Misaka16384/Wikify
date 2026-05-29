@@ -28,9 +28,15 @@ def main():
     topic_dir = args.topic_dir
     original_file = args.original_file
     
-    # 1. Move original file to inbox/.processed/ if it is in inbox
-    path_parts = Path(original_file).resolve().parts
-    if 'inbox' in path_parts:
+    # 1. Move original file to inbox/.processed/ only if it genuinely lives
+    #    under THIS topic's inbox/ (not merely any path component named "inbox").
+    orig_resolved = Path(original_file).resolve()
+    inbox_dir = Path(topic_dir, "inbox").resolve()
+    try:
+        is_in_inbox = orig_resolved.is_relative_to(inbox_dir)
+    except AttributeError:  # Python < 3.9 fallback
+        is_in_inbox = str(orig_resolved).startswith(str(inbox_dir) + os.sep)
+    if is_in_inbox:
         processed_dir = os.path.join(topic_dir, "inbox", ".processed")
         os.makedirs(processed_dir, exist_ok=True)
         try:

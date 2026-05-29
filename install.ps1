@@ -28,6 +28,15 @@ if ($Resolved) {
 
 Write-Host "Target Directory: $Target" -ForegroundColor Yellow
 
+# The skills invoke scripts via the hardcoded prefix `.agents/bin/...`, resolved
+# relative to the agent's working directory (the project root). That only works
+# if the install target is a folder named `.agents` at the project root.
+if ((Split-Path $Target -Leaf) -ne ".agents") {
+    Write-Host "[!] Target is not named '.agents'. The skills call scripts as '.agents/bin/...'" -ForegroundColor Yellow
+    Write-Host "    relative to the project root, so they will not resolve unless you install into" -ForegroundColor Yellow
+    Write-Host "    a '.agents' folder (e.g. <your-project>\.agents) and run the agent from that root." -ForegroundColor Yellow
+}
+
 # Check system dependencies
 Write-Host "`n[1/3] Checking system dependencies..." -ForegroundColor Cyan
 $missing = @()

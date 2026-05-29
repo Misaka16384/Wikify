@@ -4,10 +4,14 @@ import json
 import argparse
 from pathlib import Path
 from collections import Counter
-import yaml
+from wiki_common import parse_frontmatter_text
 
 
-
+# NOTE: This local splitter is intentionally kept (not delegated to
+# wiki_common.split_frontmatter_text) because replace_yaml_list() rewrites the
+# raw frontmatter text in place and depends on this exact byte layout to
+# preserve formatting, comments, and key order. Only the parse-to-dict step is
+# shared via wiki_common.parse_frontmatter_text.
 def split_markdown_frontmatter(text: str) -> tuple[str, str]:
     if text.startswith("---\n"):
         parts = text.split("---\n", 2)
@@ -49,7 +53,7 @@ def cmd_extract(topic_dir: Path):
             if not fm_text:
                 continue
                 
-            fm = yaml.safe_load(fm_text) or {}
+            fm = parse_frontmatter_text(fm_text)
             
             tags = fm.get("tags", [])
             if isinstance(tags, str):
@@ -104,7 +108,7 @@ def cmd_apply(topic_dir: Path, tag_map_path: Path, alias_map_path: Path):
             if not fm_text:
                 continue
                 
-            fm = yaml.safe_load(fm_text) or {}
+            fm = parse_frontmatter_text(fm_text)
             
             # Process Tags
             old_tags = fm.get("tags", [])

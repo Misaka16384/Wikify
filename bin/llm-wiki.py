@@ -888,6 +888,10 @@ def check_unknown_files(ctx: LintContext) -> None:
             for child in sorted(path.iterdir()):
                 if child.name in {"_index.md", ".backup", "images", ".images"} or child.name.startswith(".embeddings_cache"):
                     continue
+                # Transient FileLock artifacts (e.g. add_concept.py's <slug>.md.lock)
+                # may linger after a crash; ignore them rather than relocating.
+                if child.suffix == ".lock" or child.name.endswith(".md.lock"):
+                    continue
                 if not child.is_file() or child.suffix != ".md":
                     handle_unknown(ctx, child, f"Unexpected file in {ctx.rel(path)}/.")
 

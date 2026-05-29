@@ -35,7 +35,18 @@ def main():
         print(f"Initialized index at {index_path}")
     else:
         print(f"Index already exists at {index_path}")
-        
+
+    # Scaffold log.md (required by `llm-wiki lint` for hubs; archive/restore
+    # operations append audit entries here and silently no-op if it is missing).
+    log_path = hub_path / "log.md"
+    if not log_path.exists():
+        with open(log_path, "w", encoding="utf-8") as f:
+            date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+            f.write(f"# Wiki Hub Log\n\n> Operation history for the central hub.\n\n## [{date_str}] hub-init | hub initialized\n")
+        print(f"Initialized log at {log_path}")
+    else:
+        print(f"Log already exists at {log_path}")
+
     print(f"Hub successfully initialized at {hub_path}")
 
 if __name__ == "__main__":

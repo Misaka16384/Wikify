@@ -4,6 +4,8 @@ import argparse
 import datetime
 import re
 from filelock import FileLock
+from wiki_common import slugify
+
 
 def resolve_source(topic_dir, source_arg):
     # Path traversal protection: reject source containing directory separators
@@ -11,14 +13,14 @@ def resolve_source(topic_dir, source_arg):
         print(f"Warning: Invalid source '{source_arg}' — path traversal detected")
         return None, None
 
-    slug = re.sub(r'[^a-zA-Z0-9]+', '-', source_arg.lower()).strip('-')
+    slug = slugify(source_arg)
     
     # 1. Check in raw/papers/
     raw_dir = os.path.join(topic_dir, "raw", "papers")
     if os.path.exists(raw_dir):
         for f in os.listdir(raw_dir):
             if f.endswith(".md") and f != "_index.md":
-                f_slug = re.sub(r'[^a-zA-Z0-9]+', '-', os.path.splitext(f)[0].lower()).strip('-')
+                f_slug = slugify(os.path.splitext(f)[0])
                 if slug in f_slug or f_slug in slug:
                     return f"raw/papers/{f}", os.path.splitext(f)[0]
                     
@@ -27,7 +29,7 @@ def resolve_source(topic_dir, source_arg):
     if os.path.exists(ref_dir):
         for f in os.listdir(ref_dir):
             if f.endswith(".md") and f != "_index.md":
-                f_slug = re.sub(r'[^a-zA-Z0-9]+', '-', os.path.splitext(f)[0].lower()).strip('-')
+                f_slug = slugify(os.path.splitext(f)[0])
                 if slug in f_slug or f_slug in slug:
                     return f"wiki/references/{f}", os.path.splitext(f)[0]
                     
@@ -41,8 +43,8 @@ def main():
     parser.add_argument("--topic-dir", default=".", help="Topic directory")
     args = parser.parse_args()
 
-    # slugify the concept name
-    slug = re.sub(r'[^a-zA-Z0-9]+', '-', args.name.lower()).strip('-')
+    # slugify the concept name (Unicode-aware; supports CJK / accented names)
+    slug = slugify(args.name)
     if not slug:
         print("Invalid concept name.")
         sys.exit(1)

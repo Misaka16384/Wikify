@@ -233,33 +233,36 @@ def main():
     print("[Info] Calculating cosine similarity matrix...")
     similarity_matrix = cosine_similarity(embeddings_matrix)
     
-    # 5. Filter, inject links, and suggest merges
+    # 5. Pass A: scan the (read-only) similarity matrix and collect candidate
+    #    pairs. We never mutate files inside this loop — doing so would
+    #    invalidate `files`/`concept_names`/`similarity_matrix` for later
+    #    iterations. Merges and link injection happen in dedicated passes below.
     print("[Info] Analyzing similarities...")
-    links_added = 0
-    merge_suggestions = 0
+    merge_pairs = []  # (score, idx_a, idx_b, boost_reason) where score >= merge_threshold
+    link_pairs = []   # (idx_a, idx_b, score, boost_reason) where score >= threshold
     for i in range(len(files)):
         for j in range(i + 1, len(files)):
             score = similarity_matrix[i][j]
-            
+
             # --- Meta-Data Hard Boosting Logic ---
             tags_i = set(t.lower() for t in concept_tags[i])
             tags_j = set(t.lower() for t in concept_tags[j])
             shared_tags = len(tags_i.intersection(tags_j))
-            
+
             aliases_i = set(a.lower() for a in concept_aliases[i])
             aliases_j = set(a.lower() for a in concept_aliases[j])
-            
+
             # Alias Collision / Crossmatch Boost
             has_alias_collision = False
             if aliases_i.intersection(aliases_j):
                 has_alias_collision = True
-            
+
             # Check if title of i is in alias of j, or vice versa
             title_i = concept_names[i].replace("-", " ").replace("_", " ").lower()
             title_j = concept_names[j].replace("-", " ").replace("_", " ").lower()
             if title_i in aliases_j or title_j in aliases_i:
                 has_alias_collision = True
-                
+
             boost_reason = ""
             original_score = score
             if has_alias_collision:
@@ -268,35 +271,65 @@ def main():
             elif shared_tags > 0:
                 score = min(1.0, score + (shared_tags * 0.05))
                 boost_reason = f" [Tag Boost: {original_score:.3f}->{score:.3f}]"
-            
-            if args.dedup_only:
-                if score >= args.merge_threshold:
-                    print(f"[MERGE_SUGGESTION] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f}){boost_reason}")
-                    merge_suggestions += 1
-                    
-                    if args.auto_merge and score >= args.auto_merge_threshold:
-                        if len(concept_names[i]) <= len(concept_names[j]):
-                            canonical = concept_names[i]
-                            old = concept_names[j]
-                        else:
-                            canonical = concept_names[j]
-                            old = concept_names[i]
-                            
-                        print(f"  [AUTO-MERGING] {old} -> {canonical}")
-                        refactor_script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "bin", "refactor_concept.py")
-                        subprocess.run([sys.executable, refactor_script, "--topic-dir", topic_dir, "--old", old, "--new", canonical])
+
+            if score >= args.merge_threshold:
+                merge_pairs.append((float(score), i, j, boost_reason))
+            if not args.dedup_only and score >= args.threshold:
+                link_pairs.append((i, j, float(score), boost_reason))
+
+    merge_suggestions = len(merge_pairs)
+    if args.dedup_only:
+        for score, i, j, boost_reason in merge_pairs:
+            print(f"[MERGE_SUGGESTION] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f}){boost_reason}")
+
+    # 6. Pass B: auto-merge. Runs whenever --auto-merge is set, independent of
+    #    --dedup-only. Strongest pairs first, and once a concept has been merged
+    #    away we skip any further pair that references it (its file is gone).
+    merged_away = set()
+    if args.auto_merge:
+        refactor_script = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+            "bin", "refactor_concept.py"
+        )
+        for score, i, j, boost_reason in sorted(merge_pairs, key=lambda p: p[0], reverse=True):
+            if score < args.auto_merge_threshold:
+                continue
+            name_i = concept_names[i]
+            name_j = concept_names[j]
+            if name_i in merged_away or name_j in merged_away:
+                continue
+            if len(name_i) <= len(name_j):
+                canonical, old = name_i, name_j
             else:
-                if score >= args.threshold:
-                    # Add link to i (linking to j)
-                    if inject_link(files[i], concept_names[j]):
-                        links_added += 1
-                        print(f"  [Linked] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f}){boost_reason}")
-                    
-                    # Add link to j (linking to i)
-                    if inject_link(files[j], concept_names[i]):
-                        links_added += 1
-                        # Don't print twice to avoid spam
-                    
+                canonical, old = name_j, name_i
+
+            print(f"  [AUTO-MERGING] {old} -> {canonical}")
+            result = subprocess.run(
+                [sys.executable, refactor_script, "--topic-dir", topic_dir, "--old", old, "--new", canonical]
+            )
+            if result.returncode == 0:
+                merged_away.add(old)
+            else:
+                print(f"  [Warning] Merge failed ({old} -> {canonical}); refactor_concept exited {result.returncode}. Skipping.")
+
+    # 7. Pass C: inject links (non-dedup-only). Skip any pair whose file was
+    #    deleted by an auto-merge in Pass B.
+    links_added = 0
+    if not args.dedup_only:
+        for i, j, score, boost_reason in link_pairs:
+            if concept_names[i] in merged_away or concept_names[j] in merged_away:
+                continue
+            if not os.path.exists(files[i]) or not os.path.exists(files[j]):
+                continue
+            # Add link to i (linking to j)
+            if inject_link(files[i], concept_names[j]):
+                links_added += 1
+                print(f"  [Linked] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f}){boost_reason}")
+            # Add link to j (linking to i)
+            if inject_link(files[j], concept_names[i]):
+                links_added += 1
+                # Don't print twice to avoid spam
+
     if args.dedup_only:
         print(f"[Success] Found {merge_suggestions} potential merges.")
     else:

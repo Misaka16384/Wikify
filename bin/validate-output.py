@@ -11,25 +11,17 @@ import json
 import re
 import sys
 from pathlib import Path
+from wiki_common import split_frontmatter_text, parse_frontmatter_text
 
 SCHEMAS = {"thesis", "research", "enrichment-log"}
 
 
-def split_frontmatter(text: str) -> tuple[dict[str, str], str] | None:
-    text = text.replace('\r\n', '\n').replace('\r', '\n')
-    if not text.startswith("---\n"):
+def split_frontmatter(text: str) -> tuple[dict, str] | None:
+    parts = split_frontmatter_text(text)
+    if parts is None:
         return None
-    end = text.find("\n---", 4)
-    if end == -1:
-        return None
-    fm_text = text[4:end]
-    body = text[end + 4:]
-    data: dict[str, str] = {}
-    for line in fm_text.splitlines():
-        if ":" in line and not line.startswith(" "):
-            key, value = line.split(":", 1)
-            data[key.strip()] = value.strip()
-    return data, body
+    fm_text, body = parts
+    return parse_frontmatter_text(fm_text), body
 
 
 def extract_wikilinks(text: str) -> list[str]:

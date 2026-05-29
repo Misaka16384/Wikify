@@ -2,21 +2,21 @@ import os
 import sys
 import argparse
 import re
-import yaml
+from wiki_common import slugify, parse_frontmatter
 
-def extract_frontmatter(content):
-    if content.startswith('---'):
-        parts = content.split('---', 2)
-        if len(parts) >= 3:
-            try:
-                fm = yaml.safe_load(parts[1])
-                return fm if fm else {}
-            except Exception as e:
-                print(f"Warning: YAML parse error: {e}", file=sys.stderr)
-    return {}
 
-def slugify(text):
-    return re.sub(r'[^a-zA-Z0-9]+', '-', text.lower()).strip('-')
+def build_alias_pattern(aliases):
+    """Build a search regex from aliases. ASCII terms get word boundaries to
+    avoid matching inside larger words; non-ASCII terms (e.g. CJK) use plain
+    matching because `\\b` never fires between two CJK characters."""
+    parts = []
+    for a in aliases:
+        esc = re.escape(a)
+        # Apply \b only when the alias edges are ASCII word characters.
+        left = r"\b" if a[:1].isascii() and (a[:1].isalnum() or a[:1] == "_") else ""
+        right = r"\b" if a[-1:].isascii() and (a[-1:].isalnum() or a[-1:] == "_") else ""
+        parts.append(f"{left}(?:{esc}){right}")
+    return re.compile("|".join(parts), re.IGNORECASE)
 
 def extract_concept_context(concept_name, topic_dir):
     slug = slugify(concept_name)
@@ -28,7 +28,7 @@ def extract_concept_context(concept_name, topic_dir):
     # Check if concept file exists to extract aliases
     if os.path.exists(concept_file):
         with open(concept_file, 'r', encoding='utf-8') as f:
-            fm = extract_frontmatter(f.read())
+            fm = parse_frontmatter(f.read())
             if fm and 'aliases' in fm and fm['aliases']:
                 if isinstance(fm['aliases'], list):
                     aliases.extend(fm['aliases'])
@@ -37,11 +37,7 @@ def extract_concept_context(concept_name, topic_dir):
                     
     # Clean up aliases and create regex pattern
     aliases = list(set([a.strip() for a in aliases if a.strip()]))
-    # Escape regex chars in aliases
-    escaped_aliases = [re.escape(a) for a in aliases]
-    # Match either [[Alias]] or just the raw word. Actually, let's just match the raw word to be broad.
-    pattern_str = r'\b(' + '|'.join(escaped_aliases) + r')\b'
-    pattern = re.compile(pattern_str, re.IGNORECASE)
+    pattern = build_alias_pattern(aliases)
     
     results = []
     
@@ -56,7 +52,7 @@ def extract_concept_context(concept_name, topic_dir):
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
             
-        fm = extract_frontmatter(content)
+        fm = parse_frontmatter(content)
         summary = fm.get('summary', 'No summary provided.')
         title = fm.get('title', filename)
         

@@ -1,9 +1,9 @@
 import os
 import sys
 import datetime
-import yaml
 import glob
 import argparse
+from wiki_common import parse_frontmatter
 
 def extract_frontmatter(filepath):
     try:
@@ -12,16 +12,7 @@ def extract_frontmatter(filepath):
     except Exception as e:
         print(f"Warning: file read error: {e}", file=sys.stderr)
         return {}
-    
-    if content.startswith('---'):
-        parts = content.split('---', 2)
-        if len(parts) >= 3:
-            try:
-                fm = yaml.safe_load(parts[1])
-                return fm if fm else {}
-            except Exception as e:
-                print(f"Warning: YAML parse error: {e}", file=sys.stderr)
-    return {}
+    return parse_frontmatter(content)
 
 def build_index_for_dir(dir_path, title):
     if not os.path.exists(dir_path):
