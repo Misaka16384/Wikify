@@ -18,6 +18,10 @@ models:
 
 # OCR 处理参数
 ocr:
+  # MinerU API 配置 (优先使用 MinerU)
+  mineru_api_token: "" # 填入您的 MinerU API Token
+  use_mineru: true     # 是否优先使用 MinerU API
+
   # 每次 OCR 的超时时间（秒）
   timeout: 180
   # 图片 DPI 设置
