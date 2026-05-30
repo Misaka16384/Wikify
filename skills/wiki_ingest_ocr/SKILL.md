@@ -37,9 +37,21 @@ When the user asks to ingest PDFs using local OCR (or runs the command without a
     *   **For `.tex` files (and arXiv `.tar.gz` source bundles)**: You **MUST** use the Pandoc conversion script instead of OCR. Run:
         `python <BIN>/tex2md.py "<TEX_OR_TARGZ_PATH>" -o "<TOPIC_DIR>\raw\<type>"`
         *Note: This script automatically generates YAML frontmatter, writes the file, and extracts/converts referenced figures into `images/` (rasterising `.pdf`/`.eps` figures to PNG). Check the printed `Figures: N embedded, M unresolved` line; if any are unresolved, the source bundle may be missing those figure files.*
-4.  **Post-Processing Pipeline**: Once the above conversion is done, trigger the automated pipeline script to handle moving, formatting, linting, and logging in one shot:
+4.  **Post-Processing Pipeline**: Extract the exact path of the generated Markdown file from the conversion script's output. Then, trigger the pipeline to handle moving and formatting (skipping global lint for now):
     ```bash
-    python <BIN>/ingest_pipeline.py "<ORIGINAL_FILE_PATH>" --topic-dir "<TOPIC_DIR>" --log-msg "Ingested <DOC_TITLE> via OCR"
+    python <BIN>/ingest_pipeline.py "<ORIGINAL_FILE_PATH>" --topic-dir "<TOPIC_DIR>" --md-file "<GENERATED_MD_FILE>" --skip-lint --log-msg "Ingested <DOC_TITLE> via OCR"
+    ```
+
+5.  **Manual Math Error Correction (Agentic Fallback)**:
+    *   **CRITICAL:** If `ingest_pipeline.py` outputs any warnings like `[WARNING] Math syntax errors in <FILE>:`, you MUST immediately stop and fix them.
+    *   Do NOT guess the fix for semantic errors like `Double subscript` or `Unexpected end of stream`.
+    *   You MUST use your file reading, search, or multimodal vision tools to read the **original source PDF** at the corresponding location to see the actual formula.
+    *   Manually edit the Markdown file to correct the semantic math errors based on the ground truth in the original paper, then re-run `python <BIN>/validate_math_latex.py <FILE>` to confirm all errors are gone.
+
+6.  **Global Lint & Index (End of Batch)**:
+    *   **CRITICAL:** Once ALL files in the `inbox/` have been processed through steps 1-5, you MUST run the global lint and index operation ONCE outside the loop:
+    ```bash
+    python <BIN>/ingest_pipeline.py "none" --topic-dir "<TOPIC_DIR>" --lint-only
     ```
 
 ## Error Handling

@@ -10,3 +10,6 @@ rich>=13.0.0            # Console output & progress bars (agent.py)
 # Semantic linking (wiki_semantic_link)
 scikit-learn>=1.0.0     # Cosine similarity (semantic_linker.py)
 numpy>=1.20.0           # Vector operations (semantic_linker.py)
+
+# Math Processing & Validation (validate_math_latex.py)
+pylatexenc>=2.10        # Structural LaTeX AST parsing

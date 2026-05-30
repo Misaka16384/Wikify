@@ -2,7 +2,57 @@ import os
 import re
 import sys
 
+def safe_auto_fixes(content):
+    # 1. Redundant nesting (equation inside $$)
+    content = re.sub(
+        r'\$\$[\s\n]*\\begin\{equation\*?\}(.*?)\\end\{equation\*?\}[\s\n]*\$\$',
+        r'$$\n\1\n$$',
+        content,
+        flags=re.DOTALL
+    )
+    
+    # Redundant nesting (\[ \] inside $$)
+    content = re.sub(
+        r'\$\$[\s\n]*\\\[(.*?)\\\][\s\n]*\$\$',
+        r'$$\n\1\n$$',
+        content,
+        flags=re.DOTALL
+    )
+
+    # 2. Extract \tag from aligned
+    def fix_tag_aligned(match):
+        inner_content = match.group(1)
+        tag_match = re.search(r'\\tag\{([^}]+)\}', inner_content)
+        if tag_match:
+            tag_text = tag_match.group(0)
+            inner_content = inner_content.replace(tag_text, '')
+            return f"\\begin{{aligned}}{inner_content}\\end{{aligned}} {tag_text}"
+        return match.group(0)
+
+    content = re.sub(r'\\begin\{aligned\}(.*?)\\end\{aligned\}', fix_tag_aligned, content, flags=re.DOTALL)
+
+    # 3. & 4. Process math blocks for escaped parentheses and inline newlines
+    def process_block(match):
+        math_content = match.group(1)
+        math_content = math_content.replace(r'\(', '(').replace(r'\)', ')')
+        return f"$${math_content}$$"
+
+    def process_inline(match):
+        math_content = match.group(1)
+        math_content = math_content.replace(r'\(', '(').replace(r'\)', ')')
+        # Flatten paragraph breaks (multiple newlines) into a single space
+        math_content = re.sub(r'\n{2,}', ' ', math_content)
+        return f"${math_content}$"
+
+    content = re.sub(r'\$\$(.*?)\$\$', process_block, content, flags=re.DOTALL)
+    # Be careful not to match $$ for inline
+    content = re.sub(r'(?<!\$)\$(?!\$)(.*?)(?<!\$)\$(?!\$)', process_inline, content, flags=re.DOTALL)
+
+    return content
+
 def clean_math_delimiters(content):
+    content = safe_auto_fixes(content)
+
     # Ensure standard LaTeX block environments have preceding and trailing newlines
     environments = ['align', 'equation', 'gather', 'multline', 'split']
     for env in environments:
