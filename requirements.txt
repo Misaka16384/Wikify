@@ -5,6 +5,7 @@ filelock>=3.12.0        # Concurrent concept file writes (add_concept.py)
 # PDF processing & OCR (pdf2md-agent)
 requests>=2.28.0        # Ollama API calls (ocr_engine.py)
 pillow>=9.0.0           # Image preprocessing (ocr_engine.py, pdf_processor.py, image_handler.py)
+pymupdf>=1.22.0         # PDF region cropping for multimodal math correction (pdf_math_crop.py)
 rich>=13.0.0            # Console output & progress bars (agent.py)
 
 # Semantic linking (wiki_semantic_link)

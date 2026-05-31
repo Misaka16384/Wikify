@@ -28,7 +28,7 @@ When loaded into your AI assistant, you can ask the AI to:
 - **Compile**: Extract mathematical definitions, theorems, and concepts into individual, interlinked Obsidian cards.
 - **Deduplicate & Link**: Automatically find duplicate concepts, merge them safely via RAG, and semantically link related files using local vector embeddings.
 - **Interactive Q&A**: Chat with your entire knowledge base (`wiki_ask`) where the AI strictly answers using local RAG, Graph SQL queries, and regex search—guaranteeing zero hallucinations and exact citations.
-- **Auto-Healing**: The intelligent linter automatically detects dead links and self-heals the knowledge graph using a global concept alias routing system. It also features robust YAML self-healing to automatically repair LLM-hallucinated syntax errors (like unescaped LaTeX backslashes) in frontmatter.
+- **Auto-Healing & Math Correction**: The intelligent linter automatically detects dead links and self-heals the knowledge graph using a global concept alias routing system. It also features robust YAML self-healing to automatically repair LLM-hallucinated syntax errors (like unescaped LaTeX backslashes) in frontmatter, and an intelligent pdflatex-backed validation pipeline with visual math remediation—allowing agents to crop PDF pages directly to inspect mathematical ground-truth whenever OCR errors arise.
 
 ---
 
