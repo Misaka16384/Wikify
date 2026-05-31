@@ -17,7 +17,17 @@ def validate_math_pylatexenc(content):
     issues = []
     valid_blocks = []
     valid_inlines = []
-    
+
+    # Blank out fenced code blocks (preserving line count for accurate error
+    # line numbers) so math-looking snippets inside ``` fences aren't extracted
+    # and validated as if they were real equations.
+    content = re.sub(
+        r'```.*?```',
+        lambda m: "\n" * m.group(0).count("\n"),
+        content,
+        flags=re.DOTALL,
+    )
+
     # Extract block math
     block_pattern = re.compile(r'\$\$(.*?)\$\$', re.DOTALL)
     for match in block_pattern.finditer(content):
@@ -64,7 +74,17 @@ def validate_math_pdflatex(valid_blocks, valid_inlines):
         lines = math_content.strip().split('\n')
         
         if is_block:
-            tex_lines.append(r"\begin{equation*}")
+            # Snippets that are already a top-level display-math environment must
+            # not be wrapped in equation*, or pdflatex errors with
+            # "Bad math environment delimiter" (a false positive).
+            top_level_envs = [
+                'align', 'align*', 'gather', 'gather*', 'multline', 'multline*',
+                'equation', 'equation*', 'alignat', 'alignat*', 'flalign', 'flalign*',
+                'eqnarray', 'eqnarray*',
+            ]
+            is_top_level = any(rf"\begin{{{env}}}" in math_content for env in top_level_envs)
+            if not is_top_level:
+                tex_lines.append(r"\begin{equation*}")
             current_tex_line += 1
             
             for line in lines:
@@ -72,7 +92,8 @@ def validate_math_pdflatex(valid_blocks, valid_inlines):
                 tex_to_md_map[current_tex_line] = md_line
                 current_tex_line += 1
                 
-            tex_lines.append(r"\end{equation*}")
+            if not is_top_level:
+                tex_lines.append(r"\end{equation*}")
             current_tex_line += 1
         else:
             tex_lines.append(r"$")

@@ -54,6 +54,58 @@ def main():
     bin_dir = os.path.dirname(os.path.abspath(__file__))
     
     if not args.lint_only:
+        # Fix YAML frontmatter syntax (unescaped backslashes in source, and empty tags)
+        if args.md_file and os.path.isfile(args.md_file):
+            try:
+                with open(args.md_file, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                # Only treat the file as having YAML frontmatter if its first
+                # non-empty line is exactly '---'. Otherwise a body horizontal
+                # rule ('---') would be misread as a frontmatter fence and we'd
+                # mangle 'source:' lines in the document body.
+                first_nonempty = next((ln.strip() for ln in lines if ln.strip()), "")
+                in_fm = False
+                fm_count = 0
+                if first_nonempty == "---":
+                    for i, line in enumerate(lines):
+                        if line.strip() == "---":
+                            fm_count += 1
+                            if fm_count == 1:
+                                in_fm = True
+                            elif fm_count == 2:
+                                in_fm = False
+                                break  # frontmatter closed; leave the body untouched
+                        if in_fm and line.startswith("source:"):
+                            lines[i] = line.replace("\\", "/")
+                
+                content = "".join(lines)
+                
+                # Convert standard Markdown image links to Obsidian Wikilinks,
+                # skipping fenced code blocks so documented example syntax isn't rewritten.
+                import re
+                def repl_img(m):
+                    alt, path = m.group(1), m.group(2)
+                    if path.startswith("http"):
+                        return m.group(0) # Keep external links as is
+                    path = path.replace("%20", " ") # Decode already encoded spaces for Obsidian
+                    if alt:
+                        return f"![[{path}|{alt}]]"
+                    return f"![[{path}]]"
+
+                # Path group tolerates one level of balanced parens, e.g. "figure (1).png".
+                img_pattern = re.compile(r'!\[(.*?)\]\(([^()\n]*(?:\([^()\n]*\)[^()\n]*)*)\)')
+                # Split on fenced code blocks; transform only the segments outside them.
+                segments = re.split(r'(```.*?```)', content, flags=re.DOTALL)
+                for idx in range(0, len(segments), 2):  # even indices lie outside code fences
+                    segments[idx] = img_pattern.sub(repl_img, segments[idx])
+                content = "".join(segments)
+
+                with open(args.md_file, "w", encoding="utf-8") as f:
+                    f.write(content)
+                print("Cleaned YAML frontmatter and image links successfully.")
+            except Exception as e:
+                print(f"Warning: failed to clean file: {e}", file=sys.stderr)
+
         # 2. Format math formulas
         target_path = args.md_file if args.md_file else topic_dir
         format_math_script = os.path.join(bin_dir, "format_math.py")

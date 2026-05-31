@@ -46,7 +46,9 @@ When the user asks to ingest PDFs using local OCR (or runs the command without a
     *   **CRITICAL:** If `ingest_pipeline.py` outputs any warnings like `[WARNING] Math syntax errors in <FILE>:`, you MUST immediately stop and fix them.
     *   Do NOT guess the fix for semantic errors like `Double subscript` or `Unexpected end of stream`.
     *   You MUST use your file reading, search, or multimodal vision tools to read the **original source PDF** at the corresponding location to see the actual formula.
-    *   Manually edit the Markdown file to correct the semantic math errors based on the ground truth in the original paper, then re-run `python <BIN>/validate_math_latex.py <FILE>` to confirm all errors are gone.
+    *   **CRITICAL TOOL**: If you cannot easily infer the formula structure, you MUST use the provided PDF cropping tool to extract the exact region around the error as an image for your multimodal vision:
+        `python <BIN>/pdf_math_crop.py "<PDF_PATH>" --text "<search_text_near_error>" --out "<TOPIC_DIR>\scratch\crop.png"`
+    *   View the generated `crop.png`, then manually edit the Markdown file to correct the semantic math errors based on the ground truth in the original paper, and re-run `python <BIN>/validate_math_latex.py <FILE>` to confirm all errors are gone.
 
 6.  **Global Lint & Index (End of Batch)**:
     *   **CRITICAL:** Once ALL files in the `inbox/` have been processed through steps 1-5, you MUST run the global lint and index operation ONCE outside the loop:

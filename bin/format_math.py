@@ -19,17 +19,34 @@ def safe_auto_fixes(content):
         flags=re.DOTALL
     )
 
-    # 2. Extract \tag from aligned
-    def fix_tag_aligned(match):
-        inner_content = match.group(1)
-        tag_match = re.search(r'\\tag\{([^}]+)\}', inner_content)
-        if tag_match:
-            tag_text = tag_match.group(0)
-            inner_content = inner_content.replace(tag_text, '')
-            return f"\\begin{{aligned}}{inner_content}\\end{{aligned}} {tag_text}"
-        return match.group(0)
+    # 2. Handle \tag in unsupported environments
+    environments_to_check = ['aligned', 'array', 'matrix', 'pmatrix', 'vmatrix', 'Vmatrix', 'Bmatrix', 'bmatrix', 'cases']
+    for env in environments_to_check:
+        def make_fixer(env_name):
+            def fix_tag_env(match):
+                inner_content = match.group(1)
+                # Allow one level of nested braces so \tag{\text{Eq. 1}} is captured whole.
+                tag_match = re.search(r'\\tag\s*\{((?:[^{}]+|\{[^{}]*\})*)\}', inner_content)
+                if tag_match:
+                    if env_name == 'aligned':
+                        # Convert to align to preserve multiple tags and alignment
+                        return f"\\begin{{align}}{inner_content}\\end{{align}}"
+                    else:
+                        # For array/matrices/cases, keep the environment (and any column
+                        # spec) intact and move the tag outside so brackets are preserved.
+                        tag_text = tag_match.group(0)
+                        inner_content = inner_content.replace(tag_text, '')
+                        return f"\\begin{{{env_name}}}{inner_content}\\end{{{env_name}}} {tag_text}"
+                return match.group(0)
+            return fix_tag_env
+        content = re.sub(rf'\\begin\{{{env}\}}(.*?)\\end\{{{env}\}}', make_fixer(env), content, flags=re.DOTALL)
 
-    content = re.sub(r'\\begin\{aligned\}(.*?)\\end\{aligned\}', fix_tag_aligned, content, flags=re.DOTALL)
+    # Convert eqnarray to align (KaTeX compatibility)
+    content = re.sub(r'\\begin\{eqnarray\*?\}', r'\\begin{align}', content)
+    content = re.sub(r'\\end\{eqnarray\*?\}', r'\\end{align}', content)
+    
+    # Remove trailing \\ right before $$ or end of math environments where it causes parse errors
+    content = re.sub(r'\\\\\s*\$\$', r'\n$$', content)
 
     # 3. & 4. Process math blocks for escaped parentheses and inline newlines
     def process_block(match):
@@ -197,6 +214,21 @@ def clean_math_delimiters(content):
         
     return "\n".join(merged_lines)
 
+def process_file(file_path):
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        content = content.replace('\r\n', '\n')
+        
+        formatted = clean_math_delimiters(content)
+        
+        if formatted != content:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(formatted)
+            print(f"  Formatted: {file_path}")
+    except (IOError, UnicodeDecodeError) as e:
+        print(f"  Error processing {file_path}: {e}")
+
 def process_directory(directory):
     print(f"Formatting math formulas in markdown files under: {directory}")
     for root, dirs, files in os.walk(directory):
@@ -205,26 +237,17 @@ def process_directory(directory):
         for file in files:
             if file.endswith('.md'):
                 file_path = os.path.join(root, file)
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    content = content.replace('\r\n', '\n')
-                    
-                    formatted = clean_math_delimiters(content)
-                    
-                    if formatted != content:
-                        with open(file_path, 'w', encoding='utf-8') as f:
-                            f.write(formatted)
-                        print(f"  Formatted: {os.path.relpath(file_path, directory)}")
-                except (IOError, UnicodeDecodeError) as e:
-                    print(f"  Error processing {file_path}: {e}")
+                process_file(file_path)
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Usage: python format_math.py <TOPIC_DIR>")
+        print("Usage: python format_math.py <TOPIC_DIR_OR_FILE>")
         sys.exit(1)
-    topic_dir = sys.argv[1]
-    if not os.path.exists(topic_dir):
-        print(f"Directory not found: {topic_dir}")
+    target = sys.argv[1]
+    if not os.path.exists(target):
+        print(f"Path not found: {target}")
         sys.exit(1)
-    process_directory(topic_dir)
+    if os.path.isdir(target):
+        process_directory(target)
+    else:
+        process_file(target)
