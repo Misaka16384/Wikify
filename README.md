@@ -68,6 +68,11 @@ The pipeline relies on several external utilities that must be present in your s
     *   *Windows (Choco)*: `choco install pandoc`
     *   *macOS (Homebrew)*: `brew install pandoc`
     *   *Linux (APT)*: `sudo apt-get install pandoc`
+4.  **TeX / `pdflatex` (Recommended)** — Powers the deep semantic math validation (double subscripts, unbalanced braces, bad delimiters) run during ingestion. *Optional but recommended*: if `pdflatex` is absent, `validate_math_latex.py` automatically falls back to lighter structural checks via `pylatexenc`, so the headline pdflatex-backed validation will be off.
+    *   *Windows (Scoop)*: `scoop install miktex`
+    *   *Windows (Choco)*: `choco install miktex`
+    *   *macOS (Homebrew)*: `brew install --cask mactex-no-gui`
+    *   *Linux (APT)*: `sudo apt-get install texlive-latex-extra`
 
 ### 2.3 Ollama Local Models
 The offline transcription and semantic linking rely on Ollama running as a background service:
@@ -76,7 +81,16 @@ ollama pull glm-ocr
 ollama pull qwen3-embedding:0.6b
 ```
 
-### 2.4 Custom Tool Paths (Optional)
+### 2.4 MinerU Cloud API (Optional)
+For higher-fidelity PDF layout/formula extraction, the `wiki_ingest` skill can use the [MinerU](https://mineru.net) cloud API as its primary PDF path. It is **disabled by default**. To enable it, set your token and flip the flag in `config.yaml`:
+```yaml
+ocr:
+  mineru_api_token: "your-token-here"
+  use_mineru: true
+```
+Without a token, leave `use_mineru: false`; ingestion falls back to local OCR (`wiki_ingest_ocr`) or the agent's native multimodal vision.
+
+### 2.5 Custom Tool Paths (Optional)
 If your tools are not in `PATH`, you can configure custom paths via environment variables or `config.yaml`:
 
 **Option 1: Environment Variables** (create `.env` file from `.env.example`)
@@ -99,24 +113,37 @@ See `.env.example` for all available options.
 
 ## 3. Deployment
 
-### Windows (Recommended)
-Run the provided PowerShell installer to copy the skills into your AI's configuration directory:
+The installer copies `skills/` and `bin/` **side by side** into a target directory, along with `requirements.txt`, `.env.example` and `config.yaml`. Each skill locates its helper scripts relative to itself (`<BIN> = <skill>/../../bin`), so **any** target works — just pick the directory your AI tool scans for skills:
+
+| AI tool | Typical target |
+|---|---|
+| Claude Code | `~/.claude` (user-global) or `<project>/.claude` |
+| Gemini / Antigravity | `<project>/.agents` or `~/.gemini` |
+
+### Windows
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\install.ps1
+.\install.ps1                    # prompts for the target, or: .\install.ps1 -Target <dir>
 ```
 
-### Linux / macOS (Manual)
+### Linux / macOS
 ```bash
-# Copy skills and scripts to your AI's config directory
-TARGET="$HOME/.gemini/config"
+bash install.sh                  # prompts for the target
+bash install.sh ~/.claude        # or pass it non-interactively
+```
+
+<details>
+<summary>Manual install (any OS)</summary>
+
+```bash
+TARGET="$HOME/.claude"           # your AI tool's skills directory
 mkdir -p "$TARGET/skills" "$TARGET/bin"
 cp -r skills/* "$TARGET/skills/"
-cp -r bin/* "$TARGET/bin/"
-
-# Install Python dependencies
-pip install -r requirements.txt
+cp -r bin/*    "$TARGET/bin/"
+cp requirements.txt .env.example config.yaml "$TARGET/"   # config.yaml holds OCR/model settings
+python3 -m pip install -r requirements.txt
 ```
+</details>
 
 ---
 

@@ -1,0 +1,6 @@
+# Shell scripts must stay LF so they run on Linux/macOS regardless of the
+# platform they were committed from (CRLF breaks the #! shebang line).
+*.sh text eol=lf
+
+# PowerShell scripts are Windows-targeted.
+*.ps1 text eol=crlf

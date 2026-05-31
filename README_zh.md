@@ -68,6 +68,11 @@ pip install -r requirements.txt
     *   *Windows (Choco)*: `choco install pandoc`
     *   *macOS (Homebrew)*: `brew install pandoc`
     *   *Linux (APT)*: `sudo apt-get install pandoc`
+4.  **TeX / `pdflatex`（推荐）** — 为摄入过程中的深度数学语义校验（双下标、括号不匹配、错误分隔符）提供支持。*可选但推荐*：若缺少 `pdflatex`，`validate_math_latex.py` 会自动回退到基于 `pylatexenc` 的轻量结构校验，此时招牌的 pdflatex 深度校验将不可用。
+    *   *Windows (Scoop)*: `scoop install miktex`
+    *   *Windows (Choco)*: `choco install miktex`
+    *   *macOS (Homebrew)*: `brew install --cask mactex-no-gui`
+    *   *Linux (APT)*: `sudo apt-get install texlive-latex-extra`
 
 ### 2.3 Ollama 本地模型
 离线图像转录与语义链接依赖于后台运行的 Ollama 服务：
@@ -76,7 +81,16 @@ ollama pull glm-ocr
 ollama pull qwen3-embedding:0.6b
 ```
 
-### 2.4 自定义工具路径（可选）
+### 2.4 MinerU 云端 API（可选）
+如需更高保真的 PDF 版面/公式提取，`wiki_ingest` 技能可将 [MinerU](https://mineru.net) 云端 API 作为 PDF 的首选路径。**默认关闭**。启用方法：在 `config.yaml` 中填入 Token 并打开开关：
+```yaml
+ocr:
+  mineru_api_token: "your-token-here"
+  use_mineru: true
+```
+未配置 Token 时请保持 `use_mineru: false`；摄入会自动回退到本地 OCR（`wiki_ingest_ocr`）或智能体的原生多模态视觉。
+
+### 2.5 自定义工具路径（可选）
 如果您的工具不在 `PATH` 中，可以通过环境变量或 `config.yaml` 配置自定义路径：
 
 **方式 1：环境变量**（从 `.env.example` 创建 `.env` 文件）
@@ -99,24 +113,37 @@ pdf:
 
 ## 3. 安装与部署
 
-### Windows（推荐）
-运行提供的 PowerShell 安装脚本，将所有技能拷贝到您的 AI 配置目录：
+安装脚本会将 `skills/` 和 `bin/`**并列**复制到目标目录，并一并复制 `requirements.txt`、`.env.example` 和 `config.yaml`。每个技能都相对自身定位辅助脚本（`<BIN> = <skill>/../../bin`），因此**任意**目标目录都可用——只需选择您的 AI 工具用于发现技能的目录：
+
+| AI 工具 | 常见目标目录 |
+|---|---|
+| Claude Code | `~/.claude`（用户级）或 `<project>/.claude` |
+| Gemini / Antigravity | `<project>/.agents` 或 `~/.gemini` |
+
+### Windows
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\install.ps1
+.\install.ps1                    # 交互式询问目标目录，或：.\install.ps1 -Target <dir>
 ```
 
-### Linux / macOS（手动安装）
+### Linux / macOS
 ```bash
-# 将技能和脚本复制到 AI 配置目录
-TARGET="$HOME/.gemini/config"
+bash install.sh                  # 交互式询问目标目录
+bash install.sh ~/.claude        # 或直接以参数传入
+```
+
+<details>
+<summary>手动安装（任意系统）</summary>
+
+```bash
+TARGET="$HOME/.claude"           # 您的 AI 工具的技能目录
 mkdir -p "$TARGET/skills" "$TARGET/bin"
 cp -r skills/* "$TARGET/skills/"
-cp -r bin/* "$TARGET/bin/"
-
-# 安装 Python 依赖
-pip install -r requirements.txt
+cp -r bin/*    "$TARGET/bin/"
+cp requirements.txt .env.example config.yaml "$TARGET/"   # config.yaml 保存 OCR/模型设置
+python3 -m pip install -r requirements.txt
 ```
+</details>
 
 ---
 

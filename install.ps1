@@ -28,14 +28,12 @@ if ($Resolved) {
 
 Write-Host "Target Directory: $Target" -ForegroundColor Yellow
 
-# The skills invoke scripts via the hardcoded prefix `.agents/bin/...`, resolved
-# relative to the agent's working directory (the project root). That only works
-# if the install target is a folder named `.agents` at the project root.
-if ((Split-Path $Target -Leaf) -ne ".agents") {
-    Write-Host "[!] Target is not named '.agents'. The skills call scripts as '.agents/bin/...'" -ForegroundColor Yellow
-    Write-Host "    relative to the project root, so they will not resolve unless you install into" -ForegroundColor Yellow
-    Write-Host "    a '.agents' folder (e.g. <your-project>\.agents) and run the agent from that root." -ForegroundColor Yellow
-}
+# The skills resolve helper scripts as `<BIN>/...`, where `<BIN>` is the `bin/`
+# folder *beside* the installed skills (`<SKILL_DIR>/../../bin`). Any target name
+# works as long as `skills/` and `bin/` are deployed side by side -- which this
+# installer always does. Install into the directory your AI tool scans for skills,
+# e.g. `.claude` for Claude Code, or `.agents` / `.gemini` for Gemini.
+Write-Host "Skills -> '$Target\skills', helper scripts -> '$Target\bin' (resolved automatically as <BIN>)." -ForegroundColor DarkGray
 
 # Check system dependencies
 Write-Host "`n[1/3] Checking system dependencies..." -ForegroundColor Cyan
@@ -45,17 +43,31 @@ if (-not (Get-Command "pdftoppm" -ErrorAction SilentlyContinue)) { $missing += "
 if (-not (Get-Command "rg" -ErrorAction SilentlyContinue)) { $missing += "ripgrep" }
 if ($missing.Count -gt 0) {
     Write-Host "[!] Missing: $($missing -join ', '). Required for LaTeX (.tex) ingestion." -ForegroundColor Yellow
-    $install = Read-Host "Would you like to automatically install them via Scoop? (Y/n)"
+    $install = Read-Host "Would you like to automatically install them? (Y/n)"
     if ($install -eq "" -or $install.ToLower() -eq "y") {
         if (Get-Command "scoop" -ErrorAction SilentlyContinue) {
-            Write-Host "Installing via scoop..." -ForegroundColor Green
+            Write-Host "Installing via Scoop..." -ForegroundColor Green
             scoop install @missing
+        } elseif (Get-Command "choco" -ErrorAction SilentlyContinue) {
+            Write-Host "Scoop not found; installing via Chocolatey..." -ForegroundColor Green
+            choco install @missing -y
         } else {
-            Write-Host "[!] Scoop is not installed. Please install manually." -ForegroundColor Red
+            Write-Host "[!] Neither Scoop nor Chocolatey found. Please install manually (see README section 2.2)." -ForegroundColor Red
         }
     }
 } else {
-    Write-Host "✓ System dependencies found." -ForegroundColor Green
+    Write-Host "[OK] System dependencies found." -ForegroundColor Green
+}
+
+# pdflatex (a TeX distribution) is optional but recommended: it powers deep
+# semantic math validation (double subscripts, unbalanced braces, bad delimiters).
+# Without it, validate_math_latex.py silently falls back to structural-only
+# checks via pylatexenc, so the advertised pdflatex-backed validation is off.
+if (-not (Get-Command "pdflatex" -ErrorAction SilentlyContinue)) {
+    Write-Host "[i] pdflatex (TeX) not found - math validation will use the lighter pylatexenc fallback." -ForegroundColor DarkYellow
+    Write-Host "    For full pdflatex-backed validation install MiKTeX ('scoop install miktex' / 'choco install miktex') or TeX Live." -ForegroundColor DarkYellow
+} else {
+    Write-Host "[OK] pdflatex found (deep math validation enabled)." -ForegroundColor Green
 }
 
 # Create target folders
@@ -92,17 +104,22 @@ if (Test-Path ".\config.yaml") {
         Copy-Item -Force ".\config.yaml" (Join-Path $Target "config.yaml.new")
     } else {
         Copy-Item -Force ".\config.yaml" $targetConfig
-        Write-Host "✓ Deployed config.yaml" -ForegroundColor Green
+        Write-Host "[OK] Deployed config.yaml" -ForegroundColor Green
     }
 }
 
-# Install Python dependencies
+# Install Python dependencies (use `python -m pip` so it targets the active
+# interpreter / venv rather than whatever bare `pip` happens to be on PATH).
 Write-Host "`n[*] Installing Python dependencies..." -ForegroundColor Cyan
-pip install -r "$Target\requirements.txt" -q
+if (Get-Command "python" -ErrorAction SilentlyContinue) {
+    python -m pip install -r "$Target\requirements.txt" -q
+} else {
+    Write-Host "[!] Python not found on PATH. Install Python 3.10+ and run: python -m pip install -r `"$Target\requirements.txt`"" -ForegroundColor Red
+}
 
 # Final Verification
 if (Test-Path "$Target\bin\llm-wiki.py") {
-    Write-Host "`n✓ Installation completed successfully!" -ForegroundColor Green
+    Write-Host "`n[OK] Installation completed successfully!" -ForegroundColor Green
     Write-Host "Skills deployed to: $Target\skills" -ForegroundColor Yellow
     Write-Host "Scripts deployed to: $Target\bin" -ForegroundColor Yellow
     
