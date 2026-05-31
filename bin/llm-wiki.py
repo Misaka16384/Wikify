@@ -845,6 +845,8 @@ def check_unknown_files(ctx: LintContext) -> None:
         return
     root_allowed = HUB_ALLOWED if is_hub(ctx.root) else ROOT_ALLOWED
     for child in sorted(ctx.root.iterdir()):
+        if child.name.startswith("."):
+            continue
         if child.name not in root_allowed:
             handle_unknown(ctx, child, "Unexpected file or directory at wiki root.")
 

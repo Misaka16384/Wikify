@@ -1,175 +1,214 @@
 # Agentic Wiki Skills
-*[English](README.md) | [中文](README_zh.md)*
+*[中文](README.md) | [English](README_en.md)*
 
-This project provides a suite of agentic skills for AI coding assistants (like Gemini/Antigravity) to automatically ingest, compile, organize, and query academic papers (PDFs and LaTeX) into an Obsidian-compatible Markdown knowledge base.
+本项目为 AI 编程助手（如 Gemini/Antigravity 和 Claude Code）提供了一套智能体技能（Agentic Skills），使其能够自动化地将学术论文（PDF 和 LaTeX）摄入、编译、整理，并查询为一个兼容 Obsidian 的 Markdown 知识库。
 
-## 🌟 Project Showcase
+## 🌟 项目展示
 
-Here are some glimpses of the knowledge base generated and maintained entirely by this AI pipeline:
+以下是由本 AI 自动化流水线完全生成并维护的知识库效果展示：
 
-![Knowledge Graph Visualization](./graph.png)
-*A dense, auto-generated semantic graph of mathematical and physical concepts.*
+![知识图谱可视化](./graph.png)
+*一张自动生成的密集语义图，展示了物理和数学概念。*
 
-![Knowledge Graph Details](./graph2.png)
-*Detailed view of the semantic links injected by the background embedding engine.*
+![知识图谱细节](./graph2.png)
+*后台嵌入引擎自动注入的深层语义关联视图。*
 
-![Compiled Literature Note](./note1.png)
-*A pristine literature note compiled directly from a messy PDF using local OCR and Pandoc.*
+![编译出的文献卡片](./note1.png)
+*利用本地 OCR 和 Pandoc，直接从排版混乱的 PDF 中编译出的整洁文献卡片。*
 
-![Math and Concept Extraction](./note2.png)
-*Beautifully formatted mathematical proofs and lemmas extracted flawlessly from LaTeX source.*
-
----
-
-## 1. What it Does
-
-When loaded into your AI assistant, you can ask the AI to:
-- **Ingest**: Convert math-heavy PDFs (via local OCR) and LaTeX source files into Markdown.
-- **Compile**: Extract mathematical definitions, theorems, and concepts into individual, interlinked Obsidian cards.
-- **Deduplicate & Link**: Automatically find duplicate concepts, merge them safely via RAG, and semantically link related files using local vector embeddings.
-- **Interactive Q&A**: Chat with your entire knowledge base (`wiki_ask`) where the AI strictly answers using local RAG, Graph SQL queries, and regex search—guaranteeing zero hallucinations and exact citations.
-- **Auto-Healing & Math Correction**: The intelligent linter automatically detects dead links and self-heals the knowledge graph using a global concept alias routing system. It also features robust YAML self-healing to automatically repair LLM-hallucinated syntax errors (like unescaped LaTeX backslashes) in frontmatter, and an intelligent pdflatex-backed validation pipeline with visual math remediation—allowing agents to crop PDF pages directly to inspect mathematical ground-truth whenever OCR errors arise.
+![数学与概念提取](./note2.png)
+*从 LaTeX 源码中完美提取并格式化的数学证明和引理。*
 
 ---
 
-## 2. System Dependencies
+## 1. 核心功能
 
-Before deploying the skills, ensure your system has the following runtime dependencies installed.
+将其加载到您的 AI 助手后，您可以通过输入一系列显式且确定性的**斜杠命令** (`/wiki_xxx`) 来直接命令 AI 助手执行以下操作：
+- **摄入 (Ingest)**：将重度数学公式的 PDF（通过高保真云端版面分析 API 或本地 OCR）和 LaTeX 源码转换为 Markdown。
+- **编译 (Compile)**：将数学定义、定理和概念提取为一张张相互链接的 Obsidian 独立卡片。
+- **去重与链接 (Deduplicate & Link)**：自动发现重复概念，物理合并去重，并使用本地向量嵌入实现相关卡片的语义双链关联。
+- **交互式问答 (Interactive Q&A)**：与您的整个知识库对话，AI 将严格使用本地关系图谱、SQL 查询和正则检索来回答您——**保证零幻觉**，并附带精确文献引用。
+- **自愈与公式纠错 (Auto-Healing & Math Correction)**：智能 Linter 自动检测并修复失效链接，修复 LLM 产生的 YAML 元数据反斜杠转义错误，并基于 pdflatex 校验 LaTeX 数学公式的语法正确性。
 
-### 2.1 Python Dependencies
-**Python 3.10+** is required. Install the global packages:
+---
+
+## 2. 系统依赖
+
+部署技能前，请确保您的系统安装了以下运行时依赖。
+
+### 2.1 Python 依赖
+需要 **Python 3.10+**。全局安装以下 Python 包：
 ```powershell
 pip install -r requirements.txt
 ```
 
-> **Tip**: Consider using a virtual environment to avoid conflicts:
-> ```powershell
-> python -m venv .venv
-> .\.venv\Scripts\activate  # Windows
-> # source .venv/bin/activate  # Linux/macOS
-> pip install -r requirements.txt
-> ```
+> **提示**：建议使用虚拟环境以避免依赖冲突：
+```powershell
+python -m venv .venv
+.\.venv\Scripts\activate  # Windows
+# source .venv/bin/activate  # Linux/macOS
+pip install -r requirements.txt
+```
 
-### 2.2 System-Level External Binaries
-The pipeline relies on several external utilities that must be present in your system's `PATH`:
+### 2.2 系统级外部程序
+本流水线依赖一些外部工具，必须将它们添加到系统的 `PATH` 环境变量中：
 
-1.  **Poppler-utils (`pdftoppm` & `pdfimages`)** — Required for rendering PDF pages and extracting diagrams.
+1.  **Poppler-utils (`pdftoppm` & `pdfimages`)** — 用于渲染 PDF 页面和提取图表。
     *   *Windows (Scoop)*: `scoop install poppler`
     *   *Windows (Choco)*: `choco install poppler`
     *   *macOS (Homebrew)*: `brew install poppler`
     *   *Linux (APT)*: `sudo apt-get install poppler-utils`
-2.  **Ripgrep (`rg`)** — Powers fast, multi-file citation mapping and wikilink refactoring.
+2.  **Ripgrep (`rg`)** — 提供极速的多文件引用映射和 wikilink 重构。
     *   *Windows (Scoop)*: `scoop install ripgrep`
     *   *Windows (Choco)*: `choco install ripgrep`
     *   *macOS (Homebrew)*: `brew install ripgrep`
     *   *Linux (APT)*: `sudo apt-get install ripgrep`
-3.  **Pandoc** — Required for automated ingestion and conversion of LaTeX (`.tex`) documents to Markdown. *(Note: `pandoc-crossref` is already bundled with this repository for Windows users)*.
+3.  **Pandoc** — 用于自动摄入并将 LaTeX (`.tex`) 文档转换为 Markdown。*(注：本仓库已为 Windows 用户内置了 `pandoc-crossref`，无需额外安装)*
     *   *Windows (Scoop)*: `scoop install pandoc`
     *   *Windows (Choco)*: `choco install pandoc`
     *   *macOS (Homebrew)*: `brew install pandoc`
     *   *Linux (APT)*: `sudo apt-get install pandoc`
-4.  **TeX / `pdflatex` (Recommended)** — Powers the deep semantic math validation (double subscripts, unbalanced braces, bad delimiters) run during ingestion. *Optional but recommended*: if `pdflatex` is absent, `validate_math_latex.py` automatically falls back to lighter structural checks via `pylatexenc`, so the headline pdflatex-backed validation will be off.
+4.  **TeX / `pdflatex`（推荐）** — 为摄入过程中的深度数学语义校验（双下标、括号不匹配、错误分隔符）提供支持。*可选但推荐*：若缺少 `pdflatex`，系统会自动回退到基于 `pylatexenc` 的轻量结构校验。
     *   *Windows (Scoop)*: `scoop install miktex`
     *   *Windows (Choco)*: `choco install miktex`
     *   *macOS (Homebrew)*: `brew install --cask mactex-no-gui`
     *   *Linux (APT)*: `sudo apt-get install texlive-latex-extra`
 
-### 2.3 Ollama Local Models
-The offline transcription and semantic linking rely on Ollama running as a background service:
+### 2.3 Ollama 本地模型
+离线图像转录与语义链接依赖于后台运行的 Ollama 服务：
 ```powershell
 ollama pull glm-ocr
 ollama pull qwen3-embedding:0.6b
 ```
 
-### 2.4 MinerU Cloud API (Optional)
-For higher-fidelity PDF layout/formula extraction, the `wiki_ingest` skill can use the [MinerU](https://mineru.net) cloud API as its primary PDF path. It is **disabled by default**. To enable it, set your token and flip the flag in `config.yaml`:
-```yaml
-ocr:
-  mineru_api_token: "your-token-here"
-  use_mineru: true
-```
-Without a token, leave `use_mineru: false`; ingestion falls back to local OCR (`wiki_ingest_ocr`) or the agent's native multimodal vision.
-
-### 2.5 Custom Tool Paths (Optional)
-If your tools are not in `PATH`, you can configure custom paths via environment variables or `config.yaml`:
-
-**Option 1: Environment Variables** (create `.env` file from `.env.example`)
-```bash
-PDFTOPPM_PATH=/path/to/pdftoppm
-PDFIMAGES_PATH=/path/to/pdfimages
-PANDOC_PATH=/path/to/pandoc
-```
-
-**Option 2: Edit `config.yaml`** (in the agent directory)
-```yaml
-pdf:
-  pdftoppm_path: "/path/to/pdftoppm"
-  pdfimages_path: "/path/to/pdfimages"
-```
-
-See `.env.example` for all available options.
-
 ---
 
-## 3. Deployment
+## 3. 安装与部署
 
-The installer copies `skills/` and `bin/` **side by side** into a target directory, along with `requirements.txt`, `.env.example` and `config.yaml`. Each skill locates its helper scripts relative to itself (`<BIN> = <skill>/../../bin`), so **any** target works — just pick the directory your AI tool scans for skills:
+安装脚本会将 `skills/` 和 `bin/` **并列**复制到目标目录，并一并复制 `requirements.txt`、`.env.example` 和 `config.yaml`。每个技能都相对自身定位辅助脚本，因此**任意**目标目录都可用——只需选择您的 AI 工具用于发现技能的目录：
 
-| AI tool | Typical target |
+| AI 工具 | 常见目标目录 |
 |---|---|
-| Claude Code | `~/.claude` (user-global) or `<project>/.claude` |
-| Gemini / Antigravity | `<project>/.agents` or `~/.gemini` |
+| Claude Code | `~/.claude`（用户全局级）或 `<project>/.claude` |
+| Gemini / Antigravity | `<project>/.agents` 或 `~/.gemini` |
 
 ### Windows
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\install.ps1                    # prompts for the target, or: .\install.ps1 -Target <dir>
+.\install.ps1                    # 交互式询问目标目录，或：.\install.ps1 -Target <dir>
 ```
 
 ### Linux / macOS
 ```bash
-bash install.sh                  # prompts for the target
-bash install.sh ~/.claude        # or pass it non-interactively
+bash install.sh                  # 交互式询问目标目录
+bash install.sh ~/.claude        # 或直接以参数传入
 ```
-
-<details>
-<summary>Manual install (any OS)</summary>
-
-```bash
-TARGET="$HOME/.claude"           # your AI tool's skills directory
-mkdir -p "$TARGET/skills" "$TARGET/bin"
-cp -r skills/* "$TARGET/skills/"
-cp -r bin/*    "$TARGET/bin/"
-cp requirements.txt .env.example config.yaml "$TARGET/"   # config.yaml holds OCR/model settings
-python3 -m pip install -r requirements.txt
-```
-</details>
 
 ---
 
-## 4. How to Use
+## 4. 学术文献处理完整生命周期流程
 
-Once installed, simply ask your AI assistant to perform the following workflows on your topic directory.
+当智能体技能（Skills）成功加载到您的 AI 助手后，您可以通过在助手的聊天 UI 中直接输入显式的**斜杠命令** (`/wiki_xxx`)，来管理文献从摄入到研究问答的完整生命周期：
 
-### Ingestion & Compilation
-- **`wiki_ingest` / `wiki_ingest_ocr`**: Tell the AI to process a new paper or PDF in your `inbox/`. It will OCR or convert it into the `raw/` directory.
-- **`wiki_compile`**: Ask the AI to compile the raw paper. It will generate a structured literature note and extract all novel mathematical/physical concepts into `wiki/concepts/`.
+### 📥 第 1 阶段：基建与初始化
+*   **创建中央枢纽 (Central Hub)**
+    *   *面临场景*：您需要搭建一个中央枢纽目录来注册、路由和管理多个不同主题的知识库。
+    *   *直接输入斜杠命令*：在您想要作为中央枢纽的父目录下（例如通用路径 `~/KnowledgeHub`）打出：`/wiki_hub_init`。
+    *   *预期效果*：自动生成 `topics/` 文件夹和 `wikis.json` 中央注册表文件。
+*   **创建主题工作区 (Topic Workspace)**
+    *   *面临场景*：您准备开始一个新的学术研究主题（例如量子计算 `quantum-computing`），需要为其创建独立的存储库。
+    *   *直接输入斜杠命令*：在 Hub 目录下新建并进入子文件夹（例如 `~/KnowledgeHub/topics/quantum-computing`），并在聊天 UI 中打出：`/wiki_init`。
+    *   *预期效果*：瞬间在该目录下生成标准的主题工作区目录结构（`raw/`、`wiki/`、`inbox/`、`output/`），自动创建默认配置文件（`config.md`、`log.md`、`_index.md`），并将该主题自动注册到中央 Hub 路由中。
 
-### Knowledge Graph Maintenance
-- **`wiki_enrich`**: Tell the AI to scan a paper and extract missing lemmas or theorems into new concept cards.
-- **`wiki_tag_sync`**: Utilizes a Map-Reduce architecture to normalize metadata (Tags & Aliases) across the entire graph. It automatically deduplicates fragmented and plural synonyms, outputting a global standardized Ontology whitelist.
-- **`wiki_concept_sync`**: Ask the AI to deduplicate concepts. It features a local, deterministic script-based physical merging engine (zero LLM hallucinations) that automatically picks parent-child concepts to ensure lossless concatenation and safe wikilink redirection globally.
-- **`wiki_semantic_link`**: A blazing-fast semantic embedding engine. It not only injects beautiful `[[Related Links|Aliases]]` at the bottom of cards, but now features an **`--auto-merge`** unattended capability—automatically restructuring and physically merging duplicate concepts behind the scenes if their vector confidence hits $\ge 0.95$. Features incremental MD5 caching for zero API overhead on unchanged concepts.
+### 📄 第 2 阶段：文献摄入与数字化
+*   **处理待摄入文献**
+    *   *面临场景*：您在主题工作区的 `inbox/` 目录下放置了待处理的原始学术论文（PDF 或 LaTeX 源码）。
+    *   *直接输入斜杠命令与配置*：
+        *   **云端版面分析（强烈推荐，公式还原度极高）**：请先前往 [mineru.net](https://mineru.net) 官网注册并免费获取您的 MinerU API Token。将其填入您本地 Agent 目录下的 `config.yaml` 配置文件中：
+            ```yaml
+            ocr:
+              mineru_api_token: "您的_MINERU_API_TOKEN"
+              use_mineru: true
+            ```
+            随后在聊天 UI 中打出：`/wiki_ingest`。
+        *   **本地离线摄入（完全免费且离线）**：如果您倾向于本地处理，请确保通过命令行拉取了 Ollama 的本地 OCR 模型（`ollama pull glm-ocr`），随后在聊天 UI 中打出：`/wiki_ingest_ocr`。
+    *   *预期效果*：自动解析 PDF 的排版及数学公式，转化为纯净的 Markdown 格式输出到 `raw/articles/` 或 `raw/papers/` 中。
 
-### Chat & Research
-- **`wiki_ask "Your Question"`**: Ask the AI any question about your vault. The AI will use RAG and Graph SQL to answer you with strict `[[Citations]]` and zero hallucinations.
-- **`wiki_audit` / `wiki_research`**: Ask the AI to perform a comprehensive literature review or audit the knowledge base for scientific contradictions.
+### 🔬 第 3 阶段：深度编译与核心概念提取
+*   **卡片编译**
+    *   *面临场景*：`raw/` 下已生成转换好的原始 Markdown 论文，您需要将其抽取为文献笔记与单独的概念卡片。
+    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_compile`。
+    *   *预期效果*：自动从文献中提取所有数学定义、定理和核心概念，以独立卡片形式存入 `wiki/concepts/`，同时在 `wiki/references/` 下建立正式的文献索引卡片。
+*   **知识库语义挖掘**
+    *   *面临场景*：您希望对已编译的文献卡片做深度扫描，以确保没有任何关键的定理、引理或数学公式被遗漏。
+    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_enrich`。
+    *   *预期效果*：AI 深度检查文献文本，自动补挖遗漏的公式或概念，并在 `wiki/concepts/` 下自动生成新的补充卡片。
 
-### Utilities & Workspace Lifecycle
-- **`wiki_init`**: Tell the AI to bootstrap a fresh, clean topic workspace with all necessary directories and config files.
-- **`wiki_lint`**: Runs a structural validation across the vault to fix broken links and metadata. It features an auto-healer that routes dead links to their new canonical files using alias maps.
-- **`wiki_graph_index`**: Forces a manual update of the SQLite `graph.db` used by the AI for querying relationships, while simultaneously refreshing the underlying semantic vector cache.
-- **`wiki_hub_init` / `wiki_hub_manager`**: Use these to initialize a central Hub and manage (list/archive/restore) multiple topic vaults simultaneously.
+### 🔗 第 4 阶段：关联、校验与语义规范化
+*   **计算语义嵌入与构建双链**
+    *   *面临场景*：您需要让知识库中的卡片根据语义相似度自动产生关联，发现概念间隐藏的交集。
+    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_semantic_link`。
+    *   *预期效果*：调用 Ollama 向量模型计算所有概念卡片的相似度，自动在卡片底部注入美观的 `[[相关概念|别名]]` 双链。若概念相似度 $\ge 0.95$，还会在底层执行无人值守的物理去重合并。
+*   **标签规范化 (Map-Reduce)**
+    *   *面临场景*：随着文献的增多，碎片化、单复数、同义词标签变得杂乱无章。
+    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_tag_sync`。
+    *   *预期效果*：运行 Map-Reduce 清洗全库的元数据标签，将混乱的标签降维合并为干净的本体论 (Ontology) 标准标签白名单。
+*   **概念去重与物理归并**
+    *   *面临场景*：知识库中存在同义但不同名的冗余卡片，需要合并以保持图谱的高纯净度。
+    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_concept_sync`。
+    *   *预期效果*：物理合并同义概念文件，合并 frontmatter 别名，并自动重定向和重构全库所有受影响的 `[[双链]]` 引用。
+*   **死链自愈与格式校验**
+    *   *面临场景*：您想要对工作区进行全面体检，修补断裂的死双链或校验 LaTeX 公式语法。
+    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_lint`。
+    *   *预期效果*：全局自愈断裂的双链（通过 Alias 路由映射接驳到新概念文件），自动转义 YAML frontmatter 中因 LLM 幻觉产生的不合规反斜杠，并校验公式语法。
+*   **关系图谱数据库索引更新**
+    *   *面临场景*：在手动或自动修改完卡片关系后，需要更新底层关系图谱缓存。
+    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_graph_index`。
+    *   *预期效果*：重新扫描全库的双链拓扑结构，更新 `output/graph.db` SQLite 数据库，以便 AI 助手后续能够进行高性能的图关系查询。
+
+### 💬 第 5 阶段：问答、知识审查与论文综述
+*   **严格文献引用问答**
+    *   *面临场景*：您想针对整个文献库进行深度问答，并要求其给出绝对真实的推导与文献出处。
+    *   *直接输入斜杠命令*：在聊天 UI 中打出 `/wiki_ask` 并跟随问题，例如：`/wiki_ask "A 理论与 B 定理在多维空间的映射关系是什么？"`。
+    *   *预期效果*：AI 组合执行关系图谱 SQL 查询和向量 RAG 混合检索，返回带有严谨 `[[wikilinks]]` 文献引用的解答，**杜绝虚假幻觉**。
+*   **理论矛盾审查**
+    *   *面临场景*：您想找出不同学术论文之间在公式推导、假设前提或实验结论上的学术矛盾或物理不一致。
+    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_audit`。
+    *   *预期效果*：多视角智能体协作审计，输出一份格式优雅的审查报告，精准点出不同论文之间的潜在矛盾。
+*   **自动文献综述撰写**
+    *   *面临场景*：您需要针对某个复杂的研究方向，基于知识库撰写一份高度专业化、引用详实的学术综述报告。
+    *   *直接输入斜杠命令*：在聊天 UI 中打出 `/wiki_research` 并跟随您的综述研究主题。
+    *   *预期效果*：并行启动专业文献调研智能体，自动生成一份极具深度且引用完备的学术综述论文，输出到 `output/` 目录下。
+
+### 🧹 第 6 阶段：多主题长期维护与归档
+*   **工作区归档与恢复**
+    *   *面临场景*：某个研究主题已经阶段性结束，您希望将其物理归档以保持当前工作区轻量化。
+    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_hub_manager`。
+    *   *预期效果*：自动将选定的主题目录安全地迁移/解包到 `topics/.archive/` 目录下，并自动同步更新 Hub 中央路由注册表 `wikis.json`。可随时通过同一命令一键还原。
 
 ---
-*Note: All destructive operations (merging, rewriting) automatically create backups in `.backup/` folders.*
+
+## 5. Obsidian 知识库集成与关系图谱净化指南
+
+为了在 Obsidian 中获得极致的图谱可视化和沉浸式科研体验，请在 Obsidian 中**直接打开具体的主题工作区目录**（例如 `~/KnowledgeHub/topics/quantum-computing`），**不要**打开 Hub 根目录。
+
+### ⚙️ 一键排除非知识类系统文件（净化关系图与全局搜索）
+因为主题工作区内包含自动生成的索引地图、智能体操作日志、项目配置等，您需要将它们在 Obsidian 的全局搜索和关系图谱中隐藏，从而只展示最纯粹的**数学/物理文献卡片与核心概念图谱**。
+
+1.  打开 Obsidian，进入 **设置 (Settings)** -> **档案与链接 (Files and links)**。
+2.  找到 **排除档案 (Excluded files)** 配置项。
+3.  点击“添加新规则”，粘贴并启用以下两个正则表达式：
+
+*   **排除非知识类元数据与日志 Markdown 文件**：
+    ```regex
+    ^(?:_index|log|config|uncompiled-source-coverage)\.md$
+    ```
+    *(本条规则能瞬间在 Obsidian 中隐去所有自动生成的目录大地图、Agent 执行日志、主题配置及文献未编译待办列表)。*
+
+*   **排除系统点号文件夹与 Agent 运行时目录**：
+    ```regex
+    ^\..*
+    ```
+    *(本条规则将显式隐藏如 `.agents/` 运行时、`.git/` 仓库元数据、`.backup/` 自动备份等隐藏配置文件，保证知识图谱的绝佳美感)。*
+
+配置完成后，Obsidian 的全局搜索、反向链接和 Graph View 关系图谱将变得极其空灵干净，只保留由双链优雅交织的学术卡片网络。
