@@ -82,7 +82,12 @@ def validate_math_pdflatex(valid_blocks, valid_inlines):
                 'equation', 'equation*', 'alignat', 'alignat*', 'flalign', 'flalign*',
                 'eqnarray', 'eqnarray*',
             ]
-            is_top_level = any(rf"\begin{{{env}}}" in math_content for env in top_level_envs)
+            # The snippet must *start* with the environment (not merely contain it)
+            # to count as top-level. Otherwise a block like "\text{...} \begin{align}"
+            # or an align nested inside array/cases would skip the equation* wrapper
+            # and leave content without a valid math-mode context (a false error).
+            stripped = math_content.strip()
+            is_top_level = any(stripped.startswith(rf"\begin{{{env}}}") for env in top_level_envs)
             if not is_top_level:
                 tex_lines.append(r"\begin{equation*}")
             current_tex_line += 1

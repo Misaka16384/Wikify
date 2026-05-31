@@ -1080,7 +1080,8 @@ def check_links(ctx: LintContext) -> None:
         full_text = doc.raw_text if doc.raw_text else doc.path.read_text(encoding="utf-8")
         modified = False
         for link in extract_markdown_links(full_text):
-            if " " in link:
+            is_external = "://" in link or link.startswith("mailto:")
+            if " " in link and not is_external:
                 ctx.issue("warning", f"Markdown link contains unescaped spaces: '{link}'. Consider URL encoding spaces (%20) or using Obsidian Wikilinks (![[...]]).", doc.path)
             if not is_local_markdown_link(link):
                 continue

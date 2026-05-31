@@ -8,7 +8,7 @@ except ImportError:
     print("Error: PyMuPDF is not installed. Run 'pip install pymupdf' to use this script.")
     sys.exit(1)
 
-def extract_crop(pdf_path, search_text, output_path, expand_margin=100, page_num=None):
+def extract_crop(pdf_path, search_text, output_path, expand_margin=150, page_num=None):
     if not os.path.exists(pdf_path):
         print(f"Error: PDF not found at {pdf_path}")
         return False
@@ -37,8 +37,14 @@ def extract_crop(pdf_path, search_text, output_path, expand_margin=100, page_num
                 print(f"Text '{search_text}' not found on page {page_num}.")
                 return False
         else:
+            # No search text: render the whole page. This is the fallback for
+            # scanned/OCR PDFs that have no selectable text layer to search.
             target_rect = target_page.rect
     else:
+        if not search_text:
+            print("Error: provide --text to search for, or --page to render a full page "
+                  "(scanned PDFs often have no text layer to search).")
+            return False
         # Search all pages
         for i in range(len(doc)):
             page = doc[i]
@@ -68,6 +74,11 @@ def extract_crop(pdf_path, search_text, output_path, expand_margin=100, page_num
     mat = fitz.Matrix(zoom, zoom)
     
     try:
+        # Ensure the output directory exists (e.g. <TOPIC_DIR>/scratch/), since
+        # pix.save() will not create missing parent directories.
+        out_dir = os.path.dirname(output_path)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
         pix = target_page.get_pixmap(matrix=mat, clip=rect)
         pix.save(output_path)
         print(f"Successfully saved crop to {output_path}")
@@ -79,7 +90,7 @@ def extract_crop(pdf_path, search_text, output_path, expand_margin=100, page_num
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Crop a region of a PDF containing specific text. Useful for multimodal LLM agents to view complex math/diagrams.")
     parser.add_argument("pdf_path", help="Path to the PDF file")
-    parser.add_argument("--text", required=True, help="Text to search for")
+    parser.add_argument("--text", default=None, help="Text to search for. Omit to render the whole --page (useful for scanned PDFs with no text layer).")
     parser.add_argument("--out", default="crop.png", help="Output PNG path")
     parser.add_argument("--margin", type=int, default=150, help="Margin to expand around the text (pts, default: 150)")
     parser.add_argument("--page", type=int, default=None, help="0-indexed page number to search within")

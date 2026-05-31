@@ -1,5 +1,6 @@
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -82,13 +83,16 @@ def main():
                 
                 # Convert standard Markdown image links to Obsidian Wikilinks,
                 # skipping fenced code blocks so documented example syntax isn't rewritten.
-                import re
                 def repl_img(m):
                     alt, path = m.group(1), m.group(2)
                     if path.startswith("http"):
                         return m.group(0) # Keep external links as is
                     path = path.replace("%20", " ") # Decode already encoded spaces for Obsidian
-                    if alt:
+                    alt = (alt or "").strip()
+                    # Obsidian reads a purely numeric segment after '|' as a pixel
+                    # width/height (e.g. ![[img.png|100]]), so drop a numeric alt to
+                    # avoid silently resizing the image.
+                    if alt and not re.fullmatch(r'\d+(x\d+)?', alt):
                         return f"![[{path}|{alt}]]"
                     return f"![[{path}]]"
 

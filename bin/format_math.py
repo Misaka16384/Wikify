@@ -20,6 +20,18 @@ def safe_auto_fixes(content):
     )
 
     # 2. Handle \tag in unsupported environments
+    container_envs = ('array', 'matrix', 'pmatrix', 'vmatrix', 'Vmatrix', 'Bmatrix', 'bmatrix', 'cases')
+
+    def _inside_container(prefix):
+        # True if `prefix` ends inside an unclosed array/matrix/cases-style env.
+        # A nested `aligned` here must NOT be promoted to a top-level `align`,
+        # which cannot be nested inside another math environment.
+        depth = 0
+        for m in re.finditer(r'\\(begin|end)\{([a-zA-Z]+\*?)\}', prefix):
+            if m.group(2) in container_envs:
+                depth += 1 if m.group(1) == 'begin' else -1
+        return depth > 0
+
     environments_to_check = ['aligned', 'array', 'matrix', 'pmatrix', 'vmatrix', 'Vmatrix', 'Bmatrix', 'bmatrix', 'cases']
     for env in environments_to_check:
         def make_fixer(env_name):
@@ -28,12 +40,14 @@ def safe_auto_fixes(content):
                 # Allow one level of nested braces so \tag{\text{Eq. 1}} is captured whole.
                 tag_match = re.search(r'\\tag\s*\{((?:[^{}]+|\{[^{}]*\})*)\}', inner_content)
                 if tag_match:
-                    if env_name == 'aligned':
-                        # Convert to align to preserve multiple tags and alignment
+                    if env_name == 'aligned' and not _inside_container(match.string[:match.start()]):
+                        # Top-level aligned: convert to align so multiple \tag and
+                        # alignment are preserved (align carries tags; aligned can't).
                         return f"\\begin{{align}}{inner_content}\\end{{align}}"
                     else:
-                        # For array/matrices/cases, keep the environment (and any column
-                        # spec) intact and move the tag outside so brackets are preserved.
+                        # For array/matrices/cases (and any nested aligned), keep the
+                        # environment and column spec intact and move the tag outside so
+                        # brackets are preserved and no invalid nesting is introduced.
                         tag_text = tag_match.group(0)
                         inner_content = inner_content.replace(tag_text, '')
                         return f"\\begin{{{env_name}}}{inner_content}\\end{{{env_name}}} {tag_text}"
@@ -41,10 +55,16 @@ def safe_auto_fixes(content):
             return fix_tag_env
         content = re.sub(rf'\\begin\{{{env}\}}(.*?)\\end\{{{env}\}}', make_fixer(env), content, flags=re.DOTALL)
 
-    # Convert eqnarray to align (KaTeX compatibility)
-    content = re.sub(r'\\begin\{eqnarray\*?\}', r'\\begin{align}', content)
-    content = re.sub(r'\\end\{eqnarray\*?\}', r'\\end{align}', content)
-    
+    # Convert eqnarray to align (KaTeX compatibility). eqnarray is a 3-column
+    # environment (lhs & rel & rhs); align is 2-column (lhs &rel rhs), so the
+    # relation-wrapping ampersand pair on each row must be collapsed or the extra
+    # alignment tab renders with broken spacing. Preserve the * (unnumbered).
+    def fix_eqnarray(match):
+        star = match.group(1)  # '' or '*'
+        body = re.sub(r'&([^&\n]*)&', r'&\1', match.group(2))
+        return f"\\begin{{align{star}}}{body}\\end{{align{star}}}"
+    content = re.sub(r'\\begin\{eqnarray(\*?)\}(.*?)\\end\{eqnarray\*?\}', fix_eqnarray, content, flags=re.DOTALL)
+
     # Remove trailing \\ right before $$ or end of math environments where it causes parse errors
     content = re.sub(r'\\\\\s*\$\$', r'\n$$', content)
 
