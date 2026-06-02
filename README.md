@@ -201,7 +201,7 @@ bash install.sh ~/.claude        # 或直接以参数传入
 
 *   **排除非知识类元数据与日志 Markdown 文件**：
     ```regex
-    ^(?:_index|log|config|uncompiled-source-coverage)\.md$
+    /^(?:_index|log|config|uncompiled-source-coverage)\.md$/
     ```
     *(本条规则能瞬间在 Obsidian 中隐去所有自动生成的目录大地图、Agent 执行日志、主题配置及文献未编译待办列表)。*
 
