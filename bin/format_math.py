@@ -2,7 +2,42 @@ import os
 import re
 import sys
 
-def safe_auto_fixes(content):
+def fix_ocr_math_artifacts(math_content):
+    # 1 & 2. Double subscripts/superscripts merge
+    sub_pattern = re.compile(r'(?<!\\)_(?:\{([^{}]+)\}|([a-zA-Z0-9]))\s*(?<!\\)_(?:\{([^{}]+)\}|([a-zA-Z0-9]))')
+    super_pattern = re.compile(r'(?<!\\)\^(?:\{([^{}]+)\}|([a-zA-Z0-9]))\s*(?<!\\)\^(?:\{([^{}]+)\}|([a-zA-Z0-9]))')
+    
+    def merge_subscripts(m):
+        val1 = m.group(1) or m.group(2)
+        val2 = m.group(3) or m.group(4)
+        return f"_{{{val1},{val2}}}"
+
+    def merge_superscripts(m):
+        val1 = m.group(1) or m.group(2)
+        val2 = m.group(3) or m.group(4)
+        return f"^{{{val1},{val2}}}"
+
+    while True:
+        new_math = re.sub(sub_pattern, merge_subscripts, math_content)
+        if new_math == math_content:
+            break
+        math_content = new_math
+
+    while True:
+        new_math = re.sub(super_pattern, merge_superscripts, math_content)
+        if new_math == math_content:
+            break
+        math_content = new_math
+
+    # 3. Unescaped #
+    math_content = re.sub(r'(?<!\\)#', r'\#', math_content)
+
+    # 4. Stray delimiters
+    math_content = math_content.replace(r'\(', '(').replace(r'\)', ')').replace(r'\[', '[').replace(r'\]', ']')
+
+    return math_content
+
+def safe_auto_fixes(content, is_raw=False):
     # 1. Redundant nesting (equation inside $$)
     content = re.sub(
         r'\$\$[\s\n]*\\begin\{equation\*?\}(.*?)\\end\{equation\*?\}[\s\n]*\$\$',
@@ -71,11 +106,15 @@ def safe_auto_fixes(content):
     # 3. & 4. Process math blocks for escaped parentheses and inline newlines
     def process_block(match):
         math_content = match.group(1)
+        if is_raw:
+            math_content = fix_ocr_math_artifacts(math_content)
         math_content = math_content.replace(r'\(', '(').replace(r'\)', ')')
         return f"$${math_content}$$"
 
     def process_inline(match):
         math_content = match.group(1)
+        if is_raw:
+            math_content = fix_ocr_math_artifacts(math_content)
         math_content = math_content.replace(r'\(', '(').replace(r'\)', ')')
         # Flatten paragraph breaks (multiple newlines) into a single space
         math_content = re.sub(r'\n{2,}', ' ', math_content)
@@ -87,8 +126,8 @@ def safe_auto_fixes(content):
 
     return content
 
-def clean_math_delimiters(content):
-    content = safe_auto_fixes(content)
+def clean_math_delimiters(content, is_raw=False):
+    content = safe_auto_fixes(content, is_raw=is_raw)
 
     # Ensure standard LaTeX block environments have preceding and trailing newlines
     environments = ['align', 'equation', 'gather', 'multline', 'split']
@@ -240,7 +279,18 @@ def process_file(file_path):
             content = f.read()
         content = content.replace('\r\n', '\n')
         
-        formatted = clean_math_delimiters(content)
+        # Check path for raw scope
+        is_raw = "raw/" in file_path.replace("\\", "/")
+        
+        # Check for orphaned $$ (Pattern 5)
+        lines = content.split('\n')
+        for idx, line in enumerate(lines):
+            count = line.count('$$')
+            if count % 2 == 1:
+                if line.strip() != '$$':
+                    print(f"[\033[93mWARNING\033[0m] Orphaned $$ found on line {idx + 1} of {os.path.basename(file_path)}: {line.strip()}")
+        
+        formatted = clean_math_delimiters(content, is_raw=is_raw)
         
         if formatted != content:
             with open(file_path, 'w', encoding='utf-8') as f:

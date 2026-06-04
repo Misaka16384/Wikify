@@ -18,9 +18,12 @@ commands:
 This skill handles static validation, claim mapping, and link structural checks to keep the personal knowledge base completely healthy and integrated.
 
 When the user asks to lint, repair, or audit the links in their vault:
-1.  **Execute Local Python CLI**: Bypass semantic guesswork. Run the complete, 511-line Python validator script bundled inside this skill:
+1.  **Execute Local Python CLI**: Bypass semantic guesswork. Run the Python validator script:
     `python <BIN>/llm-wiki.py lint --fix <TOPIC_DIR>`
-2.  **Report to User**: Present all parsed warnings, dangling double-brackets `[[links]]`, missing metadata frontmatter properties, or directory structure discrepancies.
+    *   **Math Syntax Validation**: Linting automatically runs math syntax checks on all markdown files (validating LaTeX syntax). Math syntax errors in compiled `wiki/` files are `critical` (blocking), while errors in `raw/` files are `warnings` (non-blocking).
+    *   **Skip Math Option**: To run fast structural/link-only checks and skip LaTeX validation, add the `--skip-math` flag:
+        `python <BIN>/llm-wiki.py lint --skip-math <TOPIC_DIR>`
+2.  **Report to User**: Present all parsed warnings, dangling double-brackets `[[links]]`, missing metadata frontmatter properties, math syntax errors, or directory structure discrepancies.
 3.  **Self-Contained Sandbox Verification**: For developer test runs, you can utilize the sandboxed directories in `<SKILL_DIR>/tests/fixtures/` to benchmark and verify the validator's performance:
     *   `golden-wiki/` contains a flawless mock vault.
     *   `defects/` contains defect-injected vaults.

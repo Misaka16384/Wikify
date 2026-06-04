@@ -201,14 +201,14 @@ bash install.sh ~/.claude        # 或直接以参数传入
 
 *   **排除非知识类元数据与日志 Markdown 文件**：
     ```regex
-    /^(?:_index|log|config|uncompiled-source-coverage)\.md$/
+    /(?:^|/)(?:_index|log|config|uncompiled-source-coverage)\.md$/
     ```
-    *(本条规则能瞬间在 Obsidian 中隐去所有自动生成的目录大地图、Agent 执行日志、主题配置及文献未编译待办列表)。*
+    *(本条规则能瞬间在 Obsidian 中隐去所有子目录及根目录下自动生成的目录大地图、Agent 执行日志、主题配置及文献未编译待办列表)。*
 
-*   **排除系统点号文件夹与 Agent 运行时目录**：
+*   **排除系统点号文件夹、Agent 运行时、scratch、inbox 与 raw 目录**：
     ```regex
-    /^\..*/
+    /^\..*|(?:^|/)(?:scratch|inbox|raw)(?:/|$)/
     ```
-    *(本条规则将显式隐藏如 `.agents/` 运行时、`.git/` 仓库元数据、`.backup/` 自动备份等隐藏配置文件，保证知识图谱的绝佳美感)。*
+    *(本条规则将显式隐藏如 `.agents/` 运行时、`.git/` 仓库元数据、`.backup/` 自动备份、以及任意 `scratch`、`inbox` 和 `raw` 目录，保证知识图谱的绝佳美感)。*
 
 配置完成后，Obsidian 的全局搜索、反向链接和 Graph View 关系图谱将变得极其空灵干净，只保留由双链优雅交织的学术卡片网络。

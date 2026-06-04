@@ -1127,6 +1127,41 @@ def check_wikilinks_formatting(ctx: LintContext) -> None:
                 ctx.issue("warning", f"Wikilink [[{link}]] appears to contain a raw mathematical equation or LaTeX code instead of a clean conceptual term. This will lead to malformed filenames.", doc.path)
 
 
+def check_math_syntax(ctx: LintContext) -> None:
+    bin_dir = str(Path(__file__).parent.resolve())
+    if bin_dir not in sys.path:
+        sys.path.insert(0, bin_dir)
+        
+    try:
+        from validate_math_latex import validate_math_pylatexenc, validate_math_pdflatex, format_issue_for_cli
+    except ImportError as e:
+        ctx.issue("warning", f"Could not import validate_math_latex: {e}")
+        return
+
+    has_pdflatex = shutil.which("pdflatex") is not None
+
+    for doc in sorted(ctx.documents.values(), key=lambda item: str(item.path)):
+        try:
+            rel = doc.path.resolve().relative_to(ctx.root)
+        except ValueError:
+            continue
+        
+        is_raw = rel.parts[0] == "raw"
+        severity = "warning" if is_raw else "critical"
+        
+        full_text = doc.raw_text if doc.raw_text else doc.path.read_text(encoding="utf-8", errors="replace")
+        
+        issues, valid_blocks, valid_inlines = validate_math_pylatexenc(full_text)
+        if has_pdflatex and (valid_blocks or valid_inlines):
+            pdflatex_issues = validate_math_pdflatex(valid_blocks, valid_inlines)
+            issues.extend(pdflatex_issues)
+            
+        for issue in issues:
+            formatted_msg = format_issue_for_cli(issue)
+            ctx.issue(severity, formatted_msg, doc.path)
+
+
+
 def check_source_provenance(ctx: LintContext) -> None:
     for doc in sorted(ctx.documents.values(), key=lambda item: str(item.path)):
         try:
@@ -1699,6 +1734,8 @@ def run_lint(args: argparse.Namespace) -> int:
     check_index_consistency(ctx)
     check_links(ctx)
     check_wikilinks_formatting(ctx)
+    if not getattr(args, "skip_math", False):
+        check_math_syntax(ctx)
     check_source_provenance(ctx)
     check_tags(ctx)
     check_coverage(ctx)
@@ -2320,6 +2357,109 @@ def run_graph(args: argparse.Namespace) -> int:
     return 0
 
 
+def run_map(args: argparse.Namespace) -> int:
+    target = Path(args.target).resolve()
+    if not target.exists():
+        print(f"Path not found: {args.target}")
+        return 1
+        
+    if target.is_file():
+        try:
+            with open(target, "r", encoding="utf-8", errors="replace") as f:
+                content = f.read()
+        except OSError as e:
+            print(f"Error reading file: {e}")
+            return 1
+            
+        lines = content.splitlines()
+        total_lines = len(lines)
+        
+        fm_start = -1
+        fm_end = -1
+        if lines and lines[0].strip() == "---":
+            fm_start = 1
+            for idx in range(1, len(lines)):
+                if lines[idx].strip() == "---":
+                    fm_end = idx + 1
+                    break
+                    
+        headings = []
+        for idx, line in enumerate(lines):
+            match = re.match(r'^(#{1,6})\s+(.*)', line.strip())
+            if match:
+                level = len(match.group(1))
+                text = match.group(2).strip()
+                headings.append((idx + 1, level, text))
+                
+        sections = []
+        current_line = 1
+        if fm_start != -1 and fm_end != -1:
+            sections.append((fm_start, fm_end, "--- (frontmatter)"))
+            current_line = fm_end + 1
+            
+        for i, (line_num, level, text) in enumerate(headings):
+            if sections:
+                prev_start, prev_end, prev_name = sections[-1]
+                if prev_end == -1:
+                    sections[-1] = (prev_start, line_num - 1, prev_name)
+            sections.append((line_num, -1, f"{'#' * level} {text}"))
+            
+        if sections:
+            prev_start, prev_end, prev_name = sections[-1]
+            if prev_end == -1:
+                sections[-1] = (prev_start, total_lines, prev_name)
+                
+        block_math_count = len(re.findall(r'\$\$(.*?)\$\$', content, re.DOTALL))
+        inline_math_count = len(re.findall(r'(?<!\$)\$(?!\$)(.*?)(?<!\$)\$(?!\$)', content, re.DOTALL))
+        
+        print(f"Map: {target.name} ({total_lines} lines)")
+        for start, end, name in sections:
+            print(f"  [L{start}-{end}]".ljust(13) + f"{name}")
+        print(f"  Math blocks: {block_math_count} (block), {inline_math_count} (inline)")
+        return 0
+        
+    elif target.is_dir():
+        print(f"Directory Map: {target}")
+        print(f"{'File':<65} | {'Lines':<6} | {'Sections':<8} | {'Block Math':<10} | {'Inline Math':<11}")
+        print("-" * 110)
+        
+        for root, dirs, files in os.walk(target):
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+            for file in sorted(files):
+                if file.endswith('.md'):
+                    file_path = os.path.join(root, file)
+                    try:
+                        rel_path = Path(file_path).relative_to(target.parent)
+                    except ValueError:
+                        rel_path = Path(file_path)
+                        
+                    try:
+                        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+                            content = f.read()
+                    except OSError:
+                        continue
+                        
+                    lines = content.splitlines()
+                    total_lines = len(lines)
+                    
+                    headings_count = 0
+                    for line in lines:
+                        if line.strip().startswith('#'):
+                            if re.match(r'^#{1,6}\s+', line.strip()):
+                                headings_count += 1
+                                
+                    fm_exists = lines and lines[0].strip() == "---"
+                    sections_count = headings_count + (1 if fm_exists else 0)
+                    
+                    block_math_count = len(re.findall(r'\$\$(.*?)\$\$', content, re.DOTALL))
+                    inline_math_count = len(re.findall(r'(?<!\$)\$(?!\$)(.*?)(?<!\$)\$(?!\$)', content, re.DOTALL))
+                    
+                    print(f"{str(rel_path).replace(os.sep, '/'):<65} | {total_lines:<6} | {sections_count:<8} | {block_math_count:<10} | {inline_math_count:<11}")
+        return 0
+    return 1
+
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="llm-wiki",
@@ -2346,6 +2486,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Allow linting an explicitly targeted archived wiki.",
     )
     lint.add_argument("--json", action="store_true", help="Print a machine-readable JSON report.")
+    lint.add_argument("--skip-math", action="store_true", help="Skip LaTeX/math syntax checks.")
     lint.set_defaults(func=run_lint)
 
     archive = subparsers.add_parser(
@@ -2433,6 +2574,17 @@ def build_parser() -> argparse.ArgumentParser:
     graph.add_argument("--hub", help="Override hub path.")
     graph.add_argument("path", nargs="?", help="Wiki root path.")
     graph.set_defaults(func=run_graph)
+
+    map_parser = subparsers.add_parser(
+        "map",
+        help="Produce a structural map of headings and math blocks for a file or directory.",
+        description=(
+            "Generate a table of heading line ranges and math block counts for a single file, "
+            "or a compact summary for all markdown files under a directory."
+        ),
+    )
+    map_parser.add_argument("target", help="Markdown file or directory to map.")
+    map_parser.set_defaults(func=run_map)
 
     return parser
 
