@@ -1,12 +1,62 @@
 import sys
 import json
+import os
+import re
 from pathlib import Path
+
+def wash_windows_path(path_str: str) -> str:
+    if os.name != "nt":
+        return path_str
+    if not path_str:
+        return path_str
+
+    # Handle /tmp
+    if path_str.startswith("/tmp"):
+        import tempfile
+        temp_dir = tempfile.gettempdir()
+        rest = path_str[4:]
+        rest = rest.replace("/", "\\")
+        if rest.startswith("\\"):
+            return temp_dir + rest
+        return temp_dir + "\\" + rest
+
+    # Handle drive letters /c/... or /C/... or /c
+    match = re.match(r"^/([a-zA-Z])(/.*)?$", path_str)
+    if match:
+        drive = match.group(1).upper()
+        rest = match.group(2) or ""
+        rest = rest.replace("/", "\\")
+        return f"{drive}:{rest}"
+
+    # General absolute unix-like path starting with /
+    if path_str.startswith("/") and not path_str.startswith("//"):
+        try:
+            current_drive = Path.cwd().drive or "C:"
+        except Exception:
+            current_drive = "C:"
+        rest = path_str.replace("/", "\\")
+        return f"{current_drive}{rest}"
+
+    return path_str
+
+
+def get_home_directory() -> Path:
+    home_env = os.environ.get("HOME")
+    if home_env:
+        return Path(wash_windows_path(home_env))
+
+    userprofile_env = os.environ.get("USERPROFILE")
+    if userprofile_env:
+        return Path(wash_windows_path(userprofile_env))
+
+    return Path.home()
+
 
 def expand_leading_tilde(value: str) -> Path:
     if value == "~":
-        return Path.home()
+        return get_home_directory()
     if value.startswith("~/"):
-        return Path.home() / value[2:]
+        return get_home_directory() / value[2:]
     return Path(value)
 
 
@@ -27,7 +77,10 @@ def main():
         print("Usage: python router.py <path_to_hub> <slug>", file=sys.stderr)
         sys.exit(1)
         
-    hub_path = Path(sys.argv[1]).resolve()
+    raw_hub_path = sys.argv[1]
+    if os.name == "nt":
+        raw_hub_path = wash_windows_path(raw_hub_path)
+    hub_path = Path(raw_hub_path).resolve()
     slug = sys.argv[2]
     
     registry_path = hub_path / "wikis.json"

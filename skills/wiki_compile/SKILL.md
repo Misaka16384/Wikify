@@ -22,7 +22,9 @@ This skill handles the AI-driven "compilation" of high-entropy raw source texts 
 When the user asks to compile the wiki or process raw files, follow this parallelized workflow:
 
 ### Phase 1: Preparation
-1.  **Detect Uncompiled Sources**: Scan `raw/` for text documents that do not yet have corresponding compiled notes under `wiki/references/`.
+1.  **Detect Uncompiled Sources**: Run the helper script to detect uncompiled files programmatically:
+    `python <BIN>/detect_uncompiled.py --topic-dir \"<TOPIC_DIR>\"`
+    This script output will list the relative paths of uncompiled source files.
 
 ### Phase 2: Parallel Compilation (Subagents)
 2.  **Invoke Subagents**: Use your agent's **sub-agent / parallel-task tool** (spawning a fresh self-instance per task) to process one uncompiled raw file per sub-agent, concurrently. If your framework has no sub-agent tool, process the files sequentially yourself.

@@ -301,18 +301,23 @@ echo "--- C4: Link integrity (all body links) ---"
 check_body_links() {
   local label="$1"
   shift
+  local py="python3"
+  if ! command -v python3 >/dev/null 2>&1; then
+    py="python"
+  fi
   while IFS= read -r -d '' file; do
     bn=$(basename "$file")
     filedir=$(dirname "$file")
     # Match ](path.md) and ](<path with spaces.md>) anywhere in the file.
     while IFS= read -r link; do
-      target=$(python3 -c "import os,sys; print(os.path.normpath(sys.argv[1]))" "$filedir/$link")
+      target=$($py -c "import os,sys; print(os.path.normpath(sys.argv[1]).replace(os.sep, '/'))" "$filedir/$link")
+      target="${target%$'\r'}"
       if [ -f "$target" ]; then
         log_pass "$label link resolves: $link (in $bn)"
       else
         log_fail "$label broken link: $link (in $bn)" "C4 violation"
       fi
-    done < <(python3 - "$file" <<'PY'
+    done < <($py - "$file" <<'PY'
 import re
 import sys
 

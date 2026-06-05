@@ -79,3 +79,32 @@ def slugify(value: str) -> str:
     value = re.sub(r"[^\w-]", "", value, flags=re.UNICODE)
     value = re.sub(r"-+", "-", value).strip("-")
     return value
+
+
+def atomic_write(filepath: str | Path, content: str, encoding: str = "utf-8", newline: str | None = None) -> None:
+    """Safely and atomically write content to a file.
+
+    Creates a temporary file in the same directory as the target file,
+    writes the content, and then renames it to target file using os.replace.
+    """
+    import os
+    import tempfile
+    from pathlib import Path
+
+    path = Path(filepath)
+    dir_name = path.parent
+    dir_name.mkdir(parents=True, exist_ok=True)
+
+    fd, temp_path_str = tempfile.mkstemp(dir=dir_name, prefix=".tmp_atomic_")
+    try:
+        with open(fd, 'w', encoding=encoding, newline=newline) as f:
+            f.write(content)
+        os.replace(temp_path_str, path)
+    except Exception:
+        if os.path.exists(temp_path_str):
+            try:
+                os.remove(temp_path_str)
+            except OSError:
+                pass
+        raise
+

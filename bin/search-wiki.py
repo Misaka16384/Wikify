@@ -39,13 +39,14 @@ def main():
             continue
         try:
             with open(path, "r", encoding="utf-8", errors="replace") as f:
-                for i, line in enumerate(f, 1):
-                    if pattern.search(line):
-                        results.append({
-                            "file": str(path),
-                            "line": i,
-                            "content": line.rstrip("\n")
-                        })
+                content = f.read().replace('\r\n', '\n')
+            for i, line in enumerate(content.split('\n'), 1):
+                if pattern.search(line):
+                    results.append({
+                        "file": str(path),
+                        "line": i,
+                        "content": line
+                    })
                         if len(results) >= MAX_RESULTS:
                             break
             if len(results) >= MAX_RESULTS:

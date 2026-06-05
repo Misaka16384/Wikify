@@ -16,14 +16,14 @@ def main():
     parser.add_argument("--db", default="output/graph.db", help="Path to the SQLite database (default: output/graph.db).")
     args = parser.parse_args()
 
-    db_path = Path(args.db)
+    db_path = Path(args.db).resolve()
     if not db_path.exists():
         print(json.dumps({"error": f"Database not found at {db_path}. Please run 'python .agents/bin/llm-wiki.py graph' first."}))
         sys.exit(1)
 
     try:
         # Open database in read-only mode to prevent accidental writes
-        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        conn = sqlite3.connect(f"{db_path.as_uri()}?mode=ro", uri=True)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
         cursor.execute("PRAGMA query_only = ON")

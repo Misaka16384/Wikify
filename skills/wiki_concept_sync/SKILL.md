@@ -31,8 +31,9 @@ The user can ask to refine/sync a **single concept** (e.g., `wiki_concept_sync "
 2.  **Agent Review**: Carefully review the `[MERGE_SUGGESTION]` output logs from the script.
 3.  **Resolve & Merge (Principle)**: If you verify that a pair is genuinely the same or strongly overlapping, choose a canonical name. **CRITICAL PRINCIPLE**: Always merge sub-concepts into their parent concepts (e.g., merge `gauge_redundancy` into `gauge_symmetry`). The parent concept becomes the Canonical Name.
 4.  **Refactor Links**: Run the deterministic python script to safely update all `[[Old Concept]]` links to `[[Canonical Name]]`, handle backups, and delete the old concept automatically:
-    `python <BIN>/refactor_concept.py --topic-dir "<TOPIC_DIR>" --old "Old Concept" --new "Canonical Name"`
-    *(This script will also automatically rebuild the SQLite knowledge graph and markdown indexes upon completion).*
+    `python <BIN>/refactor_concept.py --topic-dir \"<TOPIC_DIR>\" --old \"Old Concept\" --new \"Canonical Name\" [--no-rebuild]`
+    *(This script will also automatically rebuild the SQLite knowledge graph and markdown indexes upon completion, unless `--no-rebuild` is passed).*
+    To speed up bulk refactoring, you can optionally pass the `--no-rebuild` flag to `refactor_concept.py` to skip intermediate index rebuilds.
 
 ### Phase 2: Multi-Source Synthesis (Post-Merge RAG)
 After resolving duplicates, you must synthesize their definitions to ensure no knowledge is lost.

@@ -9,6 +9,7 @@ created: 2026-01-01
 updated: 2026-01-03
 tags: [testing, patterns, evals]
 confidence: high
+exclude_structure_check: true
 summary: "Testing patterns for LLM tools — three-layer model with pass@k reliability metrics."
 ---
 

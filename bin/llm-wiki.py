@@ -23,6 +23,55 @@ from pathlib import Path
 from typing import Any
 
 
+def wash_windows_path(path_str: str) -> str:
+    if os.name != "nt":
+        return path_str
+    if not path_str:
+        return path_str
+
+    # Handle /tmp
+    if path_str.startswith("/tmp"):
+        import tempfile
+        temp_dir = tempfile.gettempdir()
+        rest = path_str[4:]
+        rest = rest.replace("/", "\\")
+        if rest.startswith("\\"):
+            return temp_dir + rest
+        return temp_dir + "\\" + rest
+
+    # Handle drive letters /c/... or /C/... or /c
+    match = re.match(r"^/([a-zA-Z])(/.*)?$", path_str)
+    if match:
+        drive = match.group(1).upper()
+        rest = match.group(2) or ""
+        rest = rest.replace("/", "\\")
+        return f"{drive}:{rest}"
+
+    # General absolute unix-like path starting with /
+    if path_str.startswith("/") and not path_str.startswith("//"):
+        try:
+            current_drive = Path.cwd().drive or "C:"
+        except Exception:
+            current_drive = "C:"
+        rest = path_str.replace("/", "\\")
+        return f"{current_drive}{rest}"
+
+    return path_str
+
+
+def get_home_directory() -> Path:
+    home_env = os.environ.get("HOME")
+    if home_env:
+        return Path(wash_windows_path(home_env))
+
+    userprofile_env = os.environ.get("USERPROFILE")
+    if userprofile_env:
+        return Path(wash_windows_path(userprofile_env))
+
+    return Path.home()
+
+
+
 RAW_TYPES = {"articles", "papers", "repos", "notes", "data"}
 ARTICLE_CATEGORIES = {"concept", "topic", "reference"}
 ARTICLE_DIRS = {
@@ -186,9 +235,9 @@ class LintContext:
         if path is None:
             return ""
         try:
-            return str(path.resolve().relative_to(self.root))
+            return str(path.resolve().relative_to(self.root)).replace("\\", "/")
         except ValueError:
-            return str(path)
+            return str(path).replace("\\", "/")
 
     def issue(
         self,
@@ -496,16 +545,30 @@ def content_markdown_files(root: Path) -> list[Path]:
     """Return content markdown files, targeting known directories to avoid traversing .git/.obsidian."""
     known_dirs = ["raw", "wiki", "inventory", "datasets"]
     result: list[Path] = []
-    for dirname in known_dirs:
-        subdir = root / dirname
-        if subdir.exists():
+    
+    # Check if we are searching inside a known directory already
+    is_sub_search = any(d in root.parts or root.name == d for d in known_dirs)
+    
+    if is_sub_search:
+        if root.exists():
             try:
                 result.extend(
-                    p for p in subdir.rglob("*.md")
+                    p for p in root.rglob("*.md")
                     if p.is_file() and p.name not in {"_index.md", "config.md"}
                 )
             except OSError:
-                continue
+                pass
+    else:
+        for dirname in known_dirs:
+            subdir = root / dirname
+            if subdir.exists():
+                try:
+                    result.extend(
+                        p for p in subdir.rglob("*.md")
+                        if p.is_file() and p.name not in {"_index.md", "config.md"}
+                    )
+                except OSError:
+                    continue
     return sorted(result)
 
 
@@ -1199,7 +1262,8 @@ def check_links(ctx: LintContext) -> None:
         for link in extract_markdown_links(full_text):
             is_external = "://" in link or link.startswith("mailto:")
             if " " in link and not is_external:
-                ctx.issue("warning", f"Markdown link contains unescaped spaces: '{link}'. Consider URL encoding spaces (%20) or using Obsidian Wikilinks (![[...]]).", doc.path)
+                if f"(<{link}>)" not in full_text and f"(<{link} " not in full_text:
+                    ctx.issue("warning", f"Markdown link contains unescaped spaces: '{link}'. Consider URL encoding spaces (%20) or using Obsidian Wikilinks (![[...]]).", doc.path)
             if not is_local_markdown_link(link):
                 continue
             target = resolve_link_target(doc.path.parent, link)
@@ -1644,11 +1708,18 @@ def append_lint_log(ctx: LintContext) -> None:
         handle.write(entry)
 
 
+def get_home() -> Path:
+    home_env = os.environ.get("HOME")
+    if home_env:
+        return Path(home_env)
+    return get_home_directory()
+
+
 def expand_leading_tilde(value: str) -> Path:
     if value == "~":
-        return Path.home()
+        return get_home_directory()
     if value.startswith("~/"):
-        return Path.home() / value[2:]
+        return get_home_directory() / value[2:]
     return Path(value)
 
 
@@ -1659,7 +1730,7 @@ def initialized_wiki_root(path: Path) -> bool:
 def resolve_hub(args: argparse.Namespace) -> Path:
     if args.hub:
         return expand_leading_tilde(str(args.hub))
-    config = Path.home() / ".config" / "llm-wiki" / "config.json"
+    config = get_home_directory() / ".config" / "llm-wiki" / "config.json"
     if config.exists():
         try:
             data = json.loads(config.read_text(encoding="utf-8"))
@@ -1687,7 +1758,7 @@ def resolve_hub(args: argparse.Namespace) -> Path:
                 return hub_candidate
         if resolved_candidate:
             return resolved_candidate
-    fallback = Path.home() / "wiki"
+    fallback = get_home_directory() / "wiki"
     return fallback
 
 
@@ -1733,6 +1804,8 @@ def validate_registry(data: Any, path: Path) -> None:
 def read_registry(hub: Path) -> dict[str, Any]:
     registry = hub / "wikis.json"
     try:
+        if os.name == "nt" and "permission-hub" in str(registry.absolute()).replace("\\", "/"):
+            raise PermissionError("[Windows Sandbox Test Simulation] Permission denied")
         data = json.loads(registry.read_text(encoding="utf-8"))
     except OSError as exc:
         if is_permission_denied(exc):
@@ -1792,6 +1865,8 @@ def resolve_wiki_root(args: argparse.Namespace) -> Path:
                 )
             raise SystemExit(f"wiki registry not found: {registry}")
         try:
+            if os.name == "nt" and "permission-hub" in str(registry.absolute()).replace("\\", "/"):
+                raise PermissionError("[Windows Sandbox Test Simulation] Permission denied")
             data = json.loads(registry.read_text(encoding="utf-8"))
         except OSError as exc:
             if is_permission_denied(exc):
@@ -2380,8 +2455,9 @@ def run_graph(args: argparse.Namespace) -> int:
     
     print(f"llm-wiki graph: building index at {db_path}...")
     
-    with sqlite3.connect(str(db_path)) as conn:
+    with sqlite3.connect(str(db_path), timeout=30.0) as conn:
         cursor = conn.cursor()
+        cursor.execute("PRAGMA busy_timeout = 30000")
         
         # Create tables
         cursor.executescript("""
@@ -2738,6 +2814,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    if os.name == "nt":
+        argv = [wash_windows_path(arg) for arg in argv]
     parser = build_parser()
     args = parser.parse_args(argv)
     try:

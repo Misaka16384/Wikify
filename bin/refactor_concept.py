@@ -6,6 +6,13 @@ import sys
 import yaml
 from datetime import datetime
 
+try:
+    from wiki_common import atomic_write
+except ImportError:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from wiki_common import atomic_write
+
+
 def extract_frontmatter(content):
     fm_match = re.search(r'^---([\s\S]*?)---\n', content)
     if fm_match:
@@ -77,8 +84,7 @@ def merge_concept_files(old_path, new_path, old_name):
     
     final_content = f"{new_fm_str}\n{new_body.strip()}\n\n---\n## [Merged Content: {old_name}]\n\n{old_body.strip()}\n"
     
-    with open(new_path, "w", encoding="utf-8") as f:
-        f.write(final_content)
+    atomic_write(new_path, final_content, encoding="utf-8")
     print(f"Physically merged content from {old_name} into {os.path.basename(new_path)}")
 
 
@@ -87,6 +93,7 @@ def main():
     parser.add_argument("--topic-dir", required=True, help="Topic workspace directory")
     parser.add_argument("--old", required=True, help="Old concept name")
     parser.add_argument("--new", required=True, help="New concept name")
+    parser.add_argument("--no-rebuild", action="store_true", help="Bypass automatic database/index rebuild")
     
     args = parser.parse_args()
     wiki_dir = os.path.join(args.topic_dir, "wiki")
@@ -140,8 +147,7 @@ def main():
                 new_content = pattern_md_link.sub(rf"\1{new_name}.md\2", new_content)
                 
                 if new_content != content:
-                    with open(filepath, "w", encoding="utf-8") as f:
-                        f.write(new_content)
+                    atomic_write(filepath, new_content, encoding="utf-8")
                     print(f"Updated links in {filepath}")
                     modified_count += 1
                     
@@ -152,16 +158,17 @@ def main():
         
     print(f"Refactoring complete. Modified {modified_count} files.")
 
-    # Update knowledge graph and indexes automatically
-    import subprocess
-    print("Triggering graph database and index updates...")
-    agents_bin = os.path.dirname(os.path.abspath(__file__))
-    try:
-        subprocess.run([sys.executable, os.path.join(agents_bin, "llm-wiki.py"), "graph", args.topic_dir], check=True)
-        subprocess.run([sys.executable, os.path.join(agents_bin, "index_builder.py"), args.topic_dir], check=True)
-        print("Successfully updated graph.db and _index.md files.")
-    except Exception as e:
-        print(f"Warning: Failed to update graph database or indexes: {e}")
+    if not args.no_rebuild:
+        # Update knowledge graph and indexes automatically
+        import subprocess
+        print("Triggering graph database and index updates...")
+        agents_bin = os.path.dirname(os.path.abspath(__file__))
+        try:
+            subprocess.run([sys.executable, os.path.join(agents_bin, "llm-wiki.py"), "graph", args.topic_dir], check=True)
+            subprocess.run([sys.executable, os.path.join(agents_bin, "index_builder.py"), args.topic_dir], check=True)
+            print("Successfully updated graph.db and _index.md files.")
+        except Exception as e:
+            print(f"Warning: Failed to update graph database or indexes: {e}")
 
 if __name__ == "__main__":
     main()

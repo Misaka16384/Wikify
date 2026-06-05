@@ -16,8 +16,9 @@ find "$DEFECTS" -depth -type d -name '* 2' -exec rm -rf {} +
 
 copy_golden() {
   local name="$1"
+  rm -rf "$DEFECTS/$name"
   mkdir -p "$DEFECTS/$name"
-  rsync -a --delete "$GOLDEN/" "$DEFECTS/$name/"
+  cp -R "$GOLDEN/." "$DEFECTS/$name/"
 }
 
 echo "Generating defect fixtures from golden wiki..."

@@ -10,6 +10,7 @@ import urllib.error
 import numpy as np
 import yaml
 import subprocess
+import sqlite3
 from sklearn.metrics.pairwise import cosine_similarity
 from pathlib import Path
 
@@ -140,12 +141,17 @@ def get_embedding(text, model, url):
     }
     req = urllib.request.Request(url, data=json.dumps(data).encode('utf-8'), headers={'Content-Type': 'application/json'})
     try:
-        with urllib.request.urlopen(req) as response:
-            result = json.loads(response.read().decode('utf-8'))
-            return result.get("embedding")
-    except urllib.error.URLError as e:
-        print(f"[Error] Failed to connect to Ollama: {e}")
-        sys.exit(1)
+        with urllib.request.urlopen(req, timeout=15) as response:
+            resp_bytes = response.read()
+            try:
+                result = json.loads(resp_bytes.decode('utf-8'))
+                return result.get("embedding")
+            except Exception as e:
+                print(f"\n[Warning] Failed to parse JSON response from Ollama: {e}", file=sys.stderr)
+                return None
+    except Exception as e:
+        print(f"\n[Warning] Failed to connect to Ollama or get embedding: {e}", file=sys.stderr)
+        return None
 
 def sync_semantic_links(filepath, target_links):
     """Synchronizes the semantic links in the file to match target_links.
@@ -266,22 +272,40 @@ def main():
     
     # --- Caching Logic ---
     # Cache lives under output/ (a generated-artifacts dir), not inside the
-    # scanned wiki/concepts/ tree.
+    # scanned wiki/concepts/ tree. Use SQLite database to avoid concurrency issues.
     safe_model_name = args.model.replace(":", "_").replace("/", "_")
     cache_dir = os.path.join(topic_dir, "output")
     os.makedirs(cache_dir, exist_ok=True)
-    cache_path = os.path.join(cache_dir, f".embeddings_cache_{safe_model_name}.json")
+    cache_path = os.path.join(cache_dir, f".embeddings_cache_{safe_model_name}.db")
     cache = {}
-    if os.path.exists(cache_path):
-        try:
-            with open(cache_path, 'r', encoding='utf-8') as f:
-                cache = json.load(f)
-            print(f"[Info] Loaded embedding cache from {os.path.basename(cache_path)}")
-        except Exception as e:
-            print(f"[Warning] Failed to load cache: {e}. Starting fresh.")
-    
+    try:
+        conn = sqlite3.connect(cache_path, timeout=30.0)
+        conn.execute("CREATE TABLE IF NOT EXISTS embeddings (concept_name TEXT PRIMARY KEY, hash TEXT, embedding TEXT)")
+        conn.commit()
+        cursor = conn.cursor()
+        cursor.execute("SELECT concept_name, hash, embedding FROM embeddings")
+        for row in cursor.fetchall():
+            c_name, text_hash, emb_json = row
+            try:
+                cache[c_name] = {
+                    "hash": text_hash,
+                    "embedding": json.loads(emb_json)
+                }
+            except Exception:
+                pass
+        conn.close()
+        print(f"[Info] Loaded embedding cache from SQLite database: {os.path.basename(cache_path)}")
+    except Exception as e:
+        print(f"[Warning] Failed to load SQLite embedding cache: {e}. Starting fresh.")
+
     new_cache = {}
-    embeddings = []
+    active_embeddings = []
+    active_files = []
+    active_texts = []
+    active_concept_names = []
+    active_concept_tags = []
+    active_concept_aliases = []
+    
     api_calls = 0
     cache_hits = 0
     
@@ -301,11 +325,16 @@ def main():
             # API Call
             emb = get_embedding(text, args.model, args.ollama_url)
             if not emb:
-                print(f"\n[Error] Failed to get embedding for {concept_name}")
-                sys.exit(1)
+                print(f"\n[Warning] Skipped embedding for {concept_name} due to API/JSON failure.")
+                continue
             api_calls += 1
             
-        embeddings.append(emb)
+        active_embeddings.append(emb)
+        active_files.append(files[i])
+        active_texts.append(texts[i])
+        active_concept_names.append(concept_name)
+        active_concept_tags.append(concept_tags[i])
+        active_concept_aliases.append(concept_aliases[i])
         new_cache[concept_name] = {
             "hash": text_md5,
             "embedding": emb
@@ -313,15 +342,33 @@ def main():
         
     print(f"\n[Info] Embeddings ready. Cache hits: {cache_hits}, API calls: {api_calls}")
     
-    # Save pruned cache (only contains active concepts)
+    # Save cache to SQLite db
     try:
-        with open(cache_path, 'w', encoding='utf-8') as f:
-            json.dump(new_cache, f)
+        conn = sqlite3.connect(cache_path, timeout=30.0)
+        with conn:
+            for concept_name, data in new_cache.items():
+                conn.execute(
+                    "INSERT OR REPLACE INTO embeddings (concept_name, hash, embedding) VALUES (?, ?, ?)",
+                    (concept_name, data["hash"], json.dumps(data["embedding"]))
+                )
+        conn.close()
+        print(f"[Info] Saved embedding cache to SQLite database: {os.path.basename(cache_path)}")
     except Exception as e:
-        print(f"[Warning] Failed to save cache: {e}")
+        print(f"[Warning] Failed to save SQLite embedding cache: {e}")
+
+    embeddings = active_embeddings
+    files = active_files
+    texts = active_texts
+    concept_names = active_concept_names
+    concept_tags = active_concept_tags
+    concept_aliases = active_concept_aliases
 
     if args.update_cache_only:
         print("[Success] Cache updated successfully. Exiting.")
+        sys.exit(0)
+
+    if len(files) < 2:
+        print("[Info] Not enough concepts to analyze after filtering.")
         sys.exit(0)
     
     # 4. Calculate similarities

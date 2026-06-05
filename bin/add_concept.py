@@ -5,7 +5,7 @@ import datetime
 import re
 import difflib
 from filelock import FileLock
-from wiki_common import slugify
+from wiki_common import slugify, atomic_write
 
 
 def normalize_slug(s):
@@ -75,6 +75,7 @@ def main():
     parser.add_argument("--source", required=True, help="Source paper/document")
     parser.add_argument("--content", required=True, help="Content/Perspective to append")
     parser.add_argument("--topic-dir", default=".", help="Topic directory")
+    parser.add_argument("--no-rebuild", action="store_true", help="Bypass automatic database/index rebuild")
     args = parser.parse_args()
 
     # slugify the concept name (Unicode-aware; supports CJK / accented names)
@@ -175,8 +176,7 @@ summary: 'Dynamically mined concept tracking {args.name}.'
 ### Perspective from {args.source}
 {args.content}
 """
-            with open(canonical_file, 'w', encoding='utf-8') as f:
-                f.write(content)
+            atomic_write(canonical_file, content, encoding='utf-8')
             print(f"Created new concept file: {canonical_file}")
         else:
             with open(canonical_file, 'r', encoding='utf-8') as f:
@@ -209,27 +209,27 @@ summary: 'Dynamically mined concept tracking {args.name}.'
                 
             content += f"\n### Perspective from {args.source}\n{args.content}\n"
             
-            with open(canonical_file, 'w', encoding='utf-8') as f:
-                f.write(content)
+            atomic_write(canonical_file, content, encoding='utf-8')
             print(f"Appended perspective to existing concept file: {canonical_file}")
-            
+
+        if not args.no_rebuild:
+            # Update knowledge graph and indexes automatically
+            import subprocess
+            print("Triggering graph database and index updates...")
+            agents_bin = os.path.dirname(os.path.abspath(__file__))
+            try:
+                subprocess.run([sys.executable, os.path.join(agents_bin, "llm-wiki.py"), "graph", args.topic_dir], check=True)
+                subprocess.run([sys.executable, os.path.join(agents_bin, "index_builder.py"), args.topic_dir], check=True)
+                print("Successfully updated graph.db and _index.md files.")
+            except Exception as e:
+                print(f"Warning: Failed to update graph database or indexes: {e}")
+
     # Clean up lock file if possible
     try:
         if os.path.exists(lock_file):
             os.remove(lock_file)
     except Exception as e:
         print(f"Warning: lock cleanup failed: {e}", file=sys.stderr)
-
-    # Update knowledge graph and indexes automatically
-    import subprocess
-    print("Triggering graph database and index updates...")
-    agents_bin = os.path.dirname(os.path.abspath(__file__))
-    try:
-        subprocess.run([sys.executable, os.path.join(agents_bin, "llm-wiki.py"), "graph", args.topic_dir], check=True)
-        subprocess.run([sys.executable, os.path.join(agents_bin, "index_builder.py"), args.topic_dir], check=True)
-        print("Successfully updated graph.db and _index.md files.")
-    except Exception as e:
-        print(f"Warning: Failed to update graph database or indexes: {e}")
 
 if __name__ == "__main__":
     main()

@@ -18,62 +18,11 @@ commands:
 This skill handles the physical bootstrapping of a new academic/personal topic workspace folder. 
 
 When the user asks to initialize, configure, or set up a new wiki in a folder:
-1.  **Strict Dispatcher Rule**: Run the local deterministic Python script inside this skill directory using the `lint --fix` action to automatically bootstrap all missing folders (raw/, wiki/, inbox/, output/) and default index files:
-    `python <BIN>/llm-wiki.py lint --fix <path_to_initialize>`
-2.  **Create Required Config Files**: After running the bootstrap command, create these files at the root level using the exact templates below. Only fill in the `<PLACEHOLDER>` values — do NOT invent additional fields or sections.
-
-    **`config.md`** — use this template verbatim:
-    ```markdown
-    ---
-    title: "<Topic Title>"
-    scope: "<1-2 sentence description of what this wiki covers>"
-    created: <YYYY-MM-DD>
-    ---
-
-    # <Topic Title>
-
-    ## Scope
-
-    <1-2 sentence description of what this wiki covers>
-
-    ## Conventions
-
-    - Source files go in `raw/` under the appropriate subdirectory
-    - Compiled articles go in `wiki/references/` (papers) and `wiki/concepts/` (terms)
-    - All compiled pages use YAML frontmatter and `[[double-bracket]]` concept links
-    ```
-
-    **`log.md`** — use this template verbatim:
-    ```markdown
-    # Log
-
-    ## [<YYYY-MM-DD>] init | Created new topic wiki
-    ```
-
-    **`_index.md`** — use this template verbatim:
-    ```markdown
-    # <Topic Title>
-
-    > Topic wiki initialized on <YYYY-MM-DD>.
-
-    ## Quick Navigation
-
-    | Directory | Purpose |
-    |-----------|---------|
-    | [raw/](raw/) | Raw source materials |
-    | [wiki/](wiki/) | Compiled knowledge base |
-    | [output/](output/) | Generated artifacts |
-    | [inbox/](inbox/) | Pending ingestion |
-
-    ## Statistics
-
-    - Raw sources: 0
-    - Compiled articles: 0
-    - Concepts: 0
-    ```
-
-3.  **Approve**: Run `python <BIN>/llm-wiki.py lint <path_to_initialize>` to verify that the initialized workspace achieves a perfect green `Result: PASS`. If it fails, fix the reported issues and re-run until PASS.
-4.  **Register in Hub (Auto)**: If this topic was created inside an existing hub — i.e., some ancestor directory contains both `wikis.json` and a `topics/` folder — you **MUST** register it so the hub router and `wiki_hub_manager` can resolve it. Run the idempotent registration command:
+1.  **Strict Dispatcher Rule**: Run the helper script to programmatically initialize folders and files:
+    `python <BIN>/init_workspace.py --topic-dir \"<path_to_initialize>\" --name \"<Topic Title>\" --scope \"<1-2 sentence description of what this wiki covers>\"`
+    This script programmatically sets up the folder structures, and generates `config.md`, `log.md`, `_index.md`, and all subdirectory `_index.md` files.
+2.  **Approve**: Run `python <BIN>/llm-wiki.py lint <path_to_initialize>` to verify that the initialized workspace achieves a perfect green `Result: PASS`. If it fails, fix the reported issues and re-run until PASS.
+3.  **Register in Hub (Auto)**: If this topic was created inside an existing hub — i.e., some ancestor directory contains both `wikis.json` and a `topics/` folder — you **MUST** register it so the hub router and `wiki_hub_manager` can resolve it. Run the idempotent registration command:
     `python <BIN>/llm-wiki.py archive --hub <hub_path> register <slug> --description "<Topic Title>"`
     where `<slug>` is the topic folder name (e.g. the final path segment) and `<hub_path>` is the hub root. This is safe to re-run. **Skip this step only** for standalone (non-hub) wikis where no ancestor hub exists.
 

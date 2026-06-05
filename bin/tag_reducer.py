@@ -89,7 +89,7 @@ def cmd_extract(topic_dir: Path):
     print(f"Extracted {len(tag_counts)} unique tags to scratch/raw_tags.json")
     print(f"Extracted {len(alias_counts)} unique aliases to scratch/raw_aliases.json")
 
-def cmd_apply(topic_dir: Path, tag_map_path: Path, alias_map_path: Path):
+def cmd_apply(topic_dir: Path, tag_map_path: Path, alias_map_path: Path, no_rebuild: bool = False):
     if not tag_map_path.exists() or not alias_map_path.exists():
         print("Error: Mapping files not found. Run extract and create mappings first.")
         sys.exit(1)
@@ -160,16 +160,17 @@ def cmd_apply(topic_dir: Path, tag_map_path: Path, alias_map_path: Path):
         f.write("\n".join(ontology_list))
     print(f"Saved {len(ontology_list)} canonical tags to output/ontology.txt")
 
-    # Update knowledge graph and indexes automatically
-    import subprocess
-    print("Triggering graph database and index updates...")
-    agents_bin = Path(__file__).parent
-    try:
-        subprocess.run([sys.executable, str(agents_bin / "llm-wiki.py"), "graph", str(topic_dir)], check=True)
-        subprocess.run([sys.executable, str(agents_bin / "index_builder.py"), str(topic_dir)], check=True)
-        print("Successfully updated graph.db and _index.md files.")
-    except Exception as e:
-        print(f"Warning: Failed to update graph database or indexes: {e}")
+    if not no_rebuild:
+        # Update knowledge graph and indexes automatically
+        import subprocess
+        print("Triggering graph database and index updates...")
+        agents_bin = Path(__file__).parent
+        try:
+            subprocess.run([sys.executable, str(agents_bin / "llm-wiki.py"), "graph", str(topic_dir)], check=True)
+            subprocess.run([sys.executable, str(agents_bin / "index_builder.py"), str(topic_dir)], check=True)
+            print("Successfully updated graph.db and _index.md files.")
+        except Exception as e:
+            print(f"Warning: Failed to update graph database or indexes: {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="Wiki Tag and Alias Reducer")
@@ -182,6 +183,7 @@ def main():
     parser_app.add_argument("topic_dir", help="Path to topic root")
     parser_app.add_argument("tag_map", help="Path to tag_mapping.json")
     parser_app.add_argument("alias_map", help="Path to alias_mapping.json")
+    parser_app.add_argument("--no-rebuild", action="store_true", help="Bypass automatic database/index rebuild")
     
     args = parser.parse_args()
     
@@ -190,7 +192,7 @@ def main():
     if args.command == "extract":
         cmd_extract(topic_dir)
     elif args.command == "apply":
-        cmd_apply(topic_dir, Path(args.tag_map), Path(args.alias_map))
+        cmd_apply(topic_dir, Path(args.tag_map), Path(args.alias_map), no_rebuild=args.no_rebuild)
 
 if __name__ == "__main__":
     main()

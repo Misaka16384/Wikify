@@ -303,20 +303,23 @@ def process_file(file_path, use_pdflatex=False):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
-    except Exception as e:
-        print(f"Error reading {file_path}: {e}")
-        return False
 
-    issues, valid_blocks, valid_inlines = validate_math_pylatexenc(content)
-    if use_pdflatex and (valid_blocks or valid_inlines):
-        pdflatex_issues = validate_math_pdflatex(valid_blocks, valid_inlines)
-        issues.extend(pdflatex_issues)
-    
-    if issues:
-        print(f"[\033[93mWARNING\033[0m] Math syntax errors in {os.path.basename(file_path)}:")
-        for issue in issues:
-            print(f"    - {format_issue_for_cli(issue)}")
-        return True
+        issues, valid_blocks, valid_inlines = validate_math_pylatexenc(content)
+        if use_pdflatex and (valid_blocks or valid_inlines):
+            try:
+                pdflatex_issues = validate_math_pdflatex(valid_blocks, valid_inlines)
+                issues.extend(pdflatex_issues)
+            except Exception as e:
+                print(f"[\033[93mWARNING\033[0m] pdflatex validation failed for {file_path}: {e}")
+
+        if issues:
+            print(f"[\033[93mWARNING\033[0m] Math syntax errors in {os.path.basename(file_path)}:")
+            for issue in issues:
+                print(f"    - {format_issue_for_cli(issue)}")
+            return True
+    except Exception as e:
+        print(f"[\033[93mWARNING\033[0m] Failed to process math validation for {file_path}: {e}")
+        return False
     return False
 
 def process_directory(directory):

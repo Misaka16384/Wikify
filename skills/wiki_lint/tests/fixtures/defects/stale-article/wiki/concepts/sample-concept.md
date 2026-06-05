@@ -11,6 +11,7 @@ tags: [testing, patterns, evals]
 confidence: high
 volatility: hot
 verified: 2025-01-01
+exclude_structure_check: true
 summary: "Testing patterns for LLM tools — three-layer model with pass@k reliability metrics."
 ---
 

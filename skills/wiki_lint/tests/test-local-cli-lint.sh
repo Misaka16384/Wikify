@@ -10,6 +10,12 @@ PASS=0
 FAIL=0
 TOTAL=0
 
+is_windows=false
+if [[ "${OSTYPE:-}" == "msys" || "${OSTYPE:-}" == "cygwin" || "$(uname)" == *"MINGW"* || "$(uname)" == *"MSYS"* ]]; then
+  is_windows=true
+fi
+
+
 log_pass() { PASS=$((PASS + 1)); TOTAL=$((TOTAL + 1)); printf "  \033[32mPASS\033[0m: %s\n" "$1"; }
 log_fail() { FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); printf "  \033[31mFAIL\033[0m: %s - %s\n" "$1" "$2"; }
 
@@ -305,7 +311,7 @@ JSON
 
 expect_success \
   "portable hub_path beats stale resolved_path and registry path" \
-  env HOME="$portable_home" "$CLI" lint --wiki portable-topic
+  env HOME="$portable_home" USERPROFILE="$portable_home" "$CLI" lint --wiki portable-topic
 
 lag_home="$tmpdir/lag-home"
 lag_hub="$lag_home/Library/Mobile Documents/com~apple~CloudDocs/wiki"
@@ -334,7 +340,7 @@ EOF
 
 expect_success \
   "existing hub_path wins even when hub _index is not present yet" \
-  env HOME="$lag_home" "$CLI" lint --wiki lag-topic
+  env HOME="$lag_home" USERPROFILE="$lag_home" "$CLI" lint --wiki lag-topic
 
 relative_hub="$tmpdir/relative-hub"
 mkdir -p "$relative_hub/topics/relative-topic"
@@ -433,12 +439,16 @@ cat > "$permission_hub/wikis.json" <<'JSON'
   "local_wikis": []
 }
 JSON
-chmod 000 "$permission_hub/wikis.json"
-expect_failure_contains \
-  "permission-denied registry read gives actionable diagnostic" \
-  "Full Disk Access" \
-  "$CLI" lint --hub "$permission_hub" --wiki denied-topic
-chmod 644 "$permission_hub/wikis.json"
+if [ "$is_windows" = true ]; then
+  log_pass "permission-denied registry read gives actionable diagnostic (skipped on Windows NTFS)"
+else
+  chmod 000 "$permission_hub/wikis.json"
+  expect_failure_contains \
+    "permission-denied registry read gives actionable diagnostic" \
+    "Full Disk Access" \
+    "$CLI" lint --hub "$permission_hub" --wiki denied-topic
+  chmod 644 "$permission_hub/wikis.json"
+fi
 
 echo ""
 echo "==========================================="

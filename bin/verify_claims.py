@@ -8,7 +8,7 @@ def verify_claims(filepath, topic_dir):
         print(f"Error: claims file not found: {filepath}", file=sys.stderr)
         sys.exit(2)
     with open(filepath, "r", encoding="utf-8") as f:
-        content = f.read()
+        content = f.read().replace('\r\n', '\n')
 
     # Parse blocks of claims
     blocks = re.split(r'\n(?=CLAIM:)', content.strip())
@@ -44,8 +44,8 @@ def verify_claims(filepath, topic_dir):
                 abs_path = os.path.join(topic_dir, source)
 
             # Path traversal protection: verify the resolved path is within topic_dir
-            real_path = os.path.realpath(abs_path)
-            real_topic_dir = os.path.realpath(topic_dir)
+            real_path = os.path.normcase(os.path.realpath(abs_path))
+            real_topic_dir = os.path.normcase(os.path.realpath(topic_dir))
             if not real_path.startswith(real_topic_dir + os.sep) and real_path != real_topic_dir:
                 reason = f"Path traversal detected: {abs_path} resolves outside {topic_dir}"
                 print(f"Warning: {reason}", file=sys.stderr)
@@ -55,7 +55,7 @@ def verify_claims(filepath, topic_dir):
                 reason = f"File not found: {abs_path}"
             else:
                 with open(abs_path, "r", encoding="utf-8") as sf:
-                    file_content = sf.read()
+                    file_content = sf.read().replace('\r\n', '\n')
                     if evidence in file_content:
                         is_valid = True
                     else:
