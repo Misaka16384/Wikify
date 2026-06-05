@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import hashlib
 import os
 import re
 import shutil
@@ -119,6 +120,13 @@ class Document:
     raw_text: str = ""
 
 
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj: Any) -> Any:
+        if isinstance(obj, (dt.date, dt.datetime)):
+            return obj.isoformat()
+        return super().default(obj)
+
+
 class LintContext:
     def __init__(self, root: Path, fix: bool = False) -> None:
         self.root = root.resolve()
@@ -127,6 +135,52 @@ class LintContext:
         self.fixes: list[str] = []
         self.documents: dict[Path, Document] = {}
         self.referenced_raw: set[Path] = set()
+
+        self.cache_path = self.root / "output" / ".lint_cache.json"
+        self.cache_data: dict[str, Any] = {"metadata": {}, "files": {}}
+        self.cache_updated = False
+        self.load_cache()
+
+    def load_cache(self) -> None:
+        if self.cache_path.exists():
+            try:
+                self.cache_data = json.loads(self.cache_path.read_text(encoding="utf-8"))
+                if not isinstance(self.cache_data, dict):
+                    self.cache_data = {"metadata": {}, "files": {}}
+                if "metadata" not in self.cache_data:
+                    self.cache_data["metadata"] = {}
+                if "files" not in self.cache_data:
+                    self.cache_data["files"] = {}
+            except Exception:
+                self.cache_data = {"metadata": {}, "files": {}}
+
+    def save_cache(self) -> None:
+        if not self.cache_updated:
+            return
+        # Clean up stale entries for files that no longer exist or are not schema-checked
+        existing_rel_paths = set()
+        for path in content_markdown_files(self.root):
+            if is_schema_checked_path(self.root, path):
+                try:
+                    rel = str(path.resolve().relative_to(self.root))
+                    existing_rel_paths.add(rel)
+                except ValueError:
+                    pass
+        if "files" in self.cache_data:
+            self.cache_data["files"] = {
+                k: v for k, v in self.cache_data["files"].items()
+                if k in existing_rel_paths
+            }
+        try:
+            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+            self.cache_path.write_text(
+                json.dumps(self.cache_data, indent=2, ensure_ascii=False, cls=DateTimeEncoder),
+                encoding="utf-8"
+            )
+        except Exception as e:
+            sys.stderr.write(f"Warning: Could not save lint cache: {e}\n")
+
+
 
     def rel(self, path: Path | None) -> str:
         if path is None:
@@ -460,9 +514,70 @@ def load_documents(ctx: LintContext) -> None:
     for path in content_markdown_files(ctx.root):
         if not is_schema_checked_path(ctx.root, path):
             continue
-        doc = read_document(ctx, path)
+            
+        doc = None
+        try:
+            rel_path_str = str(path.resolve().relative_to(ctx.root))
+        except ValueError:
+            rel_path_str = None
+
+        if rel_path_str and rel_path_str in ctx.cache_data["files"]:
+            cached = ctx.cache_data["files"][rel_path_str]
+            try:
+                stat = path.stat()
+                if cached.get("mtime") == stat.st_mtime and cached.get("size") == stat.st_size:
+                    doc = Document(
+                        path=path,
+                        frontmatter=cached.get("frontmatter", {}),
+                        body=cached.get("body", ""),
+                        raw_text=cached.get("raw_text", "")
+                    )
+            except Exception:
+                pass
+
+        if doc is None and rel_path_str and rel_path_str in ctx.cache_data["files"]:
+            cached = ctx.cache_data["files"][rel_path_str]
+            try:
+                # Fallback: MD5 hash match
+                raw_text = path.read_text(encoding="utf-8", errors="replace")
+                raw_text_norm = raw_text.replace('\r\n', '\n').replace('\r', '\n')
+                file_md5 = hashlib.md5(raw_text_norm.encode("utf-8", errors="replace")).hexdigest()
+                if cached.get("md5") == file_md5:
+                    doc = Document(
+                        path=path,
+                        frontmatter=cached.get("frontmatter", {}),
+                        body=cached.get("body", ""),
+                        raw_text=raw_text_norm
+                    )
+                    # Self-heal cached mtime/size for fast subsequent runs
+                    stat = path.stat()
+                    cached["mtime"] = stat.st_mtime
+                    cached["size"] = stat.st_size
+                    ctx.cache_updated = True
+            except Exception:
+                pass
+
+        if doc is None:
+            doc = read_document(ctx, path)
+            if doc is not None and rel_path_str:
+                try:
+                    stat = path.stat()
+                    file_md5 = hashlib.md5(doc.raw_text.encode("utf-8", errors="replace")).hexdigest()
+                    ctx.cache_data["files"][rel_path_str] = {
+                        "mtime": stat.st_mtime,
+                        "size": stat.st_size,
+                        "md5": file_md5,
+                        "frontmatter": doc.frontmatter,
+                        "body": doc.body,
+                        "raw_text": doc.raw_text
+                    }
+                    ctx.cache_updated = True
+                except Exception:
+                    pass
+
         if doc is not None:
             ctx.documents[path.resolve()] = doc
+
 
 
 def is_schema_checked_path(root: Path, path: Path) -> bool:
@@ -1133,12 +1248,24 @@ def check_math_syntax(ctx: LintContext) -> None:
         sys.path.insert(0, bin_dir)
         
     try:
-        from validate_math_latex import validate_math_pylatexenc, validate_math_pdflatex, format_issue_for_cli
+        from validate_math_latex import validate_math_pylatexenc, validate_math_pdflatex, format_issue_for_cli, HAS_PYLATEXENC
     except ImportError as e:
         ctx.issue("warning", f"Could not import validate_math_latex: {e}")
         return
 
     has_pdflatex = shutil.which("pdflatex") is not None
+
+    cache_meta = ctx.cache_data.get("metadata", {})
+    env_matches = (
+        cache_meta.get("has_pdflatex") == has_pdflatex and
+        cache_meta.get("has_pylatexenc") == HAS_PYLATEXENC
+    )
+    if not env_matches:
+        ctx.cache_data["metadata"] = {
+            "has_pdflatex": has_pdflatex,
+            "has_pylatexenc": HAS_PYLATEXENC
+        }
+        ctx.cache_updated = True
 
     for doc in sorted(ctx.documents.values(), key=lambda item: str(item.path)):
         try:
@@ -1148,17 +1275,35 @@ def check_math_syntax(ctx: LintContext) -> None:
         
         is_raw = rel.parts[0] == "raw"
         severity = "warning" if is_raw else "critical"
-        
-        full_text = doc.raw_text if doc.raw_text else doc.path.read_text(encoding="utf-8", errors="replace")
-        
-        issues, valid_blocks, valid_inlines = validate_math_pylatexenc(full_text)
-        if has_pdflatex and (valid_blocks or valid_inlines):
-            pdflatex_issues = validate_math_pdflatex(valid_blocks, valid_inlines)
-            issues.extend(pdflatex_issues)
+        rel_path_str = str(rel)
+
+        math_issues = None
+        if env_matches and rel_path_str in ctx.cache_data["files"]:
+            cached = ctx.cache_data["files"][rel_path_str]
+            try:
+                stat = doc.path.stat()
+                if cached.get("mtime") == stat.st_mtime and cached.get("size") == stat.st_size:
+                    if "math_issues" in cached:
+                        math_issues = cached["math_issues"]
+            except Exception:
+                pass
+
+        if math_issues is None:
+            full_text = doc.raw_text if doc.raw_text else doc.path.read_text(encoding="utf-8", errors="replace")
             
-        for issue in issues:
+            math_issues, valid_blocks, valid_inlines = validate_math_pylatexenc(full_text)
+            if has_pdflatex and (valid_blocks or valid_inlines):
+                pdflatex_issues = validate_math_pdflatex(valid_blocks, valid_inlines)
+                math_issues.extend(pdflatex_issues)
+
+            if rel_path_str in ctx.cache_data["files"]:
+                ctx.cache_data["files"][rel_path_str]["math_issues"] = math_issues
+                ctx.cache_updated = True
+
+        for issue in math_issues:
             formatted_msg = format_issue_for_cli(issue)
             ctx.issue(severity, formatted_msg, doc.path)
+
 
 
 
@@ -1716,6 +1861,7 @@ def run_lint(args: argparse.Namespace) -> int:
     check_unknown_files(ctx)
     if hub_root:
         append_lint_log(ctx)
+        ctx.save_cache()
         if args.json:
             print_json_report(ctx)
         else:
@@ -1742,6 +1888,7 @@ def run_lint(args: argparse.Namespace) -> int:
     check_freshness(ctx)
     check_projects(ctx)
     append_lint_log(ctx)
+    ctx.save_cache()
 
     if args.json:
         print_json_report(ctx)
@@ -1750,6 +1897,7 @@ def run_lint(args: argparse.Namespace) -> int:
 
     counts = ctx.counts()
     return 1 if counts["critical"] or counts["warning"] or counts["suggestion"] else 0
+
 
 
 def print_json_report(ctx: LintContext) -> None:

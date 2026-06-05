@@ -141,6 +141,7 @@ def main():
             content = f"""---
 title: "{args.name}"
 category: concept
+status: stub
 created: {today}
 updated: {today}
 tags:

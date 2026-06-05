@@ -147,40 +147,54 @@ def get_embedding(text, model, url):
         print(f"[Error] Failed to connect to Ollama: {e}")
         sys.exit(1)
 
-def inject_link(filepath, related_concept_name):
-    """Safely injects a related concept link into the markdown file."""
+def sync_semantic_links(filepath, target_links):
+    """Synchronizes the semantic links in the file to match target_links.
+    
+    target_links is a set of concept slugs that should be linked.
+    Returns (added_count, removed_count).
+    """
     with open(filepath, 'r', encoding='utf-8') as f:
         content = f.read()
-    
-    # Idempotency check
-    link_syntax_plain = f"[[{related_concept_name}]]"
-    link_syntax_alias = f"[[{related_concept_name}|"
-    if link_syntax_plain in content or link_syntax_alias in content:
-        return False # Already exists
-    
-    display_name = related_concept_name.replace('-', ' ').title()
-    link_syntax = f"[[{related_concept_name}|{display_name}]]"
+
     heading = "## 语义关联 (Semantic Links)"
+    pattern = r"(\n*## 语义关联 \(Semantic Links\)\n.*?)(?=\n##|$)"
+    match = re.search(pattern, content, re.DOTALL)
     
-    if heading in content:
-        # Append to existing section
-        safe_heading = re.escape(heading)
-        content = re.sub(
-            f"({safe_heading}.*?)(?=\\n##|$)",
-            f"\\1\n- {link_syntax}",
-            content,
-            flags=re.DOTALL
-        )
-    else:
-        # Create new section at the end
+    existing_links = set()
+    if match:
+        existing_links = set(re.findall(r"\[\[([^|\]]+)(?:\|[^\]]+)?\]\]", match.group(1)))
+        
+    added = target_links - existing_links
+    removed = existing_links - target_links
+    
+    if not added and not removed:
+        return 0, 0 # No changes needed
+        
+    new_links_block = ""
+    if target_links:
+        sorted_links = sorted(list(target_links))
+        lines = []
+        for slug in sorted_links:
+            display_name = slug.replace('-', ' ').title()
+            lines.append(f"- [[{slug}|{display_name}]]")
+        new_links_block = f"\n\n{heading}\n" + "\n".join(lines) + "\n"
+        
+    if match:
+        span = match.span(1)
+        content = content[:span[0]] + new_links_block + content[span[1]:]
+    elif target_links:
         if not content.endswith('\n'):
             content += '\n'
-        content += f"\n{heading}\n- {link_syntax}\n"
+        content += new_links_block
         
+    # Standardize newlines at the end of the file
+    content = re.sub(r'\n{3,}$', '\n\n', content)
+    content = content.rstrip('\n') + '\n'
+
     with open(filepath, 'w', encoding='utf-8') as f:
         f.write(content)
-    
-    return True
+        
+    return len(added), len(removed)
 
 def main():
     args = setup_argparse()
@@ -213,12 +227,28 @@ def main():
     concept_names = []
     concept_tags = []
     concept_aliases = []
+    stub_files = []
     
     for filename in os.listdir(concepts_dir):
         if filename.endswith(".md") and not filename.startswith("_"):
             filepath = os.path.join(concepts_dir, filename)
             with open(filepath, 'r', encoding='utf-8') as f:
                 raw_text = f.read()
+                
+            # Check if concept is a stub
+            status = "stub"
+            fm_match = re.search(r'^---([\s\S]*?)---\n', raw_text)
+            if fm_match:
+                try:
+                    fm = yaml.safe_load(fm_match.group(1)) or {}
+                    status = fm.get("status", "stub")
+                except Exception:
+                    pass
+                    
+            if status == "stub":
+                stub_files.append((filepath, filename[:-3]))
+                continue
+                
             clean_text, tags, aliases = clean_markdown_text(raw_text)
             if clean_text:
                 files.append(filepath)
@@ -378,28 +408,47 @@ def main():
             else:
                 print(f"  [Warning] Merge failed ({old} -> {canonical}); refactor_concept exited {result.returncode}. Skipping.")
 
-    # 7. Pass C: inject links (non-dedup-only). Skip any pair whose file was
+    # 7. Pass C: sync links (non-dedup-only). Skip any pair whose file was
     #    deleted by an auto-merge in Pass B.
-    links_added = 0
+    total_added = 0
+    total_removed = 0
     if not args.dedup_only:
-        for i, j, score, boost_reason in link_pairs:
-            if concept_names[i] in merged_away or concept_names[j] in merged_away:
+        # Build map of target links for each active concept
+        target_links_map = {name: set() for name in concept_names if name not in merged_away}
+        
+        for idx_a, idx_b, score, boost_reason in link_pairs:
+            name_a = concept_names[idx_a]
+            name_b = concept_names[idx_b]
+            if name_a in merged_away or name_b in merged_away:
                 continue
-            if not os.path.exists(files[i]) or not os.path.exists(files[j]):
+            target_links_map[name_a].add(name_b)
+            target_links_map[name_b].add(name_a)
+            
+        for i, name in enumerate(concept_names):
+            if name in merged_away or not os.path.exists(files[i]):
                 continue
-            # Add link to i (linking to j)
-            if inject_link(files[i], concept_names[j]):
-                links_added += 1
-                print(f"  [Linked] {concept_names[i]} <--> {concept_names[j]} (Score: {score:.3f}){boost_reason}")
-            # Add link to j (linking to i)
-            if inject_link(files[j], concept_names[i]):
-                links_added += 1
-                # Don't print twice to avoid spam
+            
+            added, removed = sync_semantic_links(files[i], target_links_map[name])
+            total_added += added
+            total_removed += removed
+            
+            if added > 0 or removed > 0:
+                print(f"  [Sync] {name}: added {added} link(s), removed {removed} link(s)")
+
+        # Clean up links in stub files
+        for filepath, name in stub_files:
+            if not os.path.exists(filepath):
+                continue
+            added, removed = sync_semantic_links(filepath, set())
+            total_added += added
+            total_removed += removed
+            if removed > 0:
+                print(f"  [Sync Stub] {name}: cleared {removed} outdated link(s)")
 
     if args.dedup_only:
         print(f"[Success] Found {merge_suggestions} potential merges.")
     else:
-        print(f"[Success] Added {links_added} new semantic links.")
+        print(f"[Success] Synchronized semantic links. Added {total_added}, removed {total_removed}.")
 
 if __name__ == "__main__":
     main()
