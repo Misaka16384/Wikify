@@ -31,13 +31,16 @@ def build_index_for_dir(dir_path, title):
         fname = os.path.basename(fpath)
         fm = extract_frontmatter(fpath)
         
-        summary = fm.get('summary', '').replace('\n', ' ').strip()
+        _summary = fm.get('summary')
+        summary = (str(_summary) if _summary is not None else '').replace('\n', ' ').strip()
         if not summary:
             summary = "No summary provided."
             
-        tags = fm.get('tags') or []
-        if isinstance(tags, str):
-            tags = [tags]
+        raw_tags = fm.get('tags') or []
+        if isinstance(raw_tags, str): tags = [raw_tags]
+        elif isinstance(raw_tags, (list, tuple)): tags = [str(t) for t in raw_tags]
+        elif isinstance(raw_tags, dict): tags = [str(k) for k in raw_tags]
+        else: tags = [str(raw_tags)]
         tags_str = ", ".join(tags) if tags else ""
         
         updated = fm.get('updated', fm.get('created', ''))

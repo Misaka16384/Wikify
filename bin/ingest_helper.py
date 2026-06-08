@@ -45,7 +45,15 @@ def main():
         sys.exit(1)
 
     topic_path = Path(args.topic_dir).resolve()
-    dest_dir = topic_path / "raw" / args.type
+    raw_root = (topic_path / "raw").resolve()
+    type_clean = args.type.strip().strip("/\\")
+    if not type_clean or not re.fullmatch(r"[A-Za-z0-9_-]+", type_clean):
+        print(f"Error: Invalid --type value: {args.type!r}", file=sys.stderr)
+        sys.exit(1)
+    dest_dir = (raw_root / type_clean).resolve()
+    if dest_dir != raw_root and raw_root not in dest_dir.parents:
+        print(f"Error: --type resolves outside raw/ directory: {dest_dir}", file=sys.stderr)
+        sys.exit(1)
     dest_dir.mkdir(parents=True, exist_ok=True)
 
     # Read original content
@@ -96,7 +104,7 @@ def main():
     # Build final frontmatter
     final_fm = fm_data.copy()
     final_fm["title"] = title
-    final_fm["type"] = args.type
+    final_fm["type"] = type_clean
     final_fm["ingested"] = ingested_date
 
     # Ensure other mandatory fields are set
@@ -123,7 +131,7 @@ def main():
         new_fm_text = (
             f"title: \"{title}\"\n"
             f"source: \"{final_fm['source']}\"\n"
-            f"type: \"{args.type}\"\n"
+            f"type: \"{type_clean}\"\n"
             f"ingested: {ingested_date}\n"
             f"tags: [{tags_str}]\n"
             f"summary: \"{final_fm['summary']}\""
@@ -153,11 +161,14 @@ def main():
 
     # Move/delete original if requested
     if args.move:
-        try:
-            input_file.unlink()
-            print(f"Removed original file: {input_file}")
-        except Exception as e:
-            print(f"Warning: Failed to delete original file {input_file}: {e}", file=sys.stderr)
+        if input_file.resolve() == dest_file.resolve():
+            print(f"Source and destination are the same file, skipping deletion: {input_file}")
+        else:
+            try:
+                input_file.unlink()
+                print(f"Removed original file: {input_file}")
+            except Exception as e:
+                print(f"Warning: Failed to delete original file {input_file}: {e}", file=sys.stderr)
 
 if __name__ == "__main__":
     main()

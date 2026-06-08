@@ -14,6 +14,7 @@ import os
 import sys
 import time
 import argparse
+import yaml
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
@@ -308,7 +309,8 @@ class PDF2MarkdownAgent:
             markdown_content = builder.build(include_metadata=False)
             
             # 注入 YAML Frontmatter
-            yaml_frontmatter = f"---\ntitle: \"{title}\"\nsource: \"{pdf_path.name}\"\ntype: papers\ningested: {today_str}\ntags: []\nsummary: \"\"\n---\n\n"
+            fm = {"title": title, "source": pdf_path.name, "type": "papers", "ingested": today_str, "tags": [], "summary": ""}
+            yaml_frontmatter = "---\n" + yaml.safe_dump(fm, allow_unicode=True, sort_keys=False, default_flow_style=False) + "---\n\n"
             final_content = yaml_frontmatter + markdown_content
 
             with open(md_path, "w", encoding="utf-8") as f:

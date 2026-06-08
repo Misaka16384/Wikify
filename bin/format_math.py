@@ -105,7 +105,7 @@ def safe_auto_fixes(content, is_raw=False):
         star = match.group(1)  # '' or '*'
         body = re.sub(r'&([^&\n]*)&', r'&\1', match.group(2))
         return f"\\begin{{align{star}}}{body}\\end{{align{star}}}"
-    content = re.sub(r'\\begin\{eqnarray(\*?)\}(.*?)\\end\{eqnarray\*?\}', fix_eqnarray, content, flags=re.DOTALL)
+    content = re.sub(r'\\begin\{eqnarray(\*?)\}(.*?)\\end\{eqnarray\1\}', fix_eqnarray, content, flags=re.DOTALL)
 
     # Remove trailing \\ right before $$ or end of math environments where it causes parse errors
     content = re.sub(r'\\\\\s*\$\$', r'\n$$', content)
@@ -115,21 +115,21 @@ def safe_auto_fixes(content, is_raw=False):
         math_content = match.group(1)
         if is_raw:
             math_content = fix_ocr_math_artifacts(math_content)
-        math_content = math_content.replace(r'\(', '(').replace(r'\)', ')')
         return f"$${math_content}$$"
+
+    _MATH_TOKEN_RE = re.compile(r'\\[a-zA-Z]|[_^]')
 
     def process_inline(match):
         math_content = match.group(1)
+        if not _MATH_TOKEN_RE.search(math_content):
+            return match.group(0)
         if is_raw:
             math_content = fix_ocr_math_artifacts(math_content)
-        math_content = math_content.replace(r'\(', '(').replace(r'\)', ')')
-        # Flatten paragraph breaks (multiple newlines) into a single space
-        math_content = re.sub(r'\n{2,}', ' ', math_content)
         return f"${math_content}$"
 
     content = re.sub(r'\$\$(.*?)\$\$', process_block, content, flags=re.DOTALL)
     # Be careful not to match $$ for inline
-    content = re.sub(r'(?<!\$)\$(?!\$)(.*?)(?<!\$)\$(?!\$)', process_inline, content, flags=re.DOTALL)
+    content = re.sub(r'(?<!\$)\$(?!\$)(.*?)(?<!\$)\$(?!\$)', process_inline, content)
 
     return content
 

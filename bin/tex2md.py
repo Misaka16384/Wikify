@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import yaml
 from datetime import datetime
 from pathlib import Path
 
@@ -45,7 +46,7 @@ _IMG_EXTS = (".pdf", ".eps", ".ps", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".t
 def _graphics_search_dirs(tex_content, tex_dir):
     """Directories to look for figures in: tex dir + \\graphicspath + common subdirs."""
     dirs = [tex_dir]
-    for m in re.finditer(r'\\graphicspath\s*\{(.+?)\}', tex_content, re.S):
+    for m in re.finditer(r'\\graphicspath\s*\{((?:\s*\{[^{}]*\}\s*)+)\}', tex_content, re.S):
         for p in re.findall(r'\{([^{}]*)\}', m.group(1)):
             p = p.strip().replace('\\', '/')
             if p:
@@ -126,7 +127,7 @@ def handle_figures(md_content, tex_content, tex_dir, output_dir, slug):
             return m.group(0)
         if target in cache:
             nm = cache[target]
-            return f'![{cap}](images/{nm})' if nm else m.group(0)
+            return f'![{cap}](images/{nm}){m.group(3) or ""}' if nm else m.group(0)
         src = _resolve_figure(target, search_dirs)
         if not src:
             stats["missing"] += 1
@@ -146,7 +147,7 @@ def handle_figures(md_content, tex_content, tex_dir, output_dir, slug):
         if name:
             cache[target] = name
             stats["ok"] += 1
-            return f'![{cap}](images/{name})'
+            return f'![{cap}](images/{name}){m.group(3) or ""}'
         stats["missing"] += 1
         cache[target] = None
         return m.group(0)
@@ -182,15 +183,19 @@ def main():
         print(f"Extracting tar.gz to {extract_dir}...")
         with tarfile.open(input_path, "r:gz") as tar:
             # Safe extraction: prevent path traversal (CVE-2007-4559)
+            norm_extract = os.path.realpath(extract_dir)
             for member in tar.getmembers():
-                member_path = os.path.normpath(os.path.join(extract_dir, member.name))
-                if not member_path.startswith(os.path.normpath(extract_dir)):
+                member_path = os.path.realpath(os.path.join(extract_dir, member.name))
+                if member_path != norm_extract and not member_path.startswith(norm_extract + os.sep):
                     raise ValueError(f"Attempted path traversal in tar: {member.name}")
+                if member.issym() or member.islnk() or member.isdev() or member.ischr() or member.isblk() or member.isfifo():
+                    raise ValueError(f"Refusing unsafe tar member: {member.name}")
             try:
                 tar.extractall(path=extract_dir, filter='data')
             except TypeError:
                 # Python < 3.12 fallback
-                tar.extractall(path=extract_dir)
+                safe_members = [m for m in tar.getmembers() if m.isreg() or m.isdir()]
+                tar.extractall(path=extract_dir, members=safe_members)
         tex_path = find_main_tex(extract_dir)
         if not tex_path:
             print("Error: Could not find main .tex file in the archive.")
@@ -284,43 +289,35 @@ def main():
     # Run from the tex directory to resolve image paths correctly
     result = subprocess.run(cmd, capture_output=True, text=True, cwd=tex_dir)
 
-    if result.returncode != 0:
-        print("Pandoc conversion failed:")
-        print(result.stderr)
-        if os.path.exists(temp_md_path):
-            os.remove(temp_md_path)
+    try:
+        if result.returncode != 0:
+            print("Pandoc conversion failed:")
+            print(result.stderr)
+            if os.path.exists(temp_md_path):
+                os.remove(temp_md_path)
+            sys.exit(1)
+
+        with open(temp_md_path, 'r', encoding='utf-8') as f:
+            md_content = f.read()
+
+        os.remove(temp_md_path)
+
+        # Copy/convert figures into output_dir/images/ and rewrite links.
+        # MUST run before the temp dir (containing the extracted figures) is cleaned up.
+        md_content, n_fig_ok, n_fig_missing = handle_figures(
+            md_content, tex_content, tex_dir, output_dir, slug)
+        print(f"Figures: {n_fig_ok} embedded into images/, {n_fig_missing} unresolved")
+
+        fm_data = {"title": title, "source": input_path, "type": doc_type, "ingested": today, "tags": [], "summary": "Converted from LaTeX/arXiv source."}
+        frontmatter = "---\n" + yaml.safe_dump(fm_data, allow_unicode=True, sort_keys=False, default_flow_style=False) + "---\n"
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(frontmatter + "\n" + md_content)
+
+        print(f"Successfully converted and saved to {output_path}")
+    finally:
         if temp_dir_obj:
             temp_dir_obj.cleanup()
-        sys.exit(1)
-
-    with open(temp_md_path, 'r', encoding='utf-8') as f:
-        md_content = f.read()
-
-    os.remove(temp_md_path)
-
-    # Copy/convert figures into output_dir/images/ and rewrite links.
-    # MUST run before the temp dir (containing the extracted figures) is cleaned up.
-    md_content, n_fig_ok, n_fig_missing = handle_figures(
-        md_content, tex_content, tex_dir, output_dir, slug)
-    print(f"Figures: {n_fig_ok} embedded into images/, {n_fig_missing} unresolved")
-
-    frontmatter = f"""---
-title: "{title}"
-source: "{input_path}"
-type: {doc_type}
-ingested: {today}
-tags: []
-summary: "Converted from LaTeX/arXiv source."
----
-"""
-
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(frontmatter + "\n" + md_content)
-
-    print(f"Successfully converted and saved to {output_path}")
-
-    if temp_dir_obj:
-        temp_dir_obj.cleanup()
 
 if __name__ == "__main__":
     main()

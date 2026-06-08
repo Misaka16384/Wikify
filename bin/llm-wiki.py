@@ -30,14 +30,14 @@ def wash_windows_path(path_str: str) -> str:
         return path_str
 
     # Handle /tmp
-    if path_str.startswith("/tmp"):
+    if path_str == "/tmp" or path_str.startswith("/tmp/"):
         import tempfile
         temp_dir = tempfile.gettempdir()
-        rest = path_str[4:]
+        rest = path_str[len("/tmp"):]
         rest = rest.replace("/", "\\")
         if rest.startswith("\\"):
             return temp_dir + rest
-        return temp_dir + "\\" + rest
+        return temp_dir + ("\\" + rest if rest else "")
 
     # Handle drive letters /c/... or /C/... or /c
     match = re.match(r"^/([a-zA-Z])(/.*)?$", path_str)
@@ -543,32 +543,24 @@ def markdown_files(root: Path) -> list[Path]:
 
 def content_markdown_files(root: Path) -> list[Path]:
     """Return content markdown files, targeting known directories to avoid traversing .git/.obsidian."""
-    known_dirs = ["raw", "wiki", "inventory", "datasets"]
+    known_dirs = ("raw", "wiki", "inventory", "datasets")
     result: list[Path] = []
-    
-    # Check if we are searching inside a known directory already
-    is_sub_search = any(d in root.parts or root.name == d for d in known_dirs)
-    
-    if is_sub_search:
-        if root.exists():
-            try:
-                result.extend(
-                    p for p in root.rglob("*.md")
-                    if p.is_file() and p.name not in {"_index.md", "config.md"}
-                )
-            except OSError:
-                pass
+
+    # If root's name is one of the known dirs AND none of those dirs exist as children,
+    # treat root itself as the search root (we're already inside a known dir).
+    if root.name in known_dirs and not any((root / d).exists() for d in known_dirs):
+        search_roots = [root]
     else:
-        for dirname in known_dirs:
-            subdir = root / dirname
-            if subdir.exists():
-                try:
-                    result.extend(
-                        p for p in subdir.rglob("*.md")
-                        if p.is_file() and p.name not in {"_index.md", "config.md"}
-                    )
-                except OSError:
-                    continue
+        search_roots = [root / d for d in known_dirs if (root / d).exists()]
+
+    for search_root in search_roots:
+        try:
+            result.extend(
+                p for p in search_root.rglob("*.md")
+                if p.is_file() and p.name not in {"_index.md", "config.md"}
+            )
+        except OSError:
+            continue
     return sorted(result)
 
 
@@ -1145,7 +1137,7 @@ def check_index_consistency(ctx: LintContext) -> None:
         for link in extract_markdown_links(text):
             if not is_local_markdown_link(link):
                 continue
-            target = resolve_link_target(directory, link)
+            target = resolve_link_target(directory, link, ctx.root)
             if not target.exists():
                 dead_links.append(link)
         if ctx.fix and (missing_files or dead_links):
@@ -1233,10 +1225,11 @@ def is_local_markdown_link(link: str) -> bool:
     return target.endswith(".md")
 
 
-def resolve_link_target(base_dir: Path, link: str) -> Path:
+def resolve_link_target(base_dir: Path, link: str, root: Path | None = None) -> Path:
     target = link.split("#", 1)[0]
     if target.startswith("/"):
-        return Path(target)
+        resolved_root = root if root is not None else base_dir
+        return (resolved_root / target.lstrip("/")).resolve()
     return (base_dir / target).resolve()
 
 
@@ -1266,17 +1259,20 @@ def check_links(ctx: LintContext) -> None:
                     ctx.issue("warning", f"Markdown link contains unescaped spaces: '{link}'. Consider URL encoding spaces (%20) or using Obsidian Wikilinks (![[...]]).", doc.path)
             if not is_local_markdown_link(link):
                 continue
-            target = resolve_link_target(doc.path.parent, link)
+            target = resolve_link_target(doc.path.parent, link, ctx.root)
             if not target.exists():
                 target_stem = target.stem
                 if target_stem in alias_map:
                     new_target_name = alias_map[target_stem]
                     new_link = link.replace(target.name, new_target_name)
-                    full_text = full_text.replace(f"]({link})", f"]({new_link})")
-                    full_text = full_text.replace(f"](<{link}>)", f"](<{new_link}>)")
-                    ctx.issue("info", f"Auto-fixed markdown link {link} -> {new_link} via alias mapping.", doc.path, fixable=True, fixed=True)
-                    modified = True
-                    ctx.fixed(f"Auto-fixed markdown link {link} -> {new_link} in {doc.path.name}")
+                    if ctx.fix:
+                        full_text = full_text.replace(f"]({link})", f"]({new_link})")
+                        full_text = full_text.replace(f"](<{link}>)", f"](<{new_link}>)")
+                        ctx.issue("info", f"Auto-fixed markdown link {link} -> {new_link} via alias mapping.", doc.path, fixable=True, fixed=True)
+                        modified = True
+                        ctx.fixed(f"Auto-fixed markdown link {link} -> {new_link} in {doc.path.name}")
+                    else:
+                        ctx.issue("warning", f"Markdown link {link} can be auto-fixed to {new_link} via alias mapping (re-run with --fix).", doc.path)
                 else:
                     ctx.issue("warning", f"Markdown link points to missing file: {link}.", doc.path)
         if modified:
@@ -1773,7 +1769,13 @@ def resolve_registry_path(raw_path: str, hub: Path) -> Path:
     path = expand_leading_tilde(raw_path)
     if path.is_absolute():
         return path
-    return hub / path
+    # Reject '..' traversal in relative paths
+    if ".." in Path(raw_path).parts:
+        raise SystemExit(f"registry path escapes hub (traversal not allowed): {raw_path}")
+    candidate = hub / path
+    if not is_under(candidate, hub):
+        raise SystemExit(f"registry path escapes hub: {raw_path}")
+    return candidate
 
 
 def is_archived_registry_entry(entry: dict[str, Any] | None) -> bool:
@@ -1804,8 +1806,6 @@ def validate_registry(data: Any, path: Path) -> None:
 def read_registry(hub: Path) -> dict[str, Any]:
     registry = hub / "wikis.json"
     try:
-        if os.name == "nt" and "permission-hub" in str(registry.absolute()).replace("\\", "/"):
-            raise PermissionError("[Windows Sandbox Test Simulation] Permission denied")
         data = json.loads(registry.read_text(encoding="utf-8"))
     except OSError as exc:
         if is_permission_denied(exc):
@@ -1819,7 +1819,9 @@ def read_registry(hub: Path) -> dict[str, Any]:
 
 def write_registry(hub: Path, data: dict[str, Any]) -> None:
     registry = hub / "wikis.json"
-    registry.write_text(json.dumps(data, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    tmp = registry.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=2, sort_keys=False) + "\n", encoding="utf-8")
+    os.replace(tmp, registry)
 
 
 def topic_entry(data: dict[str, Any], slug: str) -> dict[str, Any] | None:
@@ -1865,8 +1867,6 @@ def resolve_wiki_root(args: argparse.Namespace) -> Path:
                 )
             raise SystemExit(f"wiki registry not found: {registry}")
         try:
-            if os.name == "nt" and "permission-hub" in str(registry.absolute()).replace("\\", "/"):
-                raise PermissionError("[Windows Sandbox Test Simulation] Permission denied")
             data = json.loads(registry.read_text(encoding="utf-8"))
         except OSError as exc:
             if is_permission_denied(exc):
@@ -2202,6 +2202,8 @@ def archive_list(
 def archive_topic(hub: Path, data: dict[str, Any], slug: str, reason: str | None) -> int:
     if slug == "hub":
         raise SystemExit("cannot archive the synthetic hub entry")
+    if slug in {".", ".."} or "/" in slug or os.sep in slug or "\\" in slug or slug.startswith("."):
+        raise SystemExit(f"invalid topic slug: {slug}")
     entry = topic_entry(data, slug)
     source = active_topic_path(hub, slug, entry)
     fallback_source = hub / "topics" / slug
@@ -2213,6 +2215,8 @@ def archive_topic(hub: Path, data: dict[str, Any], slug: str, reason: str | None
         raise SystemExit(f"active topic not found: {source}")
     archive_dir = hub / "topics" / ".archive"
     dest = archive_dir / slug
+    if not is_under(source, hub / "topics") or not is_under(dest, hub / "topics"):
+        raise SystemExit(f"path escapes topics directory — refusing to archive: {slug}")
     if dest.exists():
         raise SystemExit(f"archive destination already exists: {dest}")
 

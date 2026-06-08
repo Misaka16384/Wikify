@@ -11,14 +11,14 @@ def wash_windows_path(path_str: str) -> str:
         return path_str
 
     # Handle /tmp
-    if path_str.startswith("/tmp"):
+    if path_str == "/tmp" or path_str.startswith("/tmp/"):
         import tempfile
         temp_dir = tempfile.gettempdir()
-        rest = path_str[4:]
+        rest = path_str[len("/tmp"):]
         rest = rest.replace("/", "\\")
         if rest.startswith("\\"):
             return temp_dir + rest
-        return temp_dir + "\\" + rest
+        return temp_dir + ("\\" + rest if rest else "")
 
     # Handle drive letters /c/... or /C/... or /c
     match = re.match(r"^/([a-zA-Z])(/.*)?$", path_str)

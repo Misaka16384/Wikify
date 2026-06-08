@@ -21,7 +21,7 @@ def verify_claims(filepath, topic_dir):
         if not block.strip(): continue
         
         claim_match = re.search(r'CLAIM:\s*(.*)', block, re.IGNORECASE)
-        evidence_match = re.search(r'EVIDENCE:\s*"?([^"\n]*)"?', block, re.IGNORECASE)
+        evidence_match = re.search(r'^EVIDENCE:\s*(.*?)(?=\n^(?:CLAIM|SOURCE_TYPE|SOURCE|CONTRADICTS_SOURCE|SEVERITY|FINDING):|\Z)', block, re.IGNORECASE | re.MULTILINE | re.DOTALL)
         source_type_match = re.search(r'SOURCE_TYPE:\s*(.*)', block, re.IGNORECASE)
         source_match = re.search(r'SOURCE:\s*(.*)', block, re.IGNORECASE)
         
@@ -32,6 +32,8 @@ def verify_claims(filepath, topic_dir):
             
         claim = claim_match.group(1).strip()
         evidence = evidence_match.group(1).strip()
+        if evidence.startswith('"') and evidence.endswith('"'):
+            evidence = evidence[1:-1]
         source_type = source_type_match.group(1).strip().lower()
         source = source_match.group(1).strip()
         
@@ -83,6 +85,7 @@ def verify_claims(filepath, topic_dir):
             
     print(f"\nTotal Verified: {verified_count}")
     print(f"Total Unverified: {unverified_count}")
+    return unverified_count
 
 def main():
     parser = argparse.ArgumentParser(description="Verify claims extracted by Subagents")
@@ -90,7 +93,8 @@ def main():
     parser.add_argument("--topic-dir", required=True, help="Topic workspace directory")
     args = parser.parse_args()
     
-    verify_claims(args.claims_file, args.topic_dir)
+    failures = verify_claims(args.claims_file, args.topic_dir)
+    sys.exit(1 if failures else 0)
 
 if __name__ == "__main__":
     main()

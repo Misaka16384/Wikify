@@ -9,27 +9,19 @@ from wiki_common import slugify, atomic_write
 
 
 def normalize_slug(s):
-    # Remove suffixes and prefixes
-    s = re.sub(r'-(?:mapping|map|defect|theory|structure|operator|formalism|system|code)s?$', '', s)
+    # Remove only non-semantically-distinct prefixes
     s = re.sub(r'^(?:lattice|quantum|topological)-', '', s)
-    s = re.sub(r'ing$', '', s)
     return s
 
 def are_similar_slugs(slug1, slug2):
     if slug1 == slug2:
         return True
-    
-    # Check normalized slugs
-    n1 = normalize_slug(slug1)
-    n2 = normalize_slug(slug2)
-    if n1 == n2:
-        return True
-        
-    # Sequence similarity ratio
+
+    # Sequence similarity ratio (normalized equality no longer auto-confirms a match)
     ratio = difflib.SequenceMatcher(None, slug1, slug2).ratio()
     if ratio >= 0.82:
         return True
-        
+
     # Substring containment checks for common suffix/prefix variations (e.g. mapping vs map)
     # or prefix modifiers (e.g. lattice-twisted-gauging vs twisted-gauging)
     if slug1 in slug2 or slug2 in slug1:
@@ -37,7 +29,7 @@ def are_similar_slugs(slug1, slug2):
         if longer.endswith(shorter) or longer.startswith(shorter):
             if len(shorter) / len(longer) >= 0.65:
                 return True
-                
+
     return False
 
 
@@ -188,21 +180,33 @@ summary: 'Dynamically mined concept tracking {args.name}.'
             if parts:
                 fm_text, body = parts
                 fm = parse_frontmatter_text(fm_text)
-                aliases = fm.get("aliases", [])
-                if isinstance(aliases, str):
-                    aliases = [aliases]
-                elif aliases is None:
-                    aliases = []
-                
-                existing_title = fm.get("title", "")
-                if args.name not in aliases and slugify(args.name) != slugify(existing_title):
-                    aliases.append(args.name)
-                    fm["aliases"] = aliases
-                    fm["updated"] = today
-                    new_fm_text = yaml.dump(fm, default_flow_style=False, allow_unicode=True).strip()
+
+                # FIX 1: detect parse failure — if raw frontmatter was non-blank but
+                # parsing returned empty/None, do NOT serialize an empty dict over the file.
+                fm_parse_failed = (not fm) and bool(fm_text and fm_text.strip())
+
+                if fm_parse_failed:
+                    print(f"Warning: could not parse frontmatter YAML in {canonical_file} — alias not added; updating date only.", file=sys.stderr)
+                    new_fm_text = re.sub(r'updated:\s*\d{4}-\d{2}-\d{2}', f'updated: {today}', fm_text)
                     content = f"---\n{new_fm_text}\n---" + body
                 else:
-                    content = re.sub(r'updated:\s*\d{4}-\d{2}-\d{2}', f'updated: {today}', content)
+                    aliases = fm.get("aliases", [])
+                    if isinstance(aliases, str):
+                        aliases = [aliases]
+                    elif aliases is None:
+                        aliases = []
+
+                    existing_title = fm.get("title", "")
+                    if args.name not in aliases and slugify(args.name) != slugify(existing_title):
+                        aliases.append(args.name)
+                        fm["aliases"] = aliases
+                        fm["updated"] = today
+                        new_fm_text = yaml.dump(fm, default_flow_style=False, allow_unicode=True).strip()
+                        content = f"---\n{new_fm_text}\n---" + body
+                    else:
+                        # FIX 3: scope substitution to frontmatter only, not the whole file
+                        new_fm_text = re.sub(r'updated:\s*\d{4}-\d{2}-\d{2}', f'updated: {today}', fm_text)
+                        content = f"---\n{new_fm_text}\n---" + body
             
             if "## 5. Perspectives from Literature" not in content:
                 content += "\n## 5. Perspectives from Literature\n"

@@ -7,10 +7,10 @@ import yaml
 from datetime import datetime
 
 try:
-    from wiki_common import atomic_write
+    from wiki_common import atomic_write, slugify
 except ImportError:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from wiki_common import atomic_write
+    from wiki_common import atomic_write, slugify
 
 
 def extract_frontmatter(content):
@@ -41,29 +41,19 @@ def merge_frontmatter(fm1, fm2):
     merge_list("sources")
     return res
 
+def _dump_val(v, flow):
+    return yaml.safe_dump(v, default_flow_style=flow, allow_unicode=True, sort_keys=False).strip()
+
 def format_frontmatter(fm):
     lines = ["---"]
     order = ['title', 'category', 'created', 'updated', 'tags', 'aliases', 'confidence', 'summary', 'sources', 'volatility']
     for key in order:
         if key in fm:
             val = fm[key]
-            if isinstance(val, list):
-                if not val:
-                    lines.append(f"{key}: []")
-                elif key in ['tags', 'aliases']:
-                    lines.append(f"{key}: [{', '.join(val)}]")
-                else:
-                    lines.append(f"{key}:")
-                    for v in val:
-                        lines.append(f"  - \"{v}\"")
-            else:
-                if key in ['title', 'summary']:
-                    lines.append(f"{key}: \"{val}\"")
-                else:
-                    lines.append(f"{key}: {val}")
+            lines.append(f"{key}: {_dump_val(val, isinstance(val, list))}")
     for key, val in fm.items():
         if key not in order:
-            lines.append(f"{key}: {val}")
+            lines.append(f"{key}: {_dump_val(val, isinstance(val, list))}")
     lines.append("---")
     return "\n".join(lines)
 
@@ -108,14 +98,20 @@ def main():
             print(f"Error: Invalid concept name '{name}' — path traversal detected")
             sys.exit(1)
 
+    old_slug = slugify(old_name)
+    new_slug = slugify(new_name)
+    if not old_slug or not new_slug:
+        print(f"Error: Could not slugify concept name (old='{old_name}', new='{new_name}')")
+        sys.exit(1)
+
     # Backup old concept file
-    old_file_path = os.path.join(concepts_dir, f"{old_name}.md")
-    new_file_path = os.path.join(concepts_dir, f"{new_name}.md")
+    old_file_path = os.path.join(concepts_dir, f"{old_slug}.md")
+    new_file_path = os.path.join(concepts_dir, f"{new_slug}.md")
     if os.path.exists(old_file_path):
         backup_dir = os.path.join(concepts_dir, ".backup")
         os.makedirs(backup_dir, exist_ok=True)
         timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-        backup_file_path = os.path.join(backup_dir, f"{old_name}_{timestamp}.md")
+        backup_file_path = os.path.join(backup_dir, f"{old_slug}_{timestamp}.md")
         shutil.copy2(old_file_path, backup_file_path)
         print(f"Backed up {old_file_path} to {backup_file_path}")
         
@@ -131,8 +127,8 @@ def main():
     # and standard links like ../concepts/old.md) with ../concepts/new.md)
     pattern_strict = re.compile(r'\[\[' + re.escape(old_name) + r'\]\]', re.IGNORECASE)
     pattern_alias = re.compile(r'\[\[' + re.escape(old_name) + r'\|', re.IGNORECASE)
-    pattern_md_link = re.compile(r'([/\\])' + re.escape(old_name) + r'\.md([)#\s])', re.IGNORECASE)
-    
+    pattern_md_link = re.compile(r'(concepts[/\\])' + re.escape(old_slug) + r'\.md([)#\s])', re.IGNORECASE)
+
     modified_count = 0
     for root, dirs, files in os.walk(wiki_dir):
         dirs[:] = [d for d in dirs if not d.startswith('.')]
@@ -141,20 +137,24 @@ def main():
                 filepath = os.path.join(root, file)
                 with open(filepath, "r", encoding="utf-8") as f:
                     content = f.read()
-                
+
                 new_content = pattern_strict.sub(f"[[{new_name}]]", content)
                 new_content = pattern_alias.sub(f"[[{new_name}|", new_content)
-                new_content = pattern_md_link.sub(rf"\1{new_name}.md\2", new_content)
+                new_content = pattern_md_link.sub(rf"\1{new_slug}.md\2", new_content)
                 
                 if new_content != content:
                     atomic_write(filepath, new_content, encoding="utf-8")
                     print(f"Updated links in {filepath}")
                     modified_count += 1
                     
-    # Delete old concept file
+    # Delete old concept file (only if new file exists; otherwise rename to avoid data loss)
     if os.path.exists(old_file_path):
-        os.remove(old_file_path)
-        print(f"Deleted old concept file {old_file_path}")
+        if os.path.exists(new_file_path):
+            os.remove(old_file_path)
+            print(f"Deleted old concept file {old_file_path}")
+        else:
+            shutil.move(old_file_path, new_file_path)
+            print(f"Renamed {old_file_path} -> {new_file_path}")
         
     print(f"Refactoring complete. Modified {modified_count} files.")
 

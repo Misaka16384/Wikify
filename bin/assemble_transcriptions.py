@@ -22,11 +22,13 @@ except ImportError:
 
 def extract_page_number(file_path: Path) -> int:
     filename = file_path.name
-    # Search for any digits in the filename
-    match = re.search(r'\d+', filename)
-    if match:
-        return int(match.group())
-    return 999999  # Place files without numbers at the end
+    # Prefer an explicit page token (page/pg/p followed by digits)
+    m = re.search(r'(?:page|pg|p)[\s_\-]*(\d+)', filename, re.IGNORECASE)
+    if m:
+        return int(m.group(1))
+    # Fall back to the LAST numeric run in the filename
+    nums = re.findall(r'\d+', filename)
+    return int(nums[-1]) if nums else 999999  # Place files without numbers at the end
 
 def main():
     parser = argparse.ArgumentParser(description="Assemble page-by-page transcriptions into a single markdown file.")
