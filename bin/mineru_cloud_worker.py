@@ -14,6 +14,7 @@ _bin_dir = os.path.dirname(os.path.abspath(__file__))
 if _bin_dir not in sys.path:
     sys.path.insert(0, _bin_dir)
 from config_loader import load_config, get as cfg_get
+from wiki_common import atomic_write
 
 def main():
     parser = argparse.ArgumentParser(description="Convert PDF to Markdown using MinerU Cloud API.")
@@ -58,18 +59,27 @@ def main():
     }
 
     print("Requesting MinerU upload URL...")
-    res = requests.post(url, headers=headers, json=data)
-    if res.status_code != 200 or res.json().get("code") != 0:
+    res = requests.post(url, headers=headers, json=data, timeout=(10, 60))
+    try:
+        body = res.json()
+    except ValueError:
+        print(f"Error: upload-URL response was not JSON (status {res.status_code}): {res.text}")
+        sys.exit(1)
+    if res.status_code != 200 or body.get("code") != 0:
         print("Error getting upload URL:", res.text)
         sys.exit(1)
 
-    result_data = res.json()["data"]
-    batch_id = result_data["batch_id"]
-    upload_url = result_data["file_urls"][0]
+    result_data = body.get("data") or {}
+    batch_id = result_data.get("batch_id")
+    file_urls = result_data.get("file_urls") or []
+    if not batch_id or not file_urls:
+        print(f"Error: unexpected upload-URL response shape: {body}")
+        sys.exit(1)
+    upload_url = file_urls[0]
 
     print(f"Uploading {base_name}...")
     with open(input_path, "rb") as f:
-        res_upload = requests.put(upload_url, data=f)
+        res_upload = requests.put(upload_url, data=f, timeout=(10, 300))
         if res_upload.status_code != 200:
             print("Upload failed:", res_upload.status_code)
             sys.exit(1)
@@ -84,19 +94,34 @@ def main():
     }
 
     zip_url = None
+    POLL_DEADLINE_S = 30 * 60
+    start = time.monotonic()
     while True:
+        if time.monotonic() - start > POLL_DEADLINE_S:
+            print("Error: MinerU extraction timed out after 30 minutes.", file=sys.stderr)
+            sys.exit(1)
         time.sleep(10)
-        res_poll = requests.get(poll_url, headers=poll_headers)
+        res_poll = requests.get(poll_url, headers=poll_headers, timeout=(10, 60))
         if res_poll.status_code != 200:
             print("Poll error:", res_poll.status_code)
             continue
-        poll_data = res_poll.json()
+        try:
+            poll_data = res_poll.json()
+        except ValueError:
+            print(f"Error: poll response was not JSON (status {res_poll.status_code}): {res_poll.text}")
+            sys.exit(1)
         if poll_data.get("code") != 0:
             print("Poll error code:", poll_data)
             continue
-        
-        extract_result = poll_data["data"]["extract_result"][0]
-        state = extract_result["state"]
+
+        data = poll_data.get("data") or {}
+        results = data.get("extract_result") or []
+        if not results:
+            continue
+        extract_result = results[0]
+        state = extract_result.get("state")
+        if not state:
+            continue
         print(f"Status: {state}...")
         if state == "done":
             zip_url = extract_result.get("full_zip_url")
@@ -110,7 +135,7 @@ def main():
         sys.exit(1)
 
     print("Downloading extraction results...")
-    zip_res = requests.get(zip_url)
+    zip_res = requests.get(zip_url, timeout=(10, 300))
     if zip_res.status_code != 200:
         print("Failed to download zip:", zip_res.status_code)
         sys.exit(1)
@@ -121,13 +146,14 @@ def main():
     
     print("Extracting files...")
     with zipfile.ZipFile(io.BytesIO(zip_res.content)) as z:
-        # Find markdown file
-        md_filename = None
-        for name in z.namelist():
-            if name.endswith(".md"):
-                md_filename = name
-                break
-        
+        # Find markdown file — prefer full.md, then largest .md by size
+        md_names = [n for n in z.namelist() if n.endswith('.md')]
+        md_filename = (
+            next((n for n in md_names if os.path.basename(n) == 'full.md'), None)
+            or next((n for n in md_names if n.endswith('full.md')), None)
+            or (max(md_names, key=lambda n: z.getinfo(n).file_size) if md_names else None)
+        )
+
         if not md_filename:
             print("Error: No markdown file found in result zip.")
             sys.exit(1)
@@ -183,18 +209,17 @@ def main():
     output_filename = f"{today}-{slug}.md"
     output_path = os.path.join(output_dir, output_filename)
 
-    frontmatter = f"""---
-title: "{title}"
-source: "{input_path}"
-type: {doc_type}
-ingested: {today}
-tags: []
-summary: "Converted from PDF via MinerU Cloud API."
----
-"""
+    fm_dict = {
+        "title": title,
+        "source": input_path,
+        "type": doc_type,
+        "ingested": today,
+        "tags": [],
+        "summary": "Converted from PDF via MinerU Cloud API.",
+    }
+    frontmatter = "---\n" + yaml.safe_dump(fm_dict, allow_unicode=True, sort_keys=False, default_flow_style=False) + "---\n"
 
-    with open(output_path, 'w', encoding='utf-8') as f:
-        f.write(frontmatter + "\n" + md_content)
+    atomic_write(output_path, frontmatter + "\n" + md_content, encoding='utf-8')
 
     print(f"Successfully converted and saved to {output_path}")
 

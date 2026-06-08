@@ -2,7 +2,7 @@ import os
 import sys
 import argparse
 import re
-from wiki_common import slugify, parse_frontmatter
+from wiki_common import slugify, parse_frontmatter, split_frontmatter_text
 
 
 def build_alias_pattern(aliases):
@@ -19,7 +19,11 @@ def build_alias_pattern(aliases):
     return re.compile("|".join(parts), re.IGNORECASE)
 
 def extract_concept_context(concept_name, topic_dir):
+    import json
     slug = slugify(concept_name)
+    if not slug:
+        print(json.dumps({"error": f"Concept name '{concept_name}' produces an empty slug"}))
+        sys.exit(2)
     refs_dir = os.path.join(topic_dir, "wiki", "references")
     concept_file = os.path.join(topic_dir, "wiki", "concepts", f"{slug}.md")
     
@@ -37,6 +41,9 @@ def extract_concept_context(concept_name, topic_dir):
                     
     # Clean up aliases and create regex pattern
     aliases = list(set([a.strip() for a in aliases if a.strip()]))
+    if not aliases:
+        print(json.dumps({"error": f"No usable search terms for concept '{concept_name}'"}))
+        sys.exit(2)
     pattern = build_alias_pattern(aliases)
     
     results = []
@@ -56,15 +63,13 @@ def extract_concept_context(concept_name, topic_dir):
         summary = fm.get('summary', 'No summary provided.')
         title = fm.get('title', filename)
         
-        # Split by paragraphs
-        paragraphs = re.split(r'\n\s*\n', content)
-        
+        # Strip frontmatter once up front; search only the body
+        fm_parts = split_frontmatter_text(content)
+        body = fm_parts[1] if fm_parts is not None else content
+        paragraphs = re.split(r'\n\s*\n', body)
+
         matched_paragraphs = []
         for i, para in enumerate(paragraphs):
-            # Skip yaml frontmatter blocks
-            if para.startswith('---') and 'title:' in para:
-                continue
-                
             if pattern.search(para):
                 # get +/- 1 paragraph context
                 start = max(0, i - 1)

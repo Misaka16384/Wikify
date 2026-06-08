@@ -97,4 +97,5 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    extract_crop(args.pdf_path, args.text, args.out, args.margin, args.page)
+    ok = extract_crop(args.pdf_path, args.text, args.out, args.margin, args.page)
+    sys.exit(0 if ok else 1)

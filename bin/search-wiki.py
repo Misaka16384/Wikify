@@ -47,8 +47,8 @@ def main():
                         "line": i,
                         "content": line
                     })
-                        if len(results) >= MAX_RESULTS:
-                            break
+                    if len(results) >= MAX_RESULTS:
+                        break
             if len(results) >= MAX_RESULTS:
                 break
         except (IOError, PermissionError) as e:

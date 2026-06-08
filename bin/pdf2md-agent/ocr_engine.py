@@ -131,8 +131,8 @@ class OCREngine:
             # 如果超过限制，缩小图片
             if current_pixels > max_pixels:
                 scale = (max_pixels / current_pixels) ** 0.5
-                new_width = int(width * scale)
-                new_height = int(height * scale)
+                new_width = max(1, int(width * scale))
+                new_height = max(1, int(height * scale))
                 img = img.resize((new_width, new_height), Image.LANCZOS)
 
             # 保存为 JPEG
@@ -259,6 +259,14 @@ class OCREngine:
             results.append(result)
         return results
 
+    @staticmethod
+    def _norm(name: str) -> str:
+        name = name or ""
+        return name if ":" in name else f"{name}:latest"
+
+    def _name_matches(self, candidate: str) -> bool:
+        return self._norm(candidate) == self._norm(self.model)
+
     def check_model_available(self) -> bool:
         """检查模型是否可用（已下载）"""
         try:
@@ -267,7 +275,7 @@ class OCREngine:
             if response.status_code == 200:
                 models = response.json().get("models", [])
                 model_names = [m.get("name", "") for m in models]
-                return any(self.model in name for name in model_names)
+                return any(self._name_matches(name) for name in model_names)
         except Exception as e:
             print(f"Warning: check_model_available failed: {e}", file=sys.stderr)
         return False
@@ -285,7 +293,7 @@ class OCREngine:
             if response.status_code == 200:
                 models = response.json().get("models", [])
                 for m in models:
-                    if self.model in m.get("name", ""):
+                    if self._name_matches(m.get("name", "")):
                         return True, m
         except Exception as e:
             print(f"Warning: is_model_loaded failed: {e}", file=sys.stderr)
@@ -299,7 +307,7 @@ class OCREngine:
             if response.status_code == 200:
                 models = response.json().get("models", [])
                 for m in models:
-                    if self.model in m.get("name", ""):
+                    if self._name_matches(m.get("name", "")):
                         return m
         except Exception as e:
             print(f"Warning: get_model_info failed: {e}", file=sys.stderr)

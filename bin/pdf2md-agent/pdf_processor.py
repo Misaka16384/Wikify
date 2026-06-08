@@ -4,6 +4,7 @@ PDF Processor Module
 """
 
 import os
+import re
 import subprocess
 import sys
 import shutil
@@ -92,6 +93,13 @@ class PDFProcessor:
         if not pdf_path.exists():
             raise FileNotFoundError(f"PDF 文件不存在: {pdf_path}")
 
+        # 删除上次运行遗留的输出文件，避免旧文件污染结果
+        for old in output_dir.glob(f"page-*.{self.image_format}"):
+            try:
+                old.unlink()
+            except OSError:
+                pass
+
         # 构建输出文件前缀
         output_prefix = output_dir / "page"
 
@@ -109,19 +117,24 @@ class PDFProcessor:
         if result.returncode != 0:
             raise RuntimeError(f"pdftoppm 转换失败: {result.stderr}")
 
-        # 收集生成的图片
+        # 收集生成的图片，按数字顺序排列（避免字典序 page-10 < page-2 的问题）
         pages = []
         pattern = f"page-*.{self.image_format}"
-        image_files = sorted(output_dir.glob(pattern))
+        image_files = sorted(
+            output_dir.glob(pattern),
+            key=lambda p: int(re.search(r'page-(\d+)', p.stem).group(1))
+        )
 
-        for idx, img_path in enumerate(image_files, start=1):
+        for img_path in image_files:
+            # 从文件名解析真实页码
+            page_number = int(re.search(r'page-(\d+)', img_path.stem).group(1))
             # 获取图片尺寸
             from PIL import Image
             with Image.open(img_path) as img:
                 width, height = img.size
 
             pages.append(PDFPage(
-                page_number=idx,
+                page_number=page_number,
                 image_path=str(img_path),
                 width=width,
                 height=height

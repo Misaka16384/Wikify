@@ -140,17 +140,26 @@ def load_config(config_path: Optional[str] = None) -> dict[str, Any]:
     yaml_path: Optional[Path] = None
     if config_path is not None:
         yaml_path = Path(config_path)
-    else:
-        yaml_path = _find_config_yaml()
-
-    if yaml_path is not None and yaml_path.is_file() and yaml is not None:
-        try:
+        if not yaml_path.is_file():
+            raise FileNotFoundError(
+                f"Config file not found: {yaml_path}"
+            )
+        if yaml is not None:
             with open(yaml_path, "r", encoding="utf-8") as fh:
                 user_cfg = yaml.safe_load(fh)
-            if isinstance(user_cfg, dict):
-                config = _deep_merge(config, user_cfg)
-        except Exception:
-            pass  # Fall through to defaults on any parse error
+            if not isinstance(user_cfg, dict):
+                raise ValueError(f"Config file must be a YAML mapping, got {type(user_cfg).__name__}")
+            config = _deep_merge(config, user_cfg)
+    else:
+        yaml_path = _find_config_yaml()
+        if yaml_path is not None and yaml is not None:
+            try:
+                with open(yaml_path, "r", encoding="utf-8") as fh:
+                    user_cfg = yaml.safe_load(fh)
+                if isinstance(user_cfg, dict):
+                    config = _deep_merge(config, user_cfg)
+            except Exception:
+                pass  # Fall through to defaults on any parse error
 
     # --- Layer 2: Environment variable overrides ---
     for env_var, dotted_key in _ENV_OVERRIDES:

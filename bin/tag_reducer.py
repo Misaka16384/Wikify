@@ -24,7 +24,7 @@ def replace_yaml_list(text: str, field: str, new_list: list) -> str:
     if not new_list:
         formatted_list = f"{field}: []\n"
     else:
-        formatted_list = f"{field}:\n" + "\n".join(f"  - {item}" for item in new_list) + "\n"
+        formatted_list = f"{field}:\n" + "\n".join(f"  - {json.dumps(item, ensure_ascii=False)}" for item in new_list) + "\n"
         
     efield = re.escape(field)
     pattern = rf"(?m)^{efield}:\s*\[.*?\][ \t]*(?:\n|$)|^{efield}:\s*[ \t]*(?:\n|$)(?:\s+-\s+.*(?:\n|$))*"

@@ -350,19 +350,20 @@ def process_directory(directory):
         print(f"\nCompleted: Found math errors in {files_with_issues} out of {total_files} files.")
     else:
         print(f"\nCompleted: All {total_files} files passed math validation cleanly.")
+    return files_with_issues > 0
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print("Usage: python validate_math_latex.py <TOPIC_DIR_OR_FILE>")
         sys.exit(1)
-        
+
     target = sys.argv[1]
     if not os.path.exists(target):
         print(f"Path not found: {target}")
         sys.exit(1)
-        
+
     if os.path.isdir(target):
-        process_directory(target)
+        had_errors = process_directory(target)
     else:
         has_pdflatex = shutil.which("pdflatex") is not None
         if has_pdflatex:
@@ -372,4 +373,5 @@ if __name__ == '__main__':
         else:
             print("Validation skipped (missing dependencies).")
             sys.exit(0)
-        process_file(target, use_pdflatex=has_pdflatex)
+        had_errors = process_file(target, use_pdflatex=has_pdflatex)
+    sys.exit(1 if had_errors else 0)
