@@ -20,6 +20,12 @@ This skill transforms the agent into a conversational interface for the knowledg
 
 When tasked with answering a question, follow these strategies depending on the nature of the inquiry:
 
+### Strategy 0: Hybrid Retrieval (start here for most questions)
+1.  Run `magi search "<query>" -k 8 --json` — hybrid BM25+vector search over the whole corpus. Scope with `--collection references` (papers) or `--collection concepts` when the question type is clear.
+2.  **ALWAYS open the top hits with your file-read tool** and read the full section before citing — never cite from a search snippet alone.
+3.  If results look empty or stale, run `magi index` first (`magi sync` warns about a stale index).
+4.  Fall through to the strategies below when you need graph structure, exact regex, or concept lineage.
+
 ### Strategy 1: Concept Extraction (RAG)
 If the user asks about the definition, lineage, or application of a specific concept (e.g., "What is Haag Duality?"):
 1.  Run the context extractor:

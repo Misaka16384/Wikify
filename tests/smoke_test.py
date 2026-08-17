@@ -21,6 +21,16 @@ from pathlib import Path
 MAGI = [sys.executable, "-m", "magi"]
 
 
+def _ollama_up() -> bool:
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:11434/api/version", timeout=3):
+            return True
+    except Exception:
+        return False
+
+
 def run(args: list[str], cwd: Path, expect: tuple[int, ...] = (0,), timeout: int = 120) -> subprocess.CompletedProcess:
     proc = subprocess.run(
         MAGI + args, cwd=cwd, capture_output=True, text=True, timeout=timeout,
@@ -133,6 +143,21 @@ def main() -> int:
             assert (rep["cores"]["balthasar"]["open"] or 0) >= 1, "backlog-sync created no issues"
         else:
             print("[SKIP] bd not installed — M1 beads steps skipped")
+
+        # 8. M2: retrieval index + hybrid search (BM25 path is deterministic;
+        # vector path exercised only when Ollama is reachable)
+        run(["index", "--topic-dir", str(topic), "--no-vectors"], cwd=topic)
+        sr = run(["search", "key result", "--topic-dir", str(topic), "--mode", "bm25", "--json"], cwd=topic)
+        res = json.loads(sr.stdout)
+        assert res["results"], "bm25 search found nothing"
+        assert any("smoke-paper" in r["path"] for r in res["results"]), "expected hit missing"
+        if _ollama_up():
+            run(["index", "--topic-dir", str(topic)], cwd=topic, timeout=300)
+            sv = run(["search", "central finding of the paper", "--topic-dir", str(topic), "--json"], cwd=topic)
+            resv = json.loads(sv.stdout)
+            assert resv["vector_available"], "vectors expected with Ollama up"
+        else:
+            print("[SKIP] Ollama not reachable — vector search steps skipped")
 
         print("\nALL SMOKE TESTS PASSED")
         return 0

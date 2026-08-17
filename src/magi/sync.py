@@ -8,8 +8,10 @@ The sync ratio is a deterministic workspace-health score, not vibes:
 - BALTHASAR (work state / Beads):
     0.6 · beads database reachable
   + 0.4 · bd status summary readable
-- CASPER (retrieval index): offline until M2 — excluded from the
-  denominator, shown as offline.
+- CASPER (retrieval state / hybrid index):
+    0.7 · index freshness (index.db mtime >= newest wiki/*.md mtime)
+  + 0.3 · vector coverage (embedded chunks / total chunks)
+  Missing index scores 0 — build it with `magi index`.
 
 Ratio = weighted mean over the cores that are applicable. Agents should
 treat a low ratio as "restore the workspace before doing research":
@@ -76,6 +78,32 @@ def melchior_status(topic: Path) -> dict:
     }
 
 
+def casper_status(topic: Path) -> dict:
+    idx = topic / "output" / "index.db"
+    if not idx.is_file():
+        return {"state": "missing", "chunks": 0, "vectors": 0, "score": 0.0}
+    import sqlite3
+
+    freshness = 1.0 if idx.stat().st_mtime >= _newest_md_mtime(topic / "wiki") else 0.3
+    chunks = vectors = 0
+    try:
+        conn = sqlite3.connect(idx)
+        chunks = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+        # count via vec0's shadow table — readable without the sqlite-vec
+        # extension loaded (the virtual table itself is not)
+        has_vec = conn.execute(
+            "SELECT name FROM sqlite_master WHERE name='chunks_vec_rowids'").fetchone()
+        if has_vec:
+            vectors = conn.execute("SELECT COUNT(*) FROM chunks_vec_rowids").fetchone()[0]
+        conn.close()
+    except sqlite3.Error:
+        pass
+    coverage = (vectors / chunks) if chunks else 0.0
+    state = "fresh" if freshness == 1.0 else "stale"
+    return {"state": state, "chunks": chunks, "vectors": vectors,
+            "score": round(0.7 * freshness + 0.3 * coverage, 3)}
+
+
 def balthasar_status(topic: Path | None) -> dict:
     from magi.pm import bd_available, bd_status_summary, find_beads_root
 
@@ -122,7 +150,16 @@ def build_report(cwd: Path | None = None) -> dict:
     elif (b["ready"] or 0) > 0:
         hints.append("bd ready   # there is actionable work")
 
-    cores["casper"] = {"state": "offline", "note": "retrieval index lands in M2", "score": None}
+    if topic:
+        c = casper_status(topic)
+        cores["casper"] = c
+        weights["casper"] = 1.0
+        if c["state"] == "missing":
+            hints.append("magi index   # build the retrieval index")
+        elif c["state"] == "stale":
+            hints.append("magi index   # refresh the retrieval index")
+    else:
+        cores["casper"] = {"state": "offline", "note": "no workspace", "score": None}
 
     scored = [(weights[k], cores[k]["score"]) for k in weights if cores[k].get("score") is not None]
     total_w = sum(w for w, _ in scored)
@@ -164,7 +201,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"|- BALTHASAR (intent)     {_fmt(b['ready'])} ready · {_fmt(b['in_progress'])} in progress · {_fmt(b['blocked'])} blocked")
     else:
         print("|- BALTHASAR (intent)     beads offline")
-    print(f"`- CASPER    (retrieval)  offline (index lands in M2)")
+    c = report["cores"]["casper"]
+    if c.get("score") is not None:
+        print(f"`- CASPER    (retrieval)  index {c['state']} · {c['chunks']} chunks · vectors {c['vectors']}/{c['chunks']}")
+    else:
+        print("`- CASPER    (retrieval)  offline")
     if report["hub"]:
         print(f"hub: {report['hub']}")
     for h in report["hints"]:

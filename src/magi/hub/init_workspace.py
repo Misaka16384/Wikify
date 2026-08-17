@@ -150,7 +150,9 @@ environment. Scope: {args.scope}
 - **Work state** (beads): `bd ready` lists actionable tasks. Track research
   work with typed issues: question / survey / derivation / computation /
   experiment / review (`bd create -t <type> "..."`).
-- **Retrieval**: `magi grep` (regex) today; hybrid semantic index in M2.
+- **Retrieval**: `magi search "..."` (hybrid BM25+vector; build/refresh with
+  `magi index`); `magi grep` for exact regex. After a search, always read the
+  underlying file before citing it.
 
 ## Ground rules
 

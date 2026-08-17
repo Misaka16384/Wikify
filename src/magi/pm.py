@@ -38,10 +38,15 @@ def _run_bd(args: list[str], cwd: Path, timeout: int = 60) -> subprocess.Complet
 
 
 def find_beads_root(start: Path | None = None) -> Path | None:
-    """Nearest ancestor (of start or cwd) containing a .beads directory."""
+    """Nearest ancestor (of start or cwd) containing a workspace .beads db.
+
+    A workspace database has ``.beads/metadata.json`` (written by ``bd
+    init``); this distinguishes it from bd's user-level data directory
+    ``~/.beads`` (eventsData etc.), which must not match.
+    """
     current = (start or Path.cwd()).resolve()
     for _ in range(30):
-        if (current / ".beads").is_dir():
+        if (current / ".beads" / "metadata.json").is_file():
             return current
         if current.parent == current:
             return None
@@ -74,7 +79,7 @@ def cmd_init(args: argparse.Namespace) -> int:
         return 1
 
     beads_dir = root / ".beads"
-    if beads_dir.is_dir():
+    if (beads_dir / "metadata.json").is_file():
         print(f"beads already initialized at {root}")
     else:
         init_args = ["init"]

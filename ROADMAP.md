@@ -84,12 +84,16 @@ magi radar ...               # M3
 - [x] `magi pm backlog-sync`：uncompiled 源 → bd issues（label `magi-compile`，幂等）
 - 备注：`bd ready --json` / `bd status --json` 为 sync 的数据源；beads 库开在 hub 级（决策 D4）
 
-### M2 — 检索层
+### M2 — 检索层（✅ 代码完成，macOS 冒烟待做）
 
-- [ ] `magi index`：md 扫描 + 分块 + Ollama embedding（哈希增量）+ FTS5 + sqlite-vec
-- [ ] `magi search --json`：BM25 + 向量 + RRF；collections = concepts/references/topics/raw
-- [ ] wiki_ask / wiki_audit / wiki_research 的 SKILL.md 检索步骤改 `magi search` + 强制取原文
-- [ ] macOS 冒烟（sqlite extension 加载验证）
+- [x] `magi index`：标题分块（≤250 行）+ sha1 增量 + FTS5（触发器同步）+ sqlite-vec（Ollama 不可达时优雅降级 BM25-only，向量事后可补）
+- [x] `magi search --json`：BM25 + 向量 + RRF(k=60)；collections = concepts/references/topics/theses/raw；`--mode hybrid|bm25|vector`
+- [x] Casper 核接入 `magi sync` 同步率（0.7·索引新鲜度 + 0.3·向量覆盖率；索引缺失记 0 分）
+- [x] wiki_ask（Strategy 0）/ wiki_audit / wiki_research 接入 `magi search` + "必须读原文再引用"规则
+- [x] 已在 Windows 实测：sqlite-vec 0.1.9 wheel + FTS5 + qwen3-embedding:0.6b（1024 维）真实向量命中验证
+- [x] 修复：`find_beads_root` 误把 bd 用户级 `~/.beads` 数据目录当 workspace 库（改查 metadata.json marker）
+- [ ] macOS 冒烟（sqlite extension 加载验证）— 需在 mac 机器上跑 `tests/smoke_test.py`
+- 发现：本机已有 `dengcao/Qwen3-Reranker-0.6B` Ollama 模型，将来给 search 加重排是现成弹药
 
 ### M3 — Radar 功能 A
 

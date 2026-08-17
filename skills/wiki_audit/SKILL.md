@@ -19,6 +19,7 @@ When the user asks to perform an audit or truth check on their vault:
     *   Run the wiki inventory command to get a deterministic file listing — do NOT manually browse or rely on grep keywords alone:
         `magi stats <TOPIC_DIR> wiki-summary`
     *   Parse the JSON output to understand the vault structure: total files, per-directory counts, file titles, and which files have sources.
+    *   Before graph/regex retrieval, run `magi search "<claim or topic>" -k 8 --json` (hybrid BM25+vector) to locate candidate evidence fast; then ALWAYS read the underlying files before quoting them as evidence.
     *   **Graph Analysis (MANDATORY)**: Run `magi graph build` to ensure the local graph database is strictly up to date. Do NOT skip this, otherwise you will read stale data!
     *   Then query the knowledge graph using `magi graph query "<SQL>"`. Do not use direct `sqlite3` command line execution.
         **Graph DB Schema:**

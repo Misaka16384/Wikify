@@ -31,6 +31,7 @@ When the user asks to research a topic:
 
 2.  **Orchestrate Background Subagents**: Spawn the parallel sub-agents using your agent's **sub-agent / parallel-task tool** according to your dynamic research plan. (If no sub-agent tool exists, investigate each dimension sequentially yourself.)
     *   Assign each subagent a clear, focused `Role` and `Prompt` tailored to their specific investigative dimension.
+    *   For local evidence, subagents should first run `magi search "<dimension keywords>" -k 8 --json` and read the hit files in full; quote EVIDENCE only from file content actually read, never from search snippets.
     *   **Source Constraint (CRITICAL)**: Every subagent prompt MUST include this instruction:
         > "You MUST use your **web-search tool** or **file-read tool** to gather evidence. Do NOT make factual claims from parametric memory alone. Every claim must cite either a specific URL from web search or a specific local file path that you read. If you cannot find a source for a claim, mark it explicitly as `[UNVERIFIED]`."
     *   **Subagent Output Contract (MANDATORY)**: Each subagent MUST return findings in this structure:
