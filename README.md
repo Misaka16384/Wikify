@@ -1,7 +1,13 @@
-# Agentic Wiki Skills
+# MAGI
 *[中文](README.md) | [English](README_en.md)*
 
-本项目为 AI 编程助手（如 Gemini/Antigravity 和 Claude Code）提供了一套智能体技能（Agentic Skills），使其能够自动化地将学术论文（PDF 和 LaTeX）摄入、编译、整理，并查询为一个兼容 Obsidian 的 Markdown 知识库。
+**MAGI** 是一个 agent-native 的科研工作环境：人是驾驶员，LLM agent 是机体，确定性的 `magi` CLI 是拘束具——三者同步率越高，科研越快。它将学术论文（PDF/LaTeX）摄入、编译为 Obsidian 兼容的概念卡片知识库，并以三核架构管理科研状态：
+
+- **MELCHIOR（知识）**：概念/文献卡片 + SQLite 知识图谱 + claim/证据溯源（`magi graph` / `magi verify`）
+- **BALTHASAR（意图）**：基于 [Beads](https://github.com/gastownhall/beads) 的科研任务图（question/survey/derivation/computation/experiment/review）
+- **CASPER（检索）**：本地混合检索（FTS5 BM25 + sqlite-vec 向量 + RRF，`magi index` / `magi search`）
+
+进入任意 workspace 先跑 `magi sync`——它输出**同步率**和三核状态；`magi radar` 是文献雷达（定时发现新论文 + "该引未引"侦察）。支持 Claude Code / Codex / Antigravity 等 CLI agent 宿主，同一份 skills 通吃。
 
 ## 🌟 项目展示
 

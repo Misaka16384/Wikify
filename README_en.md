@@ -1,7 +1,13 @@
-# Agentic Wiki Skills
+# MAGI
 *[English](README_en.md) | [中文](README.md)*
 
-This project provides a suite of agentic skills for AI coding assistants (like Gemini/Antigravity and Claude Code) to automatically ingest, compile, organize, and query academic papers (PDFs and LaTeX) into an Obsidian-compatible Markdown knowledge base.
+**MAGI** is an agent-native research workspace: the human pilots, the LLM agent is the mecha, and the deterministic `magi` CLI is the restraint armor — the higher the sync ratio, the faster the science. It ingests academic papers (PDF/LaTeX) into an Obsidian-compatible concept-card knowledge base and manages research state through a three-core architecture:
+
+- **MELCHIOR (knowledge)**: concept/reference cards + SQLite knowledge graph + claim/evidence provenance (`magi graph` / `magi verify`)
+- **BALTHASAR (intent)**: research task graph on [Beads](https://github.com/gastownhall/beads) (question/survey/derivation/computation/experiment/review issue types)
+- **CASPER (retrieval)**: local hybrid search (FTS5 BM25 + sqlite-vec vectors + RRF; `magi index` / `magi search`)
+
+Enter any workspace and run `magi sync` — it reports the **sync ratio** and three-core status; `magi radar` is the literature radar (scheduled discovery of new papers + citation-gap scouting). One shared skills tree serves Claude Code / Codex / Antigravity and other CLI agent hosts.
 
 ## 🌟 Project Showcase
 
