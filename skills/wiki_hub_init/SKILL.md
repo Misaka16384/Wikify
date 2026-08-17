@@ -15,6 +15,7 @@ When the user asks to initialize or set up a new Hub:
 1.  **Strict Dispatcher Rule**: Run the deterministic command to safely create the required structure.
     `magi hub init <path_to_hub>`
 2.  **Verify**: Ensure the command executes successfully and confirms the creation of `wikis.json` and `topics/`.
+3.  Provision work-state tracking at the hub root: `magi pm init` (idempotent).
 
 ## Error Handling
 

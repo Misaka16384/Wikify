@@ -100,6 +100,40 @@ def main() -> int:
         payload = json.loads(s.stdout)
         assert payload.get("workspace"), "sync did not detect workspace"
 
+        # 6. writer paths (add-concept WITHOUT --no-rebuild exercises the
+        # rewritten 'python -m magi graph build / wiki reindex' subprocess chain)
+        run(["wiki", "add-concept", "--name", "Second Concept",
+             "--source", "smoke-paper", "--content", "Defined as Y, see [[Test Concept]].",
+             "--topic-dir", str(topic)], cwd=topic)
+        assert (concepts / "second-concept.md").exists(), "add-concept did not create the card"
+        run(["wiki", "context", "--name", "Test Concept", "--topic-dir", str(topic)], cwd=topic)
+        run(["wiki", "chunk", str(refs / "smoke-paper.md"), "--topic-dir", str(topic), "--max-lines", "5"], cwd=topic)
+        run(["wiki", "placeholders", str(refs / "smoke-paper.md"), "--json"], cwd=topic)
+        run(["wiki", "uncompiled", "--topic-dir", str(topic)], cwd=topic)
+        run(["tags", "extract", str(topic)], cwd=topic)
+        run(["math", "format", str(concepts / "test-concept.md")], cwd=topic)
+        run(["wiki", "refactor-concept", "--topic-dir", str(topic),
+             "--old", "Second Concept", "--new", "Renamed Concept", "--no-rebuild"], cwd=topic)
+        inbox_doc = topic / "inbox" / "note.md"
+        inbox_doc.parent.mkdir(exist_ok=True)
+        inbox_doc.write_text("---\ntitle: Inbox Note\n---\n\nBody.\n", encoding="utf-8")
+        run(["ingest", "add", "--file", str(inbox_doc), "--type", "notes",
+             "--topic-dir", str(topic), "--move"], cwd=topic)
+        run(["migrate"], cwd=topic)
+
+        # 7. M1: beads bridge + sync ratio (skipped when bd is not on PATH)
+        if shutil.which("bd"):
+            run(["pm", "init", str(hub), "--prefix", "smoke"], cwd=hub, timeout=300)
+            run(["pm", "status", "--json"], cwd=topic)
+            run(["pm", "backlog-sync", "--topic-dir", str(topic)], cwd=topic)
+            s2 = run(["sync", "--json"], cwd=topic)
+            rep = json.loads(s2.stdout)
+            assert rep["sync_ratio"] is not None, "sync ratio missing"
+            assert rep["cores"]["balthasar"]["beads_root"], "beads not detected by sync"
+            assert (rep["cores"]["balthasar"]["open"] or 0) >= 1, "backlog-sync created no issues"
+        else:
+            print("[SKIP] bd not installed — M1 beads steps skipped")
+
         print("\nALL SMOKE TESTS PASSED")
         return 0
     finally:

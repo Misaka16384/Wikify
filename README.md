@@ -36,19 +36,17 @@
 
 部署技能前，请确保您的系统安装了以下运行时依赖。
 
-### 2.1 Python 依赖
-需要 **Python 3.10+**。全局安装以下 Python 包：
+### 2.1 安装 `magi` CLI
+需要 **Python 3.10+**。所有确定性能力现在通过统一的 `magi` 命令行工具提供（用 [uv](https://docs.astral.sh/uv/) 或 pipx 安装到全局 PATH）：
+
 ```powershell
-pip install -r requirements.txt
+git clone https://github.com/Misaka16384/magi.git
+cd magi
+uv tool install .        # 或: pipx install .
+magi --help              # 查看全部子命令
 ```
 
-> **提示**：建议使用虚拟环境以避免依赖冲突：
-```powershell
-python -m venv .venv
-.\.venv\Scripts\activate  # Windows
-# source .venv/bin/activate  # Linux/macOS
-pip install -r requirements.txt
-```
+任何子命令的完整语法用 `magi <command> --help` 查看。进入一个工作区后先跑 `magi sync` 确认环境。
 
 ### 2.2 系统级外部程序
 本流水线依赖一些外部工具，必须将它们添加到系统的 `PATH` 环境变量中：
@@ -85,24 +83,22 @@ ollama pull qwen3-embedding:0.6b
 
 ## 3. 安装与部署
 
-安装脚本会将 `skills/` 和 `bin/` **并列**复制到目标目录，并一并复制 `requirements.txt`、`.env.example` 和 `config.yaml`。每个技能都相对自身定位辅助脚本，因此**任意**目标目录都可用——只需选择您的 AI 工具用于发现技能的目录：
+CLI 装好后（见 2.1），skills 只是教 agent **何时/为何**调用 `magi` 的薄文档，按宿主分发：
 
-| AI 工具 | 常见目标目录 |
-|---|---|
-| Claude Code | `~/.claude`（用户全局级）或 `<project>/.claude` |
-| Gemini / Antigravity | `<project>/.agents` 或 `~/.gemini` |
-
-### Windows
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\install.ps1                    # 交互式询问目标目录，或：.\install.ps1 -Target <dir>
-```
-
-### Linux / macOS
+### Claude Code（推荐走 plugin）
 ```bash
-bash install.sh                  # 交互式询问目标目录
-bash install.sh ~/.claude        # 或直接以参数传入
+claude plugin marketplace add Misaka16384/magi
+claude plugin install magi
 ```
+或本地开发模式：`claude plugin install <repo目录>`。
+
+### Codex 及其他 Agent Plugins 1.0 宿主
+仓库根部自带 Agent Plugins 1.0 的 `plugin.json`，按宿主的 plugin 安装流程指向本仓库即可。
+
+### Gemini / Antigravity
+将本仓库的 `skills/` 目录复制（或链接）到 `<project>/.agents/skills/`。
+
+> 所有宿主共享同一份 `skills/*/SKILL.md`；脚本路径已不存在——skills 直接调用 PATH 上的 `magi` 命令。
 
 ---
 

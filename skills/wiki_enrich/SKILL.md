@@ -63,3 +63,15 @@ When the user asks to enrich, deep-dive, or查漏补缺 (fill gaps) on a paper:
 7.  **Mark Enriched**: Add or update `enriched: YYYY-MM-DD` in the compiled paper's YAML frontmatter.
 
 8.  **Log**: Update the activity log `log.md` with: paper enriched, concepts added count, dangling refs resolved count.
+
+## Task Tracking (Beads)
+
+Beads (`bd`) is the workspace's work-state store; `log.md` stays a one-line human narrative.
+
+- **Start**: claim or create an issue before substantial work:
+  `bd create -t task "<short description of this run>"` then `bd update <id> --status in_progress`
+  (or claim an existing ready issue from `bd ready`).
+- **Finish**: `bd close <id> --reason "<one-line outcome>"`. If follow-up work emerged
+  (gaps found, sources to ingest, contradictions to resolve), file it now:
+  `bd create -t <appropriate type> "..."` — do not leave TODO prose in markdown.
+- If `bd` is unavailable, note it once and proceed; do not block on task tracking.

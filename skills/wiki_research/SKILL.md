@@ -78,3 +78,15 @@ When the user asks to research a topic:
     *   Run: `magi lint --fix <TOPIC_DIR>`
 
 6.  **Log**: Append a log entry in `log.md` with: research query, subagent count, verified findings count, unverified findings count, output file path.
+
+## Task Tracking (Beads)
+
+Beads (`bd`) is the workspace's work-state store; `log.md` stays a one-line human narrative.
+
+- **Start**: claim or create an issue before substantial work:
+  `bd create -t survey "<short description of this run>"` then `bd update <id> --status in_progress`
+  (or claim an existing ready issue from `bd ready`).
+- **Finish**: `bd close <id> --reason "<one-line outcome>"`. If follow-up work emerged
+  (gaps found, sources to ingest, contradictions to resolve), file it now:
+  `bd create -t <appropriate type> "..."` — do not leave TODO prose in markdown.
+- If `bd` is unavailable, note it once and proceed; do not block on task tracking.

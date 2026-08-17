@@ -10,18 +10,16 @@ from pathlib import Path
 
 from magi.core.wiki_common import parse_frontmatter, slugify
 
-def main(argv=None):
-    parser = argparse.ArgumentParser(prog="magi wiki uncompiled", description="Detect uncompiled source files.")
-    parser.add_argument("--topic-dir", default=".", help="Topic directory path (default: current directory)")
-    args = parser.parse_args(argv)
-
-    topic_path = Path(args.topic_dir).resolve()
+def find_uncompiled(topic_dir) -> list[str]:
+    """Relative POSIX paths (from the topic root) of raw sources with no
+    compiled reference. Importable API used by `magi pm backlog-sync`."""
+    topic_path = Path(topic_dir).resolve()
     raw_dir = topic_path / "raw"
     refs_dir = topic_path / "wiki" / "references"
 
     if not raw_dir.exists():
         # If raw/ does not exist, there are no uncompiled source files
-        return
+        return []
 
     # Find all raw files recursively (excluding _index.md)
     raw_files = []
@@ -89,7 +87,15 @@ def main(argv=None):
         rel_path = raw_file.relative_to(topic_path).as_posix()
         uncompiled.append(rel_path)
 
-    for path in sorted(uncompiled):
+    return sorted(uncompiled)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi wiki uncompiled", description="Detect uncompiled source files.")
+    parser.add_argument("--topic-dir", default=".", help="Topic directory path (default: current directory)")
+    args = parser.parse_args(argv)
+
+    for path in find_uncompiled(args.topic_dir):
         print(path)
 
 if __name__ == "__main__":

@@ -130,6 +130,41 @@ created: {today}
         p = topic_path / rel_path / "_index.md"
         create_minimal_index(p, title, today, args.force)
 
+    # 6. Agent entry protocol: CLAUDE.md (Claude Code) + AGENTS.md (Codex
+    # et al.) share one body so every host gets the same onboarding.
+    protocol = f"""# MAGI Research Workspace: {args.name}
+
+This directory is a MAGI topic workspace — an agent-native research
+environment. Scope: {args.scope}
+
+## On entering (do this first)
+
+1. `magi sync` — sync ratio, three-core status, and concrete restore hints.
+2. `bd prime` — inject current work state (ready/blocked/in-progress tasks).
+
+## The three cores
+
+- **Knowledge** (`wiki/`): concept cards, reference cards, theses.
+  Produced by the ingest/compile skills; queried via `magi graph query`,
+  `magi wiki context`, `magi grep`.
+- **Work state** (beads): `bd ready` lists actionable tasks. Track research
+  work with typed issues: question / survey / derivation / computation /
+  experiment / review (`bd create -t <type> "..."`).
+- **Retrieval**: `magi grep` (regex) today; hybrid semantic index in M2.
+
+## Ground rules
+
+- Durable state lives in files and databases here — not in your context.
+  Record work in bd issues; record knowledge as wiki cards.
+- Do NOT answer research questions from parametric memory. Retrieve from
+  `wiki/` and cite `[[wikilinks]]`; verify claims with `magi verify`.
+- Syntax for any command: `magi <command> --help`. Overview: `magi --help`.
+- The wiki_* skills teach when/why to run each pipeline (ingest, compile,
+  enrich, link, lint, ask, audit, research).
+"""
+    safe_write(topic_path / "CLAUDE.md", protocol, args.force)
+    safe_write(topic_path / "AGENTS.md", protocol, args.force)
+
     print(f"Workspace initialized successfully at: {topic_path}")
 
 if __name__ == "__main__":

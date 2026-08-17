@@ -85,24 +85,22 @@ ollama pull qwen3-embedding:0.6b
 
 ## 3. Deployment
 
-The installer copies `skills/` and `bin/` **side by side** into a target directory, along with `requirements.txt`, `.env.example` and `config.yaml`. Each skill locates its helper scripts relative to itself, so **any** target works — just pick the directory your AI tool scans for skills:
+With the CLI installed (see 2.1), skills are thin documents teaching agents **when/why** to call `magi`, distributed per host:
 
-| AI tool | Typical target |
-|---|---|
-| Claude Code | `~/.claude` (user-global) or `<project>/.claude` |
-| Gemini / Antigravity | `<project>/.agents` or `~/.gemini` |
-
-### Windows
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\install.ps1                    # prompts for the target, or: .\install.ps1 -Target <dir>
-```
-
-### Linux / macOS
+### Claude Code (recommended: plugin)
 ```bash
-bash install.sh                  # prompts for the target
-bash install.sh ~/.claude        # or pass it non-interactively
+claude plugin marketplace add Misaka16384/magi
+claude plugin install magi
 ```
+Or local dev mode: `claude plugin install <repo-dir>`.
+
+### Codex and other Agent Plugins 1.0 hosts
+The repo root ships an Agent Plugins 1.0 `plugin.json`; point your host's plugin install flow at this repository.
+
+### Gemini / Antigravity
+Copy (or link) this repo's `skills/` directory to `<project>/.agents/skills/`.
+
+> Every host shares the same `skills/*/SKILL.md` files; script paths are gone — skills invoke the `magi` command on PATH directly.
 
 ---
 

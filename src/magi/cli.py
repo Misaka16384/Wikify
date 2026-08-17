@@ -30,6 +30,10 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("hub", "register"): ("magi.kb.llmwiki", ["archive", "register"], "Register an existing topic in the hub"),
     ("sync",): ("magi.sync", [], "Workspace onboarding: sync ratio + three-core status"),
     ("migrate",): ("magi.migrate", [], "Migrate a pre-magi (Wikify) workspace"),
+    # work state (Beads bridge)
+    ("pm", "init"): ("magi.pm", ["init"], "Initialize beads with research issue types"),
+    ("pm", "status"): ("magi.pm", ["status"], "Beads availability + issue counts"),
+    ("pm", "backlog-sync"): ("magi.pm", ["backlog-sync"], "Uncompiled raw sources -> bd issues"),
     # ingestion
     ("ingest", "add"): ("magi.ingest.helper", [], "Normalize + file an inbox document into raw/"),
     ("ingest", "assemble"): ("magi.ingest.assemble", [], "Stitch per-page transcriptions into one document"),
@@ -71,6 +75,7 @@ _GROUP_HELP = {
     "wiki": "Concept and reference card operations",
     "graph": "SQLite knowledge graph",
     "math": "LaTeX math formatting and validation",
+    "pm": "Work-state bridge to Beads (bd)",
     "tags": "Tag ontology normalization",
 }
 

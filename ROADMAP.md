@@ -74,14 +74,15 @@ magi radar ...               # M3
 - [ ] README 安装节更新（完整重写可推后）
 - [ ] 本地文件夹改名 `gemini-wiki-skills` → `magi`（**会话结束时做**，进程占用工作目录）
 
-### M1 — Beads + workspace 协议（→ 可实际使用）
+### M1 — Beads + workspace 协议（✅ 完成，可实际使用）
 
-- [ ] bd 安装检测 + `magi hub init` 里 `bd init` + 科研 issue types 配置
-- [ ] `magi sync` 实装：同步率计算 + 三核（Melchior/Balthasar/Casper）状态输出
-- [ ] `magi init` 生成 workspace 级 CLAUDE.md / AGENTS.md（指令：先跑 `magi sync`）
-- [ ] Claude Code SessionStart hook（薄壳 plugin 内）
-- [ ] skills 中 log.md 写入点接 bd（log.md 降级为人读叙事）
-- [ ] `detect_uncompiled` 输出 → bd issues
+- [x] bd 1.2.2 已装（`~/.local/bin/bd.exe`）；`magi pm init` 幂等初始化 beads + 六个科研 issue types（已实测 `bd types` 生效）
+- [x] `magi sync` 实装：同步率（Melchior 0.7·graph 新鲜度+0.3·backlog；Balthasar 0.6·db 可达+0.4·status 可读；Casper 离线不计入分母）+ 三核输出 + 可执行 hints
+- [x] `magi init` 生成 workspace 级 CLAUDE.md / AGENTS.md（同体，含三核说明和 ground rules）
+- [x] Claude Code SessionStart hook（`hooks/hooks.json` → `magi sync`）
+- [x] 6 个生成型 skills 插入 "Task Tracking (Beads)" 节；wiki_init/wiki_hub_init 增加 `magi pm init` 步骤
+- [x] `magi pm backlog-sync`：uncompiled 源 → bd issues（label `magi-compile`，幂等）
+- 备注：`bd ready --json` / `bd status --json` 为 sync 的数据源；beads 库开在 hub 级（决策 D4）
 
 ### M2 — 检索层
 

@@ -19,4 +19,7 @@ When the user asks to initialize, configure, or set up a new wiki in a folder:
 3.  **Register in Hub (Auto)**: If this topic was created inside an existing hub — i.e., some ancestor directory contains both `wikis.json` and a `topics/` folder — you **MUST** register it so the hub router and `wiki_hub_manager` can resolve it. Run the idempotent registration command:
     `magi hub register --hub <hub_path> <slug> --description "<Topic Title>"`
     where `<slug>` is the topic folder name (e.g. the final path segment) and `<hub_path>` is the hub root. This is safe to re-run. **Skip this step only** for standalone (non-hub) wikis where no ancestor hub exists.
+4.  Work-state setup: if this topic lives inside a hub, ensure beads is provisioned at the hub root:
+    `magi pm init` (idempotent; configures research issue types question/survey/derivation/computation/experiment/review).
+    `magi init` also generates `CLAUDE.md`/`AGENTS.md` at the workspace root — the agent entry protocol; do not delete them.
 
