@@ -3,8 +3,10 @@
 The sync ratio is a deterministic workspace-health score, not vibes:
 
 - MELCHIOR (epistemic state / the wiki):
-    0.7 · graph freshness (graph.db mtime >= newest wiki/*.md mtime)
-  + 0.3 · backlog health  (max(0, 1 - uncompiled/10))
+    0.55 · graph freshness (graph.db mtime >= newest wiki/*.md mtime)
+  + 0.25 · backlog health  (max(0, 1 - uncompiled/10))
+  + 0.20 · claim health    (verified claims / total claims; 1.0 when no
+           claims exist yet — absence of claims is not a defect)
 - BALTHASAR (work state / Beads):
     0.6 · beads database reachable
   + 0.4 · bd status summary readable
@@ -68,13 +70,30 @@ def melchior_status(topic: Path) -> dict:
         backlog = 0
     backlog_health = max(0.0, 1.0 - backlog / 10.0)
 
+    claims_total = claims_verified = 0
+    if graph_db.is_file():
+        import sqlite3
+
+        try:
+            conn = sqlite3.connect(graph_db)
+            row = conn.execute(
+                "SELECT COUNT(*), SUM(CASE WHEN status IN ('verified','web-verified') "
+                "THEN 1 ELSE 0 END) FROM claims").fetchone()
+            claims_total, claims_verified = row[0] or 0, row[1] or 0
+            conn.close()
+        except sqlite3.Error:
+            pass
+    claim_health = (claims_verified / claims_total) if claims_total else 1.0
+
     return {
         "concepts": concepts,
         "references": references,
         "topics": topics_n,
         "graph": graph_state,
         "backlog": backlog,
-        "score": round(0.7 * freshness + 0.3 * backlog_health, 3),
+        "claims": claims_total,
+        "claims_verified": claims_verified,
+        "score": round(0.55 * freshness + 0.25 * backlog_health + 0.20 * claim_health, 3),
     }
 
 
@@ -139,6 +158,10 @@ def build_report(cwd: Path | None = None) -> dict:
             hints.append("magi graph build   # refresh the knowledge graph")
         if m["backlog"] > 0:
             hints.append("magi pm backlog-sync && bd ready   # uncompiled sources -> tracked tasks")
+        if m.get("claims") and m["claims_verified"] < m["claims"]:
+            n_unv = m["claims"] - m["claims_verified"]
+            hints.append(f"claims: {n_unv} unverified — inspect with magi graph query "
+                         "\"SELECT text, status FROM claims WHERE status NOT IN ('verified','web-verified')\"")
 
     b = balthasar_status(topic)
     cores["balthasar"] = b
@@ -201,7 +224,9 @@ def main(argv: list[str] | None = None) -> int:
     print(header)
     if report["workspace"]:
         m = report["cores"]["melchior"]
-        print(f"|- MELCHIOR  (knowledge)  {m['concepts']} concepts · {m['references']} refs · graph {m['graph']} · backlog {m['backlog']}")
+        claims_part = (f" · claims {m['claims_verified']}/{m['claims']} verified"
+                       if m.get("claims") else "")
+        print(f"|- MELCHIOR  (knowledge)  {m['concepts']} concepts · {m['references']} refs · graph {m['graph']} · backlog {m['backlog']}{claims_part}")
     else:
         print("|- MELCHIOR  (knowledge)  no topic workspace here — run 'magi init' in a topic directory")
     b = report["cores"]["balthasar"]

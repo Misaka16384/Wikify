@@ -105,11 +105,13 @@ magi radar ...               # M3
 - [x] config.yaml `radar:` 段（组内四分类 + 四篇 2026 种子已填）；`magi init` 生成 workspace 级起始 config.yaml
 - 备注：OpenAlex 引用扩展留待功能 B（需要用户注册的 API key）；S2 未用 key，量级内免费额度够用
 
-### M4 — Claim/Provenance 层
+### M4 — Claim/Provenance 层（✅ 完成）
 
-- [ ] verify_claims v2：JSON 输出、空白归一化模糊匹配、web source 真实抓取
-- [ ] graph.db 增 claims/evidence 表 + 新 edge types + claim markdown 落地约定
-- [ ] wiki_research / wiki_audit 产出落库
+- [x] `magi verify` v2：`--json`、空白归一化匹配（OCR/重排漂移免疫）、`--fetch-web` 真实抓取比对（状态：verified / web-verified / url-format-ok / unverified，均已实测）
+- [x] claim markdown 落地约定：输出文档内 `<!-- magi:claims ... -->` HTML 注释块（Obsidian 渲染零污染）
+- [x] graph.db：claims + evidence 表；claim 是一等节点（type='claim'）；新 edge types `has_claim` / `supported_by`；全量重建模式不变
+- [x] `magi sync` Melchior 加 claim 维度（0.55 新鲜度 + 0.25 backlog + 0.20 claim 验证率；无 claim 记中性 1.0）+ 未验证 claim 提示
+- [x] wiki_research / wiki_audit：verify 步骤加 `--json`/`--fetch-web` 说明 + 输出文档嵌入 claims 块的指引
 
 ### M5 — Radar 功能 B（依赖 M4）
 

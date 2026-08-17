@@ -49,7 +49,8 @@ When the user asks to perform an audit or truth check on their vault:
 
 3.  **Verify Citations (MANDATORY)**:
     *   Save all subagent outputs to `scratch/temp_claims.txt`.
-    *   Run `magi verify scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>"` (blocks opened with either `CLAIM:` or `FINDING:` are accepted)
+    *   Run `magi verify scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>" --json` (blocks opened with either `CLAIM:` or `FINDING:` are accepted)
+        (add `--fetch-web` when web sources must be content-verified rather than format-checked)
     *   Discard any finding that is reported as `[UNVERIFIED]`. Log discarded findings separately.
 
 4.  **Synthesize**: Merge the verified findings into a structured investigation report (Thesis).
@@ -69,6 +70,19 @@ When the user asks to perform an audit or truth check on their vault:
         summary: "<1-2 sentence summary of findings>"
         ---
         ```
+    *   **Persist provenance**: after verification, embed the verified claim blocks into the output document as an HTML comment so the knowledge graph ingests them on the next `magi graph build`:
+
+        ```
+        <!-- magi:claims
+        CLAIM: <claim text>
+        EVIDENCE: "<quote>"
+        SOURCE_TYPE: local_wiki|web
+        SOURCE: <path or URL>
+        STATUS: <verified|web-verified|url-format-ok|unverified>
+        -->
+        ```
+
+        One entry per claim, statuses copied from `magi verify --json` output. Claims become graph nodes (`has_claim` / `supported_by` edges), queryable via `magi graph query "SELECT * FROM claims WHERE status != 'verified'"`.
     *   **Post-Write Validation (MANDATORY)**: Run:
         `magi validate "<thesis_file>" --schema thesis --wiki-root "<TOPIC_DIR>"`
         If validation fails, fix the reported issues before proceeding.

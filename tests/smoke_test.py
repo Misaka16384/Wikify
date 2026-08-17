@@ -164,6 +164,40 @@ def main() -> int:
         rrep = json.loads(rs.stdout)
         assert rrep["seen_total"] == 0 and rrep["pending_digests"] == [], "fresh workspace radar not clean"
 
+        # 10. M4: claims/provenance — magi:claims block -> graph tables; verify v2
+        theses = topic / "wiki" / "theses"
+        theses.mkdir(parents=True, exist_ok=True)
+        (theses / "smoke-thesis.md").write_text(
+            "---\ntitle: Smoke Thesis\ntype: thesis\n---\n\n# Smoke Thesis\n\nBody.\n\n"
+            "<!-- magi:claims\n"
+            "CLAIM: the paper reports a key result\n"
+            'EVIDENCE: "The key   result is X."\n'
+            "SOURCE_TYPE: local_wiki\n"
+            "SOURCE: wiki/references/smoke-paper.md\n"
+            "STATUS: verified\n"
+            "-->\n",
+            encoding="utf-8",
+        )
+        run(["graph", "build", str(topic)], cwd=topic)
+        cq = run(["graph", "query",
+                  "SELECT COUNT(*) AS n FROM claims", "--db", str(topic / "output" / "graph.db")], cwd=topic)
+        assert '"n": 1' in cq.stdout, f"claims table expected 1 row: {cq.stdout}"
+        eq = run(["graph", "query",
+                  "SELECT COUNT(*) AS n FROM edges WHERE type='supported_by'",
+                  "--db", str(topic / "output" / "graph.db")], cwd=topic)
+        assert '"n": 1' in eq.stdout, "supported_by edge missing"
+        claims2 = sandbox / "claims2.txt"
+        claims2.write_text(
+            "CLAIM: whitespace-normalized quotes verify\n"
+            'EVIDENCE: "The key   result   is X."\n'
+            "SOURCE_TYPE: local_wiki\n"
+            "SOURCE: wiki/references/smoke-paper.md\n",
+            encoding="utf-8",
+        )
+        vr = run(["verify", str(claims2), "--topic-dir", str(topic), "--json"], cwd=topic)
+        vrep = json.loads(vr.stdout)
+        assert vrep["results"][0]["status"] == "verified", f"normalized match failed: {vrep}"
+
         print("\nALL SMOKE TESTS PASSED")
         return 0
     finally:

@@ -47,8 +47,9 @@ When the user asks to research a topic:
     *   Wait for all subagents to report back. If any subagent fails, log the failure and proceed with available results.
     *   Save all reported findings exactly as returned into a temporary file: `scratch/temp_claims.txt`.
     *   Run the verification script to automatically check the citations:
-        `magi verify scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>"`
+        `magi verify scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>" --json`
         (`magi verify` accepts both `FINDING:` and `CLAIM:` block openers, so the subagent output contract above is valid as-is.)
+        (add `--fetch-web` when web sources must be content-verified rather than format-checked)
     *   Only use `[VERIFIED]` claims in your final synthesis. Collect `[UNVERIFIED]` findings separately.
 
 4.  **Synthesize Findings**:
@@ -72,6 +73,20 @@ When the user asks to research a topic:
         ---
         ```
     *   If `[UNVERIFIED]` findings exist, include them under a clearly marked `## Unverified Claims` section at the end. Do NOT mix unverified claims into the main body.
+
+- **Persist provenance**: after verification, embed the verified claim blocks into the output document as an HTML comment so the knowledge graph ingests them on the next `magi graph build`:
+
+  ```
+  <!-- magi:claims
+  CLAIM: <claim text>
+  EVIDENCE: "<quote>"
+  SOURCE_TYPE: local_wiki|web
+  SOURCE: <path or URL>
+  STATUS: <verified|web-verified|url-format-ok|unverified>
+  -->
+  ```
+
+  One entry per claim, statuses copied from `magi verify --json` output. Claims become graph nodes (`has_claim` / `supported_by` edges), queryable via `magi graph query "SELECT * FROM claims WHERE status != 'verified'"`.
 
 5.  **Post-Write Validation (MANDATORY)**:
     *   Run: `magi validate "<output_file>" --schema research --wiki-root "<TOPIC_DIR>"`

@@ -2493,14 +2493,29 @@ def run_graph(args: argparse.Namespace) -> int:
             alias TEXT,
             UNIQUE(node_id, alias)
         );
+        CREATE TABLE IF NOT EXISTS claims (
+            id TEXT PRIMARY KEY,
+            doc_id TEXT,
+            text TEXT,
+            status TEXT
+        );
+        CREATE TABLE IF NOT EXISTS evidence (
+            claim_id TEXT,
+            source_type TEXT,
+            source TEXT,
+            quote TEXT,
+            UNIQUE(claim_id, source_type, source, quote)
+        );
         """)
-        
+
         # Clear existing data to do a full rebuild
         cursor.executescript("""
         DELETE FROM nodes;
         DELETE FROM edges;
         DELETE FROM tags;
         DELETE FROM aliases;
+        DELETE FROM claims;
+        DELETE FROM evidence;
         """)
         
         # Collect all data for batch insert
@@ -2508,6 +2523,8 @@ def run_graph(args: argparse.Namespace) -> int:
         edge_rows: list[tuple] = []
         tag_rows: list[tuple] = []
         alias_rows: list[tuple] = []
+        claim_rows: list[tuple] = []
+        evidence_rows: list[tuple] = []
         
         for md_file in sorted(wiki_dir.rglob("*.md")):
             if md_file.name == "_index.md" or ".backup" in md_file.parts:
@@ -2560,7 +2577,32 @@ def run_graph(args: argparse.Namespace) -> int:
             for link in links:
                 target_id = link.replace(" ", "_")
                 edge_rows.append((node_id, target_id, "wikilink"))
-        
+
+            # Provenance: parse <!-- magi:claims ... --> blocks into
+            # first-class claim nodes with has_claim / supported_by edges.
+            for claims_block in re.findall(r"<!--\s*magi:claims\s*\n(.*?)-->", body, re.DOTALL):
+                from magi.kb.verify_claims import parse_blocks as parse_claim_blocks
+
+                for cb in parse_claim_blocks(claims_block):
+                    claim_text = cb.get("claim")
+                    if not claim_text:
+                        continue
+                    claim_id = "claim:" + hashlib.sha1(
+                        f"{node_id}|{claim_text}".encode("utf-8")).hexdigest()[:12]
+                    status = (cb.get("status") or "unverified").lower()
+                    claim_rows.append((claim_id, node_id, claim_text, status))
+                    node_rows.append((claim_id, str(rel).replace("\\", "/"), claim_text[:120],
+                                      "claim", "claim", claim_text, "", ""))
+                    edge_rows.append((node_id, claim_id, "has_claim"))
+                    src_type = (cb.get("source_type") or "").lower()
+                    src = cb.get("source") or ""
+                    quote = cb.get("evidence") or ""
+                    if src:
+                        evidence_rows.append((claim_id, src_type, src, quote))
+                        if src_type == "local_wiki":
+                            src_node = src.replace("\\", "/").removesuffix(".md")
+                            edge_rows.append((claim_id, src_node, "supported_by"))
+
         # Batch insert for performance
         cursor.executemany(
             "INSERT OR REPLACE INTO nodes (id, path, title, type, category, summary, created, updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -2569,6 +2611,12 @@ def run_graph(args: argparse.Namespace) -> int:
         cursor.executemany("INSERT OR IGNORE INTO tags (node_id, tag) VALUES (?, ?)", tag_rows)
         cursor.executemany("INSERT OR IGNORE INTO aliases (node_id, alias) VALUES (?, ?)", alias_rows)
         cursor.executemany("INSERT OR IGNORE INTO edges (source_id, target_id, type) VALUES (?, ?, ?)", edge_rows)
+        cursor.executemany(
+            "INSERT OR REPLACE INTO claims (id, doc_id, text, status) VALUES (?, ?, ?, ?)",
+            claim_rows)
+        cursor.executemany(
+            "INSERT OR IGNORE INTO evidence (claim_id, source_type, source, quote) VALUES (?, ?, ?, ?)",
+            evidence_rows)
         
         # Insert tags as nodes and create has_tag edges
         cursor.executescript("""
@@ -2583,7 +2631,8 @@ def run_graph(args: argparse.Namespace) -> int:
         
         conn.commit()
     
-    print(f"Indexed {len(node_rows)} nodes and {len(edge_rows)} edges.")
+    print(f"Indexed {len(node_rows)} nodes and {len(edge_rows)} edges"
+          + (f" ({len(claim_rows)} claims)." if claim_rows else "."))
     return 0
 
 
