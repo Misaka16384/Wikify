@@ -158,6 +158,14 @@ def build_report(cwd: Path | None = None) -> dict:
             hints.append("magi index   # build the retrieval index")
         elif c["state"] == "stale":
             hints.append("magi index   # refresh the retrieval index")
+        digest_dir = topic / "inbox" / "radar"
+        if digest_dir.is_dir():
+            pending = sum(
+                1 for p in digest_dir.glob("*-digest.md")
+                if "status: pending-review" in p.read_text(encoding="utf-8", errors="replace")
+            )
+            if pending:
+                hints.append(f"radar: {pending} digest(s) pending — run the radar_review skill")
     else:
         cores["casper"] = {"state": "offline", "note": "no workspace", "score": None}
 

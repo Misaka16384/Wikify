@@ -159,6 +159,11 @@ def main() -> int:
         else:
             print("[SKIP] Ollama not reachable — vector search steps skipped")
 
+        # 9. M3: radar status (harvest itself needs network — not in smoke)
+        rs = run(["radar", "status", "--topic-dir", str(topic), "--json"], cwd=topic)
+        rrep = json.loads(rs.stdout)
+        assert rrep["seen_total"] == 0 and rrep["pending_digests"] == [], "fresh workspace radar not clean"
+
         print("\nALL SMOKE TESTS PASSED")
         return 0
     finally:

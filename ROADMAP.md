@@ -95,12 +95,15 @@ magi radar ...               # M3
 - [ ] macOS 冒烟（sqlite extension 加载验证）— 需在 mac 机器上跑 `tests/smoke_test.py`
 - 发现：本机已有 `dengcao/Qwen3-Reranker-0.6B` Ollama 模型，将来给 search 加重排是现成弹药
 
-### M3 — Radar 功能 A
+### M3 — Radar 功能 A（✅ 完成）
 
-- [ ] `magi radar fingerprint`（graph.db 中心性 + references 卡种子 + DOI/S2 ID 解析回写 frontmatter）
-- [ ] `magi radar harvest`（S2 推荐 ∪ arXiv 新文 ∪ OpenAlex 引用扩展，去重台账）
-- [ ] `magi radar install-schedule`（Task Scheduler / launchd）
-- [ ] `/radar_review` skill：triage → digest（inbox/radar/）+ bd issues → 现有 ingestion 闭环
+- [x] fingerprint：config 种子 + wiki/references 里的 arXiv ID 自动并入（≤50 seeds）；DOI/Crossref 解析推迟到功能 B 需要时
+- [x] `magi radar harvest`：S2 Recommendations（多种子，留一半配额）∪ arXiv 新文（1req/3s 礼貌限速，7 天窗口）→ `output/radar/seen.jsonl` 累积台账去重 → `candidates.jsonl` + `inbox/radar/日期-digest.md`（已用组内真种子实测：40 条高度对口的 2026 候选）
+- [x] `magi radar status [--json]`；pending digest 提示接入 `magi sync`
+- [x] `magi radar install-schedule`：Windows schtasks 已做创建→查询→删除往返验证；macOS launchd plist 生成（待 mac 实测）
+- [x] `radar_review` skill：读 digest → `magi search` 对照 wiki 评分 → read-now/relevant/skip 三分类 → bd survey issues（防重复）→ digest 标记 reviewed
+- [x] config.yaml `radar:` 段（组内四分类 + 四篇 2026 种子已填）；`magi init` 生成 workspace 级起始 config.yaml
+- 备注：OpenAlex 引用扩展留待功能 B（需要用户注册的 API key）；S2 未用 key，量级内免费额度够用
 
 ### M4 — Claim/Provenance 层
 

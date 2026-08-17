@@ -66,6 +66,10 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("search",): ("magi.retrieval", ["search"], "Hybrid BM25+vector search (RRF fusion)"),
     ("grep",): ("magi.kb.grep", [], "Regex search over given files"),
     ("link",): ("magi.kb.semantic_link", [], "Embedding-based concept linking and dedup"),
+    # literature radar
+    ("radar", "harvest"): ("magi.radar", ["harvest"], "Fetch + dedupe new paper candidates"),
+    ("radar", "status"): ("magi.radar", ["status"], "Radar ledger + pending digests"),
+    ("radar", "install-schedule"): ("magi.radar", ["install-schedule"], "Register a daily harvest job"),
     # tags
     ("tags", "extract"): ("magi.kb.tag_reducer", ["extract"], "Extract tag/alias inverted index"),
     ("tags", "apply"): ("magi.kb.tag_reducer", ["apply"], "Apply a canonical tag/alias mapping"),
@@ -78,6 +82,7 @@ _GROUP_HELP = {
     "graph": "SQLite knowledge graph",
     "math": "LaTeX math formatting and validation",
     "pm": "Work-state bridge to Beads (bd)",
+    "radar": "Literature radar (scheduled discovery)",
     "tags": "Tag ontology normalization",
 }
 

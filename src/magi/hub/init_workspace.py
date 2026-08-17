@@ -167,6 +167,34 @@ environment. Scope: {args.scope}
     safe_write(topic_path / "CLAUDE.md", protocol, args.force)
     safe_write(topic_path / "AGENTS.md", protocol, args.force)
 
+    # 7. Starter config.yaml (workspace-level; wins over ~/.config/magi/)
+    config_yaml = """# MAGI workspace configuration (discovered by upward walk from cwd)
+ollama:
+  base_url: "http://127.0.0.1:11434"
+models:
+  ocr: "glm-ocr"
+  embedding: "qwen3-embedding:0.6b"
+ocr:
+  mineru_api_token: ""
+  use_mineru: false
+  timeout: 180
+  dpi: 130
+semantic_link:
+  threshold: 0.75
+  merge_threshold: 0.85
+  auto_merge_threshold: 0.95
+
+# Literature radar (magi radar harvest)
+radar:
+  arxiv_categories:
+    - cond-mat.str-el
+    - hep-th
+  seed_arxiv_ids: []   # e.g. ["2606.25340"]; library arXiv IDs auto-merge in
+  days: 7
+  max_candidates: 40
+"""
+    safe_write(topic_path / "config.yaml", config_yaml, args.force)
+
     print(f"Workspace initialized successfully at: {topic_path}")
 
 if __name__ == "__main__":
