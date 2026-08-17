@@ -1726,7 +1726,9 @@ def initialized_wiki_root(path: Path) -> bool:
 def resolve_hub(args: argparse.Namespace) -> Path:
     if args.hub:
         return expand_leading_tilde(str(args.hub))
-    config = get_home_directory() / ".config" / "llm-wiki" / "config.json"
+    config = get_home_directory() / ".config" / "magi" / "config.json"
+    if not config.exists():  # legacy pre-magi location
+        config = get_home_directory() / ".config" / "llm-wiki" / "config.json"
     if config.exists():
         try:
             data = json.loads(config.read_text(encoding="utf-8"))

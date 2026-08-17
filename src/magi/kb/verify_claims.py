@@ -10,17 +10,18 @@ def verify_claims(filepath, topic_dir):
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read().replace('\r\n', '\n')
 
-    # Parse blocks of claims
-    blocks = re.split(r'\n(?=CLAIM:)', content.strip())
-    
+    # Parse blocks of claims. Both CLAIM: (wiki_audit) and FINDING:
+    # (wiki_research) open a block — the two skills share this verifier.
+    blocks = re.split(r'\n(?=(?:CLAIM|FINDING):)', content.strip())
+
     verified_count = 0
     unverified_count = 0
 
     print("=== Verification Report ===")
     for block in blocks:
         if not block.strip(): continue
-        
-        claim_match = re.search(r'CLAIM:\s*(.*)', block, re.IGNORECASE)
+
+        claim_match = re.search(r'(?:CLAIM|FINDING):\s*(.*)', block, re.IGNORECASE)
         evidence_match = re.search(r'^EVIDENCE:\s*(.*?)(?=\n^(?:CLAIM|SOURCE_TYPE|SOURCE|CONTRADICTS_SOURCE|SEVERITY|FINDING):|\Z)', block, re.IGNORECASE | re.MULTILINE | re.DOTALL)
         source_type_match = re.search(r'SOURCE_TYPE:\s*(.*)', block, re.IGNORECASE)
         source_match = re.search(r'SOURCE:\s*(.*)', block, re.IGNORECASE)
@@ -87,14 +88,14 @@ def verify_claims(filepath, topic_dir):
     print(f"Total Unverified: {unverified_count}")
     return unverified_count
 
-def main():
-    parser = argparse.ArgumentParser(description="Verify claims extracted by Subagents")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi verify", description="Verify claims extracted by Subagents")
     parser.add_argument("claims_file", help="Path to text file containing claims")
     parser.add_argument("--topic-dir", required=True, help="Topic workspace directory")
-    args = parser.parse_args()
-    
+    args = parser.parse_args(argv)
+
     failures = verify_claims(args.claims_file, args.topic_dir)
-    sys.exit(1 if failures else 0)
+    return 1 if failures else 0
 
 if __name__ == "__main__":
     main()

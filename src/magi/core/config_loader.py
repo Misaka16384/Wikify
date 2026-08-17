@@ -95,24 +95,17 @@ def _set_dotted(d: dict, dotted_key: str, value: Any) -> None:
 
 
 def _find_config_yaml(start: Optional[str] = None) -> Optional[Path]:
-    """Walk upward from *start* looking for ``config.yaml``.
+    """Locate the effective ``config.yaml``.
 
-    Search order:
-      1. *start* directory itself
-      2. Parent directories up to 3 levels
+    Delegates to :func:`magi.core.workspace.find_config_yaml`: upward walk
+    from *start* (default: cwd) so workspace-/hub-level configs win, then
+    the user config dir ``~/.config/magi/config.yaml``. The historic
+    walk-up-from-``bin/`` behavior is gone — installed packages have no
+    meaningful ``__file__`` ancestry.
     """
-    if start is None:
-        start = str(Path(__file__).parent)  # bin/
+    from magi.core.workspace import find_config_yaml
 
-    current = Path(start).resolve()
-    for _ in range(4):  # self + 3 parents
-        candidate = current / "config.yaml"
-        if candidate.is_file():
-            return candidate
-        if current.parent == current:
-            break
-        current = current.parent
-    return None
+    return find_config_yaml(start)
 
 
 # ---------------------------------------------------------------------------

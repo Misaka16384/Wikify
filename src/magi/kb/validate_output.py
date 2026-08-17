@@ -11,7 +11,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from wiki_common import split_frontmatter_text, parse_frontmatter_text
+from magi.core.wiki_common import split_frontmatter_text, parse_frontmatter_text
 
 SCHEMAS = {"thesis", "research", "enrichment-log"}
 
@@ -160,20 +160,15 @@ def validate_enrichment_log(file_path: Path, fm: dict[str, str], body: str, wiki
 
 
 def find_wiki_root(file_path: Path) -> Path:
-    """Walk up from file_path to find a directory containing wiki/ and raw/."""
-    current = file_path.parent
-    for _ in range(10):
-        if (current / "wiki").is_dir() or (current / "raw").is_dir():
-            return current
-        if current.parent == current:
-            break
-        current = current.parent
-    return file_path.parent
+    """Nearest topic workspace root for *file_path* (unified discovery)."""
+    from magi.core.workspace import find_workspace_root
+
+    return find_workspace_root(file_path) or file_path.parent
 
 
-def main() -> int:
+def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
-        prog="validate-output",
+        prog="magi validate",
         description="Validate LLM-generated wiki output files against structural schemas.",
     )
     parser.add_argument("file", help="Markdown file to validate.")
@@ -184,7 +179,7 @@ def main() -> int:
         help="Schema to validate against.",
     )
     parser.add_argument("--wiki-root", help="Wiki root path (auto-detected if omitted).")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     file_path = Path(args.file).resolve()
     if not file_path.exists():
