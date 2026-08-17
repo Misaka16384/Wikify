@@ -9,18 +9,14 @@ from datetime import datetime
 import requests
 import yaml
 
-# Add bin/ directory to path for config_loader
-_bin_dir = os.path.dirname(os.path.abspath(__file__))
-if _bin_dir not in sys.path:
-    sys.path.insert(0, _bin_dir)
-from config_loader import load_config, get as cfg_get
-from wiki_common import atomic_write
+from magi.core.config_loader import load_config, get as cfg_get
+from magi.core.wiki_common import atomic_write
 
-def main():
-    parser = argparse.ArgumentParser(description="Convert PDF to Markdown using MinerU Cloud API.")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi ingest mineru", description="Convert PDF to Markdown using MinerU Cloud API.")
     parser.add_argument("input_path", help="Path to the .pdf file.")
     parser.add_argument("-o", "--output_dir", required=True, help="Output directory for the raw Markdown file.")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     input_path = args.input_path
     output_dir = args.output_dir
@@ -224,4 +220,4 @@ def main():
     print(f"Successfully converted and saved to {output_path}")
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

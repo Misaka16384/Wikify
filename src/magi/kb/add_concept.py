@@ -5,7 +5,7 @@ import datetime
 import re
 import difflib
 from filelock import FileLock
-from wiki_common import slugify, atomic_write
+from magi.core.wiki_common import slugify, atomic_write
 
 
 def normalize_slug(s):
@@ -61,14 +61,14 @@ def resolve_source(topic_dir, source_arg):
                     
     return source_arg, source_arg
 
-def main():
-    parser = argparse.ArgumentParser(description="Safely add or append concept definitions.")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi wiki add-concept", description="Safely add or append concept definitions.")
     parser.add_argument("--name", required=True, help="Name of the concept")
     parser.add_argument("--source", required=True, help="Source paper/document")
     parser.add_argument("--content", required=True, help="Content/Perspective to append")
     parser.add_argument("--topic-dir", default=".", help="Topic directory")
     parser.add_argument("--no-rebuild", action="store_true", help="Bypass automatic database/index rebuild")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # slugify the concept name (Unicode-aware; supports CJK / accented names)
     slug = slugify(args.name)
@@ -83,7 +83,7 @@ def main():
     canonical_slug = slug
     canonical_file = os.path.join(concepts_dir, f"{slug}.md")
     
-    from wiki_common import parse_frontmatter, split_frontmatter_text, parse_frontmatter_text
+    from magi.core.wiki_common import parse_frontmatter, split_frontmatter_text, parse_frontmatter_text
     
     if os.path.exists(concepts_dir):
         for filename in os.listdir(concepts_dir):
@@ -220,10 +220,9 @@ summary: 'Dynamically mined concept tracking {args.name}.'
             # Update knowledge graph and indexes automatically
             import subprocess
             print("Triggering graph database and index updates...")
-            agents_bin = os.path.dirname(os.path.abspath(__file__))
             try:
-                subprocess.run([sys.executable, os.path.join(agents_bin, "llm-wiki.py"), "graph", args.topic_dir], check=True)
-                subprocess.run([sys.executable, os.path.join(agents_bin, "index_builder.py"), args.topic_dir], check=True)
+                subprocess.run([sys.executable, "-m", "magi", "graph", "build", args.topic_dir], check=True)
+                subprocess.run([sys.executable, "-m", "magi", "wiki", "reindex", args.topic_dir], check=True)
                 print("Successfully updated graph.db and _index.md files.")
             except Exception as e:
                 print(f"Warning: Failed to update graph database or indexes: {e}")
@@ -236,4 +235,4 @@ summary: 'Dynamically mined concept tracking {args.name}.'
         print(f"Warning: lock cleanup failed: {e}", file=sys.stderr)
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

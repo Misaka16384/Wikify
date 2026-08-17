@@ -2,7 +2,7 @@ import os
 import sys
 import argparse
 import re
-from wiki_common import slugify, parse_frontmatter, split_frontmatter_text
+from magi.core.wiki_common import slugify, parse_frontmatter, split_frontmatter_text
 
 
 def build_alias_pattern(aliases):
@@ -103,13 +103,13 @@ def extract_concept_context(concept_name, topic_dir):
     print(f"Extracted context saved to {output_file}")
     print(f"Total referencing sources found: {len(results)}")
 
-def main():
-    parser = argparse.ArgumentParser(description="Extract surrounding context for a concept from all papers")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi wiki context", description="Extract surrounding context for a concept from all papers")
     parser.add_argument("--name", required=True, help="Concept Name")
     parser.add_argument("--topic-dir", required=True, help="Topic directory")
-    args = parser.parse_args()
-    
+    args = parser.parse_args(argv)
+
     extract_concept_context(args.name, args.topic_dir)
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

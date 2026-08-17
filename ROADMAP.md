@@ -59,16 +59,18 @@ magi radar ...               # M3
 
 - [x] GitHub repo 改名 `Wikify` → `magi`，remote 更新，分支 `magi-rebuild`
 - [x] ROADMAP.md 落地（本文件）
-- [ ] pyproject.toml + `src/magi/` 骨架 + `magi` entry point（uv 可装）
-- [ ] `core/`：wiki_common、config_loader 收编；**新增统一 `find_workspace_root()`**（合并 llm-wiki.py:1848 resolve_wiki_root / validate-output.py:162 find_wiki_root / config_loader 三套）
-- [ ] 25 个 bin 脚本收编为模块 + cli 注册（保留各自 argparse main，dispatcher 转发；兄弟脚本 subprocess 调用改 `python -m magi`）
-- [ ] semantic_linker.py 从 skills/ 收编进包（`magi link`）
-- [ ] **修 bug**：verify_claims.py 兼容 `FINDING:`/`CLAIM:` 两种块（wiki_research 产出与解析器不一致）
-- [ ] pandoc-crossref.exe：查找顺序改 config → PATH → 仓库 vendor 目录（跨平台）
-- [ ] 16 个 SKILL.md 重写：删路径推导 prose，命令改 `magi ...`，语法引导到 `--help`
-- [ ] 宿主薄壳：`.claude-plugin/plugin.json` + `marketplace.json`；Agent Plugins 1.0 `plugin.json`；`.agents/skills` 安装说明
-- [ ] 清理 `.agents/` 历史运行残留；install.ps1/install.sh 退役
-- [ ] 冒烟测试：沙盒 workspace 走 init → ingest add → lint → graph build → graph query 全链
+- [x] pyproject.toml + `src/magi/` 骨架 + `magi` entry point（`.venv` editable 安装验证通过）
+- [x] `core/`：wiki_common、config_loader 收编；统一 workspace 发现落在 `core/workspace.py`（config_loader 和 validate_output 已接入；llmwiki 的 resolve_wiki_root 保留原逻辑，后续清理时接入）
+- [x] 25 个 bin 脚本 git mv 收编（100% 相似度 rename，历史干净）；样板转换完成 4 个（verify_claims/config_loader/validate_output/llmwiki）
+- [ ] 其余 ~20 模块转换（imports/main(argv)/subprocess 重写）— workflow `magi-module-conversion` 进行中
+- [x] semantic_linker.py 从 skills/ 收编进包（`magi link` 注册）
+- [x] **修 bug**：verify_claims 现兼容 `FINDING:`/`CLAIM:` 双格式（已实测）
+- [x] pandoc-crossref.exe 移至 `vendor/windows/`；tex2md 查找顺序 env → config → PATH（转换 agent 落实）
+- [ ] 15 个 SKILL.md 重写 — workflow `magi-skills-rewrite` 进行中
+- [x] 宿主薄壳：`.claude-plugin/plugin.json` + `marketplace.json` + Agent Plugins 1.0 `plugin.json`
+- [x] install.ps1/install.sh/requirements.txt 退役（依赖归入 pyproject）
+- [ ] `.agents/`、`output/` 历史残留删除 —— **权限分类器拦截递归删除，需用户手动删**（均已 gitignore，无害）
+- [ ] 冒烟测试：沙盒 workspace 走 init → lint → graph build → graph query 全链
 - [ ] README 安装节更新（完整重写可推后）
 - [ ] 本地文件夹改名 `gemini-wiki-skills` → `magi`（**会话结束时做**，进程占用工作目录）
 

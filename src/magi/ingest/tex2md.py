@@ -10,11 +10,7 @@ import yaml
 from datetime import datetime
 from pathlib import Path
 
-# Add bin/ directory to path for config_loader
-_bin_dir = os.path.dirname(os.path.abspath(__file__))
-if _bin_dir not in sys.path:
-    sys.path.insert(0, _bin_dir)
-from config_loader import load_config, get as cfg_get
+from magi.core.config_loader import load_config, get as cfg_get
 
 def extract_title(tex_content):
     match = re.search(r'\\title\{([^}]+)\}', tex_content)
@@ -155,11 +151,11 @@ def handle_figures(md_content, tex_content, tex_dir, output_dir, slug):
     return img_re.sub(repl, md_content), stats["ok"], stats["missing"]
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Convert TeX/arXiv tar.gz to Markdown using Pandoc.")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi ingest tex", description="Convert TeX/arXiv tar.gz to Markdown using Pandoc.")
     parser.add_argument("input_path", help="Path to the .tex or .tar.gz file.")
     parser.add_argument("-o", "--output_dir", required=True, help="Output directory for the raw Markdown file.")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     input_path = args.input_path
     output_dir = args.output_dir
@@ -234,23 +230,17 @@ def main():
 
     temp_md_path = output_path + ".tmp"
 
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    pandoc_crossref_path = os.path.join(script_dir, "pandoc-crossref.exe")
-
     import shutil
 
     # Load unified config for tool paths
     _cfg = load_config()
 
-    # 查找 pandoc-crossref：环境变量 > 统一配置 > PATH > 脚本目录
+    # 查找 pandoc-crossref：环境变量 > 统一配置 > PATH
     pandoc_crossref_exec = os.environ.get("PANDOC_CROSSREF_PATH")
     if not pandoc_crossref_exec or not os.path.exists(pandoc_crossref_exec):
         pandoc_crossref_exec = cfg_get(_cfg, "tools.pandoc_crossref_path", "") or None
     if not pandoc_crossref_exec or not os.path.exists(pandoc_crossref_exec):
         pandoc_crossref_exec = shutil.which("pandoc-crossref")
-    if not pandoc_crossref_exec:
-        if os.path.exists(pandoc_crossref_path):
-            pandoc_crossref_exec = pandoc_crossref_path
 
     # 查找 pandoc：环境变量 > 统一配置 > PATH > LOCALAPPDATA
     pandoc_exec = os.environ.get("PANDOC_PATH")
@@ -278,7 +268,7 @@ def main():
         cmd.insert(2, "--filter")
         cmd.insert(3, pandoc_crossref_exec)
     else:
-        print("Warning: pandoc-crossref not found. Cross-references may not render correctly.")
+        print("Warning: pandoc-crossref not found. Cross-references may not render correctly. Set tools.pandoc_crossref_path in config.yaml or add pandoc-crossref to PATH.")
     if bib_arg:
         cmd.extend(["--bibliography", bib_path])
     
@@ -320,4 +310,4 @@ def main():
             temp_dir_obj.cleanup()
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

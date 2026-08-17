@@ -3,7 +3,7 @@ import sys
 import datetime
 import glob
 import argparse
-from wiki_common import parse_frontmatter
+from magi.core.wiki_common import parse_frontmatter
 
 def extract_frontmatter(filepath):
     try:
@@ -81,10 +81,10 @@ Last updated: {today}
         f.write(index_content)
     print(f"Built index: {index_path}")
 
-def main():
-    parser = argparse.ArgumentParser(description="Build index files for wiki directories")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi wiki reindex", description="Build index files for wiki directories")
     parser.add_argument("topic_dir", help="Topic directory path")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     
     wiki_dir = os.path.join(args.topic_dir, "wiki")
     
@@ -95,4 +95,4 @@ def main():
     build_index_for_dir(concepts_dir, "Concepts")
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

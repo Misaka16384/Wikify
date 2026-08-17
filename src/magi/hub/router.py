@@ -2,6 +2,7 @@ import sys
 import json
 import os
 import re
+import argparse
 from pathlib import Path
 
 def wash_windows_path(path_str: str) -> str:
@@ -72,16 +73,17 @@ def resolve_registry_path(raw_path: str, hub: Path) -> Path:
         return path
     return hub / path
 
-def main():
-    if len(sys.argv) != 3:
-        print("Usage: python router.py <path_to_hub> <slug>", file=sys.stderr)
-        sys.exit(1)
-        
-    raw_hub_path = sys.argv[1]
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi hub resolve", description="Resolve a topic slug to its workspace path")
+    parser.add_argument("hub_path", metavar="path_to_hub", help="Path to the hub directory")
+    parser.add_argument("slug", help="Topic slug to resolve")
+    args = parser.parse_args(argv)
+
+    raw_hub_path = args.hub_path
     if os.name == "nt":
         raw_hub_path = wash_windows_path(raw_hub_path)
     hub_path = Path(raw_hub_path).resolve()
-    slug = sys.argv[2]
+    slug = args.slug
     
     registry_path = hub_path / "wikis.json"
     if not registry_path.exists():
@@ -116,4 +118,4 @@ def main():
     print(str(topic_path))
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

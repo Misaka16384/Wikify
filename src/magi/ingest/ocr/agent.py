@@ -3,11 +3,11 @@ PDF to Markdown Agent
 学术论文 PDF 转 Markdown 的主程序
 
 使用方法:
-    python agent.py <pdf_path> [output_dir]
+    magi ingest ocr <pdf_path> [-o output_dir]
 
 示例:
-    python agent.py paper.pdf
-    python agent.py paper.pdf ./output
+    magi ingest ocr paper.pdf
+    magi ingest ocr paper.pdf -o ./output
 """
 
 import os
@@ -20,16 +20,12 @@ from datetime import datetime
 from typing import Optional, List
 from dataclasses import dataclass
 
-# 添加当前目录和 bin/ 目录到 path
-sys.path.insert(0, str(Path(__file__).parent))
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from pdf_processor import PDFProcessor, PDFPage
-from ocr_engine import OCREngine, OCRResult
-from image_handler import ImageHandler, ExtractedImage
-from markdown_builder import MarkdownBuilder, MarkdownCleaner
-from figure_extractor import extract_figures, inject_figures
-from config_loader import load_config, get as cfg_get
+from magi.ingest.ocr.pdf_processor import PDFProcessor, PDFPage
+from magi.ingest.ocr.ocr_engine import OCREngine, OCRResult
+from magi.ingest.ocr.image_handler import ImageHandler, ExtractedImage
+from magi.ingest.ocr.markdown_builder import MarkdownBuilder, MarkdownCleaner
+from magi.ingest.ocr.figure_extractor import extract_figures, inject_figures
+from magi.core.config_loader import load_config, get as cfg_get
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
@@ -364,9 +360,10 @@ class PDF2MarkdownAgent:
         console.print(table)
 
 
-def main():
+def main(argv=None):
     """主函数"""
     parser = argparse.ArgumentParser(
+        prog="magi ingest ocr",
         description="PDF 转 Markdown Agent - 将学术论文 PDF 转换为 Markdown 格式"
     )
     parser.add_argument(
@@ -389,7 +386,7 @@ def main():
         default=None
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # 创建 Agent
     agent = PDF2MarkdownAgent(config_path=args.config)
@@ -407,12 +404,13 @@ def main():
         console.print(f"  图片目录: {result.images_dir}")
         if result.errors:
             console.print(f"\n[yellow]警告: 有 {len(result.errors)} 个错误[/yellow]")
+        return 0
     else:
         console.print("\n[bold red]✗ 转换失败[/bold red]")
         for error in result.errors:
             console.print(f"  - {error}")
-        sys.exit(1)
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

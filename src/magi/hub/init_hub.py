@@ -1,14 +1,15 @@
 import sys
 import json
+import argparse
 from pathlib import Path
 import datetime
 
-def main():
-    if len(sys.argv) != 2:
-        print("Usage: python hub-init.py <path_to_hub>")
-        sys.exit(1)
-    
-    hub_path = Path(sys.argv[1]).resolve()
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi hub init", description="Initialize a central wiki hub")
+    parser.add_argument("hub_path", metavar="path_to_hub", help="Path to the hub directory")
+    args = parser.parse_args(argv)
+
+    hub_path = Path(args.hub_path).resolve()
     
     # Create directories
     topics_dir = hub_path / "topics"
@@ -50,4 +51,4 @@ def main():
     print(f"Hub successfully initialized at {hub_path}")
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

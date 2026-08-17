@@ -4,22 +4,16 @@
 Outputs a newline-separated list of relative paths of uncompiled source files.
 """
 
-import os
 import sys
 import argparse
 from pathlib import Path
 
-try:
-    from wiki_common import parse_frontmatter, slugify
-except ImportError:
-    # Fallback to local import if run from elsewhere
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from wiki_common import parse_frontmatter, slugify
+from magi.core.wiki_common import parse_frontmatter, slugify
 
-def main():
-    parser = argparse.ArgumentParser(description="Detect uncompiled source files.")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi wiki uncompiled", description="Detect uncompiled source files.")
     parser.add_argument("--topic-dir", default=".", help="Topic directory path (default: current directory)")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     topic_path = Path(args.topic_dir).resolve()
     raw_dir = topic_path / "raw"
@@ -99,4 +93,4 @@ def main():
         print(path)
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

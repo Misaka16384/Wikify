@@ -1,12 +1,9 @@
+import argparse
 import os
 import re
 import sys
 
-try:
-    from wiki_common import atomic_write
-except ImportError:
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from wiki_common import atomic_write
+from magi.core.wiki_common import atomic_write
 
 
 def fix_ocr_math_artifacts(math_content):
@@ -315,15 +312,19 @@ def process_directory(directory):
                 file_path = os.path.join(root, file)
                 process_file(file_path)
 
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Usage: python format_math.py <TOPIC_DIR_OR_FILE>")
-        sys.exit(1)
-    target = sys.argv[1]
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi math format", description="Auto-fix LaTeX delimiter/escaping issues in markdown files.")
+    parser.add_argument("target", help="Topic directory or markdown file to format")
+    args = parser.parse_args(argv)
+    target = args.target
     if not os.path.exists(target):
         print(f"Path not found: {target}")
-        sys.exit(1)
+        return 1
     if os.path.isdir(target):
         process_directory(target)
     else:
         process_file(target)
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())

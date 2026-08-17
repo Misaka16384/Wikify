@@ -2,7 +2,7 @@
 """Search for regex patterns or keywords within markdown files (Python replacement for grep).
 
 Usage:
-    python .agents/bin/search-wiki.py "query" file1.md file2.md
+    magi grep "query" file1.md file2.md
 """
 import argparse
 import json
@@ -13,12 +13,12 @@ from pathlib import Path
 
 MAX_RESULTS = 200
 
-def main():
-    parser = argparse.ArgumentParser(description="Search for regex patterns in files.")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi grep", description="Search for regex patterns in files.")
     parser.add_argument("query", help="Regex pattern to search for.")
     parser.add_argument("files", nargs="+", help="Files to search.")
     parser.add_argument("-i", "--ignore-case", action="store_true", help="Ignore case.")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     flags = re.IGNORECASE if args.ignore_case else 0
     try:
@@ -57,4 +57,4 @@ def main():
     print(json.dumps({"matches": results}, indent=2))
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

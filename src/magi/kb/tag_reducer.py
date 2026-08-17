@@ -4,7 +4,7 @@ import json
 import argparse
 from pathlib import Path
 from collections import Counter
-from wiki_common import parse_frontmatter_text
+from magi.core.wiki_common import parse_frontmatter_text
 
 
 # NOTE: This local splitter is intentionally kept (not delegated to
@@ -164,16 +164,15 @@ def cmd_apply(topic_dir: Path, tag_map_path: Path, alias_map_path: Path, no_rebu
         # Update knowledge graph and indexes automatically
         import subprocess
         print("Triggering graph database and index updates...")
-        agents_bin = Path(__file__).parent
         try:
-            subprocess.run([sys.executable, str(agents_bin / "llm-wiki.py"), "graph", str(topic_dir)], check=True)
-            subprocess.run([sys.executable, str(agents_bin / "index_builder.py"), str(topic_dir)], check=True)
+            subprocess.run([sys.executable, "-m", "magi", "graph", "build", str(topic_dir)], check=True)
+            subprocess.run([sys.executable, "-m", "magi", "wiki", "reindex", str(topic_dir)], check=True)
             print("Successfully updated graph.db and _index.md files.")
         except Exception as e:
             print(f"Warning: Failed to update graph database or indexes: {e}")
 
-def main():
-    parser = argparse.ArgumentParser(description="Wiki Tag and Alias Reducer")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi tags", description="Wiki Tag and Alias Reducer")
     subparsers = parser.add_subparsers(dest="command", required=True)
     
     parser_ext = subparsers.add_parser("extract")
@@ -185,8 +184,8 @@ def main():
     parser_app.add_argument("alias_map", help="Path to alias_mapping.json")
     parser_app.add_argument("--no-rebuild", action="store_true", help="Bypass automatic database/index rebuild")
     
-    args = parser.parse_args()
-    
+    args = parser.parse_args(argv)
+
     topic_dir = Path(args.topic_dir).resolve()
     
     if args.command == "extract":
@@ -195,4 +194,4 @@ def main():
         cmd_apply(topic_dir, Path(args.tag_map), Path(args.alias_map), no_rebuild=args.no_rebuild)
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -2,7 +2,7 @@
 """Execute SQL queries against the wiki SQLite graph database.
 
 Usage:
-    python .agents/bin/query-graph.py "SELECT * FROM nodes LIMIT 5" [--db output/graph.db]
+    magi graph query "SELECT * FROM nodes LIMIT 5" [--db output/graph.db]
 """
 import argparse
 import json
@@ -10,15 +10,15 @@ import sqlite3
 import sys
 from pathlib import Path
 
-def main():
-    parser = argparse.ArgumentParser(description="Query the wiki knowledge graph.")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi graph query", description="Query the wiki knowledge graph.")
     parser.add_argument("query", help="SQL query to execute.")
     parser.add_argument("--db", default="output/graph.db", help="Path to the SQLite database (default: output/graph.db).")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     db_path = Path(args.db).resolve()
     if not db_path.exists():
-        print(json.dumps({"error": f"Database not found at {db_path}. Please run 'python .agents/bin/llm-wiki.py graph' first."}))
+        print(json.dumps({"error": f"Database not found at {db_path}. Please run 'magi graph build' first."}))
         sys.exit(1)
 
     try:
@@ -46,4 +46,4 @@ def main():
             conn.close()
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

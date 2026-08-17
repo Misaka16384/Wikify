@@ -7,13 +7,7 @@ commands:
 
 # LLM Wiki — Tag & Alias Sync Skill (wiki_tag_sync)
 
-> **Resolving script paths (read first):** Commands below invoke scripts as `<BIN>/X.py` (and a few as `<SKILLS>/...`). Resolve these to **absolute paths once** before running anything:
->
-> - `<SKILL_DIR>` = the directory this `SKILL.md` lives in.
-> - `<SKILLS>` = the `skills/` folder containing this skill = `<SKILL_DIR>/..`
-> - `<BIN>` = the `bin/` folder beside it = `<SKILL_DIR>/../../bin`
->
-> Do **not** hardcode a fixed prefix like `.agents/bin` or `../bin`: shell relative paths resolve against the current working directory (usually the topic root), not this skill's location. Once resolved, `<BIN>` is typically `.agents/bin` when invoked from the hub root, or `.claude/bin` from inside a topic directory.
+> **CLI (read first):** This skill drives the `magi` CLI (MAGI research workspace tool, assumed installed on PATH). If unsure of your surroundings, run `magi sync` first to locate the workspace. For the full syntax of any command: `magi <command> --help`.
 
 This skill resolves the "vocabulary fragmentation" problem. Over time, different agents might invent slightly different tags or aliases for the exact same physical/mathematical concept (e.g., `qca`, `quantum-cellular-automata`, `clifford-qca`). This skill acts as a Map-Reduce pipeline to canonicalize them.
 
@@ -22,8 +16,8 @@ This skill resolves the "vocabulary fragmentation" problem. Over time, different
 When the user asks to sync, reduce, deduplicate, or normalize tags and aliases:
 
 ### 1. Map Phase (Extraction)
-*   **Action**: Run the deterministic python extractor to gather all unique metadata.
-    `python <BIN>/tag_reducer.py extract <TOPIC_DIR>`
+*   **Action**: Run the deterministic extractor to gather all unique metadata.
+    `magi tags extract <TOPIC_DIR>`
 *   **Result**: This will silently generate two statistical inverted index files:
     1. `<TOPIC_DIR>/scratch/raw_tags.json`
     2. `<TOPIC_DIR>/scratch/raw_aliases.json`
@@ -56,9 +50,9 @@ When the user asks to sync, reduce, deduplicate, or normalize tags and aliases:
     *Note: You only need to include tags/aliases in the mapping JSON if they are actually being changed. You do not need to map a tag to itself.*
 
 ### 3. Apply Phase (Global Replacement)
-*   **Action**: Run the python apply script to rewrite the frontmatter of all affected Markdown files safely:
-    `python <BIN>/tag_reducer.py apply <TOPIC_DIR> <TOPIC_DIR>/scratch/tag_mapping.json <TOPIC_DIR>/scratch/alias_mapping.json`
-*   **Result**: The script will update the YAML frontmatter across the vault, generate a final `wiki/ontology.txt` file containing the canonical whitelisted tags, and **automatically rebuild the SQLite knowledge graph (`output/graph.db`) and Markdown indexes**.
+*   **Action**: Run the apply command to rewrite the frontmatter of all affected Markdown files safely:
+    `magi tags apply <TOPIC_DIR> <TOPIC_DIR>/scratch/tag_mapping.json <TOPIC_DIR>/scratch/alias_mapping.json`
+*   **Result**: The command will update the YAML frontmatter across the vault, generate a final `wiki/ontology.txt` file containing the canonical whitelisted tags, and **automatically rebuild the SQLite knowledge graph (`output/graph.db`) and Markdown indexes**.
 
 ### 4. Semantic Linker Integration (Optional but Recommended)
 *   After applying the new tags, ask the user if they want to re-run the `wiki_semantic_link` skill, as the newly normalized tags and aliases will now provide a massive accuracy boost to the semantic similarity engine.

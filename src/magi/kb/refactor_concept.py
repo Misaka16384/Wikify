@@ -6,11 +6,7 @@ import sys
 import yaml
 from datetime import datetime
 
-try:
-    from wiki_common import atomic_write, slugify
-except ImportError:
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from wiki_common import atomic_write, slugify
+from magi.core.wiki_common import atomic_write, slugify
 
 
 def extract_frontmatter(content):
@@ -78,14 +74,14 @@ def merge_concept_files(old_path, new_path, old_name):
     print(f"Physically merged content from {old_name} into {os.path.basename(new_path)}")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Refactor and merge concept links across the wiki")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi wiki refactor-concept", description="Refactor and merge concept links across the wiki")
     parser.add_argument("--topic-dir", required=True, help="Topic workspace directory")
     parser.add_argument("--old", required=True, help="Old concept name")
     parser.add_argument("--new", required=True, help="New concept name")
     parser.add_argument("--no-rebuild", action="store_true", help="Bypass automatic database/index rebuild")
     
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     wiki_dir = os.path.join(args.topic_dir, "wiki")
     concepts_dir = os.path.join(wiki_dir, "concepts")
     
@@ -162,13 +158,12 @@ def main():
         # Update knowledge graph and indexes automatically
         import subprocess
         print("Triggering graph database and index updates...")
-        agents_bin = os.path.dirname(os.path.abspath(__file__))
         try:
-            subprocess.run([sys.executable, os.path.join(agents_bin, "llm-wiki.py"), "graph", args.topic_dir], check=True)
-            subprocess.run([sys.executable, os.path.join(agents_bin, "index_builder.py"), args.topic_dir], check=True)
+            subprocess.run([sys.executable, "-m", "magi", "graph", "build", args.topic_dir], check=True)
+            subprocess.run([sys.executable, "-m", "magi", "wiki", "reindex", args.topic_dir], check=True)
             print("Successfully updated graph.db and _index.md files.")
         except Exception as e:
             print(f"Warning: Failed to update graph database or indexes: {e}")
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

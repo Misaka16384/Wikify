@@ -14,14 +14,10 @@ import sqlite3
 from sklearn.metrics.pairwise import cosine_similarity
 from pathlib import Path
 
-# Add bin/ directory to path for config_loader
-_bin_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "bin")
-if _bin_dir not in sys.path:
-    sys.path.insert(0, _bin_dir)
-from config_loader import load_config, get as cfg_get
+from magi.core.config_loader import load_config, get as cfg_get
 
-def setup_argparse():
-    parser = argparse.ArgumentParser(description="Wiki Semantic Linker using Ollama")
+def setup_argparse(argv=None):
+    parser = argparse.ArgumentParser(prog="magi link", description="Wiki Semantic Linker using Ollama")
     parser.add_argument("topic_dir", help="Path to the root of the topic wiki (containing wiki/concepts/)")
     parser.add_argument("--threshold", type=float, default=None, help="Cosine similarity threshold for linking (default: from config.yaml)")
     parser.add_argument("--merge-threshold", type=float, default=None, help="Cosine similarity threshold for merge suggestions (default: from config.yaml)")
@@ -31,7 +27,7 @@ def setup_argparse():
     parser.add_argument("--update-cache-only", action="store_true", help="Only update the embedding cache and exit. Skips all similarity calculations.")
     parser.add_argument("--model", type=str, default=None, help="Ollama embedding model to use (default: from config.yaml)")
     parser.add_argument("--ollama-url", type=str, default=None, help="Ollama API endpoint (default: from config.yaml)")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # Resolve defaults from unified config
     cfg = load_config()
@@ -202,8 +198,8 @@ def sync_semantic_links(filepath, target_links):
         
     return len(added), len(removed)
 
-def main():
-    args = setup_argparse()
+def main(argv=None):
+    args = setup_argparse(argv)
     topic_dir = os.path.abspath(args.topic_dir)
     concepts_dir = os.path.join(topic_dir, "wiki", "concepts")
     
@@ -430,10 +426,6 @@ def main():
     #    away we skip any further pair that references it (its file is gone).
     merged_away = set()
     if args.auto_merge:
-        refactor_script = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-            "bin", "refactor_concept.py"
-        )
         for score, i, j, boost_reason in sorted(merge_pairs, key=lambda p: p[0], reverse=True):
             if score < args.auto_merge_threshold:
                 continue
@@ -448,7 +440,7 @@ def main():
 
             print(f"  [AUTO-MERGING] {old} -> {canonical}")
             result = subprocess.run(
-                [sys.executable, refactor_script, "--topic-dir", topic_dir, "--old", old, "--new", canonical]
+                [sys.executable, "-m", "magi", "wiki", "refactor-concept", "--topic-dir", topic_dir, "--old", old, "--new", canonical]
             )
             if result.returncode == 0:
                 merged_away.add(old)
@@ -498,4 +490,4 @@ def main():
         print(f"[Success] Synchronized semantic links. Added {total_added}, removed {total_removed}.")
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

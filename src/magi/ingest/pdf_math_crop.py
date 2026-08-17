@@ -87,15 +87,18 @@ def extract_crop(pdf_path, search_text, output_path, expand_margin=150, page_num
         print(f"Error rendering crop: {e}")
         return False
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Crop a region of a PDF containing specific text. Useful for multimodal LLM agents to view complex math/diagrams.")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi ingest crop", description="Crop a region of a PDF containing specific text. Useful for multimodal LLM agents to view complex math/diagrams.")
     parser.add_argument("pdf_path", help="Path to the PDF file")
     parser.add_argument("--text", default=None, help="Text to search for. Omit to render the whole --page (useful for scanned PDFs with no text layer).")
     parser.add_argument("--out", default="crop.png", help="Output PNG path")
     parser.add_argument("--margin", type=int, default=150, help="Margin to expand around the text (pts, default: 150)")
     parser.add_argument("--page", type=int, default=None, help="0-indexed page number to search within")
-    
-    args = parser.parse_args()
-    
+
+    args = parser.parse_args(argv)
+
     ok = extract_crop(args.pdf_path, args.text, args.out, args.margin, args.page)
-    sys.exit(0 if ok else 1)
+    return 0 if ok else 1
+
+if __name__ == "__main__":
+    sys.exit(main())

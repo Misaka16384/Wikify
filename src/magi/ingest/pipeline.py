@@ -18,8 +18,8 @@ def run_cmd(cmd_list):
         print(result.stdout.strip())
     return True
 
-def main():
-    parser = argparse.ArgumentParser(description="Wiki Ingest Post-Processing Pipeline")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi ingest finalize", description="Wiki Ingest Post-Processing Pipeline")
     parser.add_argument("original_file", help="Path to the original file (e.g. PDF in inbox/). Pass 'none' if not applicable.")
     parser.add_argument("--topic-dir", required=True, help="Topic workspace directory")
     parser.add_argument("--log-msg", required=False, help="Message to append to log.md")
@@ -27,8 +27,8 @@ def main():
     parser.add_argument("--skip-lint", action="store_true", help="Skip the global lint and index operations")
     parser.add_argument("--lint-only", action="store_true", help="Only run the global lint and index operations")
     
-    args = parser.parse_args()
-    
+    args = parser.parse_args(argv)
+
     topic_dir = args.topic_dir
     original_file = args.original_file
     
@@ -52,8 +52,6 @@ def main():
             except Exception as e:
                 print(f"Failed to move file to .processed: {e}")
                 
-    bin_dir = os.path.dirname(os.path.abspath(__file__))
-    
     if not args.lint_only:
         # Fix YAML frontmatter syntax (unescaped backslashes in source, and empty tags)
         if args.md_file and os.path.isfile(args.md_file):
@@ -112,26 +110,22 @@ def main():
 
         # 2. Format math formulas
         target_path = args.md_file if args.md_file else topic_dir
-        format_math_script = os.path.join(bin_dir, "format_math.py")
-        if not run_cmd([sys.executable, format_math_script, target_path]):
-            print("Warning: format_math.py failed, continuing...", file=sys.stderr)
-            
-        validate_math_script = os.path.join(bin_dir, "validate_math_latex.py")
-        if not run_cmd([sys.executable, validate_math_script, target_path]):
-            print("Warning: validate_math_latex.py failed or found errors, continuing...", file=sys.stderr)
-    
+        if not run_cmd([sys.executable, "-m", "magi", "math", "format", target_path]):
+            print("Warning: 'magi math format' failed, continuing...", file=sys.stderr)
+
+        if not run_cmd([sys.executable, "-m", "magi", "math", "check", target_path]):
+            print("Warning: 'magi math check' failed or found errors, continuing...", file=sys.stderr)
+
     if not args.skip_lint:
         # 3. Lint / Index update
-        lint_script = os.path.join(bin_dir, "llm-wiki.py")
-        if not run_cmd([sys.executable, lint_script, "lint", "--fix", topic_dir]):
-            print("Warning: llm-wiki.py lint failed", file=sys.stderr)
-            
-        if not run_cmd([sys.executable, lint_script, "graph", topic_dir]):
-            print("Warning: llm-wiki.py graph failed", file=sys.stderr)
-            
-        index_script = os.path.join(bin_dir, "index_builder.py")
-        if not run_cmd([sys.executable, index_script, topic_dir]):
-            print("Warning: index_builder.py failed", file=sys.stderr)
+        if not run_cmd([sys.executable, "-m", "magi", "lint", "--fix", topic_dir]):
+            print("Warning: 'magi lint' failed", file=sys.stderr)
+
+        if not run_cmd([sys.executable, "-m", "magi", "graph", "build", topic_dir]):
+            print("Warning: 'magi graph build' failed", file=sys.stderr)
+
+        if not run_cmd([sys.executable, "-m", "magi", "wiki", "reindex", topic_dir]):
+            print("Warning: 'magi wiki reindex' failed", file=sys.stderr)
     
     # 4. Log to log.md
     if args.log_msg:
@@ -145,4 +139,4 @@ def main():
             print(f"Failed to update log.md: {e}")
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -1,3 +1,4 @@
+import argparse
 import os
 import re
 import sys
@@ -352,15 +353,15 @@ def process_directory(directory):
         print(f"\nCompleted: All {total_files} files passed math validation cleanly.")
     return files_with_issues > 0
 
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("Usage: python validate_math_latex.py <TOPIC_DIR_OR_FILE>")
-        sys.exit(1)
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi math check", description="Detect LaTeX syntax errors in markdown math blocks.")
+    parser.add_argument("target", help="Topic directory or markdown file to validate")
+    args = parser.parse_args(argv)
 
-    target = sys.argv[1]
+    target = args.target
     if not os.path.exists(target):
         print(f"Path not found: {target}")
-        sys.exit(1)
+        return 1
 
     if os.path.isdir(target):
         had_errors = process_directory(target)
@@ -372,6 +373,9 @@ if __name__ == '__main__':
             print(f"Validating {os.path.basename(target)} using pylatexenc (structural only)...")
         else:
             print("Validation skipped (missing dependencies).")
-            sys.exit(0)
+            return 0
         had_errors = process_file(target, use_pdflatex=has_pdflatex)
-    sys.exit(1 if had_errors else 0)
+    return 1 if had_errors else 0
+
+if __name__ == '__main__':
+    sys.exit(main())

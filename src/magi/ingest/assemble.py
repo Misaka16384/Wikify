@@ -2,7 +2,6 @@
 """Stitch page-by-page OCR transcription txt/md files under a directory into a single markdown file.
 """
 
-import os
 import sys
 import re
 import argparse
@@ -14,11 +13,7 @@ try:
 except ImportError:
     yaml = None
 
-try:
-    from wiki_common import atomic_write
-except ImportError:
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from wiki_common import atomic_write
+from magi.core.wiki_common import atomic_write
 
 def extract_page_number(file_path: Path) -> int:
     filename = file_path.name
@@ -30,8 +25,8 @@ def extract_page_number(file_path: Path) -> int:
     nums = re.findall(r'\d+', filename)
     return int(nums[-1]) if nums else 999999  # Place files without numbers at the end
 
-def main():
-    parser = argparse.ArgumentParser(description="Assemble page-by-page transcriptions into a single markdown file.")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi ingest assemble", description="Assemble page-by-page transcriptions into a single markdown file.")
     parser.add_argument("--dir", required=True, help="Directory containing page transcription files")
     parser.add_argument("--out", required=True, help="Output markdown file path")
     parser.add_argument("--title", help="Title of the document (default: folder name)")
@@ -39,7 +34,7 @@ def main():
     parser.add_argument("--type", default="papers", help="Type of document (e.g. papers, articles)")
     parser.add_argument("--tags", default="assembled", help="Comma-separated list of tags")
     parser.add_argument("--summary", default="Assembled transcriptions.", help="Summary of the document")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     input_dir = Path(args.dir).resolve()
     if not input_dir.exists() or not input_dir.is_dir():
@@ -118,4 +113,4 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

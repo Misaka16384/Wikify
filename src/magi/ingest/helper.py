@@ -3,7 +3,6 @@
 injecting standard YAML frontmatter, slugifying filenames, and copying/moving them to raw/<type>/YYYY-MM-DD-<slug>.md.
 """
 
-import os
 import sys
 import re
 import argparse
@@ -16,11 +15,7 @@ try:
 except ImportError:
     yaml = None
 
-try:
-    from wiki_common import split_frontmatter_text, parse_frontmatter_text, slugify, atomic_write
-except ImportError:
-    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from wiki_common import split_frontmatter_text, parse_frontmatter_text, slugify, atomic_write
+from magi.core.wiki_common import split_frontmatter_text, parse_frontmatter_text, slugify, atomic_write
 
 def clean_title(title_str: str) -> str:
     # Remove surrounding quotes and strip whitespace
@@ -31,13 +26,13 @@ def clean_title(title_str: str) -> str:
         title_str = title_str[1:-1].strip()
     return title_str
 
-def main():
-    parser = argparse.ArgumentParser(description="Ingest source files into raw/ folder.")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi ingest add", description="Ingest source files into raw/ folder.")
     parser.add_argument("--file", required=True, help="Path to the source file to ingest")
     parser.add_argument("--type", required=True, help="Target raw subdirectory/type (e.g. papers, articles, notes)")
     parser.add_argument("--topic-dir", default=".", help="Topic directory path (default: current directory)")
     parser.add_argument("--move", action="store_true", help="Move the file instead of copying")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     input_file = Path(args.file).resolve()
     if not input_file.exists() or not input_file.is_file():
@@ -171,4 +166,4 @@ def main():
                 print(f"Warning: Failed to delete original file {input_file}: {e}", file=sys.stderr)
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -2731,6 +2731,10 @@ def build_parser() -> argparse.ArgumentParser:
     archive_sub = archive.add_subparsers(dest="archive_command", required=True)
 
     archive_list_parser = archive_sub.add_parser("list", help="List active and archived topics.")
+    # --hub is accepted on each leaf too: the magi dispatcher rewrites
+    # "magi hub list --hub X" to "archive list --hub X", where the
+    # parent-level flag is no longer reachable.
+    archive_list_parser.add_argument("--hub", help="Override hub path.")
     archive_list_parser.add_argument(
         "--archived",
         action="store_true",
@@ -2741,9 +2745,11 @@ def build_parser() -> argparse.ArgumentParser:
     archive_topic_parser = archive_sub.add_parser("topic", help="Archive an active topic wiki.")
     archive_topic_parser.add_argument("slug", help="Topic slug to archive.")
     archive_topic_parser.add_argument("--reason", help="Optional archive reason.")
+    archive_topic_parser.add_argument("--hub", help="Override hub path.")
 
     archive_restore_parser = archive_sub.add_parser("restore", help="Restore an archived topic wiki.")
     archive_restore_parser.add_argument("slug", help="Topic slug to restore.")
+    archive_restore_parser.add_argument("--hub", help="Override hub path.")
 
     archive_register_parser = archive_sub.add_parser(
         "register",
@@ -2755,6 +2761,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Registry-relative path to the topic (default: topics/<slug>).",
     )
     archive_register_parser.add_argument("--description", help="Optional topic description.")
+    archive_register_parser.add_argument("--hub", help="Override hub path.")
 
     archive.set_defaults(func=run_archive)
 

@@ -71,14 +71,14 @@ def chunk_markdown(filepath, topic_dir, max_lines=500):
     with _stats_lock:
         print(f"Generated {len(chunks)} chunks in {scratch_dir} for {file_slug} (PID: {pid})")
 
-def main():
-    parser = argparse.ArgumentParser(description="Chunk large markdown files")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi wiki chunk", description="Chunk large markdown files")
     parser.add_argument("filepath", help="Path to raw markdown file")
     parser.add_argument("--topic-dir", required=True, help="Topic directory")
     parser.add_argument("--max-lines", type=int, default=500, help="Max lines per chunk")
-    args = parser.parse_args()
-    
+    args = parser.parse_args(argv)
+
     chunk_markdown(args.filepath, args.topic_dir, args.max_lines)
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

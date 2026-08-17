@@ -38,11 +38,11 @@ def find_placeholders(filepath):
 
     return results
 
-def main():
-    parser = argparse.ArgumentParser(description="Find placeholders in a markdown file.")
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi wiki placeholders", description="Find placeholders in a markdown file.")
     parser.add_argument("file", help="Path to the markdown file")
     parser.add_argument("--json", action="store_true", help="Output in JSON format")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     results = find_placeholders(args.file)
 
@@ -58,4 +58,4 @@ def main():
             print(f"Line {res['line']} ({res['type']}): {res['text']}")
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
