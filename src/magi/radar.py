@@ -255,6 +255,162 @@ def cmd_harvest(args: argparse.Namespace) -> int:
     return 0
 
 
+# --------------------------------------------------------------------------
+# feature B: citation-gap scout ("should cite us but didn't")
+# --------------------------------------------------------------------------
+
+def _s2_paper_ids(payload_rows: list[dict], key: str) -> set[str]:
+    """Collect S2 paperIds (canonical) from citations/references rows."""
+    out: set[str] = set()
+    for row in payload_rows:
+        p = row.get(key) or {}
+        pid = p.get("paperId")
+        if pid:
+            out.add(pid)
+    return out
+
+
+def _s2_get(url: str, retries: int = 1) -> dict:
+    for attempt in range(retries + 1):
+        try:
+            return _http_json(url)
+        except Exception as exc:
+            if attempt < retries and "429" in str(exc):
+                time.sleep(5)
+                continue
+            raise
+    return {}
+
+
+def cmd_citation_gap(args: argparse.Namespace) -> int:
+    """Four-layer funnel per own paper P (precision over recall — this is
+    a SCOUT, its output is a human-review queue, not a verdict):
+      1. candidates = S2 recommendations seeded on P (semantic neighbors)
+      2. minus actual citers of P (S2 citations endpoint)
+      3. recency window (default: last 2 years)
+      4. co-citation signal: candidate shares >= min_shared references
+         with P (they cite what we cite, but not us)
+    Survivors go to inbox/radar/<date>-citation-gaps.md for LLM+human triage.
+    """
+    topic = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
+    if topic is None:
+        print("no workspace found", file=sys.stderr)
+        return 1
+    cfg = load_config()
+    own_ids = [str(s) for s in (cfg_get(cfg, "radar.own_arxiv_ids", None)
+                                or cfg_get(cfg, "radar.seed_arxiv_ids", None) or [])]
+    if args.paper:
+        own_ids = [args.paper]
+    if not own_ids:
+        print("no own papers configured (radar.own_arxiv_ids in config.yaml)", file=sys.stderr)
+        return 1
+    min_shared = int(cfg_get(cfg, "radar.citation_gap.min_shared_refs", 2))
+    years_back = int(cfg_get(cfg, "radar.citation_gap.years", 2))
+    year_cut = dt.date.today().year - years_back
+    base = "https://api.semanticscholar.org/graph/v1/paper"
+
+    findings: list[dict] = []
+    for own in own_ids:
+        pid = f"ArXiv:{own}"
+        try:
+            refs = _s2_get(f"{base}/{pid}/references?fields=paperId&limit=200")
+            time.sleep(1.1)
+            cits = _s2_get(f"{base}/{pid}/citations?fields=paperId&limit=500")
+            time.sleep(1.1)
+        except Exception as exc:
+            print(f"warning: S2 lookup failed for {own}: {exc}", file=sys.stderr)
+            continue
+        my_refs = _s2_paper_ids(refs.get("data", []) or [], "citedPaper")
+        citers = _s2_paper_ids(cits.get("data", []) or [], "citingPaper")
+        if not my_refs:
+            print(f"note: {own} has no reference data on S2 yet — skipping", file=sys.stderr)
+            continue
+
+        url = (f"https://api.semanticscholar.org/recommendations/v1/papers"
+               f"?fields=title,externalIds,abstract,year,url,paperId&limit=30")
+        try:
+            recs = _http_json(url, {"positivePaperIds": [pid]})
+            time.sleep(1.1)
+        except Exception as exc:
+            print(f"warning: recommendations failed for {own}: {exc}", file=sys.stderr)
+            continue
+
+        checked = 0
+        for cand in recs.get("recommendedPapers", []) or []:
+            cand_pid = cand.get("paperId")
+            if not cand_pid or cand_pid in citers:
+                continue  # layer 2: already cites us
+            if (cand.get("year") or 0) < year_cut:
+                continue  # layer 3: too old to act on
+            if checked >= 20:
+                break  # request-budget cap per own paper
+            checked += 1
+            try:
+                cand_refs = _s2_get(f"{base}/{cand_pid}/references?fields=paperId&limit=200")
+                time.sleep(1.1)
+            except Exception:
+                continue
+            shared = _s2_paper_ids(cand_refs.get("data", []) or [], "citedPaper") & my_refs
+            if len(shared) < min_shared:
+                continue  # layer 4: no co-citation signal
+            findings.append({
+                "own_paper": own,
+                "candidate_title": (cand.get("title") or "").strip(),
+                "candidate_arxiv": (cand.get("externalIds") or {}).get("ArXiv"),
+                "candidate_s2": cand_pid,
+                "year": cand.get("year"),
+                "shared_refs": len(shared),
+                "url": cand.get("url"),
+                "abstract": (cand.get("abstract") or "")[:800],
+            })
+
+    radar_dir = topic / "output" / "radar"
+    radar_dir.mkdir(parents=True, exist_ok=True)
+    (radar_dir / "citation-gaps.jsonl").write_text(
+        "".join(json.dumps(f, ensure_ascii=False) + "\n" for f in findings), encoding="utf-8")
+
+    today = dt.date.today().isoformat()
+    if findings:
+        digest_dir = topic / "inbox" / "radar"
+        digest_dir.mkdir(parents=True, exist_ok=True)
+        out = digest_dir / f"{today}-citation-gaps.md"
+        lines = [
+            "---",
+            f"title: \"Citation-gap scout {today}\"",
+            "type: citation-gap-report",
+            "status: pending-review",
+            f"candidates: {len(findings)}",
+            "---",
+            "",
+            f"# Citation-Gap Scout — {today}",
+            "",
+            "**This is a scout report, not a verdict.** Each candidate passed:",
+            "semantic-neighbor ∧ not-citing-us ∧ recent ∧ shares "
+            f">={min_shared} references with our paper. False positives are",
+            "expected (survey-citing, scope limits, independent lines). Triage",
+            "with the radar_review skill: judge the actual citation obligation",
+            "from both abstracts + our claim cards, then file `bd create -t review`",
+            "issues only for cases worth human follow-up.",
+            "",
+        ]
+        for f_ in findings:
+            lines.append(f"## {f_['candidate_title']}")
+            lines.append("")
+            lines.append(f"- should arguably cite: our arXiv:{f_['own_paper']}")
+            lines.append(f"- candidate: {f_['year']} · arXiv:{f_['candidate_arxiv'] or '?'} · "
+                         f"shared refs: {f_['shared_refs']}")
+            if f_.get("url"):
+                lines.append(f"- {f_['url']}")
+            if f_.get("abstract"):
+                lines.append(f"- abstract: {f_['abstract'][:400]}")
+            lines.append("")
+        out.write_text("\n".join(lines), encoding="utf-8")
+        print(f"citation-gap: {len(findings)} candidates -> {out}")
+    else:
+        print("citation-gap: no candidates survived the funnel")
+    return 0
+
+
 def cmd_status(args: argparse.Namespace) -> int:
     topic = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if topic is None:
@@ -335,6 +491,12 @@ def main(argv: list[str] | None = None) -> int:
     p_h.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
     p_h.add_argument("--days", type=int, help="arXiv recency window (default: config radar.days or 7)")
     p_h.set_defaults(func=cmd_harvest)
+
+    p_cg = sub.add_parser("citation-gap",
+                          help="Scout recent papers that arguably should cite ours but don't")
+    p_cg.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    p_cg.add_argument("--paper", help="Single own arXiv id (default: config radar.own_arxiv_ids)")
+    p_cg.set_defaults(func=cmd_citation_gap)
 
     p_s = sub.add_parser("status", help="Ledger size + pending digests")
     p_s.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")

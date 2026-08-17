@@ -113,9 +113,13 @@ magi radar ...               # M3
 - [x] `magi sync` Melchior 加 claim 维度（0.55 新鲜度 + 0.25 backlog + 0.20 claim 验证率；无 claim 记中性 1.0）+ 未验证 claim 提示
 - [x] wiki_research / wiki_audit：verify 步骤加 `--json`/`--fetch-web` 说明 + 输出文档嵌入 claims 块的指引
 
-### M5 — Radar 功能 B（依赖 M4）
+### M5 — Radar 功能 B（✅ 完成）
 
-- [ ] 四层漏斗实现 + bd citation-check 人审队列
+- [x] `magi radar citation-gap`：四层漏斗（S2 推荐近邻 − 实际引用者 ∩ 近 2 年 ∩ 共引 ≥2 篇）；**完全用 S2 免 key 端点实现，OpenAlex 依赖解除**
+- [x] 输出 `inbox/radar/日期-citation-gaps.md`（明示"侦察报告非判决"）+ `citation-gaps.jsonl`
+- [x] radar_review skill 增 citation-gap triage 节：判断真实引用义务 → `bd create -t review`，明确禁止自动起草 outreach
+- [x] config：`radar.own_arxiv_ids`（含 2401.00505）+ `citation_gap.min_shared_refs/years`
+- [x] live 实测（锚点 2401.00505）：30 推荐 → 4 幸存，含共享 13 篇参考文献的强信号候选
 
 ## 交接须知（给接手的 agent）
 

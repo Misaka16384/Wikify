@@ -30,6 +30,15 @@ The deterministic radar (`magi radar harvest`, usually run nightly by the schedu
 5. **Close out the digest**: edit its frontmatter `status: pending-review` → `status: reviewed`, and append a one-line summary at the top of the digest body: how many read-now / relevant / skip.
 6. **Report** to the user: counts per class, the read-now titles with one-line justifications, and the created bd issue ids.
 
+## Citation-Gap Reports (feature B)
+
+`magi radar citation-gap` produces `inbox/radar/YYYY-MM-DD-citation-gaps.md` — candidates that are semantic neighbors of OUR papers, recent, share references with us, yet do not cite us. **Treat this as a scout report with expected false positives.** For each candidate:
+
+1. Read both abstracts (ours and theirs) and, when available, our claim cards (`magi graph query "SELECT text FROM claims WHERE doc_id LIKE '%<our-paper-slug>%'"`).
+2. Judge the actual citation obligation: does their work *use or overlap* a specific result of ours, or is it merely nearby? Citing a survey instead of us, different sub-question, or independent methodology = NOT an obligation.
+3. Only for genuine obligations, file: `bd create -t review "Citation gap: arXiv:<their-id> vs our arXiv:<our-id>" -d "<the specific overlapping result + evidence>"`. These are for the human to decide what (if anything) to do — never draft outreach automatically.
+4. Mark the report frontmatter `status: reviewed` with a one-line tally.
+
 ## Quality Rules
 
 - Judge relevance against the *workspace's* research scope, not general interest — a brilliant paper outside scope is a **skip**.

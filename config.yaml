@@ -82,3 +82,15 @@ radar:
   days: 7
   # 单次 harvest 最多产出候选数
   max_candidates: 40
+  # 我方已发表论文（citation-gap 侦察的锚点；默认回退到 seed_arxiv_ids）
+  own_arxiv_ids:
+    - "2606.25340"
+    - "2606.03582"
+    - "2605.13379"
+    - "2601.01523"
+    - "2401.00505"   # Higher-Order Cellular Automata SPT, PRX Quantum 5 (2024)
+  citation_gap:
+    # 候选需与我方论文共享的最少参考文献数（共引信号）
+    min_shared_refs: 2
+    # 只看最近 N 年的论文
+    years: 2
