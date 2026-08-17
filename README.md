@@ -120,7 +120,7 @@ claude plugin install magi
 *   **处理待摄入文献**
     *   *面临场景*：您在主题工作区的 `inbox/` 目录下放置了待处理的原始学术论文（PDF 或 LaTeX 源码）。
     *   *直接输入斜杠命令与配置*：
-        *   **云端版面分析（强烈推荐，公式还原度极高）**：请先前往 [mineru.net](https://mineru.net) 官网注册并免费获取您的 MinerU API Token。将其填入您本地 Agent 目录下的 `config.yaml` 配置文件中：
+        *   **云端版面分析（强烈推荐，公式还原度极高）**：请先前往 [mineru.net](https://mineru.net) 官网注册并免费获取您的 MinerU API Token。将其填入 workspace 根目录的 `config.yaml`（由 `magi init` 自动生成；也可放在用户级 `~/.config/magi/config.yaml`）：
             ```yaml
             ocr:
               mineru_api_token: "您的_MINERU_API_TOKEN"

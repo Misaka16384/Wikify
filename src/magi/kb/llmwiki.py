@@ -2246,7 +2246,7 @@ def archive_topic(hub: Path, data: dict[str, Any], slug: str, reason: str | None
     print(f"Archived topic `{slug}`")
     print(f"Old path: {source}")
     print(f"New path: {dest}")
-    print(f"Restore with: llm-wiki archive --hub {hub} restore {slug}")
+    print(f"Restore with: magi hub restore {slug} --hub {hub}")
     return 0
 
 
@@ -2776,7 +2776,11 @@ def build_parser() -> argparse.ArgumentParser:
             "updating wikis.json so archived topics stay out of default context."
         ),
     )
-    archive.add_argument("--hub", help="Override hub path for archive operations.")
+    # NOTE: --hub deliberately lives ONLY on the leaf subparsers below. A
+    # parent-level --hub would be silently clobbered by the leaf's None
+    # default (argparse namespace behavior, verified on py3.10), so the
+    # old "archive --hub X list" form now fails loudly instead of
+    # operating on the wrong hub.
     archive_sub = archive.add_subparsers(dest="archive_command", required=True)
 
     archive_list_parser = archive_sub.add_parser("list", help="List active and archived topics.")

@@ -126,8 +126,17 @@ def main(argv: list[str] | None = None) -> int:
         entry = _COMMANDS[(argv[0],)]
         rest = argv[1:]
     elif any(k[0] == argv[0] for k in _COMMANDS):
-        subs = sorted(k[1] for k in _COMMANDS if len(k) == 2 and k[0] == argv[0])
-        print(f"magi {argv[0]}: missing or unknown subcommand. Available: {', '.join(subs)}", file=sys.stderr)
+        group = argv[0]
+        entries = sorted((k[1], _COMMANDS[k][2]) for k in _COMMANDS if len(k) == 2 and k[0] == group)
+        # `magi <group>` / `magi <group> --help` is a help request, not an error
+        if len(argv) == 1 or argv[1] in ("-h", "--help", "help"):
+            print(f"magi {group} — {_GROUP_HELP.get(group, '')}\n")
+            for sub_name, help_text in entries:
+                print(f"  magi {group} {sub_name:<18} {help_text}")
+            print(f"\nSyntax: magi {group} <subcommand> --help")
+            return 0
+        subs = ", ".join(s for s, _ in entries)
+        print(f"magi {group}: unknown subcommand '{argv[1]}'. Available: {subs}", file=sys.stderr)
         return 2
     else:
         print(f"magi: unknown command '{argv[0]}'. Run 'magi --help'.", file=sys.stderr)
@@ -144,7 +153,14 @@ def main(argv: list[str] | None = None) -> int:
         result = module.main(prepend + rest)
     except SystemExit as exc:  # modules may still sys.exit(); normalize
         code = exc.code
-        return code if isinstance(code, int) else (0 if code is None else 1)
+        if code is None:
+            return 0
+        if isinstance(code, int):
+            return code
+        # SystemExit("message") — the interpreter would have printed this;
+        # swallowing it here loses ~40 llmwiki error messages. Print it.
+        print(str(code), file=sys.stderr)
+        return 1
     except KeyboardInterrupt:
         return 130
     return int(result) if result is not None else 0

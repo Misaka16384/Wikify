@@ -28,7 +28,7 @@ When the user asks to ingest PDFs using local OCR (or runs the command without a
             ```
         *   *Note: This command now automatically generates the standard YAML frontmatter and writes the file as `YYYY-MM-DD-slug.md` directly into your output directory. You do NOT need to rename the file or append YAML manually.*
     *   For `.md` files or general inbox files, call the ingest helper script:
-        `magi ingest add --source-file \"<MD_FILE>\" --type \"<TYPE>\" --topic-dir \"<TOPIC_DIR>\" [--date \"<DATE>\"]`
+        `magi ingest add --file \"<MD_FILE>\" --type \"<TYPE>\" --topic-dir \"<TOPIC_DIR>\" [--move]`
         This script handles parsing/injecting standard YAML frontmatter, slugifying, and moving/copying the file.
     *   **For `.tex` files (and arXiv `.tar.gz` source bundles)**: You **MUST** use the Pandoc conversion script instead of OCR. Run:
         `magi ingest tex "<TEX_OR_TARGZ_PATH>" -o "<TOPIC_DIR>\raw\<type>"`

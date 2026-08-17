@@ -30,7 +30,15 @@ def _walk_up(start: Path):
 
 
 def is_topic_root(path: Path) -> bool:
-    return (path / "wiki").is_dir() or (path / "raw").is_dir()
+    """A MAGI topic workspace, not just any project with a wiki/ or raw/ dir.
+
+    Requires a content dir AND a magi marker file (written by ``magi init``)
+    so foreign repos that happen to contain ``raw/`` or ``wiki/`` in the
+    ancestor chain are not misdetected by the upward walk.
+    """
+    has_content = (path / "wiki").is_dir() or (path / "raw").is_dir()
+    has_marker = any((path / m).is_file() for m in ("config.md", "log.md", "config.yaml"))
+    return has_content and has_marker
 
 
 def is_hub_root(path: Path) -> bool:
@@ -67,8 +75,10 @@ def find_config_yaml(start: str | os.PathLike | None = None) -> Path | None:
     """Locate the effective ``config.yaml``.
 
     Search order:
-    1. Upward walk from *start* (default: cwd) — a workspace- or
-       hub-level config wins.
+    1. Upward walk from *start* (default: cwd) — but ONLY config.yaml files
+       sitting at a MAGI topic or hub root count. ``config.yaml`` is a very
+       common filename (Hugo, CI, ML repos); accepting an arbitrary one
+       from the ancestor chain would silently hijack model/OCR settings.
     2. User config dir: ``~/.config/magi/config.yaml``.
     """
     base = Path(start) if start is not None else Path.cwd()
@@ -76,7 +86,7 @@ def find_config_yaml(start: str | os.PathLike | None = None) -> Path | None:
         base = base.parent
     for candidate in _walk_up(base):
         cfg = candidate / "config.yaml"
-        if cfg.is_file():
+        if cfg.is_file() and (is_topic_root(candidate) or is_hub_root(candidate)):
             return cfg
     user_cfg = Path.home() / ".config" / "magi" / "config.yaml"
     if user_cfg.is_file():

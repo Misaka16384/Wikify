@@ -13,10 +13,25 @@ from pathlib import Path
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi graph query", description="Query the wiki knowledge graph.")
     parser.add_argument("query", help="SQL query to execute.")
-    parser.add_argument("--db", default="output/graph.db", help="Path to the SQLite database (default: output/graph.db).")
+    parser.add_argument("--db", default=None,
+                        help="Path to the SQLite database (default: <workspace>/output/graph.db, "
+                             "workspace discovered by walking up from cwd).")
     args = parser.parse_args(argv)
 
-    db_path = Path(args.db).resolve()
+    if args.db:
+        db_path = Path(args.db).resolve()
+    else:
+        # Anchor the default to the discovered workspace, not the cwd:
+        # sessions often start at the hub root, and a stale graph.db at
+        # the wrong level must never be silently queried.
+        from magi.core.workspace import find_workspace_root
+
+        root = find_workspace_root()
+        if root is None:
+            print(json.dumps({"error": "No workspace found from cwd. Run inside a topic "
+                                       "directory or pass --db <path>."}))
+            sys.exit(1)
+        db_path = root / "output" / "graph.db"
     if not db_path.exists():
         print(json.dumps({"error": f"Database not found at {db_path}. Please run 'magi graph build' first."}))
         sys.exit(1)

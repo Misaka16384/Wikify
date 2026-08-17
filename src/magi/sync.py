@@ -30,9 +30,14 @@ from magi.core.workspace import find_hub_root, find_workspace_root
 
 
 def _newest_md_mtime(root: Path) -> float:
+    """Newest content mtime under root. Excludes _index.md (regenerated
+    AFTER graph build by every standard pipeline — counting it would make
+    a just-built graph read as stale) and .backup copies."""
     newest = 0.0
     if root.is_dir():
         for p in root.rglob("*.md"):
+            if p.name == "_index.md" or ".backup" in p.parts:
+                continue
             try:
                 newest = max(newest, p.stat().st_mtime)
             except OSError:
@@ -43,7 +48,8 @@ def _newest_md_mtime(root: Path) -> float:
 def _count_cards(d: Path) -> int:
     if not d.is_dir():
         return 0
-    return sum(1 for p in d.rglob("*.md") if p.name != "_index.md")
+    return sum(1 for p in d.rglob("*.md")
+               if p.name != "_index.md" and ".backup" not in p.parts)
 
 
 def melchior_status(topic: Path) -> dict:
@@ -192,9 +198,14 @@ def build_report(cwd: Path | None = None) -> dict:
     else:
         cores["casper"] = {"state": "offline", "note": "no workspace", "score": None}
 
-    scored = [(weights[k], cores[k]["score"]) for k in weights if cores[k].get("score") is not None]
-    total_w = sum(w for w, _ in scored)
-    ratio = round(100.0 * sum(w * s for w, s in scored) / total_w, 1) if total_w else None
+    # No workspace -> no ratio: reporting "100% in sync" from a random
+    # directory would invert the metric's meaning.
+    if topic:
+        scored = [(weights[k], cores[k]["score"]) for k in weights if cores[k].get("score") is not None]
+        total_w = sum(w for w, _ in scored)
+        ratio = round(100.0 * sum(w * s for w, s in scored) / total_w, 1) if total_w else None
+    else:
+        ratio = None
 
     return {
         "workspace": str(topic) if topic else None,

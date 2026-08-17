@@ -28,7 +28,10 @@ import os
 import re
 import sys
 
-BLOCK_OPEN = re.compile(r"\n(?=(?:CLAIM|FINDING):)")
+# Case-insensitive to match the field regexes below. Known limitation: an
+# EVIDENCE quote containing a line that itself starts with "CLAIM:"/"FINDING:"
+# will split the block — quoting another claims report requires indenting it.
+BLOCK_OPEN = re.compile(r"\n(?=(?:CLAIM|FINDING):)", re.IGNORECASE)
 FIELD = {
     "claim": re.compile(r"(?:CLAIM|FINDING):\s*(.*)", re.IGNORECASE),
     "evidence": re.compile(

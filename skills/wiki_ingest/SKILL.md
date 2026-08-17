@@ -29,10 +29,10 @@ When the user asks to ingest documents (or runs the command without a path):
     *   **Page Count Verification (MANDATORY)**: If using Native Vision, before spawning subagents, extract the total page count using a deterministic Python script (e.g., `pymupdf` or `PyPDF2`). After all subagents return, verify that the number of returned transcriptions equals the total page count. If any pages are missing, re-invoke subagents for the missing pages. Do NOT proceed with assembly until all pages are accounted for.
     *   **Concurrency Limit**: If using Native Vision, do NOT invoke more than 10 subagents at the same time. If the PDF has more than 10 pages, you must orchestrate them in batches (e.g., launch pages 1-10, wait for them to finish, then launch 11-20). You may write/run a quick Python script (e.g., using `pymupdf` or `PyPDF2`) purely to get the total page count before batching.
     *   Once all subagents return their page transcriptions, assemble them in order using:
-        `magi ingest assemble --transcription-dir <PAGES_DIR> --output-file <FILE_PATH> --title <TITLE> --date <DATE>`
+        `magi ingest assemble --dir <PAGES_DIR> --out <FILE_PATH> --title <TITLE> [--source <SRC>] [--type papers]`
     *   **Alternative (Local OCR)**: If the user explicitly requests high-performance local offline OCR or wants to save external API tokens for long documents, you **MUST** use the `wiki_ingest_ocr` skill instead. Do not mix native multimodal with local Python OCR scripts inside this skill.
     *   For `.md` files or general inbox files, call the ingest helper script:
-        `magi ingest add --source-file \"<MD_FILE>\" --type \"<TYPE>\" --topic-dir \"<TOPIC_DIR>\" [--date \"<DATE>\"]`
+        `magi ingest add --file \"<MD_FILE>\" --type \"<TYPE>\" --topic-dir \"<TOPIC_DIR>\" [--move]`
         This script handles parsing/injecting standard YAML frontmatter, slugifying, and moving/copying the file.
     *   **For `.tex` files (and arXiv `.tar.gz` source bundles)**: You **MUST** use the Pandoc conversion script. Run:
         `magi ingest tex "<TEX_OR_TARGZ_PATH>" -o "<TOPIC_DIR>\raw\<type>"`

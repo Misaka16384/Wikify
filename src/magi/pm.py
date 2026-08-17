@@ -145,9 +145,11 @@ def cmd_backlog_sync(args: argparse.Namespace) -> int:
         print("backlog clean: no uncompiled sources")
         return 0
 
-    # Idempotence: skip sources whose issue title already exists (open or closed).
+    # Idempotence: skip sources whose issue title already exists. --all
+    # includes CLOSED issues, so a wontfix'd compile task stays dead
+    # instead of resurrecting on every backlog-sync.
     existing = ""
-    proc = _run_bd(["list", "--json", "--label", "magi-compile", "--limit", "1000"], cwd=beads_root)
+    proc = _run_bd(["list", "--json", "--all", "--label", "magi-compile", "--limit", "1000"], cwd=beads_root)
     if proc.returncode == 0:
         existing = proc.stdout
 
