@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "magi-research"
+version = "0.1.0"
+description = "MAGI: agent-native research workspace — knowledge base, retrieval, and literature radar for CLI agents"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Misaka16384" }]
+dependencies = [
+    "pyyaml>=6.0",
+    "filelock>=3.12.0",
+    "requests>=2.28.0",
+    "pillow>=9.0.0",
+    "pymupdf>=1.22.0",
+    "rich>=13.0.0",
+    "scikit-learn>=1.0.0",
+    "numpy>=1.20.0",
+    "pylatexenc>=2.10",
+]
+
+[project.urls]
+Repository = "https://github.com/Misaka16384/magi"
+
+[project.scripts]
+magi = "magi.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"magi.ingest.ocr" = ["Modelfile*", "*.md"]
