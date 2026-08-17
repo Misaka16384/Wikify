@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "name": "magi",
+      "description": "MAGI research workspace skills (requires the magi CLI on PATH)",
+      "sources": [
+        {
+          "type": "github",
+          "org": "Misaka16384",
+          "repo": "magi"
+        }
+      ]
+    }
+  ]
+}
