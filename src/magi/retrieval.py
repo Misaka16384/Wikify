@@ -1,0 +1,417 @@
+"""magi index / magi search — the Casper core (retrieval state).
+
+Hybrid local retrieval over the workspace markdown corpus:
+- BM25 via stdlib SQLite FTS5
+- vectors via sqlite-vec + Ollama embeddings (same model as `magi link`,
+  ``models.embedding`` in config.yaml)
+- fusion via Reciprocal Rank Fusion (RRF)
+
+Degrades gracefully: when Ollama is unreachable the index still builds
+(BM25-only) and hybrid searches fall back to BM25, reporting
+``vector_available: false``. Cross-platform note: on macOS use a Python
+whose sqlite3 supports loadable extensions (Homebrew/uv builds do).
+
+Index lives at ``<workspace>/output/index.db``. Collections are derived
+from paths: concepts / references / topics / theses / raw.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import re
+import sqlite3
+import sys
+from pathlib import Path
+
+from magi.core.config_loader import load_config, get as cfg_get
+from magi.core.workspace import find_workspace_root
+
+MAX_CHUNK_LINES = 250
+RRF_K = 60
+
+
+# --------------------------------------------------------------------------
+# infrastructure
+# --------------------------------------------------------------------------
+
+def _die(msg: str) -> int:
+    print(msg, file=sys.stderr)
+    return 1
+
+
+def open_db(db_path: Path, create: bool = False) -> tuple[sqlite3.Connection, bool] | None:
+    """Open the index db. Returns (conn, vec_loaded) or None when absent."""
+    if not create and not db_path.is_file():
+        return None
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA journal_mode=WAL")
+    vec_loaded = False
+    try:
+        import sqlite_vec
+
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        conn.enable_load_extension(False)
+        vec_loaded = True
+    except (ImportError, AttributeError, sqlite3.OperationalError) as exc:
+        print(f"note: sqlite-vec unavailable ({exc}); vector search disabled", file=sys.stderr)
+    return conn, vec_loaded
+
+
+def ensure_schema(conn: sqlite3.Connection, dims: int | None, vec_loaded: bool = False) -> None:
+    conn.executescript(
+        """
+        CREATE TABLE IF NOT EXISTS files(path TEXT PRIMARY KEY, hash TEXT, mtime REAL);
+        CREATE TABLE IF NOT EXISTS chunks(
+            id INTEGER PRIMARY KEY, path TEXT, collection TEXT, heading TEXT,
+            start_line INT, end_line INT, content TEXT);
+        CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
+            content, content='chunks', content_rowid='id');
+        CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
+            INSERT INTO chunks_fts(rowid, content) VALUES (new.id, new.content);
+        END;
+        CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
+            INSERT INTO chunks_fts(chunks_fts, rowid, content) VALUES('delete', old.id, old.content);
+        END;
+        CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
+        """
+    )
+    if dims and vec_loaded:
+        conn.execute(
+            f"CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(embedding float[{dims}])"
+        )
+        conn.execute(
+            "INSERT OR REPLACE INTO meta(key, value) VALUES('dims', ?)", (str(dims),)
+        )
+
+
+def _has_vec_table(conn: sqlite3.Connection, vec_loaded: bool) -> bool:
+    if not vec_loaded:
+        return False
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE name='chunks_vec'"
+    ).fetchone()
+    return row is not None
+
+
+# --------------------------------------------------------------------------
+# embeddings (Ollama)
+# --------------------------------------------------------------------------
+
+class Embedder:
+    """Lazy Ollama embedding client; flips to disabled on first failure."""
+
+    def __init__(self) -> None:
+        cfg = load_config()
+        self.base_url = cfg_get(cfg, "ollama.base_url", "http://127.0.0.1:11434").rstrip("/")
+        self.model = cfg_get(cfg, "models.embedding", "qwen3-embedding:0.6b")
+        self.available: bool | None = None  # unknown until first call
+
+    def embed(self, text: str) -> list[float] | None:
+        if self.available is False:
+            return None
+        try:
+            import requests
+
+            resp = requests.post(
+                f"{self.base_url}/api/embeddings",
+                json={"model": self.model, "prompt": text[:8000]},
+                timeout=60,
+            )
+            resp.raise_for_status()
+            vec = resp.json().get("embedding")
+            if not vec:
+                raise ValueError("empty embedding")
+            self.available = True
+            return vec
+        except Exception as exc:
+            if self.available is None:
+                print(f"note: Ollama embeddings unavailable ({type(exc).__name__}); "
+                      f"continuing BM25-only", file=sys.stderr)
+            self.available = False
+            return None
+
+
+def _serialize(vec: list[float]) -> bytes:
+    from sqlite_vec import serialize_float32
+
+    return serialize_float32(vec)
+
+
+# --------------------------------------------------------------------------
+# indexing
+# --------------------------------------------------------------------------
+
+def _collection_of(rel: Path) -> str:
+    parts = rel.parts
+    if parts[0] == "raw":
+        return "raw"
+    if parts[0] == "wiki" and len(parts) > 1 and parts[1] in ("concepts", "references", "topics", "theses"):
+        return parts[1]
+    return "other"
+
+
+def _iter_corpus(root: Path):
+    for base in ("wiki", "raw"):
+        d = root / base
+        if not d.is_dir():
+            continue
+        for p in d.rglob("*.md"):
+            if p.name == "_index.md" or ".backup" in p.parts:
+                continue
+            yield p
+
+
+def _chunk(text: str) -> list[tuple[str, int, int, str]]:
+    """Split into (heading, start_line, end_line, content) chunks."""
+    lines = text.split("\n")
+    boundaries = [0]
+    for i, line in enumerate(lines):
+        if i and re.match(r"^#{1,3} ", line):
+            boundaries.append(i)
+    boundaries.append(len(lines))
+
+    chunks: list[tuple[str, int, int, str]] = []
+    for a, b in zip(boundaries, boundaries[1:]):
+        seg = lines[a:b]
+        # cap oversized segments
+        for s in range(0, len(seg), MAX_CHUNK_LINES):
+            part = seg[s: s + MAX_CHUNK_LINES]
+            body = "\n".join(part).strip()
+            if not body:
+                continue
+            heading = ""
+            m = re.match(r"^#{1,3} (.+)$", part[0]) if part else None
+            if m:
+                heading = m.group(1).strip()
+            chunks.append((heading, a + s + 1, a + s + len(part), body))
+    return chunks
+
+
+def cmd_index(args: argparse.Namespace) -> int:
+    root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
+    if root is None:
+        return _die("no workspace found (run from a topic directory or pass --topic-dir)")
+    db_path = root / "output" / "index.db"
+    opened = open_db(db_path, create=True)
+    assert opened is not None
+    conn, vec_loaded = opened
+
+    embedder = Embedder()
+    dims: int | None = None
+    if not args.no_vectors:
+        probe = embedder.embed("magi index probe")
+        dims = len(probe) if probe else None
+    ensure_schema(conn, dims, vec_loaded)
+    vec_on = dims is not None and _has_vec_table(conn, vec_loaded)
+
+    seen: set[str] = set()
+    changed = unchanged = embedded = 0
+    for p in _iter_corpus(root):
+        rel = p.relative_to(root).as_posix()
+        seen.add(rel)
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            print(f"warning: cannot read {rel}: {exc}", file=sys.stderr)
+            continue
+        digest = hashlib.sha1(text.encode("utf-8")).hexdigest()
+        row = conn.execute("SELECT hash FROM files WHERE path=?", (rel,)).fetchone()
+        if row and row[0] == digest:
+            unchanged += 1
+            continue
+        changed += 1
+        old_ids = [r[0] for r in conn.execute("SELECT id FROM chunks WHERE path=?", (rel,))]
+        if old_ids and _has_vec_table(conn, vec_loaded):
+            conn.executemany("DELETE FROM chunks_vec WHERE rowid=?", [(i,) for i in old_ids])
+        conn.execute("DELETE FROM chunks WHERE path=?", (rel,))
+        collection = _collection_of(Path(rel))
+        for heading, s, e, body in _chunk(text):
+            cur = conn.execute(
+                "INSERT INTO chunks(path, collection, heading, start_line, end_line, content) "
+                "VALUES(?,?,?,?,?,?)",
+                (rel, collection, heading, s, e, body),
+            )
+            if vec_on:
+                vec = embedder.embed(body)
+                if vec is not None:
+                    conn.execute(
+                        "INSERT INTO chunks_vec(rowid, embedding) VALUES(?,?)",
+                        (cur.lastrowid, _serialize(vec)),
+                    )
+                    embedded += 1
+                else:
+                    vec_on = False
+        conn.execute(
+            "INSERT OR REPLACE INTO files(path, hash, mtime) VALUES(?,?,?)",
+            (rel, digest, p.stat().st_mtime),
+        )
+        conn.commit()
+
+    # prune deleted files
+    gone = [r[0] for r in conn.execute("SELECT path FROM files").fetchall() if r[0] not in seen]
+    for rel in gone:
+        old_ids = [r[0] for r in conn.execute("SELECT id FROM chunks WHERE path=?", (rel,))]
+        if old_ids and _has_vec_table(conn, vec_loaded):
+            conn.executemany("DELETE FROM chunks_vec WHERE rowid=?", [(i,) for i in old_ids])
+        conn.execute("DELETE FROM chunks WHERE path=?", (rel,))
+        conn.execute("DELETE FROM files WHERE path=?", (rel,))
+    conn.commit()
+
+    # backfill vectors for chunks missed in earlier BM25-only runs
+    if dims is not None and _has_vec_table(conn, vec_loaded) and not args.no_vectors and embedder.available:
+        missing = conn.execute(
+            "SELECT id, content FROM chunks WHERE id NOT IN (SELECT rowid FROM chunks_vec)"
+        ).fetchall()
+        for cid, body in missing:
+            vec = embedder.embed(body)
+            if vec is None:
+                break
+            conn.execute("INSERT INTO chunks_vec(rowid, embedding) VALUES(?,?)", (cid, _serialize(vec)))
+            embedded += 1
+        conn.commit()
+
+    total = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+    vec_total = (
+        conn.execute("SELECT COUNT(*) FROM chunks_vec").fetchone()[0]
+        if _has_vec_table(conn, vec_loaded) else 0
+    )
+    print(f"index: {total} chunks ({changed} files updated, {unchanged} unchanged, "
+          f"{len(gone)} pruned) · vectors {vec_total}/{total}"
+          + ("" if dims else " · BM25-only (Ollama unavailable)"))
+    return 0
+
+
+# --------------------------------------------------------------------------
+# search
+# --------------------------------------------------------------------------
+
+def _fts_query(q: str) -> str:
+    tokens = [t.replace('"', "") for t in q.split() if t.strip('"')]
+    return " ".join(f'"{t}"' for t in tokens) if tokens else '""'
+
+
+def _rrf(ranks: dict[int, dict[str, int]]) -> dict[int, float]:
+    return {
+        cid: sum(1.0 / (RRF_K + r) for r in d.values())
+        for cid, d in ranks.items()
+    }
+
+
+def cmd_search(args: argparse.Namespace) -> int:
+    root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
+    if root is None:
+        return _die("no workspace found (run from a topic directory or pass --topic-dir)")
+    db_path = root / "output" / "index.db"
+    opened = open_db(db_path)
+    if opened is None:
+        return _die("no index at output/index.db — run 'magi index' first")
+    conn, vec_loaded = opened
+
+    where = ""
+    params: list = []
+    if args.collection:
+        where = " AND c.collection = ?"
+        params.append(args.collection)
+
+    n = max(args.k * 3, 20)
+    ranks: dict[int, dict[str, int]] = {}
+
+    if args.mode in ("hybrid", "bm25"):
+        rows = conn.execute(
+            "SELECT c.id FROM chunks_fts f JOIN chunks c ON c.id = f.rowid "
+            f"WHERE chunks_fts MATCH ?{where} ORDER BY bm25(chunks_fts) LIMIT ?",
+            [_fts_query(args.query), *params, n],
+        ).fetchall()
+        for r, (cid,) in enumerate(rows):
+            ranks.setdefault(cid, {})["bm25"] = r + 1
+
+    vector_available = False
+    if args.mode in ("hybrid", "vector") and _has_vec_table(conn, vec_loaded):
+        qvec = Embedder().embed(args.query)
+        if qvec is not None:
+            dims_row = conn.execute("SELECT value FROM meta WHERE key='dims'").fetchone()
+            if dims_row and int(dims_row[0]) == len(qvec):
+                rows = conn.execute(
+                    "SELECT v.rowid FROM chunks_vec v JOIN chunks c ON c.id = v.rowid "
+                    f"WHERE v.embedding MATCH ? AND k = ?{where} ORDER BY v.distance",
+                    [_serialize(qvec), n, *params],
+                ).fetchall()
+                vector_available = True
+                for r, (cid,) in enumerate(rows):
+                    ranks.setdefault(cid, {})["vector"] = r + 1
+            else:
+                print("note: index dims mismatch current embedding model — re-run 'magi index'",
+                      file=sys.stderr)
+    if args.mode == "vector" and not vector_available:
+        return _die("vector search unavailable (no vectors in index or Ollama down)")
+
+    scores = _rrf(ranks)
+    top = sorted(scores.items(), key=lambda kv: -kv[1])[: args.k]
+
+    results = []
+    for cid, score in top:
+        row = conn.execute(
+            "SELECT path, collection, heading, start_line, end_line, content "
+            "FROM chunks WHERE id=?", (cid,),
+        ).fetchone()
+        if not row:
+            continue
+        path, coll, heading, s, e, content = row
+        snippet = " ".join(content.split())[:300]
+        results.append({
+            "path": path, "collection": coll, "heading": heading,
+            "lines": [s, e], "score": round(score, 5),
+            "bm25_rank": ranks[cid].get("bm25"), "vector_rank": ranks[cid].get("vector"),
+            "snippet": snippet,
+        })
+
+    payload = {
+        "query": args.query, "mode": args.mode,
+        "vector_available": vector_available, "results": results,
+    }
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=False))
+    else:
+        if not results:
+            print("no results")
+        for i, r in enumerate(results, 1):
+            marks = "+".join(k for k in ("bm25", "vector") if r[f"{k}_rank" if k == "bm25" else "vector_rank"] is not None)
+            print(f"{i}. {r['path']}:{r['lines'][0]}-{r['lines'][1]} [{r['collection']}] ({marks})")
+            if r["heading"]:
+                print(f"   # {r['heading']}")
+            print(f"   {r['snippet'][:200]}")
+        if not vector_available and args.mode == "hybrid":
+            print("(BM25-only: vectors unavailable — is Ollama running? re-run 'magi index' after starting it)")
+    return 0
+
+
+# --------------------------------------------------------------------------
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="magi index|search", description=__doc__)
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p_index = sub.add_parser("index", help="Build/refresh the hybrid retrieval index")
+    p_index.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    p_index.add_argument("--no-vectors", action="store_true", help="Skip embeddings (BM25 only)")
+    p_index.set_defaults(func=cmd_index)
+
+    p_search = sub.add_parser("search", help="Hybrid BM25+vector search with RRF fusion")
+    p_search.add_argument("query")
+    p_search.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    p_search.add_argument("--collection", choices=["concepts", "references", "topics", "theses", "raw", "other"])
+    p_search.add_argument("-k", type=int, default=8, help="Max results (default 8)")
+    p_search.add_argument("--mode", choices=["hybrid", "bm25", "vector"], default="hybrid")
+    p_search.add_argument("--json", action="store_true")
+    p_search.set_defaults(func=cmd_search)
+
+    args = parser.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

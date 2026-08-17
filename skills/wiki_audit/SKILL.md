@@ -7,13 +7,7 @@ commands:
 
 # LLM Wiki — Audit Skill (wiki_audit)
 
-> **Resolving script paths (read first):** Commands below invoke scripts as `<BIN>/X.py` (and a few as `<SKILLS>/...`). Resolve these to **absolute paths once** before running anything:
->
-> - `<SKILL_DIR>` = the directory this `SKILL.md` lives in.
-> - `<SKILLS>` = the `skills/` folder containing this skill = `<SKILL_DIR>/..`
-> - `<BIN>` = the `bin/` folder beside it = `<SKILL_DIR>/../../bin`
->
-> Do **not** hardcode a fixed prefix like `.agents/bin` or `../bin`: shell relative paths resolve against the current working directory (usually the topic root), not this skill's location. Once resolved, `<BIN>` is typically `.agents/bin` when invoked from the hub root, or `.claude/bin` from inside a topic directory.
+> **CLI (read first):** This skill drives the `magi` CLI (MAGI research workspace tool, assumed installed on PATH). If unsure of your surroundings, run `magi sync` first to locate the workspace. For the full syntax of any command: `magi <command> --help`.
 
 This skill handles factual auditing, truth-seeking evaluations, and thesis-driven investigations across the compiled knowledge base. To prevent context window limits on large vaults, it strictly uses a Map-Reduce architecture.
 
@@ -22,11 +16,12 @@ This skill handles factual auditing, truth-seeking evaluations, and thesis-drive
 When the user asks to perform an audit or truth check on their vault:
 
 1.  **Map (Deterministic Inventory — SCRIPT FIRST)**:
-    *   Run the wiki inventory script to get a deterministic file listing — do NOT manually browse or rely on grep keywords alone:
-        `python <BIN>/llm-wiki.py stats <TOPIC_DIR> wiki-summary`
+    *   Run the wiki inventory command to get a deterministic file listing — do NOT manually browse or rely on grep keywords alone:
+        `magi stats <TOPIC_DIR> wiki-summary`
     *   Parse the JSON output to understand the vault structure: total files, per-directory counts, file titles, and which files have sources.
-    *   **Graph Analysis (MANDATORY)**: Run `python <BIN>/llm-wiki.py graph` to ensure the local graph database is strictly up to date. Do NOT skip this, otherwise you will read stale data!
-    *   Then query the knowledge graph using `python <BIN>/query-graph.py "<SQL>"`. Do not use direct `sqlite3` command line execution.
+    *   Before graph/regex retrieval, run `magi search "<claim or topic>" -k 8 --json` (hybrid BM25+vector) to locate candidate evidence fast; then ALWAYS read the underlying files before quoting them as evidence.
+    *   **Graph Analysis (MANDATORY)**: Run `magi graph build` to ensure the local graph database is strictly up to date. Do NOT skip this, otherwise you will read stale data!
+    *   Then query the knowledge graph using `magi graph query "<SQL>"`. Do not use direct `sqlite3` command line execution.
         **Graph DB Schema:**
         - `nodes(id TEXT PRIMARY KEY, path TEXT, title TEXT, type TEXT, category TEXT, summary TEXT, created TEXT, updated TEXT)`
         - `edges(source_id TEXT, target_id TEXT, type TEXT)`
@@ -35,7 +30,7 @@ When the user asks to perform an audit or truth check on their vault:
         **Example Queries:**
         - `SELECT path FROM nodes WHERE category='reference' AND id IN (SELECT node_id FROM tags WHERE tag='quantum-mechanics')`
         - `SELECT n.path, e.type FROM nodes n JOIN edges e ON n.id = e.target_id WHERE e.source_id = 'some-concept-id'`
-    *   Use the inventory and graph results to select the files most relevant to the user's audit query. Then use `python <BIN>/search-wiki.py "<regex>" <files...>` for targeted keyword searches within those specific files.
+    *   Use the inventory and graph results to select the files most relevant to the user's audit query. Then use `magi grep "<regex>" <files...>` for targeted keyword searches within those specific files.
     *   Do NOT attempt to read all compiled cards manually.
 
 2.  **Reduce (Subagent Phase)**:
@@ -54,7 +49,8 @@ When the user asks to perform an audit or truth check on their vault:
 
 3.  **Verify Citations (MANDATORY)**:
     *   Save all subagent outputs to `scratch/temp_claims.txt`.
-    *   Run `python <BIN>/verify_claims.py scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>"`
+    *   Run `magi verify scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>" --json` (blocks opened with either `CLAIM:` or `FINDING:` are accepted)
+        (add `--fetch-web` when web sources must be content-verified rather than format-checked)
     *   Discard any finding that is reported as `[UNVERIFIED]`. Log discarded findings separately.
 
 4.  **Synthesize**: Merge the verified findings into a structured investigation report (Thesis).
@@ -74,10 +70,35 @@ When the user asks to perform an audit or truth check on their vault:
         summary: "<1-2 sentence summary of findings>"
         ---
         ```
+    *   **Persist provenance**: after verification, embed the verified claim blocks into the output document as an HTML comment so the knowledge graph ingests them on the next `magi graph build`:
+
+        ```
+        <!-- magi:claims
+        CLAIM: <claim text>
+        EVIDENCE: "<quote>"
+        SOURCE_TYPE: local_wiki|web
+        SOURCE: <path or URL>
+        STATUS: <verified|web-verified|url-format-ok|unverified>
+        -->
+        ```
+
+        One entry per claim, statuses copied from `magi verify --json` output. Claims become graph nodes (`has_claim` / `supported_by` edges), queryable via `magi graph query "SELECT * FROM claims WHERE status != 'verified'"`.
     *   **Post-Write Validation (MANDATORY)**: Run:
-        `python <BIN>/validate-output.py "<thesis_file>" --schema thesis --wiki-root "<TOPIC_DIR>"`
+        `magi validate "<thesis_file>" --schema thesis --wiki-root "<TOPIC_DIR>"`
         If validation fails, fix the reported issues before proceeding.
-    *   Run: `python <BIN>/llm-wiki.py stats <TOPIC_DIR> verify-refs "<thesis_file>"`
+    *   Run: `magi stats <TOPIC_DIR> verify-refs "<thesis_file>"`
         to ensure all `[[references]]` in the thesis point to existing files.
 
 6.  **Log**: Update the activity log `log.md` with: audit query, files examined count, findings count, findings discarded count.
+
+## Task Tracking (Beads)
+
+Beads (`bd`) is the workspace's work-state store; `log.md` stays a one-line human narrative.
+
+- **Start**: claim or create an issue before substantial work:
+  `bd create -t review "<short description of this run>"` then `bd update <id> --status in_progress`
+  (or claim an existing ready issue from `bd ready`).
+- **Finish**: `bd close <id> --reason "<one-line outcome>"`. If follow-up work emerged
+  (gaps found, sources to ingest, contradictions to resolve), file it now:
+  `bd create -t <appropriate type> "..."` — do not leave TODO prose in markdown.
+- If `bd` is unavailable, note it once and proceed; do not block on task tracking.

@@ -1,0 +1,14 @@
+{
+  "name": "magi",
+  "owner": {
+    "name": "Misaka16384",
+    "url": "https://github.com/Misaka16384"
+  },
+  "plugins": [
+    {
+      "name": "magi",
+      "description": "MAGI research workspace skills (requires the magi CLI on PATH)",
+      "source": "./"
+    }
+  ]
+}

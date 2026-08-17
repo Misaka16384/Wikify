@@ -7,13 +7,7 @@ commands:
 
 # LLM Wiki — Research Skill (wiki_research)
 
-> **Resolving script paths (read first):** Commands below invoke scripts as `<BIN>/X.py` (and a few as `<SKILLS>/...`). Resolve these to **absolute paths once** before running anything:
->
-> - `<SKILL_DIR>` = the directory this `SKILL.md` lives in.
-> - `<SKILLS>` = the `skills/` folder containing this skill = `<SKILL_DIR>/..`
-> - `<BIN>` = the `bin/` folder beside it = `<SKILL_DIR>/../../bin`
->
-> Do **not** hardcode a fixed prefix like `.agents/bin` or `../bin`: shell relative paths resolve against the current working directory (usually the topic root), not this skill's location. Once resolved, `<BIN>` is typically `.agents/bin` when invoked from the hub root, or `.claude/bin` from inside a topic directory.
+> **CLI (read first):** This skill drives the `magi` CLI (MAGI research workspace tool, assumed installed on PATH). If unsure of your surroundings, run `magi sync` first to locate the workspace. For the full syntax of any command: `magi <command> --help`.
 
 This skill handles deep, parallel academic research, spinning up multi-perspective subagents to drill into complex topics and compile unified verdicts.
 
@@ -24,7 +18,7 @@ When the user asks to research a topic:
 1.  **Draft a Dynamic Research Plan**: Analyze the user's research query and determine the domain (e.g., Mathematics, Theoretical Physics, Computer Science). Subdivide the query into 3 or more distinct, domain-specific investigative dimensions.
     *   *Example (Physics/Math)*: "Axiomatic Consistency Auditor", "Phenomenology & Experimental Reviewer", "Theoretical Extrapolator".
     *   *Example (CS)*: "Technical Deep Dive", "Critical Reviewer", "Empirical Auditor".
-    *   **Graph Context**: Before finalizing the plan, you are encouraged to query the local SQLite graph database (`output/graph.db`) to identify existing nodes related to the query. Ensure the index is up to date by running `python <BIN>/llm-wiki.py graph` first. Use `python <BIN>/query-graph.py "<SQL>"` to query the knowledge graph. Do not use direct `sqlite3` command line execution.
+    *   **Graph Context**: Before finalizing the plan, you are encouraged to query the local SQLite graph database (`output/graph.db`) to identify existing nodes related to the query. Ensure the index is up to date by running `magi graph build` first. Use `magi graph query "<SQL>"` to query the knowledge graph. Do not use direct `sqlite3` command line execution.
         **Graph DB Schema:**
         - `nodes(id TEXT PRIMARY KEY, path TEXT, title TEXT, type TEXT, category TEXT, summary TEXT, created TEXT, updated TEXT)`
         - `edges(source_id TEXT, target_id TEXT, type TEXT)`
@@ -37,6 +31,7 @@ When the user asks to research a topic:
 
 2.  **Orchestrate Background Subagents**: Spawn the parallel sub-agents using your agent's **sub-agent / parallel-task tool** according to your dynamic research plan. (If no sub-agent tool exists, investigate each dimension sequentially yourself.)
     *   Assign each subagent a clear, focused `Role` and `Prompt` tailored to their specific investigative dimension.
+    *   For local evidence, subagents should first run `magi search "<dimension keywords>" -k 8 --json` and read the hit files in full; quote EVIDENCE only from file content actually read, never from search snippets.
     *   **Source Constraint (CRITICAL)**: Every subagent prompt MUST include this instruction:
         > "You MUST use your **web-search tool** or **file-read tool** to gather evidence. Do NOT make factual claims from parametric memory alone. Every claim must cite either a specific URL from web search or a specific local file path that you read. If you cannot find a source for a claim, mark it explicitly as `[UNVERIFIED]`."
     *   **Subagent Output Contract (MANDATORY)**: Each subagent MUST return findings in this structure:
@@ -52,7 +47,9 @@ When the user asks to research a topic:
     *   Wait for all subagents to report back. If any subagent fails, log the failure and proceed with available results.
     *   Save all reported findings exactly as returned into a temporary file: `scratch/temp_claims.txt`.
     *   Run the verification script to automatically check the citations:
-        `python <BIN>/verify_claims.py scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>"`
+        `magi verify scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>" --json`
+        (`magi verify` accepts both `FINDING:` and `CLAIM:` block openers, so the subagent output contract above is valid as-is.)
+        (add `--fetch-web` when web sources must be content-verified rather than format-checked)
     *   Only use `[VERIFIED]` claims in your final synthesis. Collect `[UNVERIFIED]` findings separately.
 
 4.  **Synthesize Findings**:
@@ -77,9 +74,35 @@ When the user asks to research a topic:
         ```
     *   If `[UNVERIFIED]` findings exist, include them under a clearly marked `## Unverified Claims` section at the end. Do NOT mix unverified claims into the main body.
 
+- **Persist provenance**: after verification, embed the verified claim blocks into the output document as an HTML comment so the knowledge graph ingests them on the next `magi graph build`:
+
+  ```
+  <!-- magi:claims
+  CLAIM: <claim text>
+  EVIDENCE: "<quote>"
+  SOURCE_TYPE: local_wiki|web
+  SOURCE: <path or URL>
+  STATUS: <verified|web-verified|url-format-ok|unverified>
+  -->
+  ```
+
+  One entry per claim, statuses copied from `magi verify --json` output. Claims become graph nodes (`has_claim` / `supported_by` edges), queryable via `magi graph query "SELECT * FROM claims WHERE status != 'verified'"`.
+
 5.  **Post-Write Validation (MANDATORY)**:
-    *   Run: `python <BIN>/validate-output.py "<output_file>" --schema research --wiki-root "<TOPIC_DIR>"`
+    *   Run: `magi validate "<output_file>" --schema research --wiki-root "<TOPIC_DIR>"`
         If validation reports issues, fix them before proceeding.
-    *   Run: `python <BIN>/llm-wiki.py lint --fix <TOPIC_DIR>`
+    *   Run: `magi lint --fix <TOPIC_DIR>`
 
 6.  **Log**: Append a log entry in `log.md` with: research query, subagent count, verified findings count, unverified findings count, output file path.
+
+## Task Tracking (Beads)
+
+Beads (`bd`) is the workspace's work-state store; `log.md` stays a one-line human narrative.
+
+- **Start**: claim or create an issue before substantial work:
+  `bd create -t survey "<short description of this run>"` then `bd update <id> --status in_progress`
+  (or claim an existing ready issue from `bd ready`).
+- **Finish**: `bd close <id> --reason "<one-line outcome>"`. If follow-up work emerged
+  (gaps found, sources to ingest, contradictions to resolve), file it now:
+  `bd create -t <appropriate type> "..."` — do not leave TODO prose in markdown.
+- If `bd` is unavailable, note it once and proceed; do not block on task tracking.

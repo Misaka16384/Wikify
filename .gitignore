@@ -24,3 +24,8 @@ output/
 
 # Lock files from filelock
 *.lock
+
+# Build artifacts
+*.egg-info/
+dist/
+build/

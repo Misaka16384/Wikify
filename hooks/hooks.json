@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "magi sync",
+            "statusMessage": "MAGI sync: reading workspace state"
+          }
+        ]
+      }
+    ]
+  }
+}
