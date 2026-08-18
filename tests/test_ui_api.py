@@ -606,10 +606,21 @@ def test_eva_nerv_theme_architecture_and_css_validity(client):
     assert '[data-theme="eva"] .card::before' in css
     assert '[data-theme="eva"] .card::after' in css
 
+    # WebKit prefixes, modal backdrops, focus rings, and cross-browser resilience
+    assert "-webkit-backdrop-filter" in css
+    assert '[data-theme="eva"] select option' in css
+    assert '[data-theme="eva"] :focus-visible' in css
+    assert '[data-theme="eva"] .modal-backdrop' in css
+    assert ".btn-secondary.active" in css
+    assert '[data-theme="eva"] .btn-secondary.active' in css
+
     # R2: Three-Core tactical enhancements
     assert '[data-theme="eva"] #tab-melchior' in css
     assert '[data-theme="eva"] #tab-balthasar' in css
     assert '[data-theme="eva"] #tab-casper' in css
+    assert '[data-theme="eva"] #task-ready-val' in css
+    assert '[data-theme="eva"] #task-progress-val' in css
+    assert '[data-theme="eva"] #task-blocked-val' in css
     assert '[data-theme="eva"] .tab-btn[data-tab="melchior"].active' in css
     assert '[data-theme="eva"] .tab-btn[data-tab="balthasar"].active' in css
     assert '[data-theme="eva"] .tab-btn[data-tab="casper"].active' in css
@@ -650,6 +661,22 @@ def test_eva_theme_dom_and_js_mechanics(client):
     assert 'safeStorageSet("magi-mode", "false")' in js
     assert 'safeStorageSet("magi-base-theme"' in js
     assert 'els.magiModeBtn.addEventListener("click"' in js
+
+    # Verify rapid theme switching safety: timer stopping and boot sequence cancellation
+    assert "startEvaClock" in js
+    assert "stopEvaClock" in js
+    assert "evaBootTimer = null" in js
+    assert "classList.remove(\"active\")" in js
+    assert "classList.add(\"is-running\")" in js
+    assert "classList.remove(\"is-running\")" in js
+
+    # Ensure applyTheme manages the clock conditionally rather than an unconditional startEvaClock in init
+    js_norm = js.replace("\r\n", "\n")
+    assert "applyTheme(state.theme);\n  setLanguage(state.lang);\n  loadInitialStatus();" in js_norm
+
+    # Verify deep linking for theme and tabs
+    assert "URLSearchParams(window.location.search).get(\"theme\")" in js
+    assert "URLSearchParams(window.location.search).get(\"tab\")" in js
 
 
 def test_i18n_dictionary_symmetry_and_html_coverage(client):
@@ -705,6 +732,7 @@ def test_eva_completion_layer_hud_boot_and_tactical_css(client):
     assert "data:image/svg+xml" in css
 
     # Chamfered tactical controls and hazard striping on danger surfaces
+    assert "-webkit-clip-path: polygon(" in css
     assert "clip-path: polygon(" in css
     assert "repeating-linear-gradient(-45deg, #ffb000" in css
 
@@ -713,13 +741,14 @@ def test_eva_completion_layer_hud_boot_and_tactical_css(client):
 
     # Tri-monolith HUD, core state machine, boot sequence
     assert '[data-theme="eva"] .eva-hud' in css
-    assert ".eva-boot.active" in css
+    assert '[data-theme="eva"] .eva-boot.active' in css
     assert ".eva-core.state-ok.core-mel .eva-core-shape" in css
     assert ".eva-core.state-warn .eva-core-stat" in css
     assert ".eva-core.state-err .eva-core-shape" in css
     assert ".eva-core.state-off .eva-core-shape" in css
     assert ".eva-hex-sync" in css
     assert ".eva-clock" in css
+    assert '[data-theme="eva"] .terminal-container.is-running' in css
 
     html = client.get("/").text
     assert 'id="eva-hud"' in html
@@ -739,7 +768,7 @@ def test_eva_completion_layer_hud_boot_and_tactical_css(client):
     assert 'id="eva-boot" aria-hidden="true"' in html
 
     js = client.get("/app.js").text
-    for sym in ("startEvaClock", "runEvaBoot", "updateEvaHud", "evaCoreState"):
+    for sym in ("startEvaClock", "stopEvaClock", "runEvaBoot", "updateEvaHud", "evaCoreState"):
         assert sym in js, f"JS symbol {sym} missing"
     assert 'classList.toggle("eva-alert"' in js
     assert "prefers-reduced-motion" in js

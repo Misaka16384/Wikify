@@ -734,6 +734,7 @@
       if (els.themeToggleBtn) {
         els.themeToggleBtn.textContent = base === "dark" ? "☀️" : "🌓";
       }
+      startEvaClock();
     } else {
       safeStorageSet("magi-mode", "false");
       safeStorageSet("magi-base-theme", theme);
@@ -742,6 +743,14 @@
       }
       if (els.themeToggleBtn) {
         els.themeToggleBtn.textContent = theme === "dark" ? "☀️" : "🌓";
+      }
+      stopEvaClock();
+      if (evaBootTimer) {
+        clearTimeout(evaBootTimer);
+        evaBootTimer = null;
+      }
+      if (els.evaBoot) {
+        els.evaBoot.classList.remove("active");
       }
     }
   }
@@ -757,6 +766,7 @@
     if (!els.evaClock || evaClockTimer) return;
     const pad = (n) => String(n).padStart(2, "0");
     const tick = () => {
+      if (!els.evaClock) return;
       const d = new Date();
       els.evaClock.textContent =
         `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
@@ -764,6 +774,13 @@
     };
     tick();
     evaClockTimer = setInterval(tick, 1000);
+  }
+
+  function stopEvaClock() {
+    if (evaClockTimer) {
+      clearInterval(evaClockTimer);
+      evaClockTimer = null;
+    }
   }
 
   function runEvaBoot() {
@@ -776,7 +793,10 @@
     void b.offsetWidth; // restart CSS animations from frame zero
     b.classList.add("active");
     if (evaBootTimer) clearTimeout(evaBootTimer);
-    evaBootTimer = setTimeout(() => b.classList.remove("active"), 2600);
+    evaBootTimer = setTimeout(() => {
+      b.classList.remove("active");
+      evaBootTimer = null;
+    }, 2600);
   }
 
   // Map a sync-report core dict onto HUD state class + tactical readout
@@ -1463,6 +1483,8 @@
     state.activeJobName = jobName;
     els.termJobName.textContent = t("term_running", { name: jobName });
     els.termStatusDot.className = "status-dot running";
+    const termContainer = els.terminalOutput ? els.terminalOutput.closest(".terminal-container") : null;
+    if (termContainer) termContainer.classList.add("is-running");
     els.termCancelBtn.style.display = "inline-flex";
     els.terminalOutput.textContent = t("term_connecting", { id: jobId });
 
@@ -1477,6 +1499,7 @@
         } else if (payload.type === "status") {
           if (payload.status === "completed") {
             els.termStatusDot.className = "status-dot";
+            if (termContainer) termContainer.classList.remove("is-running");
             els.termCancelBtn.style.display = "none";
             showToast(t("toast_job_success", { name: jobName }), "success");
             source.close();
@@ -1485,6 +1508,7 @@
             loadSyncRatio();
           } else if (payload.status === "failed" || payload.status === "cancelled") {
             els.termStatusDot.className = "status-dot error";
+            if (termContainer) termContainer.classList.remove("is-running");
             els.termCancelBtn.style.display = "none";
             showToast(t("toast_job_ended", { name: jobName, status: payload.status }), "error");
             source.close();
@@ -1502,6 +1526,7 @@
     source.onerror = () => {
       source.close();
       els.termStatusDot.className = "status-dot";
+      if (termContainer) termContainer.classList.remove("is-running");
       els.termCancelBtn.style.display = "none";
       state.activeJobId = null;
       els.termJobName.textContent = t("term_idle");
@@ -1768,7 +1793,6 @@
   // Init
   applyTheme(state.theme);
   setLanguage(state.lang);
-  startEvaClock();
   loadInitialStatus();
 
   // Deep-link override: ?tab=melchior|operations|...

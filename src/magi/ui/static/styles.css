@@ -523,6 +523,13 @@ body {
   background-color: var(--bg-hover);
 }
 
+.btn-secondary.active,
+.btn-secondary:active {
+  background-color: var(--bg-hover);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
 .btn-danger {
   background-color: var(--accent-danger);
   color: #ffffff;
@@ -855,6 +862,7 @@ body {
   right: 0;
   bottom: 0;
   background-color: rgba(20, 20, 19, 0.6);
+  -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
   display: none;
   align-items: center;
@@ -954,6 +962,7 @@ body {
 /* Topbar & Brand in EVA Mode */
 [data-theme="eva"] .topbar {
   background-color: rgba(12, 14, 18, 0.95);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid rgba(255, 140, 0, 0.3);
   box-shadow: 0 2px 16px rgba(255, 140, 0, 0.08);
@@ -1136,6 +1145,16 @@ body {
   text-shadow: 0 0 10px var(--eva-balthasar-glow);
 }
 
+[data-theme="eva"] #task-progress-val {
+  color: var(--accent-primary);
+  text-shadow: 0 0 10px var(--eva-amber-glow);
+}
+
+[data-theme="eva"] #task-blocked-val {
+  color: var(--eva-casper);
+  text-shadow: 0 0 10px var(--eva-casper-glow);
+}
+
 /* Core 3: Casper (Blood Red/Amber) */
 [data-theme="eva"] #tab-casper .card {
   border-color: rgba(255, 51, 68, 0.22);
@@ -1248,6 +1267,11 @@ body {
   font-family: var(--font-mono);
 }
 
+[data-theme="eva"] select option {
+  background-color: #0c0e12;
+  color: #f0f4f8;
+}
+
 [data-theme="eva"] .select-input:focus,
 [data-theme="eva"] .text-input:focus,
 [data-theme="eva"] .search-input:focus {
@@ -1283,6 +1307,13 @@ body {
   border-color: #ff8c00;
   color: #ff8c00;
   box-shadow: 0 0 8px rgba(255, 140, 0, 0.25);
+}
+
+[data-theme="eva"] .btn-secondary.active {
+  background-color: rgba(255, 140, 0, 0.15);
+  border-color: #ff9900;
+  color: #ff9900;
+  box-shadow: 0 0 10px rgba(255, 140, 0, 0.3);
 }
 
 [data-theme="eva"] .btn-danger {
@@ -1361,7 +1392,19 @@ body {
   text-shadow: 0 0 8px rgba(255, 51, 68, 0.4);
 }
 
+/* Accessibility: Tactical focus ring for keyboard navigation */
+[data-theme="eva"] :focus-visible {
+  outline: 2px solid #ff9900;
+  outline-offset: 2px;
+}
+
 /* Modals & Dialogs */
+[data-theme="eva"] .modal-backdrop {
+  background-color: rgba(5, 6, 8, 0.85);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
 [data-theme="eva"] .modal-window {
   background-color: #0b0e14;
   border: 1px solid rgba(255, 140, 0, 0.4);
@@ -1499,6 +1542,7 @@ body {
 [data-theme="eva"] .btn,
 [data-theme="eva"] .icon-btn {
   border-radius: 0;
+  -webkit-clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
   clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
 }
 
@@ -1636,6 +1680,7 @@ body {
 }
 
 /* --- Terminal: phosphor cursor while a job is live --- */
+[data-theme="eva"] .terminal-container.is-running .terminal-body::after,
 [data-theme="eva"] .terminal-container:has(.status-dot.running) .terminal-body::after {
   content: "▮";
   color: #00ff66;
@@ -1643,6 +1688,7 @@ body {
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  [data-theme="eva"] .terminal-container.is-running .terminal-body::after,
   [data-theme="eva"] .terminal-container:has(.status-dot.running) .terminal-body::after {
     animation: eva-blink 0.8s steps(1) infinite;
   }
@@ -1897,7 +1943,7 @@ body {
   display: none;
 }
 
-.eva-boot.active {
+[data-theme="eva"] .eva-boot.active {
   display: flex;
   position: fixed;
   inset: 0;
