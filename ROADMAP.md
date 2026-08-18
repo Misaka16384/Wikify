@@ -2,9 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-18 · 当前阶段：**v1.1.0 已发布**（tag `v1.1.0`，GitHub Release https://github.com/Misaka16384/magi/releases/tag/v1.1.0 ；版本号同步于 pyproject.toml / `magi.__version__` / .claude-plugin/plugin.json）。此前：M0–M7 全部完成（WebUI 看板正式上线）。
+> 最后更新：2026-08-18 · 当前阶段：**v1.1.1 已发布**（tag `v1.1.1`，GitHub Release https://github.com/Misaka16384/magi/releases/tag/v1.1.1 ；版本号同步于 pyproject.toml / `magi.__version__` / .claude-plugin/plugin.json）。此前：M0–M7 全部完成（WebUI 看板正式上线 + 去底层框架化与中英双语国际化 i18n 完成）。
 >
-> 2026-08-18 M7：MAGI WebUI 本地看板（`magi ui`，`--host/--port/--no-open/--check`）+ 零构建 Anthropic 纸墨陶土橙 SPA（7 个功能 Tab + SSE 实时子进程任务流 + 危险操作双重确认 + 只读 SQL 图谱安全守卫）。FastAPI+Uvicorn 依赖闭环，全套单元测试与冒烟测试通过。
+> 2026-08-18 M7 WebUI 润色 (v1.1.1)：去底层框架术语（全面抽象为科研任务流/知识网络概念）+ 原生中英双语国际化（`中 / EN` 切换与持久化，全站卡片/模态框/诊断与中英文 README 联动）。
 > 2026-08-18 M6：全局知识库注册表 + 联邦检索（`magi kb register/list/enable/disable/unregister`，注册表在 `~/.config/magi/registry.json`，`magi index` 自动注册；`magi search` 默认联邦当前工作区+启用库，结果带 kb 标记，`--scope local`/`--kb` 收窄；跨库 RRF 融合）+ kb-only profile（`magi setup --kb-only` 还原经典 Wikify 体验，Balthasar 停用且不计入同步率）。测试经 MAGI_CONFIG_HOME 隔离，冒烟含联邦回归锁。
 >
 > 2026-08-18 安装体验升级：一键安装脚本（install.ps1/install.sh，uv/rustup 引导模式）+ `magi setup`（bd/模型/plugin 自动装配 + 环境体检 + 旧版检测/清除）+ `magi migrate` hub 模式（一键全主题迁移）。真实一键命令已在本机端到端验证（含 GitHub git+ 源安装与 Claude Code plugin 注册）。

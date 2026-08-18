@@ -22,13 +22,12 @@ MAGI = [sys.executable, "-m", "magi"]
 
 
 def _ollama_up() -> bool:
-    import urllib.request
-
     try:
-        with urllib.request.urlopen("http://127.0.0.1:11434/api/version", timeout=3):
-            return True
+        from magi.retrieval import Embedder
+        return Embedder().embed("probe") is not None
     except Exception:
         return False
+
 
 
 def run(args: list[str], cwd: Path, expect: tuple[int, ...] = (0,), timeout: int = 120) -> subprocess.CompletedProcess:

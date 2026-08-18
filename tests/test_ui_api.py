@@ -300,27 +300,163 @@ def test_job_cancellation(client):
 
 
 def test_docs_and_static(client):
-    # Docs
+    # Docs - default
     res = client.get("/api/docs/readme")
     assert res.status_code == 200
+    data = res.json()
+    assert "readme_zh" in data
+    assert "readme_en" in data
+    assert "content" in data
+    assert "lang" in data
 
-    res = client.get("/api/docs/commands")
-    assert res.status_code == 200
-    assert len(res.json()["commands"]) > 10
+    # Docs - localized Chinese
+    res_zh = client.get("/api/docs/readme?lang=zh")
+    assert res_zh.status_code == 200
+    data_zh = res_zh.json()
+    assert data_zh["lang"] == "zh"
+    assert data_zh["content"] == data_zh["readme_zh"]
+
+    # Docs - localized English
+    res_en = client.get("/api/docs/readme?lang=en")
+    assert res_en.status_code == 200
+    data_en = res_en.json()
+    assert data_en["lang"] == "en"
+    assert data_en["content"] == data_en["readme_en"]
+
+    # Docs - case-insensitive and prefix variations
+    for param in ("EN", "En", "en-US", "english"):
+        r = client.get(f"/api/docs/readme?lang={param}")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["lang"] == "en"
+        assert d["content"] == d["readme_en"]
+
+    for param in ("ZH", "zh-CN", "chinese", "other"):
+        r = client.get(f"/api/docs/readme?lang={param}")
+        assert r.status_code == 200
+        d = r.json()
+        assert d["lang"] == "zh"
+        assert d["content"] == d["readme_zh"]
+
+    res_cmd = client.get("/api/docs/commands")
+    assert res_cmd.status_code == 200
+    assert len(res_cmd.json()["commands"]) > 10
 
     # Static assets
-    res = client.get("/")
-    assert res.status_code == 200
-    assert "MAGI" in res.text
+    res_root = client.get("/")
+    assert res_root.status_code == 200
+    assert "MAGI" in res_root.text
+    assert "lang-toggle" in res_root.text
+    assert "data-i18n" in res_root.text
+    assert "Melchior" in res_root.text
+    assert "Balthasar" in res_root.text
+    assert "Casper" in res_root.text
 
-    res = client.get("/styles.css")
-    assert res.status_code == 200
+    res_css = client.get("/styles.css")
+    assert res_css.status_code == 200
+    assert ".lang-toggle" in res_css.text
+    assert ".lang-pill" in res_css.text
 
-    res = client.get("/app.js")
-    assert res.status_code == 200
+    res_js = client.get("/app.js")
+    assert res_js.status_code == 200
+    assert "setLanguage" in res_js.text
+    assert "I18N" in res_js.text
 
-    res = client.get("/vendor/marked.min.js")
+    res_vendor = client.get("/vendor/marked.min.js")
+    assert res_vendor.status_code == 200
+
+
+def test_i18n_dictionary_symmetry_and_completeness(client):
+    import re
+    from pathlib import Path
+
+    res_js = client.get("/app.js")
+    assert res_js.status_code == 200
+    js = res_js.text
+
+    # Parse ZH and EN dictionary blocks
+    zh_match = re.search(r"zh:\s*\{(.*?)\n\s*\},", js, re.DOTALL)
+    en_match = re.search(r"en:\s*\{(.*?)\n\s*\},", js, re.DOTALL)
+    assert zh_match is not None
+    assert en_match is not None
+
+    zh_keys = set(re.findall(r"^\s*([a-zA-Z0-9_]+)\s*:", zh_match.group(1), re.MULTILINE))
+    en_keys = set(re.findall(r"^\s*([a-zA-Z0-9_]+)\s*:", en_match.group(1), re.MULTILINE))
+
+    assert len(zh_keys) > 100
+    assert zh_keys == en_keys, f"i18n key mismatch: ZH-only={zh_keys - en_keys}, EN-only={en_keys - zh_keys}"
+
+    # Verify all direct t("...") calls in app.js exist in dictionary
+    direct_t_keys = set(re.findall(r'\bt\(["\']([a-zA-Z0-9_]+)["\']', js))
+    missing_direct = direct_t_keys - zh_keys
+    assert not missing_direct, f"Direct t() keys missing in dictionary: {missing_direct}"
+
+    # Verify all HTML data-i18n keys exist in translation dictionary
+    res_html = client.get("/")
+    assert res_html.status_code == 200
+    html = res_html.text
+
+    html_i18n = set(re.findall(r'data-i18n="([^"]+)"', html))
+    html_ph = set(re.findall(r'data-i18n-placeholder="([^"]+)"', html))
+    html_title = set(re.findall(r'data-i18n-title="([^"]+)"', html))
+    all_html_keys = html_i18n | html_ph | html_title
+
+    missing_keys = all_html_keys - zh_keys
+    assert not missing_keys, f"HTML attributes missing in i18n dictionary: {missing_keys}"
+
+    # Verify danger actions keys exist
+    danger_actions = set(re.findall(r'data-action="([^"]+)"', html))
+    for act in danger_actions:
+        assert f"danger_{act}_title" in zh_keys, f"Missing danger title key: danger_{act}_title"
+        assert f"danger_{act}_desc" in zh_keys, f"Missing danger desc key: danger_{act}_desc"
+
+    # Verify op task keys exist
+    op_keys = set(re.findall(r'data-op="([^"]+)"', html))
+    for op in op_keys:
+        op_k = f"op_{op}" if not op.startswith("op_") else op
+        assert op_k in zh_keys, f"Missing op key: {op_k}"
+
+    # Verify terminology abstraction in standard UI cards/banners (no raw Beads / bd / graph.db)
+    # Check that visible text labels in index.html don't expose low-level jargon
+    assert "Beads CLI not found" not in html
+    assert "Beads" not in html
+    assert "bd " not in html
+    assert "graph.db" not in html
+
+
+def test_pm_task_engine_abstraction(client):
+    ws = str(client.test_workspace)
+    res = client.get(f"/api/workspace/pm?workspace={ws}")
     assert res.status_code == 200
+    data = res.json()
+    assert "task_engine_ready" in data
+    assert "beads_available" in data
+    assert data["task_engine_ready"] == data["beads_available"]
+
+
+def test_readme_docs_edge_cases(client):
+    # Empty string parameter
+    r = client.get("/api/docs/readme?lang=")
+    assert r.status_code == 200
+    assert r.json()["lang"] == "zh"
+
+    # Whitespace parameter
+    r = client.get("/api/docs/readme?lang=%20%20")
+    assert r.status_code == 200
+    assert r.json()["lang"] == "zh"
+
+    # Prefix match English variations
+    for param in ("EN", "en_US", "en-GB", "english"):
+        r = client.get(f"/api/docs/readme?lang={param}")
+        assert r.status_code == 200
+        assert r.json()["lang"] == "en"
+
+    # Prefix match Chinese variations
+    for param in ("ZH", "zh_CN", "zh-TW", "chinese", "other"):
+        r = client.get(f"/api/docs/readme?lang={param}")
+        assert r.status_code == 200
+        assert r.json()["lang"] == "zh"
+
 
 
 def test_markdown_claims_fallback(tmp_path, client):
@@ -423,5 +559,22 @@ def test_task_manager_pruning_and_ring_buffer(tmp_path):
         j_ring.append_log(f"log line {i}")
     assert len(j_ring.logs) == 2000
     assert j_ring.logs[-1] == "log line 2499"
+
+
+def test_language_detection_and_js_mechanics(client):
+    res_js = client.get("/app.js")
+    assert res_js.status_code == 200
+    js = res_js.text
+
+    # Verify language detection handles prefix matching safely
+    assert "startsWith(\"zh\")" in js
+    assert "startsWith(\"en\")" in js
+
+    # Verify workspace select re-rendering helper
+    assert "renderWorkspaceSelect" in js
+
+    # Verify doctor modal re-rendering on language switch
+    assert "if (els.doctorModal && els.doctorModal.classList.contains(\"open\"))" in js
+
 
 

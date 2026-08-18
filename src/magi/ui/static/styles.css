@@ -240,6 +240,41 @@ body {
   color: var(--text-primary);
 }
 
+/* Language Switcher Toggle */
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-pill);
+  padding: 2px;
+  gap: 2px;
+}
+
+.lang-pill {
+  background: none;
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 0.25rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  line-height: 1;
+}
+
+.lang-pill:hover {
+  color: var(--text-primary);
+}
+
+.lang-pill.active {
+  background-color: var(--bg-surface);
+  color: var(--accent-primary);
+  box-shadow: var(--shadow-sm);
+}
+
 /* Nav Tabs */
 .tabs-nav {
   background-color: var(--bg-surface);

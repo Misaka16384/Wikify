@@ -492,6 +492,7 @@ def create_app() -> FastAPI:
         summary = bd_status_summary(ws) if avail else None
         return {
             "workspace": str(ws),
+            "task_engine_ready": avail,
             "beads_available": avail,
             "summary": summary,
         }
@@ -543,7 +544,7 @@ def create_app() -> FastAPI:
     # ----------------------------------------------------------------------
 
     @app.get("/api/docs/readme")
-    def get_readme_docs() -> dict:
+    def get_readme_docs(lang: Optional[str] = Query(None)) -> dict:
         root = Path(__file__).parent.parent.parent.parent
         readme_zh = ""
         readme_en = ""
@@ -564,7 +565,17 @@ def create_app() -> FastAPI:
             if cwd_en.is_file():
                 readme_en = cwd_en.read_text(encoding="utf-8", errors="replace")
 
-        return {"readme_zh": readme_zh, "readme_en": readme_en}
+        lang_norm = "en" if (lang and lang.strip().lower().startswith("en")) else "zh"
+        selected = readme_en if lang_norm == "en" else readme_zh
+        if not selected:
+            selected = readme_zh if lang_norm == "en" else readme_en
+
+        return {
+            "readme_zh": readme_zh,
+            "readme_en": readme_en,
+            "content": selected,
+            "lang": lang_norm,
+        }
 
     @app.get("/api/docs/commands")
     def get_commands_docs() -> dict:
