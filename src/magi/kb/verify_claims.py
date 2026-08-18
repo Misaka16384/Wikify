@@ -9,11 +9,16 @@ Verifies CLAIM/FINDING blocks of the form:
 
 Verification semantics:
 - local_wiki: the evidence quote must appear in the source file.
-  Matching is whitespace-normalized (all runs of whitespace collapse to
-  a single space) so OCR/reflow drift does not defeat honest quotes.
+  Matching is tiered: exact, then whitespace-normalized (runs of
+  whitespace collapse to a single space), then loose — NFKC-folded,
+  quote/dash punctuation unified, hyphenation and ALL whitespace
+  removed, casefolded. The loose tier absorbs the layout artifacts of
+  PDF-extracted text (ligatures like ﬁ, line-break hyphenation,
+  full-width CJK punctuation, spaces injected between CJK characters)
+  so honest quotes still verify.
 - web: URL format check by default ("url-format-ok", NOT verified).
-  With --fetch-web the page is fetched and the normalized quote must
-  appear in its (tag-stripped) text ("web-verified" / "web-mismatch").
+  With --fetch-web the page is fetched and the same tiered matching is
+  applied to its (tag-stripped) text ("web-verified" / "web-mismatch").
 
 Output: human report by default; --json emits one object per claim with
 status in {verified, web-verified, url-format-ok, unverified} plus a
@@ -34,6 +39,7 @@ import json
 import os
 import re
 import sys
+import unicodedata
 
 # Case-insensitive to match the field regexes below.
 BLOCK_OPEN = re.compile(r"(?:CLAIM|FINDING):", re.IGNORECASE)
@@ -57,6 +63,29 @@ FIELD = {
 
 def normalize_ws(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
+
+
+# Punctuation that NFKC does not fold: curly quotes, dash family, and the
+# CJK ideographic stops (、 。 are not compatibility characters).
+_PUNCT_MAP = str.maketrans({
+    "‘": "'", "’": "'", "“": '"', "”": '"',
+    "–": "-", "—": "-", "−": "-",
+    "、": ",", "。": ".",
+})
+
+
+def normalize_loose(text: str) -> str:
+    """Aggressive fold for PDF-layout artifacts.
+
+    NFKC handles ligatures (ﬁ→fi) and full-width forms (，→,); on top of
+    that we unify quote/dash punctuation, drop soft hyphens, and remove
+    hyphens and ALL whitespace so line-break hyphenation and spaces
+    injected between CJK characters cannot defeat an honest quote.
+    """
+    text = unicodedata.normalize("NFKC", text).translate(_PUNCT_MAP)
+    text = text.replace("­", "")
+    text = re.sub(r"[\s\-]+", "", text)
+    return text.casefold()
 
 
 def split_blocks(content: str) -> list[str]:
@@ -91,6 +120,11 @@ def parse_blocks(content: str) -> list[dict]:
     blocks = []
     for raw in split_blocks(content.strip()):
         if not raw.strip():
+            continue
+        # Card prose / frontmatter around embedded claim blocks is not a
+        # malformed claim — only segments containing an actual CLAIM:/FINDING:
+        # opener are claims.
+        if not BLOCK_OPEN.search(raw):
             continue
         fields = {}
         for key, rx in FIELD.items():
@@ -127,7 +161,9 @@ def verify_local(evidence: str, source: str, topic_dir: str) -> tuple[str, str]:
         return "verified", "exact match"
     if normalize_ws(evidence) and normalize_ws(evidence) in normalize_ws(file_content):
         return "verified", "whitespace-normalized match"
-    return "unverified", "evidence string not found in file (exact or normalized)"
+    if normalize_loose(evidence) and normalize_loose(evidence) in normalize_loose(file_content):
+        return "verified", "loose match (case/punctuation/hyphenation-insensitive)"
+    return "unverified", "evidence string not found in file (exact, normalized, or loose)"
 
 
 def verify_web(evidence: str, source: str, fetch: bool) -> tuple[str, str]:
@@ -148,6 +184,8 @@ def verify_web(evidence: str, source: str, fetch: bool) -> tuple[str, str]:
     text = re.sub(r"<[^>]+>", " ", text)
     if normalize_ws(evidence) and normalize_ws(evidence) in normalize_ws(text):
         return "web-verified", "quote found in fetched page text"
+    if normalize_loose(evidence) and normalize_loose(evidence) in normalize_loose(text):
+        return "web-verified", "quote found in fetched page text (loose match)"
     return "unverified", "quote not found in fetched page text (web-mismatch)"
 
 
