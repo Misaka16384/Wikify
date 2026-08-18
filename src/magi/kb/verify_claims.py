@@ -18,6 +18,13 @@ Verification semantics:
 Output: human report by default; --json emits one object per claim with
 status in {verified, web-verified, url-format-ok, unverified} plus a
 reason — the shape consumed by the graph's claims tables.
+
+Multiline EVIDENCE: a double-quoted EVIDENCE value may span multiple
+lines; the closing quote must be the last character on its line. While
+the quote is open, lines that look like field openers (CLAIM:/FINDING:)
+are treated as quote continuation, not as a new block. An unterminated
+quote swallows the remainder of the file into a single block, so always
+close the quote.
 """
 
 from __future__ import annotations
@@ -28,10 +35,14 @@ import os
 import re
 import sys
 
-# Case-insensitive to match the field regexes below. Known limitation: an
-# EVIDENCE quote containing a line that itself starts with "CLAIM:"/"FINDING:"
-# will split the block — quoting another claims report requires indenting it.
-BLOCK_OPEN = re.compile(r"\n(?=(?:CLAIM|FINDING):)", re.IGNORECASE)
+# Case-insensitive to match the field regexes below.
+BLOCK_OPEN = re.compile(r"(?:CLAIM|FINDING):", re.IGNORECASE)
+EVIDENCE_LINE = re.compile(r"EVIDENCE:\s*(.*)", re.IGNORECASE)
+# Double-quoted EVIDENCE, possibly multiline: closing quote must end its line.
+QUOTED_EVIDENCE = re.compile(
+    r'^EVIDENCE:\s*"(.*?)"[ \t]*$',
+    re.IGNORECASE | re.MULTILINE | re.DOTALL,
+)
 FIELD = {
     "claim": re.compile(r"(?:CLAIM|FINDING):\s*(.*)", re.IGNORECASE),
     "evidence": re.compile(
@@ -48,18 +59,52 @@ def normalize_ws(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def split_blocks(content: str) -> list[str]:
+    """Split into blocks at CLAIM:/FINDING: opener lines, quote-aware.
+
+    An opener line inside an unclosed double-quoted EVIDENCE (the quote
+    opened but has not yet closed at end of a line) is treated as quote
+    continuation, not as a new block.
+    """
+    raw_blocks: list[list[str]] = []
+    in_quote = False
+    for line in content.split("\n"):
+        if not in_quote and BLOCK_OPEN.match(line):
+            raw_blocks.append([line])
+        elif raw_blocks:
+            raw_blocks[-1].append(line)
+        else:
+            raw_blocks.append([line])
+        if in_quote:
+            if line.rstrip().endswith('"'):
+                in_quote = False
+        else:
+            m = EVIDENCE_LINE.match(line)
+            if m:
+                rest = m.group(1).strip()
+                if rest.startswith('"') and not (len(rest) > 1 and rest.endswith('"')):
+                    in_quote = True
+    return ["\n".join(b) for b in raw_blocks]
+
+
 def parse_blocks(content: str) -> list[dict]:
     blocks = []
-    for raw in BLOCK_OPEN.split(content.strip()):
+    for raw in split_blocks(content.strip()):
         if not raw.strip():
             continue
         fields = {}
         for key, rx in FIELD.items():
             m = rx.search(raw)
             fields[key] = m.group(1).strip() if m else None
-        ev = fields.get("evidence")
-        if ev and ev.startswith('"') and ev.endswith('"'):
-            fields["evidence"] = ev[1:-1]
+        # Prefer quote-aware extraction so a multiline quoted EVIDENCE is not
+        # truncated at an inner line that looks like a field opener.
+        qm = QUOTED_EVIDENCE.search(raw)
+        if qm:
+            fields["evidence"] = qm.group(1).strip()
+        else:
+            ev = fields.get("evidence")
+            if ev and ev.startswith('"') and ev.endswith('"'):
+                fields["evidence"] = ev[1:-1]
         fields["raw"] = raw
         blocks.append(fields)
     return blocks
@@ -130,7 +175,15 @@ def verify_claims_file(filepath: str, topic_dir: str, fetch_web: bool) -> list[d
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="magi verify", description="Verify CLAIM/FINDING evidence blocks")
+    parser = argparse.ArgumentParser(
+        prog="magi verify", description="Verify CLAIM/FINDING evidence blocks",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "exit codes:\n"
+            "  0  no unverified claims\n"
+            "  1  at least one unverified claim\n"
+            "  2  claims file not found\n"
+        ))
     parser.add_argument("claims_file", help="Path to text file containing claims")
     parser.add_argument("--topic-dir", required=True, help="Topic workspace directory")
     parser.add_argument("--fetch-web", action="store_true",
@@ -143,13 +196,21 @@ def main(argv=None):
         return 2
 
     results = verify_claims_file(args.claims_file, args.topic_dir, args.fetch_web)
-    ok = {"verified", "web-verified", "url-format-ok"}
-    n_ok = sum(1 for r in results if r["status"] in ok)
-    n_bad = len(results) - n_ok
+    n_verified = sum(1 for r in results if r["status"] == "verified")
+    n_web = sum(1 for r in results if r["status"] == "web-verified")
+    n_url = sum(1 for r in results if r["status"] == "url-format-ok")
+    n_bad = sum(1 for r in results if r["status"] == "unverified")
+    # url-format-ok is deliberately NOT counted as verified: only content
+    # checks (local match or fetched-page match) count.
+    n_ok = n_verified + n_web
 
     if args.json:
-        print(json.dumps({"results": results, "verified": n_ok, "unverified": n_bad},
-                         ensure_ascii=False))
+        print(json.dumps({
+            "results": results,
+            "counts": {"verified": n_verified, "web_verified": n_web,
+                       "url_format_ok": n_url, "unverified": n_bad},
+            "verified": n_ok, "unverified": n_bad,
+        }, ensure_ascii=False))
     else:
         print("=== Verification Report ===")
         for r in results:
@@ -158,7 +219,10 @@ def main(argv=None):
             print(f"  Source: {r['source']} ({r['source_type']})")
             if r["status"] == "unverified":
                 print(f"  Reason: {r['reason']}")
-        print(f"\nTotal Verified: {n_ok}\nTotal Unverified: {n_bad}")
+        print(f"\nTotal Verified: {n_ok}")
+        if n_url:
+            print(f"URL Format OK (content not fetched): {n_url}")
+        print(f"Total Unverified: {n_bad}")
     return 1 if n_bad else 0
 
 

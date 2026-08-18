@@ -29,7 +29,7 @@ def main(argv=None):
         print(json.dumps({"error": "Regex compilation timed out (possible ReDoS attack)"}))
         sys.exit(1)
     except re.error as e:
-        print(json.dumps({"error": f"Invalid regex: {e}"}))
+        print(json.dumps({"error": f"Invalid regex: {e}"}, ensure_ascii=False))
         sys.exit(1)
 
     results = []
@@ -54,7 +54,7 @@ def main(argv=None):
         except (IOError, PermissionError) as e:
             print(f"Warning: skipped {path}: {e}", file=sys.stderr)
 
-    print(json.dumps({"matches": results}, indent=2))
+    print(json.dumps({"matches": results}, indent=2, ensure_ascii=False))
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -41,7 +41,10 @@ def main(argv=None):
             is_in_inbox = orig_resolved.is_relative_to(inbox_dir)
         except AttributeError:  # Python < 3.9 fallback
             is_in_inbox = str(orig_resolved).startswith(str(inbox_dir) + os.sep)
-        if is_in_inbox:
+        if is_in_inbox and not orig_resolved.exists():
+            # e.g. `magi ingest add --move` already relocated the inbox file.
+            print("source already processed/moved - skipping inbox archival")
+        elif is_in_inbox:
             processed_dir = os.path.join(topic_dir, "inbox", ".processed")
             os.makedirs(processed_dir, exist_ok=True)
             try:

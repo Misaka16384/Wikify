@@ -45,7 +45,9 @@ def build_index_for_dir(dir_path, title):
         
         updated = fm.get('updated', fm.get('created', ''))
         
-        table_rows.append(f"| [{fname}]({fname}) | {summary} | {tags_str} | {updated} |")
+        # Angle-bracket the target so filenames with spaces stay valid links
+        # in strict Markdown renderers.
+        table_rows.append(f"| [{fname}](<{fname}>) | {summary} | {tags_str} | {updated} |")
         
         cat = fm.get('category', fm.get('type', 'Uncategorized'))
         if cat not in categories:
@@ -56,7 +58,7 @@ def build_index_for_dir(dir_path, title):
     
     cat_content = ""
     for cat, files in sorted(categories.items()):
-        links = ", ".join([f"[{f}]({f})" for f in files])
+        links = ", ".join([f"[{f}](<{f}>)" for f in files])
         cat_content += f"*   **{cat}**: {links}\n"
         
     index_content = f"""# {title} Index

@@ -45,13 +45,15 @@ When the user asks to perform an audit or truth check on their vault:
         SEVERITY: high|medium|low
         EXPLANATION: <why these claims conflict>
         ```
+        `EVIDENCE` must be a single quoted line — multiline quotes are unsupported by `magi verify`.
     *   If a subagent fails or times out, log the failure and proceed with available results.
 
 3.  **Verify Citations (MANDATORY)**:
-    *   Save all subagent outputs to `scratch/temp_claims.txt`.
+    *   Save all subagent outputs to `scratch/temp_claims.txt` (`scratch/` is scaffolded by `magi init`, but create it if absent).
     *   Run `magi verify scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>" --json` (blocks opened with either `CLAIM:` or `FINDING:` are accepted)
         (add `--fetch-web` when web sources must be content-verified rather than format-checked)
     *   Discard any finding that is reported as `[UNVERIFIED]`. Log discarded findings separately.
+        The `--json` summary reports per-status counts (`verified`, `web-verified`, `url-format-ok`, `unverified`) — read the counts per status, not just a single total. `url-format-ok` web claims are NOT content-verified: either re-verify them with `--fetch-web`, or file them under a clearly marked Unverified/Provisional section — never present them as verified.
 
 4.  **Synthesize**: Merge the verified findings into a structured investigation report (Thesis).
 
@@ -82,7 +84,7 @@ When the user asks to perform an audit or truth check on their vault:
         -->
         ```
 
-        One entry per claim, statuses copied from `magi verify --json` output. Claims become graph nodes (`has_claim` / `supported_by` edges), queryable via `magi graph query "SELECT * FROM claims WHERE status != 'verified'"`.
+        One entry per claim, statuses copied from `magi verify --json` output. Claims become graph nodes (`has_claim` / `supported_by` edges) stored in the `claims(id, doc_id, text, status)` and `evidence(claim_id, source_type, source, quote)` tables, e.g. `magi graph query "SELECT c.text, c.status, e.source FROM claims c JOIN evidence e ON e.claim_id=c.id"` or `magi graph query "SELECT * FROM claims WHERE status != 'verified'"`.
     *   **Post-Write Validation (MANDATORY)**: Run:
         `magi validate "<thesis_file>" --schema thesis --wiki-root "<TOPIC_DIR>"`
         If validation fails, fix the reported issues before proceeding.

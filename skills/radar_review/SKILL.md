@@ -13,6 +13,8 @@ The deterministic radar (`magi radar harvest`, usually run nightly by the schedu
 
 > **Tooling (framework-agnostic):** This skill is written tool-agnostic. Where it says *file-read tool*, use your agent's equivalent (`Read` in Claude Code, `view_file` in Antigravity). Shell commands run via `Bash`/`PowerShell` or your framework's shell tool.
 
+**Cold start (fresh workspace):** On a fresh workspace run `magi index` before step 3 so `magi search` has an index to query. If `output/graph.db` is missing, treat the wiki as empty and skip the concept query in step 2. On an empty wiki, judge candidates against the scope statement in `config.md` instead of concept cards — do not skip-all.
+
 ## Execution Flow
 
 1. **Locate pending work**: `magi radar status --json`. If `pending_digests` is empty, report "radar clean" and stop.
@@ -42,7 +44,7 @@ The deterministic radar (`magi radar harvest`, usually run nightly by the schedu
 ## Quality Rules
 
 - Judge relevance against the *workspace's* research scope, not general interest — a brilliant paper outside scope is a **skip**.
-- Every read-now/relevant verdict must name at least one existing concept card or open bd question it connects to; if you cannot name one, downgrade to skip.
+- Every read-now/relevant verdict must name at least one existing concept card or open bd question it connects to; if you cannot name one, downgrade to skip. Exception: on an empty wiki (no concept cards yet), judge against the scope statement in `config.md` instead — do not skip-all.
 - Do not create duplicate bd issues: check `bd list --json` for an existing "Read arXiv:<id>" title first.
 
 ## Error Handling

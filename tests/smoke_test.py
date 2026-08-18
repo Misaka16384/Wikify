@@ -76,13 +76,31 @@ def main() -> int:
             encoding="utf-8",
         )
 
+        # regression locks from the friction-fix round:
+        assert (topic / "CLAUDE.md").exists() and (topic / "config.yaml").exists(), \
+            "init did not scaffold protocol/config files"
+        wl = run(["hub", "list", "--json"], cwd=hub)  # hub discovered from cwd, no --hub
+        reg = json.loads((hub / "wikis.json").read_text(encoding="utf-8"))
+        assert "smoke-topic" in reg.get("wikis", {}), "magi init did not auto-register topic in hub"
+        ns = run(["search", "x", "--json"], cwd=sandbox, expect=(1,))  # no workspace -> exit 1 + JSON error
+        assert "error" in json.loads(ns.stdout), "search --json error envelope missing"
+
         # 3. quality chain (lint exits 1 when it finds issues — machinery
         # working on deliberately-minimal seed cards is a pass for smoke)
         run(["wiki", "reindex", str(topic)], cwd=topic)
         run(["lint", str(topic), "--json", "--skip-math", "--fix"], cwd=topic, expect=(0, 1))
+        assert (topic / "CLAUDE.md").exists() and (topic / "config.yaml").exists() \
+            and not (topic / "inbox" / ".unknown" / "CLAUDE.md").exists(), \
+            "lint --fix quarantined init-scaffolded files (regression)"
         run(["graph", "build", str(topic)], cwd=topic)
         q = run(["graph", "query", "SELECT COUNT(*) AS n FROM nodes", "--db", str(topic / "output" / "graph.db")], cwd=topic)
-        assert '"n"' in q.stdout or "n" in q.stdout, "graph query returned no rows"
+        assert json.loads(q.stdout)["results"][0]["n"] >= 2, f"graph has too few nodes: {q.stdout}"
+        # regression lock: wikilink targets resolve to real node ids (joinable)
+        jq = run(["graph", "query",
+                  "SELECT n.title AS t FROM nodes n JOIN edges e ON n.id = e.target_id "
+                  "WHERE e.type='wikilink' AND e.source_id='wiki/concepts/test-concept'",
+                  "--db", str(topic / "output" / "graph.db")], cwd=topic)
+        assert "Smoke Paper" in jq.stdout, f"wikilink edge not resolved to node id: {jq.stdout}"
         run(["stats", str(topic), "wiki-summary"], cwd=topic)
         run(["map", str(concepts / "test-concept.md")], cwd=topic)
         run(["math", "check", str(concepts / "test-concept.md")], cwd=topic)

@@ -2,7 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-17 · 当前阶段：**M0–M5 全部完成，multi-agent code review（15 findings）已修复，已合并 main**
+> 最后更新：2026-08-18 · 当前阶段：**M0–M5 完成 + code review（15 findings）修复 + 六画像真实用户模拟（56 frictions：0 blocker/14 major/24 minor/18 papercut）全部修复**
+>
+> 用户模拟结论：六个画像（新手/逐字执行 skill 的 agent/radar 首用/claims 研究流/双主题任务管理/中文+空格路径）全部走完全程 40/40 步。修复亮点：lint 不再隔离 init 生成的协议文件；wikilink 边解析为真实节点 id（文档中的 join/路径查询恢复有效）；radar 同日二次 harvest 不再覆盖已审 digest（编号并列 + 台账追加）；hub 命令就地向上发现；search/lint 退出码与 --json 错误信封统一；CJK 目录名自动 slug 化 bd 前缀；graph query/grep 输出中文不再转义；citation-gap 报告含我方论文元数据与共享文献名。
 >
 > 剩余人工事项：① 本地文件夹改名 `gemini-wiki-skills` → `magi`（会话占用目录，需会话外执行）；② 删除 gitignored 的 `.agents/`、`output/` 历史残留；③ macOS 上跑一次 `tests/smoke_test.py`（sqlite extension 验证）；④ 在真实 hub 上 `magi pm init` + `magi radar install-schedule` 投产
 

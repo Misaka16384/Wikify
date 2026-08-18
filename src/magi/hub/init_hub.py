@@ -6,7 +6,7 @@ import datetime
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi hub init", description="Initialize a central wiki hub")
-    parser.add_argument("hub_path", metavar="path_to_hub", help="Path to the hub directory")
+    parser.add_argument("hub_path", metavar="path_to_hub", nargs="?", default=".", help="Path to the hub directory (default: current directory)")
     args = parser.parse_args(argv)
 
     hub_path = Path(args.hub_path).resolve()
@@ -22,7 +22,7 @@ def main(argv=None):
     registry_path = hub_path / "wikis.json"
     if not registry_path.exists():
         with open(registry_path, "w", encoding="utf-8") as f:
-            json.dump({"wikis": {}}, f, indent=2)
+            json.dump({"wikis": {}}, f, indent=2, ensure_ascii=False)
         print(f"Initialized registry at {registry_path}")
     else:
         print(f"Registry already exists at {registry_path}")

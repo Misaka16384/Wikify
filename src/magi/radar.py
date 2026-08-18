@@ -59,6 +59,29 @@ def _http_text(url: str, timeout: int = 60) -> str:
         return r.read().decode("utf-8", errors="replace")
 
 
+def _ellipsize(text: str, budget: int) -> str:
+    """Truncate at the last whitespace within *budget* and append an ellipsis."""
+    if len(text) <= budget:
+        return text
+    cut = text[:budget]
+    ws = max(cut.rfind(" "), cut.rfind("\n"), cut.rfind("\t"))
+    if ws > 0:
+        cut = cut[:ws]
+    return cut.rstrip() + "…"
+
+
+def _numbered_path(path: Path) -> Path:
+    """Return *path* if free, else the first numbered sibling (-2, -3, ...)."""
+    if not path.exists():
+        return path
+    n = 2
+    while True:
+        cand = path.with_name(f"{path.stem}-{n}{path.suffix}")
+        if not cand.exists():
+            return cand
+        n += 1
+
+
 # --------------------------------------------------------------------------
 # fingerprint
 # --------------------------------------------------------------------------
@@ -119,19 +142,33 @@ def harvest_s2(seeds: list[str], limit: int) -> list[dict]:
     return out
 
 
-def harvest_arxiv(categories: list[str], days: int, per_cat: int = 30) -> list[dict]:
+def harvest_arxiv(categories: list[str], days: int,
+                  per_cat: int = 30) -> tuple[list[dict], list[str]]:
+    """Returns (candidates, failed_category_names)."""
     cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)
-    out = []
+    out: list[dict] = []
+    failed: list[str] = []
     for i, cat in enumerate(categories):
         if i:
             time.sleep(3)  # arXiv politeness: 1 request / 3 s
         q = urllib.parse.quote(f"cat:{cat}")
         url = (f"https://export.arxiv.org/api/query?search_query={q}"
                f"&sortBy=submittedDate&sortOrder=descending&max_results={per_cat}")
-        try:
-            feed = _http_text(url)
-        except Exception as exc:
-            print(f"warning: arXiv query failed for {cat}: {exc}", file=sys.stderr)
+        feed = None
+        for attempt in range(2):
+            try:
+                feed = _http_text(url)
+                break
+            except Exception as exc:
+                if attempt == 0:
+                    print(f"warning: arXiv query failed for {cat}: {exc} — retrying in 5s",
+                          file=sys.stderr)
+                    time.sleep(5)
+                else:
+                    print(f"warning: arXiv query failed for {cat} after retry: {exc}",
+                          file=sys.stderr)
+                    failed.append(cat)
+        if feed is None:
             continue
         for entry in feed.split("<entry>")[1:]:
             aid = re.search(r"<id>https?://arxiv.org/abs/([^<]+)</id>", entry)
@@ -158,7 +195,7 @@ def harvest_arxiv(categories: list[str], days: int, per_cat: int = 30) -> list[d
                 "source": f"arxiv-new:{cat}",
                 "published": pub_dt.date().isoformat(),
             })
-    return out
+    return out, failed
 
 
 # --------------------------------------------------------------------------
@@ -192,7 +229,11 @@ def cmd_harvest(args: argparse.Namespace) -> int:
 
     # Reserve roughly half the candidate budget for arXiv recency so S2
     # recommendations cannot crowd new listings out of the cap entirely.
-    candidates = harvest_s2(seeds, limit=max(max_c // 2, 10)) + harvest_arxiv(categories, days)
+    print("[radar] harvesting S2 recommendations...", file=sys.stderr)
+    s2_cands = harvest_s2(seeds, limit=max(max_c // 2, 10))
+    print(f"[radar] harvesting arXiv listings ({len(categories)} categories)...", file=sys.stderr)
+    arxiv_cands, failed_sources = harvest_arxiv(categories, days)
+    candidates = s2_cands + arxiv_cands
 
     radar_dir = topic / "output" / "radar"
     radar_dir.mkdir(parents=True, exist_ok=True)
@@ -212,23 +253,35 @@ def cmd_harvest(args: argparse.Namespace) -> int:
     fresh = fresh[:max_c]
 
     today = dt.date.today().isoformat()
-    (radar_dir / "candidates.jsonl").write_text(
-        "".join(json.dumps(c, ensure_ascii=False) + "\n" for c in fresh), encoding="utf-8")
+    # candidates.jsonl is a cumulative log of harvested candidates — append,
+    # never truncate (the per-digest list lives in the digest itself).
+    with open(radar_dir / "candidates.jsonl", "a", encoding="utf-8") as f:
+        for c in fresh:
+            f.write(json.dumps(c, ensure_ascii=False) + "\n")
     with open(ledger_path, "a", encoding="utf-8") as f:
         for c in fresh:
             f.write(json.dumps({"id": c["id"], "first_seen": today, "source": c["source"]},
                                ensure_ascii=False) + "\n")
 
+    if failed_sources:
+        print(f"warning: some sources failed this harvest: {', '.join(failed_sources)}",
+              file=sys.stderr)
     if fresh:
         digest_dir = topic / "inbox" / "radar"
         digest_dir.mkdir(parents=True, exist_ok=True)
-        digest = digest_dir / f"{today}-digest.md"
+        # Never overwrite an existing digest (it may hold a reviewed tally) —
+        # a same-day re-harvest gets a numbered sibling instead.
+        digest = _numbered_path(digest_dir / f"{today}-digest.md")
         lines = [
             "---",
             f"title: \"Radar digest {today}\"",
             "type: radar-digest",
             "status: pending-review",
             f"candidates: {len(fresh)}",
+        ]
+        if failed_sources:
+            lines.append(f"sources_failed: [{', '.join(failed_sources)}]")
+        lines += [
             "---",
             "",
             f"# Literature Radar — {today}",
@@ -239,14 +292,17 @@ def cmd_harvest(args: argparse.Namespace) -> int:
             "",
         ]
         for c in fresh:
-            link = c.get("url") or (f"https://arxiv.org/abs/{c['arxiv_id']}" if c.get("arxiv_id") else "")
+            arxiv_link = f"https://arxiv.org/abs/{c['arxiv_id']}" if c.get("arxiv_id") else ""
+            link = c.get("url") or arxiv_link
             lines.append(f"## {c['title']}")
             lines.append("")
             lines.append(f"- id: `{c['id']}` · {c.get('year', '?')} · source: {c['source']}")
             if link:
                 lines.append(f"- {link}")
+            if arxiv_link and arxiv_link != link:
+                lines.append(f"- {arxiv_link}")
             if c.get("abstract"):
-                lines.append(f"- abstract: {c['abstract'][:500]}")
+                lines.append(f"- abstract: {_ellipsize(c['abstract'], 500)}")
             lines.append("")
         digest.write_text("\n".join(lines), encoding="utf-8")
         print(f"harvest: {len(fresh)} new candidates -> {digest}")
@@ -310,17 +366,31 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
     base = "https://api.semanticscholar.org/graph/v1/paper"
 
     findings: list[dict] = []
+    own_meta: dict[str, dict] = {}
     for own in own_ids:
         pid = f"ArXiv:{own}"
         try:
-            refs = _s2_get(f"{base}/{pid}/references?fields=paperId&limit=200")
+            meta = _s2_get(f"{base}/{pid}?fields=title,abstract")
+            time.sleep(1.1)
+        except Exception as exc:
+            print(f"warning: S2 metadata lookup failed for {own}: {exc}", file=sys.stderr)
+            meta = {}
+        own_meta[own] = {"title": (meta.get("title") or "").strip(),
+                        "abstract": meta.get("abstract") or ""}
+        try:
+            refs = _s2_get(f"{base}/{pid}/references?fields=paperId,title&limit=200")
             time.sleep(1.1)
             cits = _s2_get(f"{base}/{pid}/citations?fields=paperId&limit=500")
             time.sleep(1.1)
         except Exception as exc:
             print(f"warning: S2 lookup failed for {own}: {exc}", file=sys.stderr)
             continue
-        my_refs = _s2_paper_ids(refs.get("data", []) or [], "citedPaper")
+        ref_titles: dict[str, str] = {}
+        for row in refs.get("data", []) or []:
+            p = row.get("citedPaper") or {}
+            if p.get("paperId"):
+                ref_titles[p["paperId"]] = (p.get("title") or "").strip()
+        my_refs = set(ref_titles)
         citers = _s2_paper_ids(cits.get("data", []) or [], "citingPaper")
         if not my_refs:
             print(f"note: {own} has no reference data on S2 yet — skipping", file=sys.stderr)
@@ -335,8 +405,11 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
             print(f"warning: recommendations failed for {own}: {exc}", file=sys.stderr)
             continue
 
+        neighbors = recs.get("recommendedPapers", []) or []
+        print(f"[radar] anchor {own}: refs={len(my_refs)} citers={len(citers)}, "
+              f"scanning {len(neighbors)} neighbors...", file=sys.stderr)
         checked = 0
-        for cand in recs.get("recommendedPapers", []) or []:
+        for cand in neighbors:
             cand_pid = cand.get("paperId")
             if not cand_pid or cand_pid in citers:
                 continue  # layer 2: already cites us
@@ -345,6 +418,8 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
             if checked >= 20:
                 break  # request-budget cap per own paper
             checked += 1
+            print(f"[radar]   neighbor {checked}/20: {(cand.get('title') or '')[:60]}",
+                  file=sys.stderr)
             try:
                 cand_refs = _s2_get(f"{base}/{cand_pid}/references?fields=paperId&limit=200")
                 time.sleep(1.1)
@@ -360,6 +435,7 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
                 "candidate_s2": cand_pid,
                 "year": cand.get("year"),
                 "shared_refs": len(shared),
+                "shared_ref_titles": sorted(t for t in (ref_titles[s] for s in shared) if t)[:5],
                 "url": cand.get("url"),
                 "abstract": (cand.get("abstract") or "")[:800],
             })
@@ -393,16 +469,28 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
             "issues only for cases worth human follow-up.",
             "",
         ]
+        for own in own_ids:
+            meta = own_meta.get(own) or {}
+            if not (meta.get("title") or meta.get("abstract")):
+                continue
+            lines.append(f"## Our paper: {meta.get('title') or 'arXiv:' + own} (arXiv:{own})")
+            lines.append("")
+            if meta.get("abstract"):
+                lines.append(_ellipsize(meta["abstract"], 400))
+            lines.append("")
         for f_ in findings:
             lines.append(f"## {f_['candidate_title']}")
             lines.append("")
             lines.append(f"- should arguably cite: our arXiv:{f_['own_paper']}")
             lines.append(f"- candidate: {f_['year']} · arXiv:{f_['candidate_arxiv'] or '?'} · "
                          f"shared refs: {f_['shared_refs']}")
+            titles = f_.get("shared_ref_titles") or []
+            if titles:
+                lines.append("- shared references include: " + "; ".join(titles))
             if f_.get("url"):
                 lines.append(f"- {f_['url']}")
             if f_.get("abstract"):
-                lines.append(f"- abstract: {f_['abstract'][:400]}")
+                lines.append(f"- abstract: {_ellipsize(f_['abstract'], 400)}")
             lines.append("")
         out.write_text("\n".join(lines), encoding="utf-8")
         print(f"citation-gap: {len(findings)} candidates -> {out}")
@@ -419,22 +507,44 @@ def cmd_status(args: argparse.Namespace) -> int:
     radar_dir = topic / "output" / "radar"
     ledger = _load_ledger(radar_dir / "seen.jsonl")
     pending = []
+    failed_sources = None
     digest_dir = topic / "inbox" / "radar"
     if digest_dir.is_dir():
-        for p in sorted(digest_dir.glob("*-digest.md")):
+        digests = sorted(digest_dir.glob("*-digest*.md"))
+        for p in digests:
             try:
                 if "status: pending-review" in p.read_text(encoding="utf-8"):
                     pending.append(p.name)
             except OSError:
                 continue
-    payload = {"seen_total": len(ledger), "pending_digests": pending}
+        if digests:
+            newest = max(digests, key=lambda p: p.stat().st_mtime)
+            try:
+                m = re.search(r"^sources_failed:\s*\[([^\]]*)\]",
+                              newest.read_text(encoding="utf-8"), re.MULTILINE)
+                if m:
+                    failed_sources = m.group(1).strip()
+            except OSError:
+                pass
+    payload = {"seen_total": len(ledger), "pending_digests": pending,
+               "last_digest_failed_sources": failed_sources}
     if args.json:
         print(json.dumps(payload, ensure_ascii=False))
     else:
         print(f"radar: {len(ledger)} papers seen · {len(pending)} digest(s) pending review")
         for name in pending:
             print(f"  -> inbox/radar/{name}")
+        if failed_sources:
+            print(f"  warning: last digest had failed sources: {failed_sources}")
     return 0
+
+
+def _schedule_names(topic: Path) -> tuple[str, str]:
+    """(task_name, launchd_label) — a short hash of the full path avoids
+    collisions between topics that share a directory basename."""
+    import hashlib
+    h = hashlib.sha1(str(topic).encode("utf-8")).hexdigest()[:6]
+    return f"magi-radar-{topic.name}-{h}", f"com.magi.radar.{topic.name}.{h}"
 
 
 def cmd_install_schedule(args: argparse.Namespace) -> int:
@@ -445,24 +555,51 @@ def cmd_install_schedule(args: argparse.Namespace) -> int:
     import shutil
     import subprocess
 
+    task_name, label = _schedule_names(topic)
+    if getattr(args, "uninstall", False):
+        if sys.platform == "win32":
+            proc = subprocess.run(["schtasks", "/Delete", "/TN", task_name, "/F"],
+                                  capture_output=True, text=True)
+            if proc.returncode == 0:
+                print(f"Removed task {task_name}.")
+            else:
+                print(proc.stdout.strip() or proc.stderr.strip(), file=sys.stderr)
+            return proc.returncode
+        elif sys.platform == "darwin":
+            dest = Path.home() / "Library" / "LaunchAgents" / f"{label}.plist"
+            subprocess.run(["launchctl", "unload", str(dest)], capture_output=True)
+            if dest.exists():
+                dest.unlink()
+                print(f"Removed launchd agent {label} ({dest}).")
+            else:
+                print(f"no launchd agent found at {dest}", file=sys.stderr)
+                return 1
+            return 0
+        else:
+            print("remove the harvest line from your crontab manually (crontab -e)")
+            return 0
+
     magi_exe = shutil.which("magi")
     if not magi_exe:
         print("magi not found on PATH — install with 'uv tool install .' first", file=sys.stderr)
         return 1
-    task_name = f"magi-radar-{topic.name}"
     if sys.platform == "win32":
         cmd = ["schtasks", "/Create", "/F", "/SC", "DAILY", "/ST", args.time,
                "/TN", task_name,
                "/TR", f'"{magi_exe}" radar harvest --topic-dir "{topic}"']
         proc = subprocess.run(cmd, capture_output=True, text=True)
-        print(proc.stdout.strip() or proc.stderr.strip())
+        if proc.returncode == 0:
+            print(f"Registered task {task_name} (daily {args.time}). "
+                  f"Remove with: magi radar install-schedule --uninstall")
+        else:
+            print(proc.stdout.strip() or proc.stderr.strip(), file=sys.stderr)
         return proc.returncode
     elif sys.platform == "darwin":
         hh, mm = args.time.split(":")
         plist = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>com.magi.radar.{topic.name}</string>
+  <key>Label</key><string>{label}</string>
   <key>ProgramArguments</key><array>
     <string>{magi_exe}</string><string>radar</string><string>harvest</string>
     <string>--topic-dir</string><string>{topic}</string>
@@ -472,11 +609,12 @@ def cmd_install_schedule(args: argparse.Namespace) -> int:
   </dict>
 </dict></plist>
 """
-        dest = Path.home() / "Library" / "LaunchAgents" / f"com.magi.radar.{topic.name}.plist"
+        dest = Path.home() / "Library" / "LaunchAgents" / f"{label}.plist"
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(plist, encoding="utf-8")
         subprocess.run(["launchctl", "load", str(dest)], capture_output=True)
-        print(f"launchd agent installed: {dest}")
+        print(f"Registered launchd agent {label} (daily {args.time}): {dest}. "
+              f"Remove with: magi radar install-schedule --uninstall")
         return 0
     else:
         print(f"add to crontab: 0 3 * * * {magi_exe} radar harvest --topic-dir {topic}")
@@ -506,6 +644,8 @@ def main(argv: list[str] | None = None) -> int:
     p_i = sub.add_parser("install-schedule", help="Register a daily harvest (Task Scheduler / launchd)")
     p_i.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
     p_i.add_argument("--time", default="03:00", help="Daily run time HH:MM (default 03:00)")
+    p_i.add_argument("--uninstall", action="store_true",
+                     help="Remove the scheduled task/agent instead of creating it")
     p_i.set_defaults(func=cmd_install_schedule)
 
     args = parser.parse_args(argv)

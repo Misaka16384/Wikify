@@ -42,15 +42,17 @@ When the user asks to research a topic:
         SOURCE: <URL or file path>
         ```
         Findings without a valid `SOURCE` must be marked `[UNVERIFIED]`.
+        `EVIDENCE` must be a single quoted line — multiline quotes are unsupported by `magi verify`.
 
 3.  **Verify and Filter Subagent Results**:
     *   Wait for all subagents to report back. If any subagent fails, log the failure and proceed with available results.
-    *   Save all reported findings exactly as returned into a temporary file: `scratch/temp_claims.txt`.
+    *   Save all reported findings exactly as returned into a temporary file: `scratch/temp_claims.txt` (`scratch/` is scaffolded by `magi init`, but create it if absent).
     *   Run the verification script to automatically check the citations:
         `magi verify scratch/temp_claims.txt --topic-dir "<TOPIC_DIR>" --json`
         (`magi verify` accepts both `FINDING:` and `CLAIM:` block openers, so the subagent output contract above is valid as-is.)
         (add `--fetch-web` when web sources must be content-verified rather than format-checked)
     *   Only use `[VERIFIED]` claims in your final synthesis. Collect `[UNVERIFIED]` findings separately.
+        The `--json` summary reports per-status counts (`verified`, `web-verified`, `url-format-ok`, `unverified`) — read the counts per status, not just a single total. `url-format-ok` web claims are NOT content-verified: either re-verify them with `--fetch-web`, or file them under the Unverified/Provisional section of the synthesis — never present them as verified.
 
 4.  **Synthesize Findings**:
     *   Merge verified findings into a detailed, authoritative synthesis document.
@@ -86,7 +88,7 @@ When the user asks to research a topic:
   -->
   ```
 
-  One entry per claim, statuses copied from `magi verify --json` output. Claims become graph nodes (`has_claim` / `supported_by` edges), queryable via `magi graph query "SELECT * FROM claims WHERE status != 'verified'"`.
+  One entry per claim, statuses copied from `magi verify --json` output. Claims become graph nodes (`has_claim` / `supported_by` edges) stored in the `claims(id, doc_id, text, status)` and `evidence(claim_id, source_type, source, quote)` tables, e.g. `magi graph query "SELECT c.text, c.status, e.source FROM claims c JOIN evidence e ON e.claim_id=c.id"` or `magi graph query "SELECT * FROM claims WHERE status != 'verified'"`.
 
 5.  **Post-Write Validation (MANDATORY)**:
     *   Run: `magi validate "<output_file>" --schema research --wiki-root "<TOPIC_DIR>"`

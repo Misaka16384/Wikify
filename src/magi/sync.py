@@ -45,6 +45,23 @@ def _newest_md_mtime(root: Path) -> float:
     return newest
 
 
+def _hub_topics(hub: Path) -> list[str]:
+    """Topic slugs registered at a hub: wikis.json 'wikis' keys, falling
+    back to directories under topics/ (excluding .archive)."""
+    try:
+        data = json.loads((hub / "wikis.json").read_text(encoding="utf-8"))
+        slugs = sorted((data.get("wikis") or {}).keys())
+        if slugs:
+            return slugs
+    except (OSError, ValueError):
+        pass
+    topics_dir = hub / "topics"
+    if topics_dir.is_dir():
+        return sorted(p.name for p in topics_dir.iterdir()
+                      if p.is_dir() and p.name != ".archive")
+    return []
+
+
 def _count_cards(d: Path) -> int:
     if not d.is_dir():
         return 0
@@ -62,7 +79,9 @@ def melchior_status(topic: Path) -> dict:
     newest = _newest_md_mtime(wiki)
     if not graph_db.is_file():
         graph_state = "missing" if newest else "empty-wiki"
-        freshness = 0.0 if newest else 1.0
+        # missing-with-content scores like stale (both mean "run magi graph
+        # build") so compiling the first card never drops the sync ratio
+        freshness = 0.3 if newest else 1.0
     elif graph_db.stat().st_mtime >= newest:
         graph_state, freshness = "fresh", 1.0
     else:
@@ -163,7 +182,9 @@ def build_report(cwd: Path | None = None) -> dict:
         if m["graph"] in ("missing", "stale"):
             hints.append("magi graph build   # refresh the knowledge graph")
         if m["backlog"] > 0:
-            hints.append("magi pm backlog-sync && bd ready   # uncompiled sources -> tracked tasks")
+            hints.append("magi pm backlog-sync (idempotent) && bd ready   # ensure uncompiled sources are tracked")
+        if m["concepts"] == 0 and m["references"] == 0 and m["backlog"] == 0:
+            hints.append("drop sources in inbox/ and run the wiki_ingest skill to start building the library")
         if m.get("claims") and m["claims_verified"] < m["claims"]:
             n_unv = m["claims"] - m["claims_verified"]
             hints.append(f"claims: {n_unv} unverified — inspect with magi graph query "
@@ -197,6 +218,10 @@ def build_report(cwd: Path | None = None) -> dict:
                 hints.append(f"radar: {pending} digest(s) pending — run the radar_review skill")
     else:
         cores["casper"] = {"state": "offline", "note": "no workspace", "score": None}
+        if hub:
+            slugs = _hub_topics(hub)
+            if slugs:
+                hints.append(f"topics: {', '.join(slugs)} — cd topics/<slug> && magi sync")
 
     # No workspace -> no ratio: reporting "100% in sync" from a random
     # directory would invert the metric's meaning.
@@ -231,13 +256,20 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     ratio = report["sync_ratio"]
-    header = f"MAGI SYSTEM ONLINE — sync ratio {ratio}%" if ratio is not None else "MAGI SYSTEM — no workspace detected"
+    if ratio is not None:
+        header = f"MAGI SYSTEM ONLINE — sync ratio {ratio}%"
+    elif report["hub"]:
+        header = "MAGI SYSTEM — hub root (no topic workspace selected)"
+    else:
+        header = "MAGI SYSTEM — no workspace detected"
     print(header)
     if report["workspace"]:
         m = report["cores"]["melchior"]
         claims_part = (f" · claims {m['claims_verified']}/{m['claims']} verified"
                        if m.get("claims") else "")
         print(f"|- MELCHIOR  (knowledge)  {m['concepts']} concepts · {m['references']} refs · graph {m['graph']} · backlog {m['backlog']}{claims_part}")
+    elif report["hub"]:
+        print("|- MELCHIOR  (knowledge)  hub root — enter a topic workspace to see knowledge state")
     else:
         print("|- MELCHIOR  (knowledge)  no topic workspace here — run 'magi init' in a topic directory")
     b = report["cores"]["balthasar"]

@@ -36,8 +36,14 @@ RRF_K = 60
 # infrastructure
 # --------------------------------------------------------------------------
 
-def _die(msg: str) -> int:
-    print(msg, file=sys.stderr)
+def _die(msg: str, hint: str | None = None, as_json: bool = False) -> int:
+    if as_json:
+        payload: dict[str, str] = {"error": msg}
+        if hint:
+            payload["hint"] = hint
+        print(json.dumps(payload, ensure_ascii=False))
+    else:
+        print(msg + (f" — {hint}" if hint else ""), file=sys.stderr)
     return 1
 
 
@@ -290,8 +296,10 @@ def cmd_index(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------
 
 def _fts_query(q: str) -> str:
+    # OR semantics: full-question queries should still hit documents that
+    # match only some tokens (BM25 ranking rewards multi-token matches).
     tokens = [t.replace('"', "") for t in q.split() if t.strip('"')]
-    return " ".join(f'"{t}"' for t in tokens) if tokens else '""'
+    return " OR ".join(f'"{t}"' for t in tokens) if tokens else '""'
 
 
 def _rrf(ranks: dict[int, dict[str, int]]) -> dict[int, float]:
@@ -304,11 +312,15 @@ def _rrf(ranks: dict[int, dict[str, int]]) -> dict[int, float]:
 def cmd_search(args: argparse.Namespace) -> int:
     root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if root is None:
-        return _die("no workspace found (run from a topic directory or pass --topic-dir)")
+        return _die("no workspace found",
+                    hint="run from a topic directory or pass --topic-dir",
+                    as_json=args.json)
     db_path = root / "output" / "index.db"
     opened = open_db(db_path)
     if opened is None:
-        return _die("no index at output/index.db — run 'magi index' first")
+        return _die("no index at output/index.db",
+                    hint="run 'magi index' first",
+                    as_json=args.json)
     conn, vec_loaded = opened
 
     where = ""
@@ -319,6 +331,7 @@ def cmd_search(args: argparse.Namespace) -> int:
 
     n = max(args.k * 3, 20)
     ranks: dict[int, dict[str, int]] = {}
+    bm25_hits = vector_hits = 0
 
     if args.mode in ("hybrid", "bm25"):
         rows = conn.execute(
@@ -326,6 +339,7 @@ def cmd_search(args: argparse.Namespace) -> int:
             f"WHERE chunks_fts MATCH ?{where} ORDER BY bm25(chunks_fts) LIMIT ?",
             [_fts_query(args.query), *params, n],
         ).fetchall()
+        bm25_hits = len(rows)
         for r, (cid,) in enumerate(rows):
             ranks.setdefault(cid, {})["bm25"] = r + 1
 
@@ -341,13 +355,16 @@ def cmd_search(args: argparse.Namespace) -> int:
                     [_serialize(qvec), n, *params],
                 ).fetchall()
                 vector_available = True
+                vector_hits = len(rows)
                 for r, (cid,) in enumerate(rows):
                     ranks.setdefault(cid, {})["vector"] = r + 1
             else:
                 print("note: index dims mismatch current embedding model — re-run 'magi index'",
                       file=sys.stderr)
     if args.mode == "vector" and not vector_available:
-        return _die("vector search unavailable (no vectors in index or Ollama down)")
+        return _die("vector search unavailable (no vectors in index or Ollama down)",
+                    hint="start Ollama and re-run 'magi index'",
+                    as_json=args.json)
 
     scores = _rrf(ranks)
     top = sorted(scores.items(), key=lambda kv: -kv[1])[: args.k]
@@ -371,7 +388,9 @@ def cmd_search(args: argparse.Namespace) -> int:
 
     payload = {
         "query": args.query, "mode": args.mode,
-        "vector_available": vector_available, "results": results,
+        "vector_available": vector_available,
+        "bm25_hits": bm25_hits, "vector_hits": vector_hits,
+        "results": results,
     }
     if args.json:
         print(json.dumps(payload, ensure_ascii=False))

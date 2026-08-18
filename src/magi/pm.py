@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -28,6 +29,19 @@ _TYPES_BLOCK = (
 
 def bd_available() -> bool:
     return shutil.which("bd") is not None
+
+
+def _prefix_from_dirname(name: str) -> str:
+    """ASCII-slugify a directory name into a valid bd issue prefix.
+
+    bd derives its db name from the prefix, so CJK/spaced directory names
+    (e.g. "知识 库 hub") must be slugged BEFORE bd init runs — otherwise bd
+    fails after having already git-inited the directory. Pure-non-ASCII
+    names fall back to "magi".
+    """
+    slug = re.sub(r"[^a-z0-9-]+", "-", name.lower()).strip("-")
+    slug = re.sub(r"-{2,}", "-", slug)
+    return slug or "magi"
 
 
 def _run_bd(args: list[str], cwd: Path, timeout: int = 60) -> subprocess.CompletedProcess:
@@ -82,13 +96,17 @@ def cmd_init(args: argparse.Namespace) -> int:
     if (beads_dir / "metadata.json").is_file():
         print(f"beads already initialized at {root}")
     else:
-        init_args = ["init"]
-        if args.prefix:
-            init_args += ["--prefix", args.prefix]
-        proc = _run_bd(init_args, cwd=root, timeout=300)
-        sys.stdout.write(proc.stdout[-800:])
+        prefix = args.prefix or _prefix_from_dirname(root.name)
+        proc = _run_bd(["init", "--prefix", prefix], cwd=root, timeout=300)
+        lines = proc.stdout.splitlines()
+        if lines:
+            sys.stdout.write("\n".join(lines[-20:]) + "\n")
+        print("note: bd init created .beads/ and may git-init the directory "
+              "and install agent hook files (.claude/, AGENTS.md)")
         if proc.returncode != 0:
-            sys.stderr.write(proc.stderr[-800:])
+            err_lines = proc.stderr.splitlines()
+            if err_lines:
+                sys.stderr.write("\n".join(err_lines[-20:]) + "\n")
             return proc.returncode
 
     config = beads_dir / "config.yaml"
@@ -147,20 +165,33 @@ def cmd_backlog_sync(args: argparse.Namespace) -> int:
 
     # Idempotence: skip sources whose issue title already exists. --all
     # includes CLOSED issues, so a wontfix'd compile task stays dead
-    # instead of resurrecting on every backlog-sync.
-    existing = ""
+    # instead of resurrecting on every backlog-sync. Titles are matched
+    # exactly (not by substring): the legacy un-prefixed title is a
+    # substring of every topic's new "[<topic>] ..." title, so substring
+    # matching would wrongly skip other topics' sources.
+    existing_titles: set[str] = set()
     proc = _run_bd(["list", "--json", "--all", "--label", "magi-compile", "--limit", "1000"], cwd=beads_root)
     if proc.returncode == 0:
-        existing = proc.stdout
+        try:
+            data = json.loads(proc.stdout or "[]")
+        except json.JSONDecodeError:
+            data = []
+        if isinstance(data, dict):
+            data = data.get("issues") or []
+        existing_titles = {i.get("title", "") for i in data if isinstance(i, dict)}
 
     created = skipped = 0
     for rel in uncompiled:
-        title = f"Compile raw source: {rel}"
-        if title in existing:
+        legacy_title = f"Compile raw source: {rel}"
+        title = f"[{topic.name}] {legacy_title}"
+        # Match both the current title form and the pre-topic-prefix legacy
+        # form so old issues still count as tracked.
+        if title in existing_titles or legacy_title in existing_titles:
             skipped += 1
             continue
         proc = _run_bd(
-            ["create", "-t", "task", title, "--label", "magi-compile",
+            ["create", "-t", "task", title,
+             "--label", "magi-compile", "--label", f"topic:{topic.name}",
              "-d", f"Run the wiki_compile skill for {rel} in {topic}"],
             cwd=beads_root,
         )
@@ -176,9 +207,15 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="magi pm", description=__doc__)
     sub = parser.add_subparsers(dest="pm_command", required=True)
 
-    p_init = sub.add_parser("init", help="Initialize beads (hub-level) with research issue types")
+    p_init = sub.add_parser(
+        "init",
+        help="Initialize beads (hub-level) with research issue types",
+        description="Initialize beads (hub-level) with research issue types. "
+                    "Note: bd init creates .beads/ and may git-init the directory "
+                    "and install agent hook files (.claude/, AGENTS.md).",
+    )
     p_init.add_argument("path", nargs="?", help="Directory for the beads db (default: hub root from cwd)")
-    p_init.add_argument("--prefix", help="Issue id prefix (default: bd auto-detects)")
+    p_init.add_argument("--prefix", help="Issue id prefix (default: ASCII slug of the directory name, or 'magi')")
     p_init.set_defaults(func=cmd_init)
 
     p_status = sub.add_parser("status", help="Beads availability + issue counts")

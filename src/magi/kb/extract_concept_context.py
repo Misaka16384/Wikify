@@ -54,7 +54,9 @@ def extract_concept_context(concept_name, topic_dir):
         sys.exit(2)
     for filename in os.listdir(refs_dir):
         if not filename.endswith(".md"): continue
-        
+        # Skip auto-generated index files: their tables would pollute RAG context.
+        if filename == "_index.md": continue
+
         filepath = os.path.join(refs_dir, filename)
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -106,10 +108,22 @@ def extract_concept_context(concept_name, topic_dir):
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi wiki context", description="Extract surrounding context for a concept from all papers")
     parser.add_argument("--name", required=True, help="Concept Name")
-    parser.add_argument("--topic-dir", required=True, help="Topic directory")
+    parser.add_argument("--topic-dir",
+                        help="Topic directory (default: workspace root discovered from cwd)")
     args = parser.parse_args(argv)
 
-    extract_concept_context(args.name, args.topic_dir)
+    topic_dir = args.topic_dir
+    if not topic_dir:
+        import json
+        from magi.core.workspace import find_workspace_root
+        root = find_workspace_root()
+        if root is None:
+            print(json.dumps({"error": "No topic workspace found from cwd. "
+                                       "Run inside a topic directory or pass --topic-dir <path>."}))
+            return 2
+        topic_dir = str(root)
+
+    extract_concept_context(args.name, topic_dir)
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -53,4 +53,7 @@ Beads (`bd`) is the workspace's work-state store; `log.md` stays a one-line huma
 - If `bd` is unavailable, note it once and proceed; do not block on task tracking.
 - Compile backlog issues carry the label `magi-compile` (created by `magi pm backlog-sync`).
   After compiling a source, close its matching issue: find it via `bd list --label magi-compile`.
+  When self-creating a compile task (no backlog issue exists yet), add `--label magi-compile` so this lookup finds it:
+  `bd create -t task "Compile <source>" --label magi-compile`.
+- If the matching backlog issue exists but is closed (e.g. wontfix), reopen it with `bd reopen <id>` (or `bd update <id> --status open`) rather than creating a duplicate — unless the closure was intentional, in which case leave it closed and skip that source.
 

@@ -30,6 +30,7 @@ When the user asks to ingest PDFs using local OCR (or runs the command without a
     *   For `.md` files or general inbox files, call the ingest helper script:
         `magi ingest add --file \"<MD_FILE>\" --type \"<TYPE>\" --topic-dir \"<TOPIC_DIR>\" [--move]`
         This script handles parsing/injecting standard YAML frontmatter, slugifying, and moving/copying the file.
+        *Note: after `ingest add --move`, the inbox original no longer exists — pass the `raw/` destination path (printed by the command) as `"<ORIGINAL_FILE_PATH>"` to `magi ingest finalize` in Step 4. (If you pass the old inbox path instead, the `source already processed/moved - skipping inbox archival` notice is expected and harmless.)*
     *   **For `.tex` files (and arXiv `.tar.gz` source bundles)**: You **MUST** use the Pandoc conversion script instead of OCR. Run:
         `magi ingest tex "<TEX_OR_TARGZ_PATH>" -o "<TOPIC_DIR>\raw\<type>"`
         *Note: This script automatically generates YAML frontmatter, writes the file, and extracts/converts referenced figures into `images/` (rasterising `.pdf`/`.eps` figures to PNG). Check the printed `Figures: N embedded, M unresolved` line; if any are unresolved, the source bundle may be missing those figure files.*

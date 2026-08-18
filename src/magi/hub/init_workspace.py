@@ -53,7 +53,8 @@ def main(argv=None):
         "wiki/theses",
         "output",
         "inbox",
-        "inbox/.processed"
+        "inbox/.processed",
+        "scratch"
     ]
 
     for d in subdirs:
@@ -149,7 +150,9 @@ environment. Scope: {args.scope}
   `magi wiki context`, `magi grep`.
 - **Work state** (beads): `bd ready` lists actionable tasks. Track research
   work with typed issues: question / survey / derivation / computation /
-  experiment / review (`bd create -t <type> "..."`).
+  experiment / review (`bd create -t <type> "..."`). These six research types
+  are CUSTOM types configured by `magi pm init`; the generic type list from
+  `bd prime` (task/bug/feature) does not supersede them.
 - **Retrieval**: `magi search "..."` (hybrid BM25+vector; build/refresh with
   `magi index`); `magi grep` for exact regex. After a search, always read the
   underlying file before citing it.
@@ -196,6 +199,25 @@ radar:
     safe_write(topic_path / "config.yaml", config_yaml, args.force)
 
     print(f"Workspace initialized successfully at: {topic_path}")
+
+    # 8. Auto-register in an ancestor hub when the topic sits under <hub>/topics/.
+    try:
+        import subprocess
+        from magi.core.workspace import find_hub_root
+        hub = find_hub_root(topic_path.parent)
+        if hub is not None and topic_path.parent == (hub / "topics").resolve():
+            slug = topic_path.name
+            result = subprocess.run(
+                [sys.executable, "-m", "magi", "hub", "register", slug, "--hub", str(hub)],
+                capture_output=True, text=True,
+            )
+            if result.returncode == 0:
+                print(f"Registered topic '{slug}' in hub registry at {hub}")
+            else:
+                detail = (result.stderr or result.stdout).strip()
+                print(f"Warning: could not auto-register topic in hub {hub}: {detail}")
+    except Exception as exc:  # non-fatal: workspace itself is already scaffolded
+        print(f"Warning: hub auto-registration skipped: {exc}")
 
 if __name__ == "__main__":
     sys.exit(main())

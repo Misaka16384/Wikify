@@ -23,23 +23,24 @@ magi graph build <TOPIC_DIR>
 *This will parse all markdown files under `wiki/` (ignoring `_index.md`), extract frontmatter (tags, aliases) and body links, and rebuild the SQLite database located at `output/graph.db`.*
 
 ### 2. Query the Graph Database
-Once built, you (the AI) can query `output/graph.db` using Python's `sqlite3` module to traverse the graph and answer the user's questions.
+Once built, use `magi graph query "<SQL>" --db <TOPIC_DIR>/output/graph.db` to query the knowledge graph. Fall back to a temporary Python script using the `sqlite3` module only for complex multi-step traversals that a single SQL statement cannot express. Do not use direct `sqlite3` command line execution.
 
 The database schema is as follows:
 - `nodes(id, path, title, type, category, summary, created, updated)`
-  - `id`: The file path without extension (e.g., 'concepts/concept_name') or a tag (e.g., 'tag:machine-learning').
+  - `id`: The topic-relative file path without extension, WITH the `wiki/` prefix (e.g., 'wiki/concepts/concept_name'), or a tag (e.g., 'tag:machine-learning').
 - `edges(source_id, target_id, type)`
   - `type` can be 'wikilink' (between files) or 'has_tag' (from file to tag node).
 - `tags(node_id, tag)`
 - `aliases(node_id, alias)`
-
-Use `magi graph query "<SQL>" --db <TOPIC_DIR>/output/graph.db` to query the knowledge graph. Do not use direct `sqlite3` command line execution.
+- `claims(id, doc_id, text, status)`
+  - Provenance claims parsed from `<!-- magi:claims -->` blocks; `doc_id` is the containing document's node id.
+- `evidence(claim_id, source_type, source, quote)`
+  - Evidence rows backing each claim (`source_type` is 'local_wiki' or 'web').
 
 **Example:**
 ```bash
-magi graph query "SELECT source_id FROM edges WHERE target_id = 'Transformer';" --db <TOPIC_DIR>/output/graph.db
+magi graph query "SELECT source_id FROM edges WHERE target_id = 'wiki/concepts/transformer';" --db <TOPIC_DIR>/output/graph.db
 ```
-Or via a temporary Python script if you need complex graph traversal.
 
 ### 3. Report
 Present the findings of your graph queries to the user.

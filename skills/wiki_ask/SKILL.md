@@ -42,11 +42,13 @@ If the user asks broad survey questions or inquiries about relationships (e.g., 
     - `edges(source_id TEXT, target_id TEXT, type TEXT)`
     - `tags(node_id TEXT, tag TEXT)`
     - `aliases(node_id TEXT, alias TEXT)`
-    - **NOTE on `type`**: every node has a non-empty `type` — taken from frontmatter when present (papers use `type='papers'`), otherwise derived from the containing folder (`concept`, `reference`, `thesis`, `topic`). `category` is the broader bucket (`concept`/`reference`/`topic`). You can filter by either column.
+    - **NOTE on `type`/`category`**: every node has a non-empty `type` — frontmatter `type` wins when present, otherwise it is derived from the containing folder (`concept`, `reference`, `thesis`, `topic`). `category` IS populated too — the broader bucket (`concept`/`reference`/`topic`/`thesis`). You can filter by either column.
+    - **NOTE on node ids**: `id` is the wiki-relative file path WITH the `wiki/` prefix and without the `.md` extension, e.g. `wiki/concepts/anyon`.
+    - **NOTE on wikilink edges**: for `type='wikilink'` edges, `target_id` is the resolved node id of the link target (e.g. `wiki/concepts/anyon`); unresolved (dangling) links keep the raw link text as `target_id`.
 3.  **Example Queries**:
-    - `SELECT title, summary FROM nodes WHERE type='papers' AND id IN (SELECT node_id FROM tags WHERE tag='quantum-error-correction')`
+    - `SELECT title, summary FROM nodes WHERE type='reference' AND id IN (SELECT node_id FROM tags WHERE tag='quantum-error-correction')`
     - `SELECT title, summary FROM nodes WHERE type='concept' AND id IN (SELECT node_id FROM tags WHERE tag='duality')`
-    - `SELECT n.title, e.type FROM nodes n JOIN edges e ON n.id = e.target_id WHERE e.source_id = 'some-concept-id'`
+    - `SELECT n.title, e.type FROM nodes n JOIN edges e ON n.id = e.target_id WHERE e.source_id = 'wiki/concepts/some_concept'`
 
 ### Strategy 3: Targeted Search
 If the user asks highly specific, detail-oriented questions requiring deep dives into math or specific mechanisms:

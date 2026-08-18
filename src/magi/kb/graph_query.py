@@ -11,7 +11,22 @@ import sys
 from pathlib import Path
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="magi graph query", description="Query the wiki knowledge graph.")
+    parser = argparse.ArgumentParser(
+        prog="magi graph query", description="Query the wiki knowledge graph.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "schema:\n"
+            "  nodes(id, path, title, type, category, summary, created, updated)\n"
+            "  edges(source_id, target_id, type: wikilink|has_tag|has_claim|supported_by)\n"
+            "  tags(node_id, tag)\n"
+            "  aliases(node_id, alias)\n"
+            "  claims(id, doc_id, text, status)\n"
+            "  evidence(claim_id, source_type, source, quote)\n"
+            "\n"
+            "example:\n"
+            "  magi graph query \"SELECT n.title FROM nodes n JOIN edges e "
+            "ON n.id = e.target_id WHERE e.type = 'wikilink' LIMIT 10\"\n"
+        ))
     parser.add_argument("query", help="SQL query to execute.")
     parser.add_argument("--db", default=None,
                         help="Path to the SQLite database (default: <workspace>/output/graph.db, "
@@ -29,11 +44,12 @@ def main(argv=None):
         root = find_workspace_root()
         if root is None:
             print(json.dumps({"error": "No workspace found from cwd. Run inside a topic "
-                                       "directory or pass --db <path>."}))
+                                       "directory or pass --db <path>."}, ensure_ascii=False))
             sys.exit(1)
         db_path = root / "output" / "graph.db"
     if not db_path.exists():
-        print(json.dumps({"error": f"Database not found at {db_path}. Please run 'magi graph build' first."}))
+        print(json.dumps({"error": f"Database not found at {db_path}. Please run 'magi graph build' first."},
+                         ensure_ascii=False))
         sys.exit(1)
 
     try:
@@ -52,9 +68,9 @@ def main(argv=None):
 
         cursor.execute(query_stripped)
         rows = [dict(row) for row in cursor.fetchall()]
-        print(json.dumps({"results": rows}, indent=2))
+        print(json.dumps({"results": rows}, indent=2, ensure_ascii=False))
     except Exception as e:
-        print(json.dumps({"error": str(e)}))
+        print(json.dumps({"error": str(e)}, ensure_ascii=False))
         sys.exit(1)
     finally:
         if 'conn' in locals():

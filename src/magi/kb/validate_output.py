@@ -108,6 +108,10 @@ def validate_research(file_path: Path, fm: dict[str, str], body: str, wiki_root:
             if not source_path.exists():
                 issues.append(f"source does not exist: {source}")
 
+    # Strip HTML comments (e.g. the skill-mandated <!-- magi:claims --> block)
+    # so their contents are not counted as uncited paragraphs.
+    body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+
     paragraphs = re.split(r"\n\n+", body)
     unsupported = 0
     for para in paragraphs:

@@ -34,6 +34,7 @@ When the user asks to ingest documents (or runs the command without a path):
     *   For `.md` files or general inbox files, call the ingest helper script:
         `magi ingest add --file \"<MD_FILE>\" --type \"<TYPE>\" --topic-dir \"<TOPIC_DIR>\" [--move]`
         This script handles parsing/injecting standard YAML frontmatter, slugifying, and moving/copying the file.
+        *Note: after `ingest add --move`, the inbox original no longer exists — pass the `raw/` destination path (printed by the command) as `"<ORIGINAL_FILE_PATH>"` to `magi ingest finalize` in Step 5. (If you pass the old inbox path instead, the `source already processed/moved - skipping inbox archival` notice is expected and harmless.)*
     *   **For `.tex` files (and arXiv `.tar.gz` source bundles)**: You **MUST** use the Pandoc conversion script. Run:
         `magi ingest tex "<TEX_OR_TARGZ_PATH>" -o "<TOPIC_DIR>\raw\<type>"`
         *Note: This script automatically generates YAML frontmatter, writes the file, and extracts referenced figures into `images/` (rasterising `.pdf`/`.eps` figures to PNG, prefixed with the doc slug). Skip Step 4. Check the printed `Figures: N embedded, M unresolved` line.*
@@ -48,7 +49,7 @@ When the user asks to ingest documents (or runs the command without a path):
     summary: "2-3 sentence overview of the source"
     ---
     ```
-    **Frontmatter Validation (MANDATORY)**: After writing, run `magi lint <TOPIC_DIR>` and check if the new file has any frontmatter-related critical or warning issues. Fix them before proceeding.
+    **Frontmatter Validation (MANDATORY)**: After writing, run `magi lint <TOPIC_DIR>` and check ONLY the issues reported for the newly ingested file — fix its frontmatter-related critical or warning issues before proceeding. Root-level or other-file warnings unrelated to the new file can be ignored at this step (they are handled by the end-of-batch lint in Step 7).
 5.  **Post-Processing Pipeline**: Extract the exact path of the generated Markdown file from the conversion script's output. Then, trigger the pipeline to handle moving and formatting (skipping global lint for now):
     ```bash
     magi ingest finalize "<ORIGINAL_FILE_PATH>" --topic-dir "<TOPIC_DIR>" --md-file "<GENERATED_MD_FILE>" --skip-lint --log-msg "Ingested <DOC_TITLE>"
