@@ -63,6 +63,8 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("math", "check"): ("magi.kb.validate_math_latex", [], "Detect LaTeX syntax errors"),
     ("validate",): ("magi.kb.validate_output", [], "Schema-validate generated thesis/research docs"),
     ("verify",): ("magi.kb.verify_claims", [], "Verify CLAIM/FINDING evidence blocks"),
+    ("claims", "verify"): ("magi.kb.verify_claims", [], "Alias of 'magi verify' (claim/evidence check)"),
+    ("bib",): ("magi.kb.bib_export", [], "Export BibTeX from reference cards (--fetch pulls arXiv's official entry)"),
     # retrieval
     ("index",): ("magi.retrieval", ["index"], "Build/refresh the hybrid retrieval index"),
     ("search",): ("magi.retrieval", ["search"], "Hybrid search: local workspace + enabled global KBs"),
@@ -91,6 +93,7 @@ _GROUP_HELP = {
     "graph": "SQLite knowledge graph",
     "math": "LaTeX math formatting and validation",
     "pm": "Work-state bridge to Beads (bd)",
+    "claims": "Claim/evidence provenance",
     "radar": "Literature radar (scheduled discovery)",
     "tags": "Tag ontology normalization",
 }
