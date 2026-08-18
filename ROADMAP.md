@@ -2,7 +2,7 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-18 · 当前阶段：**M0–M5 完成 + code review（15 findings）修复 + 六画像真实用户模拟（56 frictions：0 blocker/14 major/24 minor/18 papercut）全部修复**
+> 最后更新：2026-08-18 · 当前阶段：**v1.0.0 已发布**（tag `v1.0.0`，GitHub Release https://github.com/Misaka16384/magi/releases/tag/v1.0.0 ；版本号同步于 pyproject.toml / `magi.__version__` / .claude-plugin/plugin.json）。此前：M0–M6 完成 + code review（15 findings）修复 + 六画像真实用户模拟（56 frictions：0 blocker/14 major/24 minor/18 papercut）全部修复
 >
 > 2026-08-18 M6：全局知识库注册表 + 联邦检索（`magi kb register/list/enable/disable/unregister`，注册表在 `~/.config/magi/registry.json`，`magi index` 自动注册；`magi search` 默认联邦当前工作区+启用库，结果带 kb 标记，`--scope local`/`--kb` 收窄；跨库 RRF 融合）+ kb-only profile（`magi setup --kb-only` 还原经典 Wikify 体验，Balthasar 停用且不计入同步率）。测试经 MAGI_CONFIG_HOME 隔离，冒烟含联邦回归锁。
 >
