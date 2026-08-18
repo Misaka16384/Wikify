@@ -533,6 +533,126 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             "summary": summary,
         }
 
+    @app.get("/api/workspace/bib")
+    def get_workspace_bib(card: Optional[str] = Query(None),
+                          all: bool = Query(False),
+                          workspace: Optional[str] = Query(None)) -> dict:
+        from magi.kb.bib_export import _find_cards, _read_frontmatter, build_entry
+
+        if not card and not all:
+            raise HTTPException(status_code=400, detail="Pass ?card=<slug> or ?all=1")
+        ws = _resolve_workspace(workspace)
+        cards = _find_cards(ws, card, bool(all))
+        if not cards:
+            raise HTTPException(status_code=404,
+                                detail=f"No reference card found for '{card or 'wiki/references/'}'")
+        entries = []
+        for c in cards:
+            fm = _read_frontmatter(c)
+            entry = build_entry(c, fm)
+            entries.append({"card": c.stem, "title": fm.get("title"),
+                            "year": fm.get("year"), "bibtex": entry or None})
+        return {"workspace": str(ws), "entries": entries, "count": len(entries)}
+
+    @app.get("/api/workspace/drafts")
+    def get_workspace_drafts(workspace: Optional[str] = Query(None)) -> dict:
+        ws = _resolve_workspace(workspace)
+        drafts_dir = ws / "drafts"
+        items = []
+        if drafts_dir.is_dir():
+            for p in sorted(drafts_dir.rglob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True):
+                title = None
+                try:
+                    head = p.read_text(encoding="utf-8", errors="replace")[:2000]
+                    m = re.search(r"^title:\s*[\"']?(.+?)[\"']?\s*$", head, re.MULTILINE)
+                    if m:
+                        title = m.group(1)
+                    else:
+                        m = re.search(r"^#\s+(.+)$", head, re.MULTILINE)
+                        if m:
+                            title = m.group(1)
+                except OSError:
+                    pass
+                items.append({"name": p.name,
+                              "path": str(p.relative_to(ws)).replace("\\", "/"),
+                              "title": title,
+                              "mtime": p.stat().st_mtime,
+                              "size": p.stat().st_size})
+        return {"workspace": str(ws), "drafts": items, "count": len(items)}
+
+    # ----------------------------------------------------------------------
+    # 2b. Workspace config (whitelisted fields; surgical writes)
+    # ----------------------------------------------------------------------
+
+    CONFIG_FIELDS: Dict[str, dict] = {
+        "radar.min_relevance": {"type": "number", "nullable": True},
+        "radar.days": {"type": "int"},
+        "radar.max_candidates": {"type": "int"},
+        "radar.arxiv_categories": {"type": "list"},
+        "radar.seed_arxiv_ids": {"type": "list"},
+        "radar.own_arxiv_ids": {"type": "list"},
+        "ocr.use_mineru": {"type": "bool"},
+        "models.embedding": {"type": "str"},
+    }
+
+    def _config_field_value(data: dict, dotted: str):
+        cur = data
+        for part in dotted.split("."):
+            if not isinstance(cur, dict) or part not in cur:
+                return None
+            cur = cur[part]
+        return cur
+
+    @app.get("/api/workspace/config")
+    def get_workspace_config(workspace: Optional[str] = Query(None)) -> dict:
+        import yaml
+
+        ws = _resolve_workspace(workspace)
+        cfg_path = ws / "config.yaml"
+        raw = cfg_path.read_text(encoding="utf-8", errors="replace") if cfg_path.is_file() else ""
+        try:
+            data = yaml.safe_load(raw) or {}
+        except yaml.YAMLError:
+            data = {}
+        fields = [{"key": k, **spec, "value": _config_field_value(data, k)}
+                  for k, spec in CONFIG_FIELDS.items()]
+        return {"workspace": str(ws), "config_path": str(cfg_path),
+                "exists": cfg_path.is_file(), "fields": fields, "raw": raw}
+
+    @app.post("/api/workspace/config")
+    def post_workspace_config(payload: dict = Body(...)) -> dict:
+        from magi.core.config_edit import ConfigEditError, set_config_value
+
+        key = payload.get("key")
+        value = payload.get("value")
+        spec = CONFIG_FIELDS.get(key or "")
+        if spec is None:
+            raise HTTPException(status_code=400, detail=f"Config key not editable: {key}")
+
+        ftype = spec["type"]
+        if value is None:
+            if not spec.get("nullable"):
+                raise HTTPException(status_code=400, detail=f"{key} cannot be null")
+        elif ftype == "number" and not isinstance(value, (int, float)):
+            raise HTTPException(status_code=400, detail=f"{key} expects a number")
+        elif ftype == "int" and (not isinstance(value, int) or isinstance(value, bool)):
+            raise HTTPException(status_code=400, detail=f"{key} expects an integer")
+        elif ftype == "bool" and not isinstance(value, bool):
+            raise HTTPException(status_code=400, detail=f"{key} expects true/false")
+        elif ftype == "str" and not isinstance(value, str):
+            raise HTTPException(status_code=400, detail=f"{key} expects a string")
+        elif ftype == "list":
+            if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+                raise HTTPException(status_code=400, detail=f"{key} expects a list of strings")
+
+        ws = _resolve_workspace(payload.get("workspace"))
+        cfg_path = ws / "config.yaml"
+        try:
+            set_config_value(cfg_path, key, value)
+        except ConfigEditError as exc:
+            raise HTTPException(status_code=400, detail=f"Config edit failed: {exc}")
+        return {"key": key, "value": value, "config_path": str(cfg_path)}
+
     # ----------------------------------------------------------------------
     # 3. Asynchronous Jobs API
     # ----------------------------------------------------------------------

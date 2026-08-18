@@ -834,6 +834,47 @@ def test_eva_completion_layer_hud_boot_and_tactical_css(client):
     assert "prefers-reduced-motion" in js
 
 
+def test_bib_drafts_and_config_endpoints(client):
+    ws = client.test_workspace
+
+    # bib: 404 with no cards, entries after creating one
+    assert client.get(f"/api/workspace/bib?all=1&workspace={ws}").status_code == 404
+    (ws / "wiki" / "references" / "pretko-2020.md").write_text(
+        "---\ntitle: Fracton Phases\nauthors: [Michael Pretko]\nyear: 2020\narxiv_id: '2001.01722'\n---\n\nx\n",
+        encoding="utf-8")
+    data = client.get(f"/api/workspace/bib?all=1&workspace={ws}").json()
+    assert data["count"] == 1
+    assert data["entries"][0]["bibtex"].startswith("@")
+    one = client.get(f"/api/workspace/bib?card=pretko-2020&workspace={ws}").json()
+    assert one["entries"][0]["card"] == "pretko-2020"
+
+    # drafts listing
+    (ws / "drafts").mkdir()
+    (ws / "drafts" / "intro.md").write_text("# 引言草稿\n\n内容。\n", encoding="utf-8")
+    d = client.get(f"/api/workspace/drafts?workspace={ws}").json()
+    assert d["count"] == 1
+    assert d["drafts"][0]["title"] == "引言草稿"
+
+    # config: read whitelisted fields, surgical write preserves comments
+    cfg = ws / "config.yaml"
+    cfg.write_text("topic: test-topic\n# keep me\nradar:\n  days: 7\n", encoding="utf-8")
+    got = client.get(f"/api/workspace/config?workspace={ws}").json()
+    vals = {f["key"]: f["value"] for f in got["fields"]}
+    assert vals["radar.days"] == 7
+    res = client.post("/api/workspace/config",
+                      json={"key": "radar.min_relevance", "value": 0.3, "workspace": str(ws)})
+    assert res.status_code == 200
+    text = cfg.read_text(encoding="utf-8")
+    assert "# keep me" in text
+    assert "min_relevance: 0.3" in text
+
+    # non-whitelisted key and type mismatch rejected
+    assert client.post("/api/workspace/config",
+                       json={"key": "tools.pandoc_path", "value": "x", "workspace": str(ws)}).status_code == 400
+    assert client.post("/api/workspace/config",
+                       json={"key": "radar.days", "value": "seven", "workspace": str(ws)}).status_code == 400
+
+
 def test_radar_review_write_actions(client):
     ws = client.test_workspace
     f = ws / "inbox" / "radar" / "2026-08-19-digest.md"

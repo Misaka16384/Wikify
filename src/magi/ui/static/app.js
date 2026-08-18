@@ -268,6 +268,46 @@
       // Radar kinds
       badge_kind_citation_gap: "引文缺口",
 
+      // References & drafts (Melchior)
+      mel_bib_title: "文献与引用",
+      mel_bib_subtitle: "参考卡一键导出 BibTeX（magi bib）",
+      btn_copy_all_bibtex: "📋 复制全库 BibTeX",
+      btn_copy_bibtex: "复制 BibTeX",
+      bib_loading: "正在加载参考卡...",
+      bib_none: "wiki/references/ 下还没有参考卡。",
+      bib_no_entry: "缺少可引用的 frontmatter（title/authors/year）",
+      toast_bib_copied: "BibTeX 已复制到剪贴板（{n} 条）",
+      mel_drafts_title: "论文草稿",
+      mel_drafts_subtitle: "drafts/ 下的草稿——进检索、不进图谱（wiki_draft skill）",
+      drafts_none: "还没有草稿——用 wiki_draft skill 开始写作流程。",
+
+      // Workspace config
+      cfg_title: "工作区配置",
+      cfg_subtitle: "config.yaml 的科研旋钮——修改只动对应行，注释与其余内容原样保留",
+      cfg_loading: "正在加载配置...",
+      btn_cfg_save: "保存",
+      toast_cfg_saved: "已写入 {key}",
+      cfg_list_hint: "多个值用逗号分隔",
+      cfg_f_radar_min_relevance: "雷达相关度阈值（低于此分的候选被丢弃；留空 = 不过滤）",
+      cfg_f_radar_days: "雷达回溯天数（arXiv 新文窗口）",
+      cfg_f_radar_max_candidates: "每次收割的候选上限",
+      cfg_f_radar_arxiv_categories: "arXiv 分类（如 cond-mat.str-el）",
+      cfg_f_radar_seed_arxiv_ids: "种子论文 arXiv ID（推荐引擎的输入）",
+      cfg_f_radar_own_arxiv_ids: "我方论文 arXiv ID（citation-gap 的锚点）",
+      cfg_f_ocr_use_mineru: "使用 MinerU 云端 OCR（需在 config 中配 token）",
+      cfg_f_models_embedding: "嵌入模型（Ollama 模型名）",
+
+      // Search filters
+      opt_scope_auto: "联邦检索（本库 + 启用的注册库）",
+      opt_scope_local: "仅当前工作区",
+      opt_coll_all: "全部集合",
+      opt_coll_concepts: "concepts 概念卡",
+      opt_coll_references: "references 文献卡",
+      opt_coll_topics: "topics 主题卡",
+      opt_coll_raw: "raw 原始文献",
+      opt_coll_drafts: "drafts 草稿",
+      search_path_ph: "路径 glob 过滤，如 raw/papers/2026-*",
+
       // Radar review actions
       radar_actions_title: "候选操作",
       btn_accept_inbox: "📥 收入 inbox",
@@ -546,6 +586,46 @@
 
       // Radar kinds
       badge_kind_citation_gap: "Citation Gap",
+
+      // References & drafts (Melchior)
+      mel_bib_title: "References & Citations",
+      mel_bib_subtitle: "Reference cards with one-click BibTeX export (magi bib)",
+      btn_copy_all_bibtex: "📋 Copy all BibTeX",
+      btn_copy_bibtex: "Copy BibTeX",
+      bib_loading: "Loading reference cards...",
+      bib_none: "No reference cards under wiki/references/ yet.",
+      bib_no_entry: "missing citable frontmatter (title/authors/year)",
+      toast_bib_copied: "BibTeX copied to clipboard ({n} entrie(s))",
+      mel_drafts_title: "Drafts",
+      mel_drafts_subtitle: "Paper drafts under drafts/ — indexed for search, outside the graph (wiki_draft skill)",
+      drafts_none: "No drafts yet — the wiki_draft skill sets up the writing workflow.",
+
+      // Workspace config
+      cfg_title: "Workspace Config",
+      cfg_subtitle: "Research knobs from config.yaml — edits touch only the target line, comments preserved",
+      cfg_loading: "Loading config...",
+      btn_cfg_save: "Save",
+      toast_cfg_saved: "Saved {key}",
+      cfg_list_hint: "separate multiple values with commas",
+      cfg_f_radar_min_relevance: "Radar relevance threshold (candidates below are dropped; empty = keep all)",
+      cfg_f_radar_days: "Radar lookback window in days (new arXiv listings)",
+      cfg_f_radar_max_candidates: "Max candidates per harvest",
+      cfg_f_radar_arxiv_categories: "arXiv categories (e.g. cond-mat.str-el)",
+      cfg_f_radar_seed_arxiv_ids: "Seed paper arXiv IDs (recommendation input)",
+      cfg_f_radar_own_arxiv_ids: "Your own papers' arXiv IDs (citation-gap anchors)",
+      cfg_f_ocr_use_mineru: "Use MinerU cloud OCR (token configured in config)",
+      cfg_f_models_embedding: "Embedding model (Ollama model name)",
+
+      // Search filters
+      opt_scope_auto: "Federated (this KB + enabled KBs)",
+      opt_scope_local: "This workspace only",
+      opt_coll_all: "All collections",
+      opt_coll_concepts: "concepts",
+      opt_coll_references: "references",
+      opt_coll_topics: "topics",
+      opt_coll_raw: "raw",
+      opt_coll_drafts: "drafts",
+      search_path_ph: "path glob filter, e.g. raw/papers/2026-*",
 
       // Radar review actions
       radar_actions_title: "Candidate Actions",
@@ -1253,6 +1333,8 @@
           els.dashTaskReady.textContent = engineReady ? `0 ${t("unit_ready")}` : t("task_engine_offline");
         }
       } catch (_) {}
+
+      loadConfigCard();
     }
   }
 
@@ -1400,6 +1482,9 @@
           .join("");
       }
     } catch (_) {}
+
+    loadBibList();
+    loadDraftsList();
   }
 
   async function executeGraphSql(sql) {
@@ -1435,6 +1520,162 @@
     } catch (err) {
       els.sqlResultContainer.innerHTML = `<div style="color: var(--accent-danger); font-family: var(--font-mono); font-size: 0.85rem; padding: 0.5rem; background: var(--accent-danger-wash); border-radius: 4px;">${escapeHtml(err.message)}</div>`;
     }
+  }
+
+  // ------------------------------------------------------------------------
+  // References & citations (magi bib), drafts, workspace config
+  // ------------------------------------------------------------------------
+
+  async function copyToClipboard(text, count) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast(t("toast_bib_copied", { n: count }), "success");
+    } catch (_) {
+      showToast("clipboard unavailable", "error");
+    }
+  }
+
+  async function loadBibList() {
+    const list = document.getElementById("bib-list");
+    if (!list || !state.workspace) return;
+    list.innerHTML = `<p style="color: var(--text-muted); font-size:0.85rem;">${t("bib_loading")}</p>`;
+    let data = null;
+    try {
+      const res = await fetch(`/api/workspace/bib?all=1&workspace=${encodeURIComponent(state.workspace)}`);
+      if (res.ok) data = await res.json();
+    } catch (_) {}
+    state.bibEntries = (data && data.entries) || [];
+    if (!state.bibEntries.length) {
+      list.innerHTML = `<p style="color: var(--text-muted); font-size:0.85rem;">${t("bib_none")}</p>`;
+      return;
+    }
+    list.innerHTML = "";
+    state.bibEntries.forEach((e) => {
+      const row = document.createElement("div");
+      row.style.cssText =
+        "display:flex; align-items:center; justify-content:space-between; gap:0.75rem;" +
+        "padding:0.35rem 0.5rem; border-bottom:1px solid var(--border-subtle);";
+      const left = document.createElement("div");
+      left.style.cssText = "min-width:0; font-size:0.85rem;";
+      const tl = document.createElement("div");
+      tl.style.cssText = "overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+      tl.textContent = (e.title || e.card) + (e.year ? ` (${e.year})` : "");
+      left.appendChild(tl);
+      const sub = document.createElement("code");
+      sub.style.cssText = "font-size:0.72rem; color:var(--text-muted);";
+      sub.textContent = e.bibtex ? e.card : `${e.card} — ${t("bib_no_entry")}`;
+      left.appendChild(sub);
+      row.appendChild(left);
+      if (e.bibtex) {
+        const btn = document.createElement("button");
+        btn.className = "btn btn-secondary btn-sm";
+        btn.textContent = t("btn_copy_bibtex");
+        btn.addEventListener("click", () => copyToClipboard(e.bibtex, 1));
+        row.appendChild(btn);
+      }
+      list.appendChild(row);
+    });
+  }
+
+  async function loadDraftsList() {
+    const ul = document.getElementById("drafts-list");
+    if (!ul || !state.workspace) return;
+    try {
+      const data = await apiFetch(`/api/workspace/drafts?workspace=${encodeURIComponent(state.workspace)}`);
+      const drafts = data.drafts || [];
+      if (!drafts.length) {
+        ul.innerHTML = `<li style="color: var(--text-muted); padding: 0.3rem 0;">${t("drafts_none")}</li>`;
+        return;
+      }
+      ul.innerHTML = drafts
+        .map((d) => `<li style="padding: 0.3rem 0; border-bottom: 1px solid var(--border-subtle);">📝 ${escapeHtml(d.path)}${d.title ? ` — <span style="color: var(--text-secondary);">${escapeHtml(d.title)}</span>` : ""}</li>`)
+        .join("");
+    } catch (_) {}
+  }
+
+  const CFG_LABEL_KEYS = {
+    "radar.min_relevance": "cfg_f_radar_min_relevance",
+    "radar.days": "cfg_f_radar_days",
+    "radar.max_candidates": "cfg_f_radar_max_candidates",
+    "radar.arxiv_categories": "cfg_f_radar_arxiv_categories",
+    "radar.seed_arxiv_ids": "cfg_f_radar_seed_arxiv_ids",
+    "radar.own_arxiv_ids": "cfg_f_radar_own_arxiv_ids",
+    "ocr.use_mineru": "cfg_f_ocr_use_mineru",
+    "models.embedding": "cfg_f_models_embedding",
+  };
+
+  async function loadConfigCard() {
+    const box = document.getElementById("config-fields");
+    if (!box || !state.workspace) return;
+    try {
+      const data = await apiFetch(`/api/workspace/config?workspace=${encodeURIComponent(state.workspace)}`);
+      box.innerHTML = "";
+      (data.fields || []).forEach((f) => {
+        const row = document.createElement("div");
+        row.style.cssText =
+          "display:flex; align-items:center; gap:0.75rem; padding:0.35rem 0;" +
+          "border-bottom:1px solid var(--border-subtle); flex-wrap:wrap;";
+        const label = document.createElement("div");
+        label.style.cssText = "flex:1 1 320px; min-width:260px;";
+        const name = document.createElement("code");
+        name.style.cssText = "font-size:0.78rem;";
+        name.textContent = f.key;
+        const desc = document.createElement("div");
+        desc.style.cssText = "font-size:0.75rem; color:var(--text-muted);";
+        desc.textContent = t(CFG_LABEL_KEYS[f.key] || f.key);
+        label.appendChild(name);
+        label.appendChild(desc);
+        row.appendChild(label);
+
+        let input;
+        if (f.type === "bool") {
+          input = document.createElement("input");
+          input.type = "checkbox";
+          input.checked = !!f.value;
+        } else {
+          input = document.createElement("input");
+          input.type = "text";
+          input.className = "text-input";
+          input.style.cssText = "flex:1 1 220px; font-family:var(--font-mono); font-size:0.8rem;";
+          if (f.type === "list") {
+            input.value = (f.value || []).join(", ");
+            input.placeholder = t("cfg_list_hint");
+          } else {
+            input.value = (f.value === null || f.value === undefined) ? "" : String(f.value);
+          }
+        }
+        row.appendChild(input);
+
+        const save = document.createElement("button");
+        save.className = "btn btn-secondary btn-sm";
+        save.textContent = t("btn_cfg_save");
+        save.addEventListener("click", async () => {
+          let value;
+          if (f.type === "bool") {
+            value = input.checked;
+          } else if (f.type === "list") {
+            value = input.value.split(",").map((s) => s.trim()).filter(Boolean);
+          } else if (f.type === "int") {
+            value = parseInt(input.value, 10);
+            if (isNaN(value)) { showToast(`${f.key}: invalid integer`, "error"); return; }
+          } else if (f.type === "number") {
+            value = input.value.trim() === "" ? null : parseFloat(input.value);
+            if (value !== null && isNaN(value)) { showToast(`${f.key}: invalid number`, "error"); return; }
+          } else {
+            value = input.value.trim();
+          }
+          try {
+            await apiFetch("/api/workspace/config", {
+              method: "POST",
+              body: JSON.stringify({ key: f.key, value, workspace: state.workspace }),
+            });
+            showToast(t("toast_cfg_saved", { key: f.key }), "success");
+          } catch (_) {}
+        });
+        row.appendChild(save);
+        box.appendChild(row);
+      });
+    } catch (_) {}
   }
 
   // ------------------------------------------------------------------------
@@ -1488,10 +1729,16 @@
     els.searchResultsList.innerHTML = `<p style="color: var(--text-muted); text-align: center; padding: 2rem 0;">${t("searching_text")}</p>`;
     els.searchInfoBar.textContent = "";
 
+    const scopeSel = document.getElementById("search-scope-select");
+    const collSel = document.getElementById("search-collection-select");
+    const pathInput = document.getElementById("search-path-input");
+    let qs = `q=${encodeURIComponent(query)}&mode=${mode}&limit=${limit}&workspace=${encodeURIComponent(state.workspace)}`;
+    qs += `&scope=${(scopeSel && scopeSel.value) || "auto"}`;
+    if (collSel && collSel.value) qs += `&collection=${encodeURIComponent(collSel.value)}`;
+    if (pathInput && pathInput.value.trim()) qs += `&path=${encodeURIComponent(pathInput.value.trim())}`;
+
     try {
-      const data = await apiFetch(
-        `/api/workspace/search?q=${encodeURIComponent(query)}&mode=${mode}&limit=${limit}&workspace=${encodeURIComponent(state.workspace)}`
-      );
+      const data = await apiFetch(`/api/workspace/search?${qs}`);
 
       if (data.error) {
         const hintLine = data.hint ? `<div style="font-size:0.78rem; color: var(--text-muted); margin-top:0.3rem;">${escapeHtml(data.hint)}</div>` : "";
@@ -2028,6 +2275,19 @@
 
   // Refresh Claims
   els.refreshClaimsBtn.addEventListener("click", () => loadMelchior());
+
+  // Copy all BibTeX
+  const copyAllBibBtn = document.getElementById("btn-copy-all-bib");
+  if (copyAllBibBtn) {
+    copyAllBibBtn.addEventListener("click", () => {
+      const entries = (state.bibEntries || []).filter((e) => e.bibtex);
+      if (!entries.length) {
+        showToast(t("bib_none"), "info");
+        return;
+      }
+      copyToClipboard(entries.map((e) => e.bibtex).join("\n\n") + "\n", entries.length);
+    });
+  }
 
   // Graph SQL Console
   els.runSqlBtn.addEventListener("click", () => executeGraphSql(els.sqlQueryInput.value));

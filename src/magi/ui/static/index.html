@@ -208,6 +208,19 @@
           <button type="submit" class="btn btn-primary" data-i18n="btn_reg_kb">Register KB</button>
         </form>
       </div>
+
+      <!-- Workspace config (whitelisted fields; writes are surgical) -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="cfg_title">Workspace Config</h3>
+            <p class="card-subtitle" data-i18n="cfg_subtitle">Research knobs from config.yaml — edits preserve the rest of the file</p>
+          </div>
+        </div>
+        <div id="config-fields" style="display: flex; flex-direction: column; gap: 0.5rem;">
+          <p style="color: var(--text-muted); font-size: 0.85rem;" data-i18n="cfg_loading">Loading config...</p>
+        </div>
+      </div>
     </section>
 
     <!-- Tab 2: Melchior -->
@@ -296,6 +309,33 @@
           <p style="color: var(--text-muted); font-size: 0.85rem;" data-i18n="sql_run_prompt">Run a query above to see tabular results.</p>
         </div>
       </div>
+
+      <!-- References & citations -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="mel_bib_title">References & Citations</h3>
+            <p class="card-subtitle" data-i18n="mel_bib_subtitle">Reference cards with one-click BibTeX export (magi bib)</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="btn-copy-all-bib" data-i18n="btn_copy_all_bibtex">📋 Copy all BibTeX</button>
+        </div>
+        <div id="bib-list" style="max-height: 260px; overflow-y: auto;">
+          <p style="color: var(--text-muted); font-size: 0.85rem;" data-i18n="bib_loading">Loading reference cards...</p>
+        </div>
+      </div>
+
+      <!-- Drafts -->
+      <div class="card" style="margin-top: 1.5rem;">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="mel_drafts_title">Drafts</h3>
+            <p class="card-subtitle" data-i18n="mel_drafts_subtitle">Paper drafts under drafts/ — indexed for search, outside the graph (wiki_draft skill)</p>
+          </div>
+        </div>
+        <ul id="drafts-list" style="list-style: none; max-height: 180px; overflow-y: auto; font-family: var(--font-mono); font-size: 0.85rem;">
+          <li style="color: var(--text-muted); padding: 0.3rem 0;" data-i18n="drafts_none">No drafts yet — the wiki_draft skill sets up the writing workflow.</li>
+        </ul>
+      </div>
     </section>
 
     <!-- Tab 3: Balthasar -->
@@ -361,6 +401,22 @@
           </select>
           <button type="submit" class="btn btn-primary" data-i18n="btn_search">Search</button>
         </form>
+        <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center;">
+          <select id="search-scope-select" class="select-input">
+            <option value="auto" data-i18n="opt_scope_auto">Federated (this KB + enabled KBs)</option>
+            <option value="local" data-i18n="opt_scope_local">This workspace only</option>
+          </select>
+          <select id="search-collection-select" class="select-input">
+            <option value="" data-i18n="opt_coll_all">All collections</option>
+            <option value="concepts" data-i18n="opt_coll_concepts">concepts</option>
+            <option value="references" data-i18n="opt_coll_references">references</option>
+            <option value="topics" data-i18n="opt_coll_topics">topics</option>
+            <option value="raw" data-i18n="opt_coll_raw">raw</option>
+            <option value="drafts" data-i18n="opt_coll_drafts">drafts</option>
+          </select>
+          <input type="text" id="search-path-input" class="text-input" style="flex: 1; min-width: 220px; font-family: var(--font-mono); font-size: 0.8rem;"
+                 placeholder="path glob, e.g. raw/papers/2026-*" data-i18n-placeholder="search_path_ph">
+        </div>
 
         <div id="search-info-bar" style="margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--text-secondary);"></div>
         <div id="search-results-list">
