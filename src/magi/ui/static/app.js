@@ -13,8 +13,11 @@
       page_title: "MAGI — 科研工作空间控制台",
 
       // Topbar
-      workspace_label: "工作空间:",
+      workspace_label: "查看工作空间:",
       loading_workspaces: "加载工作空间中...",
+      browsing_badge: "浏览中",
+      browsing_badge_title: "面板正在浏览另一个工作空间（会话级选择，服务器启动位置不变）",
+      term_retention_note: "任务历史跨重启保留（最近 40 条，magi 配置目录下 ui-jobs.jsonl）。",
       sync_label: "三核同步:",
       running_jobs_label: "运行中任务:",
       sync_ratio_tooltip: "Melchior / Balthasar / Casper 三核协同同步率",
@@ -332,8 +335,11 @@
       page_title: "MAGI — Research Workspace WebUI",
 
       // Topbar
-      workspace_label: "Workspace:",
+      workspace_label: "Viewing:",
       loading_workspaces: "Loading workspaces...",
+      browsing_badge: "Browsing",
+      browsing_badge_title: "The panel is browsing a different workspace (session-level choice; the server's launch location is unchanged)",
+      term_retention_note: "Job history persists across restarts (last 40 records, ui-jobs.jsonl in the magi config directory).",
       sync_label: "Sync:",
       running_jobs_label: "Running Jobs:",
       sync_ratio_tooltip: "Three-core sync ratio (Melchior + Balthasar + Casper)",
@@ -725,6 +731,7 @@
 
   const state = {
     workspace: "",
+    serverWorkspace: "",
     kbs: [],
     activeTab: "dashboard",
     activeDoc: "readme",
@@ -1181,13 +1188,38 @@
     }
   }
 
+  // "Server workspace" (launch location) vs "browsing workspace" (this
+  // browser session's dropdown choice) are DIFFERENT concepts — the badge
+  // makes the divergence visible instead of silent.
+  function _normPath(p) {
+    return String(p || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
+  }
+
+  function updateBrowsingBadge() {
+    const badge = document.getElementById("browsing-badge");
+    if (!badge) return;
+    const browsing = state.workspace && state.serverWorkspace &&
+      _normPath(state.workspace) !== _normPath(state.serverWorkspace);
+    badge.style.display = browsing ? "" : "none";
+  }
+
   async function loadInitialStatus() {
     try {
       const status = await apiFetch("/api/status");
       els.appVersion.textContent = `v${status.version}`;
       state.workspace = status.active_workspace || "";
+      state.serverWorkspace = status.active_workspace || "";
 
       await loadKBRegistry();
+
+      // Restore this browser's last viewed workspace (session-level concept)
+      const savedView = safeStorageGet("magi-view-workspace");
+      if (savedView && savedView !== state.workspace &&
+          state.kbs.some((kb) => kb.path === savedView)) {
+        state.workspace = savedView;
+        renderWorkspaceSelect();
+      }
+      updateBrowsingBadge();
       if (status.active_jobs_count > 0) {
         els.activeJobsBadge.style.display = "flex";
         els.activeJobsCount.textContent = status.active_jobs_count;
@@ -1401,6 +1433,8 @@
       btn.addEventListener("click", () => {
         state.workspace = btn.dataset.path;
         els.workspaceSelect.value = state.workspace;
+        safeStorageSet("magi-view-workspace", state.workspace);
+        updateBrowsingBadge();
         loadSyncRatio();
         loadTabData(state.activeTab);
         showToast(t("toast_ws_switched"), "info");
@@ -2139,6 +2173,10 @@
       } else {
         const langParam = docKey === "readme-en" ? "en" : "zh";
         const data = await apiFetch(`/api/docs/readme?lang=${langParam}`);
+        // Installed (non-repo) deployments may only have the zh README from
+        // package metadata — hide the EN toggle instead of showing a blank tab.
+        const enBtn = document.querySelector('.doc-switch-btn[data-doc="readme-en"]');
+        if (enBtn) enBtn.style.display = data.readme_en ? "" : "none";
         const mdText = data.content || (langParam === "en" ? data.readme_en : data.readme_zh) || t("no_docs_found");
         if (window.marked && mdText) {
           els.docsContent.innerHTML = window.marked.parse(mdText);
@@ -2243,9 +2281,11 @@
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
   });
 
-  // Workspace selector change
+  // Workspace selector change (browsing choice — persisted per browser)
   els.workspaceSelect.addEventListener("change", (e) => {
     state.workspace = e.target.value;
+    safeStorageSet("magi-view-workspace", state.workspace);
+    updateBrowsingBadge();
     loadSyncRatio();
     loadTabData(state.activeTab);
   });

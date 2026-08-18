@@ -762,25 +762,55 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
 
     @app.get("/api/docs/readme")
     def get_readme_docs(lang: Optional[str] = Query(None)) -> dict:
-        root = Path(__file__).parent.parent.parent.parent
+        # Three-level fallback so an installed `magi ui` (uv tool / pip) still
+        # has docs: repo checkout -> wheel metadata long-description ->
+        # GitHub raw (online).
         readme_zh = ""
         readme_en = ""
-        p_zh = root / "README.md"
-        p_en = root / "README_en.md"
-        if p_zh.is_file():
-            readme_zh = p_zh.read_text(encoding="utf-8", errors="replace")
-        if p_en.is_file():
-            readme_en = p_en.read_text(encoding="utf-8", errors="replace")
+        source = None
 
-        # Fallback to current working directory if not found in root
+        candidates = []
+        root = Path(__file__).resolve()
+        for _ in range(5):
+            root = root.parent
+            candidates.append(root)
+        candidates.append(Path.cwd())
+        for base in candidates:
+            p_zh = base / "README.md"
+            if p_zh.is_file() and (base / "skills").is_dir():
+                readme_zh = p_zh.read_text(encoding="utf-8", errors="replace")
+                p_en = base / "README_en.md"
+                if p_en.is_file():
+                    readme_en = p_en.read_text(encoding="utf-8", errors="replace")
+                source = "repo"
+                break
+
         if not readme_zh:
-            cwd_zh = Path.cwd() / "README.md"
-            if cwd_zh.is_file():
-                readme_zh = cwd_zh.read_text(encoding="utf-8", errors="replace")
-        if not readme_en:
-            cwd_en = Path.cwd() / "README_en.md"
-            if cwd_en.is_file():
-                readme_en = cwd_en.read_text(encoding="utf-8", errors="replace")
+            try:
+                from importlib.metadata import metadata
+
+                payload = metadata("magi-research").get_payload()
+                if payload and payload.strip():
+                    readme_zh = payload
+                    source = "package-metadata"
+            except Exception:
+                pass
+
+        if not readme_zh:
+            try:
+                import urllib.request
+
+                base_url = "https://raw.githubusercontent.com/Misaka16384/magi/main/"
+                with urllib.request.urlopen(base_url + "README.md", timeout=5) as r:
+                    readme_zh = r.read().decode("utf-8", errors="replace")
+                source = "github"
+                try:
+                    with urllib.request.urlopen(base_url + "README_en.md", timeout=5) as r:
+                        readme_en = r.read().decode("utf-8", errors="replace")
+                except Exception:
+                    pass
+            except Exception:
+                pass
 
         lang_norm = "en" if (lang and lang.strip().lower().startswith("en")) else "zh"
         selected = readme_en if lang_norm == "en" else readme_zh
@@ -792,6 +822,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             "readme_en": readme_en,
             "content": selected,
             "lang": lang_norm,
+            "source": source,
         }
 
     @app.get("/api/docs/commands")

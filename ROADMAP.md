@@ -2,7 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-18 · 当前阶段：**v1.2.0 已发布**（tag `v1.2.0`；版本号同步于 pyproject.toml / `magi.__version__` / .claude-plugin/plugin.json / plugin.json）。此前：M0–M8 全部完成。
+> 最后更新：2026-08-18 · 当前阶段：**v1.3.0 已发布**（tag `v1.3.0`；版本号同步于 pyproject.toml / `magi.__version__` / .claude-plugin/plugin.json / plugin.json）。此前：M0–M9 全部完成。
+>
+> 2026-08-18 M9 逻辑⇄WebUI 对齐 (v1.3.0)：**契约统一**——`retrieval.run_search()` 单实现（CLI `--json` 与 `/api/workspace/search` 逐字段一致 = 未来 mcp 契约，UI 免费获得联邦 scope/collection/`--path` 过滤，连接不再泄漏）、`build_report` 新增 `hints_structured`（code+text 双轨，前端按 code 渲染按钮，删正则）、`radar.scan_reports()` 单一事实源，`tests/test_contracts.py` 契约锁。**jobs 收权**——OPS 白名单（不再收 raw argv）、danger 服务端 confirm==op、并发闸门（同库 1 活跃/全局 3/global 独占）、`GET /api/ops` 驱动全部操作按钮（危险区补 install-schedule）、任务历史落盘 ui-jobs.jsonl（256KB/40 条上限，跨重启回放 20 条）。**radar 审阅写路径**——mark-reviewed / accept-to-inbox / create-issue 三端点 + digest 阅读器按钮。**新能力上 UI**——BibTeX 复制导出、检索过滤器（scope/collection/path + kb/collection badge）、drafts 区块、config.yaml 白名单字段编辑器（`core.config_edit` 手术式改行，保注释，safe_load 回验防腐蚀）。**语义收口**——「查看工作空间」+ Browsing 徽标 + localStorage 恢复；README 三级回退（repo→wheel metadata→GitHub raw，装态不再空白）；端口默认改 8737（忙时探测 8738-8746，显式指定忙则报错）。
 >
 > 2026-08-18 M8 全周期加固 (v1.2.0)：真实科研用户全周期模拟（建库→摄入→编译→检索→任务→雷达→写论文，23 个摩擦点全部修复）+ WebUI 浏览器点击审计。准确率侧：FTS5 CJK 二元组分词（中文 BM25 从 0 命中修到可用，旧索引自动迁移 fts_version=2）、claims 宽松匹配层（连字/断词/全角/CJK 空格）、radar 嵌入质心相关度排序（`radar.min_relevance`）、检索剔除 See Also/Sources boilerplate、`--path` glob 过滤。摄入侧：ingest tex 相对路径崩溃修复、.bbl-only 自动内联（引用不再全灭）、HTML `<img>`/`<embed>` 图片抽取 + 丢图安全网、`.bib/.bbl` sidecar 保留、arXiv ID 入 frontmatter、OCR `--pages`/ETA/断点续跑提示/非 TTY 静默、pymupdf 弃用告警消除。工具链一致性：add-concept 标题源 lint 可解析（title/aliases 回退）、lint 仅 critical 判 FAIL（exit 同步）、raw tags/summary 降为 warning、math check 预置物理宏包 + 误报注记、finalize 透传 stdout、verify 幽灵 malformed 块修复。新能力：`magi bib`（BibTeX 导出，--fetch 拉 arXiv 官方条目）、`drafts/` 写作约定 + `wiki_draft` skill、`magi claims verify` 别名。WebUI：可执行 hints 卡、检索空态指引、常见错误中文化、README 图片走 GitHub raw、citation-gap 报告可见（badge + 计数）。
 >

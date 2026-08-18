@@ -210,11 +210,11 @@ magi radar citation-gap         # 侦察"该引我方论文却未引"的近期�
 MAGI 内置了基于 Claude 纸墨美学的零构建本地轻量看板（FastAPI + 原生 SPA），用于直观查看三核状态、执行维护与检索实验：
 
 ```powershell
-magi ui                       # 启动并在默认浏览器中打开本地看板（http://127.0.0.1:8000）
+magi ui                       # 启动并在默认浏览器中打开本地看板（默认 http://127.0.0.1:8737，占用时自动探测 8738-8746）
 magi ui --port 8080 --no-open # 自定义端口且不自启浏览器
 ```
 
-包含 7 大面板：Dashboard（全局同步率与注册库）、Melchior（认知网络/Claims/图谱 SQL）、Balthasar（Beads 任务）、Casper（混合检索实验台）、Radar（文献雷达/Digest 阅读）、Operations & Danger Zone（SSE 实时终端/二次确认安全操作）与内置文档。
+包含 7 大面板：Dashboard（全局同步率、可一键执行的修复建议、注册库、config.yaml 关键字段编辑）、Melchior（认知网络/Claims/图谱 SQL/文献 BibTeX 复制/草稿）、Balthasar（Beads 任务）、Casper（混合检索实验台：联邦/集合/路径过滤）、Radar（简报阅读 + 审阅动作：标已审/收入 inbox/建阅读任务）、Operations & Danger Zone（服务端操作白名单 + 输入操作 ID 确认 + SSE 实时终端，任务历史落盘）与内置文档。API 与 `--json` 契约逐字段一致。
 
 顶栏的 **⚡ MAGI MODE** 可一键切换 EVA/NERV 战术主题：三贤者三体阵列 HUD（MELCHIOR·1 / BALTHASAR·2 / CASPER·3 实时状态 + 同调率）、CRT 扫描线、蜂窝网格、警示条纹 Danger Zone 与启动同步序列。看板仅监听 `127.0.0.1`，带 Host 白名单防护，不发送任何 CORS 头。
 

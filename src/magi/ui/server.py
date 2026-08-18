@@ -27,8 +27,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--port",
         type=int,
-        default=8000,
-        help="Port to listen on (default: 8000)",
+        default=None,
+        help="Port to listen on (default: 8737, probing 8738-8746 when busy; "
+             "an explicitly requested busy port is an error)",
     )
     parser.add_argument(
         "--no-open",
@@ -69,6 +70,29 @@ def main(argv: list[str] | None = None) -> int:
         import uvicorn
     except ImportError:
         print("Error: uvicorn is required to run the WebUI. Please install uvicorn.", file=sys.stderr)
+        return 1
+
+    import socket
+
+    def _port_free(host: str, port: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind((host if host not in ("localhost",) else "127.0.0.1", port))
+                return True
+            except OSError:
+                return False
+
+    if args.port is None:
+        # Default port with auto-probe: 8737 first, then the next nine.
+        port = next((p for p in range(8737, 8747) if _port_free(args.host, p)), None)
+        if port is None:
+            print("Error: ports 8737-8746 are all busy — pass --port explicitly.", file=sys.stderr)
+            return 1
+        if port != 8737:
+            print(f"note: port 8737 busy — using {port}")
+        args.port = port
+    elif not _port_free(args.host, args.port):
+        print(f"Error: port {args.port} is already in use.", file=sys.stderr)
         return 1
 
     url = f"http://{args.host}:{args.port}"

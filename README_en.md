@@ -212,11 +212,11 @@ Deterministic harvest runs at night; the `radar_review` skill does LLM triage in
 MAGI includes a zero-build, Claude-styled local inspection and operations dashboard (FastAPI + native SPA) for visual triaging and maintenance:
 
 ```powershell
-magi ui                       # launch and open the local dashboard in default browser (http://127.0.0.1:8000)
+magi ui                       # launch and open the local dashboard (default http://127.0.0.1:8737; auto-probes 8738-8746 when busy)
 magi ui --port 8080 --no-open # custom port without auto-opening the browser
 ```
 
-Features 7 functional panels: Dashboard (global sync & KB registry), Melchior (epistemic state & claims), Balthasar (Beads tasks), Casper (hybrid search lab), Radar (digest reader), Operations & Danger Zone (live SSE terminal & double-confirmation actions), and Documentation.
+Features 7 functional panels: Dashboard (global sync, one-click actionable hints, KB registry, config.yaml field editor), Melchior (epistemic state, claims, graph SQL, BibTeX copy, drafts), Balthasar (Beads tasks), Casper (hybrid search lab with federation/collection/path filters), Radar (digest reader + review actions: mark reviewed / accept to inbox / create reading task), Operations & Danger Zone (server-side ops whitelist, type-to-confirm, live SSE terminal, persisted job history), and Documentation. The API is field-identical to the CLI's `--json` contracts.
 
 The **⚡ MAGI MODE** toggle in the top bar switches to an EVA/NERV tactical theme: a live tri-monolith HUD (MELCHIOR·1 / BALTHASAR·2 / CASPER·3 core states + sync ratio), CRT scanlines, honeycomb field, hazard-striped Danger Zone, and a boot synchronization sequence. The dashboard binds to `127.0.0.1` only, enforces a trusted-Host allowlist, and emits no CORS headers.
 

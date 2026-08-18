@@ -15,17 +15,19 @@
       <div class="brand-icon">M</div>
       <div>
         <span class="brand-title">MAGI</span>
-        <span class="brand-badge" id="app-version">v1.2.0</span>
+        <span class="brand-badge" id="app-version">v1.3.0</span>
       </div>
       <span class="eva-clock" id="eva-clock" aria-hidden="true"></span>
     </div>
 
     <div class="topbar-controls">
       <div class="workspace-select-group">
-        <label for="workspace-select" class="control-label" data-i18n="workspace_label">Workspace:</label>
+        <label for="workspace-select" class="control-label" data-i18n="workspace_label">Viewing:</label>
         <select id="workspace-select" class="select-input" style="min-width: 200px;">
           <option value="" data-i18n="loading_workspaces">Loading workspaces...</option>
         </select>
+        <span class="stat-pill warning" id="browsing-badge" style="display: none;"
+              data-i18n="browsing_badge" title="" data-i18n-title="browsing_badge_title">Browsing</span>
       </div>
 
       <div class="topbar-stats">
@@ -503,6 +505,8 @@
           </div>
         </div>
         <div class="terminal-body" id="terminal-output" data-i18n="term_ready_msg">Ready. Run an operation above to view real-time log output.</div>
+        <div style="padding: 0.35rem 1rem; font-size: 0.7rem; color: #737168; border-top: 1px solid #2E2E2A;"
+             data-i18n="term_retention_note">Job history persists across restarts (last 40 records, ui-jobs.jsonl in the magi config directory).</div>
       </div>
     </section>
 
