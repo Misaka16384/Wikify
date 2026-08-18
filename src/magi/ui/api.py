@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
 from fastapi import Body, FastAPI, HTTPException, Query
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -92,7 +92,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-def create_app() -> FastAPI:
+def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     app = FastAPI(
         title="MAGI Research Workspace WebUI",
         version=magi.__version__,
@@ -100,13 +100,15 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    # Host allowlist blocks DNS-rebinding: a malicious site resolving to
+    # 127.0.0.1 still sends its own Host header, which gets rejected here.
+    # Deliberately NO CORS middleware — mutations are JSON-body-only, so
+    # browsers require a preflight that (absent CORS headers) always fails.
+    allowed_hosts = ["127.0.0.1", "localhost", "testserver"]
+    for h in extra_allowed_hosts or []:
+        if h and h not in allowed_hosts:
+            allowed_hosts.append(h)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
 
     # ----------------------------------------------------------------------

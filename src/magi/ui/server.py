@@ -74,6 +74,14 @@ def main(argv: list[str] | None = None) -> int:
     url = f"http://{args.host}:{args.port}"
     print(f"Starting MAGI WebUI v{__version__} at {url} ...")
 
+    loopback = args.host in ("127.0.0.1", "localhost", "::1")
+    if not loopback:
+        print(
+            f"WARNING: binding to {args.host} exposes the dashboard beyond this machine.\n"
+            "         The API can trigger magi maintenance commands; only do this on a trusted network.",
+            file=sys.stderr,
+        )
+
     if not args.no_open:
         def _open_browser():
             time.sleep(1.0)
@@ -89,7 +97,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.reload:
             uvicorn.run("magi.ui.api:create_app", host=args.host, port=args.port, reload=True, factory=True, log_level="info")
         else:
-            app = create_app()
+            app = create_app(extra_allowed_hosts=None if loopback else [args.host])
             uvicorn.run(app, host=args.host, port=args.port, log_level="info")
         return 0
     except KeyboardInterrupt:
