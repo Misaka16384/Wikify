@@ -301,33 +301,19 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             except Exception:
                 pass
 
-        digest_dir = ws / "inbox" / "radar"
-        digests: list[dict] = []
-        if digest_dir.is_dir():
-            entries = [(p, "digest") for p in digest_dir.glob("*-digest*.md")]
-            entries += [(p, "citation-gap") for p in digest_dir.glob("*-citation-gaps.md")]
-            for p, kind in sorted(entries, key=lambda e: e[0].name, reverse=True):
-                try:
-                    text = p.read_text(encoding="utf-8", errors="replace")
-                    status = "pending-review" if "status: pending-review" in text else "reviewed"
-                    digests.append({
-                        "name": p.name,
-                        "path": str(p.relative_to(ws)).replace("\\", "/"),
-                        "status": status,
-                        "kind": kind,
-                        "mtime": p.stat().st_mtime,
-                        "size": p.stat().st_size,
-                    })
-                except Exception:
-                    continue
+        from magi.radar import pending_names, scan_reports
+
+        digests = []
+        for r in scan_reports(ws):
+            entry = dict(r)
+            entry["path"] = str(Path(r["path"]).relative_to(ws)).replace("\\", "/")
+            digests.append(entry)
 
         return {
             "workspace": str(ws),
             "seen_total": seen_count,
-            "pending_digests": [d["name"] for d in digests
-                                if d["status"] == "pending-review" and d["kind"] == "digest"],
-            "pending_citation_gaps": [d["name"] for d in digests
-                                      if d["status"] == "pending-review" and d["kind"] == "citation-gap"],
+            "pending_digests": pending_names(digests, "digest"),
+            "pending_citation_gaps": pending_names(digests, "citation-gap"),
             "digests": digests,
         }
 
@@ -358,77 +344,29 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         mode: str = Query("hybrid", pattern="^(hybrid|bm25|vector)$"),
         limit: int = Query(10, ge=1, le=100),
         workspace: Optional[str] = Query(None),
+        scope: str = Query("auto", pattern="^(auto|local|global)$"),
+        kb: Optional[str] = Query(None),
+        collection: Optional[str] = Query(None),
+        path: Optional[str] = Query(None),
     ) -> dict:
+        # Contract note: this is a thin passthrough over retrieval.run_search —
+        # the response body is byte-identical in shape to `magi search --json`
+        # (and the future `magi mcp` surface). Do not reshape fields here.
+        from magi.retrieval import SearchError, run_search
+
         ws = _resolve_workspace(workspace)
-        idx_path = ws / "output" / "index.db"
-        if not idx_path.is_file():
-            return {
-                "workspace": str(ws),
-                "query": q,
-                "mode": mode,
-                "results": [],
-                "vector_available": False,
-                "error": "No index found at output/index.db. Run 'magi index' first.",
-            }
-
-        conn = None
         try:
-            from magi.retrieval import Embedder, _fts_query, _search_one_db, open_db, RRF_K
-            import argparse
-
-            args = argparse.Namespace(collection=None, mode=mode, query=q, k=limit)
-            o = open_db(idx_path)
-            if not o:
-                return {"results": [], "vector_available": False, "error": "Index missing"}
-
-            conn, vec_loaded = o
-            embedder = Embedder()
-            qvec = embedder.embed(q) if mode in ("hybrid", "vector") and embedder.available else None
-            n = max(limit * 3, 20)
-
-            ranks, bh, vh, vused = _search_one_db(conn, vec_loaded, args, qvec, n)
-            scores = {cid: sum(1.0 / (RRF_K + r) for r in legs.values()) for cid, legs in ranks.items()}
-            top = sorted(scores.items(), key=lambda kv: -kv[1])[:limit]
-
-            results = []
-            for cid, score in top:
-                row = conn.execute(
-                    "SELECT path, collection, heading, start_line, end_line, content FROM chunks WHERE id=?",
-                    (cid,),
-                ).fetchone()
-                if not row:
-                    continue
-                path, collection, heading, start_line, end_line, content = row
-                legs = ranks.get(cid, {})
-                results.append({
-                    "id": cid,
-                    "path": path,
-                    "collection": collection,
-                    "heading": heading,
-                    "start_line": start_line,
-                    "end_line": end_line,
-                    "score": round(score, 4),
-                    "bm25_rank": legs.get("bm25"),
-                    "vector_rank": legs.get("vector"),
-                    "content": content,
-                })
-            return {
-                "workspace": str(ws),
-                "query": q,
-                "mode": mode,
-                "results": results,
-                "bm25_hits": bh,
-                "vector_hits": vh,
-                "vector_available": vused or (embedder.available and vec_loaded),
-            }
+            payload = run_search(q, mode=mode, k=limit, scope=scope, kb=kb,
+                                 collection=collection, path=path,
+                                 topic_dir=str(ws) if ws else None)
+        except SearchError as exc:
+            return {"query": q, "mode": mode, "scope": kb or scope, "results": [],
+                    "vector_available": False, "error": exc.msg, "hint": exc.hint}
         except Exception as exc:
-            return {"results": [], "vector_available": False, "error": str(exc)}
-        finally:
-            if conn:
-                try:
-                    conn.close()
-                except Exception:
-                    pass
+            return {"query": q, "mode": mode, "scope": kb or scope, "results": [],
+                    "vector_available": False, "error": str(exc)}
+        payload["workspace"] = str(ws)
+        return payload
 
     @app.get("/api/workspace/graph/query")
     def query_graph_sql(

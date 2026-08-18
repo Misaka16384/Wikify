@@ -206,6 +206,40 @@ def harvest_arxiv(categories: list[str], days: int,
 
 
 # --------------------------------------------------------------------------
+# report scanning (single source of truth for sync / status / WebUI)
+# --------------------------------------------------------------------------
+
+def scan_reports(topic: Path) -> list[dict]:
+    """All radar reports under inbox/radar/, newest first.
+
+    Each entry: {name, kind: digest|citation-gap, status: pending-review|reviewed,
+    path (absolute str), mtime, size}. This is the one place that knows the
+    file-naming and frontmatter-status conventions — sync hints, `radar
+    status`, and the WebUI must all consume it instead of re-globbing.
+    """
+    digest_dir = topic / "inbox" / "radar"
+    out: list[dict] = []
+    if not digest_dir.is_dir():
+        return out
+    entries = [(p, "digest") for p in digest_dir.glob("*-digest*.md")]
+    entries += [(p, "citation-gap") for p in digest_dir.glob("*-citation-gaps.md")]
+    for p, kind in sorted(entries, key=lambda e: e[0].name, reverse=True):
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+            st = p.stat()
+        except OSError:
+            continue
+        status = "pending-review" if "status: pending-review" in text else "reviewed"
+        out.append({"name": p.name, "kind": kind, "status": status,
+                    "path": str(p), "mtime": st.st_mtime, "size": st.st_size})
+    return out
+
+
+def pending_names(reports: list[dict], kind: str) -> list[str]:
+    return [r["name"] for r in reports if r["kind"] == kind and r["status"] == "pending-review"]
+
+
+# --------------------------------------------------------------------------
 # relevance scoring: cosine(candidate embedding, library centroid)
 # --------------------------------------------------------------------------
 
@@ -599,24 +633,13 @@ def cmd_status(args: argparse.Namespace) -> int:
         return 1
     radar_dir = topic / "output" / "radar"
     ledger = _load_ledger(radar_dir / "seen.jsonl")
-    pending = []
-    gap_pending = []
+    reports = scan_reports(topic)
+    pending = pending_names(reports, "digest")
+    gap_pending = pending_names(reports, "citation-gap")
     failed_sources = None
     digest_dir = topic / "inbox" / "radar"
     if digest_dir.is_dir():
         digests = sorted(digest_dir.glob("*-digest*.md"))
-        for p in digests:
-            try:
-                if "status: pending-review" in p.read_text(encoding="utf-8"):
-                    pending.append(p.name)
-            except OSError:
-                continue
-        for p in sorted(digest_dir.glob("*-citation-gaps.md")):
-            try:
-                if "status: pending-review" in p.read_text(encoding="utf-8"):
-                    gap_pending.append(p.name)
-            except OSError:
-                continue
         if digests:
             newest = max(digests, key=lambda p: p.stat().st_mtime)
             try:

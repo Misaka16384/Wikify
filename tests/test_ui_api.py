@@ -531,7 +531,8 @@ def test_invalid_workspace_isolation(client):
 
     res_search = client.get(f"/api/workspace/search?q=test&workspace={nonexistent}")
     assert res_search.status_code == 200
-    assert "No index found" in res_search.json().get("error", "")
+    # unified contract: the API relays the CLI's exact error envelope
+    assert "no index at output/index.db" in res_search.json().get("error", "")
 
 
 def test_task_manager_pruning_and_ring_buffer(tmp_path):
@@ -806,10 +807,10 @@ def test_sync_hints_card_and_researcher_guidance(client):
     assert 'data-i18n="hints_title"' in html
 
     js = client.get("/app.js").text
-    # actionable hints pipeline
-    assert "HINT_RULES" in js
+    # actionable hints pipeline (code-driven, no prose parsing)
+    assert "HINT_ACTIONS" in js
     assert "renderSyncHints" in js
-    assert "renderSyncHints(rep.hints)" in js
+    assert "renderSyncHints(rep.hints_structured, rep.hints)" in js
     # researcher-facing guidance & bilingual error mapping
     assert "localizeApiError" in js
     assert "vec_unavailable_hint" in js

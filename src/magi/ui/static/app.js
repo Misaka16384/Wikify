@@ -736,7 +736,7 @@
       [/^KB '(.+)' not found in registry$/, "注册表中找不到知识库 '$1'"],
       [/^Job not found$/, "找不到该后台任务"],
       [/^Unable to cancel job.*$/, "无法中止该任务（不存在或已结束）"],
-      [/^No index found.*'magi index'.*$/, "当前工作区还没有检索索引——请先在 运维与操作 里点「重建检索索引」"],
+      [/^[Nn]o index (found|at) .*$/, "当前工作区还没有检索索引——请先在 运维与操作 里点「重建检索索引」"],
       [/^Knowledge graph database not found.*$/, "知识图谱数据库不存在——请先在 运维与操作 里点「构建知识图谱」"],
       [/^Digest file not found: (.+)$/, "找不到简报文件：$1"],
       [/^Failed to generate sync report: (.+)$/, "生成同步报告失败：$1"],
@@ -1113,11 +1113,11 @@
         els.syncRatioBadge.className = "stat-pill info";
       }
       updateEvaHud(rep);
-      renderSyncHints(rep.hints);
+      renderSyncHints(rep.hints_structured, rep.hints);
     } catch (err) {
       els.syncRatioVal.textContent = "--%";
       updateEvaHud(null);
-      renderSyncHints([]);
+      renderSyncHints([], []);
     }
   }
 
@@ -1125,38 +1125,48 @@
   // Actionable sync hints
   // ------------------------------------------------------------------------
 
-  const HINT_RULES = [
-    { test: /^magi graph build/, i18n: "hint_graph_build", action: { type: "job", cmd: "graph build", nameKey: "op_build_graph" } },
-    { test: /^magi index/, i18n: "hint_index", action: { type: "job", cmd: "index", nameKey: "op_rebuild_index" } },
-    { test: /^magi pm backlog-sync/, i18n: "hint_backlog_sync", action: { type: "job", cmd: "pm backlog-sync", nameKey: "op_backlog_sync" } },
-    { test: /^magi pm init/, i18n: "hint_pm_init", action: { type: "tab", tab: "operations" } },
-    { test: /^radar:/, i18n: "hint_radar_review", action: { type: "tab", tab: "radar" } },
-    { test: /^claims:/, i18n: "hint_claims_unverified", action: { type: "tab", tab: "melchior" } },
-    { test: /^bd ready/, i18n: "hint_bd_ready", action: { type: "tab", tab: "balthasar" } },
-    { test: /^install beads/, i18n: "hint_install_beads", action: null },
-    { test: /^drop sources/, i18n: "hint_ingest_start", action: null },
-  ];
+  // Keyed by the sync report's structured hint codes (report.hints_structured
+  // from the backend) — no prose parsing.
+  const HINT_ACTIONS = {
+    "graph-stale": { i18n: "hint_graph_build", action: { type: "job", cmd: "graph build", nameKey: "op_build_graph" } },
+    "index-missing": { i18n: "hint_index", action: { type: "job", cmd: "index", nameKey: "op_rebuild_index" } },
+    "index-stale": { i18n: "hint_index", action: { type: "job", cmd: "index", nameKey: "op_rebuild_index" } },
+    "backlog-untracked": { i18n: "hint_backlog_sync", action: { type: "job", cmd: "pm backlog-sync", nameKey: "op_backlog_sync" } },
+    "pm-uninit": { i18n: "hint_pm_init", action: { type: "tab", tab: "operations" } },
+    "radar-digests-pending": { i18n: "hint_radar_review", action: { type: "tab", tab: "radar" } },
+    "radar-gaps-pending": { i18n: "hint_radar_review", action: { type: "tab", tab: "radar" } },
+    "claims-unverified": { i18n: "hint_claims_unverified", action: { type: "tab", tab: "melchior" } },
+    "bd-ready": { i18n: "hint_bd_ready", action: { type: "tab", tab: "balthasar" } },
+    "beads-missing": { i18n: "hint_install_beads", action: null },
+    "ingest-start": { i18n: "hint_ingest_start", action: null },
+    "hub-topics": { i18n: null, action: null },
+  };
 
-  function renderSyncHints(hints) {
+  function renderSyncHints(structured, plain) {
     const card = document.getElementById("sync-hints-card");
     const list = document.getElementById("sync-hints-list");
     if (!card || !list) return;
     list.innerHTML = "";
-    const items = Array.isArray(hints) ? hints : [];
+    // Prefer structured hints; fall back to bare strings from older servers.
+    let items = Array.isArray(structured) ? structured : [];
+    if (!items.length && Array.isArray(plain)) {
+      items = plain.map((s) => ({ code: null, text: s }));
+    }
     if (!items.length) {
       card.style.display = "none";
       return;
     }
     card.style.display = "";
-    items.forEach((raw) => {
-      const rule = HINT_RULES.find((r) => r.test.test(raw));
+    items.forEach((item) => {
+      const raw = item.text || "";
+      const rule = item.code ? HINT_ACTIONS[item.code] : null;
       const row = document.createElement("div");
       row.style.cssText =
         "display:flex; align-items:center; justify-content:space-between; gap:0.75rem;" +
         "padding:0.5rem 0.75rem; border:1px solid var(--border-subtle);" +
         "border-radius:var(--radius-sm); background:var(--bg-subtle);";
       const left = document.createElement("div");
-      if (rule) {
+      if (rule && rule.i18n) {
         const label = document.createElement("div");
         label.style.fontSize = "0.85rem";
         label.textContent = t(rule.i18n);
@@ -1449,7 +1459,8 @@
       );
 
       if (data.error) {
-        els.searchResultsList.innerHTML = `<div class="stat-pill warning" style="margin: 1rem 0;">${escapeHtml(localizeApiError(data.error))}</div>`;
+        const hintLine = data.hint ? `<div style="font-size:0.78rem; color: var(--text-muted); margin-top:0.3rem;">${escapeHtml(data.hint)}</div>` : "";
+        els.searchResultsList.innerHTML = `<div class="stat-pill warning" style="margin: 1rem 0;">${escapeHtml(localizeApiError(data.error))}</div>${hintLine}`;
         return;
       }
 
@@ -1475,20 +1486,27 @@
 
       els.searchResultsList.innerHTML = data.results
         .map((hit) => {
+          const lineStart = hit.lines ? hit.lines[0] : hit.start_line;
+          const lineEnd = hit.lines ? hit.lines[1] : hit.end_line;
+          const kbBadge = hit.kb && hit.kb !== "local"
+            ? `<span class="badge badge-blue">kb:${escapeHtml(hit.kb)}</span>` : "";
+          const collBadge = hit.collection
+            ? `<span class="badge badge-muted">${escapeHtml(hit.collection)}</span>` : "";
           return `
             <div class="search-hit-card">
               <div class="search-hit-header">
                 <div class="search-hit-title">${escapeHtml(hit.heading || hit.path)}</div>
                 <div style="display: flex; gap: 0.4rem; align-items: center;">
+                  ${kbBadge}${collBadge}
                   <span class="badge badge-terracotta">RRF ${hit.score}</span>
                   ${hit.bm25_rank ? `<span class="badge badge-blue">BM25 #${hit.bm25_rank}</span>` : ""}
                   ${hit.vector_rank ? `<span class="badge badge-sage">Vec #${hit.vector_rank}</span>` : ""}
                 </div>
               </div>
               <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
-                ${escapeHtml(hit.path)} (${t("search_lines", { start: hit.start_line, end: hit.end_line })})
+                ${escapeHtml(hit.path)} (${t("search_lines", { start: lineStart, end: lineEnd })})
               </div>
-              <div class="search-hit-snippet">${escapeHtml(hit.content)}</div>
+              <div class="search-hit-snippet">${escapeHtml(hit.snippet || hit.content || "")}</div>
             </div>
           `;
         })

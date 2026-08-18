@@ -174,21 +174,34 @@ def build_report(cwd: Path | None = None) -> dict:
     cores: dict[str, dict] = {}
     weights: dict[str, float] = {}
     hints: list[str] = []
+    hints_structured: list[dict] = []
+
+    def _hint(code: str, text: str, **params) -> None:
+        # Dual-track contract: `hints` (human text, frozen shape) stays exactly
+        # as before; `hints_structured` adds a machine-readable code so UI/MCP
+        # consumers map actions without parsing prose.
+        hints.append(text)
+        hints_structured.append({"code": code, "text": text, "params": params})
 
     if topic:
         m = melchior_status(topic)
         cores["melchior"] = m
         weights["melchior"] = 1.0
         if m["graph"] in ("missing", "stale"):
-            hints.append("magi graph build   # refresh the knowledge graph")
+            _hint("graph-stale", "magi graph build   # refresh the knowledge graph")
         if m["backlog"] > 0:
-            hints.append("magi pm backlog-sync (idempotent) && bd ready   # ensure uncompiled sources are tracked")
+            _hint("backlog-untracked",
+                  "magi pm backlog-sync (idempotent) && bd ready   # ensure uncompiled sources are tracked",
+                  backlog=m["backlog"])
         if m["concepts"] == 0 and m["references"] == 0 and m["backlog"] == 0:
-            hints.append("drop sources in inbox/ and run the wiki_ingest skill to start building the library")
+            _hint("ingest-start",
+                  "drop sources in inbox/ and run the wiki_ingest skill to start building the library")
         if m.get("claims") and m["claims_verified"] < m["claims"]:
             n_unv = m["claims"] - m["claims_verified"]
-            hints.append(f"claims: {n_unv} unverified — inspect with magi graph query "
-                         "\"SELECT text, status FROM claims WHERE status NOT IN ('verified','web-verified')\"")
+            _hint("claims-unverified",
+                  f"claims: {n_unv} unverified — inspect with magi graph query "
+                  "\"SELECT text, status FROM claims WHERE status NOT IN ('verified','web-verified')\"",
+                  unverified=n_unv)
 
     try:
         from magi.kb_registry import load_settings
@@ -204,40 +217,47 @@ def build_report(cwd: Path | None = None) -> dict:
         cores["balthasar"] = b
         weights["balthasar"] = 1.0
         if not b["bd_installed"]:
-            hints.append("install beads (bd) for work-state tracking: https://github.com/gastownhall/beads")
+            _hint("beads-missing",
+                  "install beads (bd) for work-state tracking: https://github.com/gastownhall/beads")
         elif not b["beads_root"]:
-            hints.append("magi pm init   # initialize beads at the hub root")
+            _hint("pm-uninit", "magi pm init   # initialize beads at the hub root")
         elif (b["ready"] or 0) > 0:
-            hints.append("bd ready   # there is actionable work")
+            _hint("bd-ready", "bd ready   # there is actionable work", ready=b["ready"])
 
     if topic:
         c = casper_status(topic)
         cores["casper"] = c
         weights["casper"] = 1.0
         if c["state"] == "missing":
-            hints.append("magi index   # build the retrieval index")
+            _hint("index-missing", "magi index   # build the retrieval index")
         elif c["state"] == "stale":
-            hints.append("magi index   # refresh the retrieval index")
-        digest_dir = topic / "inbox" / "radar"
-        if digest_dir.is_dir():
-            pending = sum(
-                1 for p in digest_dir.glob("*-digest*.md")
-                if "status: pending-review" in p.read_text(encoding="utf-8", errors="replace")
-            )
+            _hint("index-stale", "magi index   # refresh the retrieval index")
+        try:
+            from magi.radar import pending_names, scan_reports
+
+            reports = scan_reports(topic)
+        except Exception:
+            reports = []
+            pending_names = None
+        if reports and pending_names:
+            pending = len(pending_names(reports, "digest"))
+            gap_pending = len(pending_names(reports, "citation-gap"))
             if pending:
-                hints.append(f"radar: {pending} digest(s) pending — run the radar_review skill")
-            gap_pending = sum(
-                1 for p in digest_dir.glob("*-citation-gaps.md")
-                if "status: pending-review" in p.read_text(encoding="utf-8", errors="replace")
-            )
+                _hint("radar-digests-pending",
+                      f"radar: {pending} digest(s) pending — run the radar_review skill",
+                      pending=pending)
             if gap_pending:
-                hints.append(f"radar: {gap_pending} citation-gap report(s) pending — run the radar_review skill")
+                _hint("radar-gaps-pending",
+                      f"radar: {gap_pending} citation-gap report(s) pending — run the radar_review skill",
+                      pending=gap_pending)
     else:
         cores["casper"] = {"state": "offline", "note": "no workspace", "score": None}
         if hub:
             slugs = _hub_topics(hub)
             if slugs:
-                hints.append(f"topics: {', '.join(slugs)} — cd topics/<slug> && magi sync")
+                _hint("hub-topics",
+                      f"topics: {', '.join(slugs)} — cd topics/<slug> && magi sync",
+                      topics=slugs)
 
     # No workspace -> no ratio: reporting "100% in sync" from a random
     # directory would invert the metric's meaning.
@@ -254,6 +274,7 @@ def build_report(cwd: Path | None = None) -> dict:
         "sync_ratio": ratio,
         "cores": cores,
         "hints": hints,
+        "hints_structured": hints_structured,
     }
 
 
