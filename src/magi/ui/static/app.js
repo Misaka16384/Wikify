@@ -268,6 +268,15 @@
       // Radar kinds
       badge_kind_citation_gap: "引文缺口",
 
+      // Radar review actions
+      radar_actions_title: "候选操作",
+      btn_accept_inbox: "📥 收入 inbox",
+      btn_create_issue: "🎯 建阅读任务",
+      btn_mark_reviewed: "✓ 标记本报告已审",
+      toast_marked_reviewed: "已标记为已审：{file}",
+      toast_accepted: "已写入 {path}（等待摄入）",
+      toast_issue_created: "已创建阅读任务 (bd survey)",
+
       // Ops catalog & danger confirm
       ops_loading: "正在加载操作目录...",
       op_stats: "📊 工作区统计",
@@ -538,6 +547,15 @@
       // Radar kinds
       badge_kind_citation_gap: "Citation Gap",
 
+      // Radar review actions
+      radar_actions_title: "Candidate Actions",
+      btn_accept_inbox: "📥 Accept to inbox",
+      btn_create_issue: "🎯 Create reading task",
+      btn_mark_reviewed: "✓ Mark report reviewed",
+      toast_marked_reviewed: "Marked reviewed: {file}",
+      toast_accepted: "Wrote {path} (queued for ingestion)",
+      toast_issue_created: "Reading task created (bd survey)",
+
       // Ops catalog & danger confirm
       ops_loading: "Loading operations…",
       op_stats: "📊 Workspace Stats",
@@ -761,6 +779,10 @@
       [/^[Nn]o index (found|at) .*$/, "当前工作区还没有检索索引——请先在 运维与操作 里点「重建检索索引」"],
       [/^Knowledge graph database not found.*$/, "知识图谱数据库不存在——请先在 运维与操作 里点「构建知识图谱」"],
       [/^Digest file not found: (.+)$/, "找不到简报文件：$1"],
+      [/^Report is not pending-review: (.+)$/, "该报告不在待审状态：$1"],
+      [/^Already accepted: (.+)$/, "该候选已收入过：$1"],
+      [/^No beads workspace found.*$/, "尚未初始化任务引擎——请先运行 magi pm init"],
+      [/^bd \(Beads\) is not installed$/, "任务引擎 (beads) 未安装"],
       [/^Failed to generate sync report: (.+)$/, "生成同步报告失败：$1"],
     ];
     for (const [re, rep] of rules) {
@@ -1611,8 +1633,87 @@
       } else {
         els.digestViewer.textContent = data.content;
       }
+      renderDigestActions(data);
     } catch (err) {
       els.digestViewer.innerHTML = `<p style="color: var(--accent-danger);">${escapeHtml(err.message)}</p>`;
+    }
+  }
+
+  // Review actions: mark-reviewed footer + per-candidate accept/task buttons
+  function renderDigestActions(data) {
+    const viewer = els.digestViewer;
+    if (!viewer) return;
+
+    const cands = data.candidates || [];
+    if (cands.length && data.kind === "digest") {
+      const box = document.createElement("div");
+      box.style.cssText = "margin-top:1rem; border-top:1px solid var(--border-default); padding-top:0.75rem;";
+      const title = document.createElement("div");
+      title.style.cssText = "font-weight:600; margin-bottom:0.5rem;";
+      title.textContent = t("radar_actions_title");
+      box.appendChild(title);
+      cands.forEach((c) => {
+        const row = document.createElement("div");
+        row.style.cssText =
+          "display:flex; align-items:center; justify-content:space-between; gap:0.75rem;" +
+          "padding:0.4rem 0.6rem; border:1px solid var(--border-subtle);" +
+          "border-radius:var(--radius-sm); margin-bottom:0.4rem; background:var(--bg-subtle);";
+        const label = document.createElement("div");
+        label.style.cssText = "font-size:0.85rem; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+        const rel = (c.relevance !== null && c.relevance !== undefined) ? `[${c.relevance}] ` : "";
+        label.textContent = rel + c.title;
+        label.title = c.title;
+        row.appendChild(label);
+        const btns = document.createElement("div");
+        btns.style.cssText = "display:flex; gap:0.4rem; flex-shrink:0;";
+        [["accept-to-inbox", "btn_accept_inbox"], ["create-issue", "btn_create_issue"]].forEach(([action, key]) => {
+          const b = document.createElement("button");
+          b.className = "btn btn-secondary btn-sm";
+          b.textContent = t(key);
+          b.addEventListener("click", () => radarCandidateAction(data.file, c.index, action, b));
+          btns.appendChild(b);
+        });
+        row.appendChild(btns);
+        box.appendChild(row);
+      });
+      viewer.appendChild(box);
+    }
+
+    if (data.status === "pending-review") {
+      const foot = document.createElement("div");
+      foot.style.cssText = "margin-top:1rem; text-align:right;";
+      const btn = document.createElement("button");
+      btn.className = "btn btn-primary";
+      btn.textContent = t("btn_mark_reviewed");
+      btn.addEventListener("click", async () => {
+        try {
+          await apiFetch("/api/workspace/radar/review", {
+            method: "POST",
+            body: JSON.stringify({ file: data.file, action: "mark-reviewed", workspace: state.workspace }),
+          });
+          showToast(t("toast_marked_reviewed", { file: data.file }), "success");
+          loadRadar();
+        } catch (_) {}
+      });
+      foot.appendChild(btn);
+      viewer.appendChild(foot);
+    }
+  }
+
+  async function radarCandidateAction(file, index, action, btn) {
+    btn.disabled = true;
+    try {
+      const res = await apiFetch("/api/workspace/radar/candidate", {
+        method: "POST",
+        body: JSON.stringify({ file, index, action, workspace: state.workspace }),
+      });
+      if (action === "accept-to-inbox") {
+        showToast(t("toast_accepted", { path: res.created }), "success");
+      } else {
+        showToast(t("toast_issue_created"), "success");
+      }
+    } catch (_) {
+      btn.disabled = false;
     }
   }
 

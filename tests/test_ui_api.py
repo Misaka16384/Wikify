@@ -834,6 +834,65 @@ def test_eva_completion_layer_hud_boot_and_tactical_css(client):
     assert "prefers-reduced-motion" in js
 
 
+def test_radar_review_write_actions(client):
+    ws = client.test_workspace
+    f = ws / "inbox" / "radar" / "2026-08-19-digest.md"
+    f.write_text(
+        "---\ndate: 2026-08-19\nstatus: pending-review\n---\n\n"
+        "# Literature Radar — 2026-08-19\n\n"
+        "## Sparse Attention at Scale\n\n"
+        "- id: `2508.01234` · 2026 · source: arxiv-new:cs.CL · relevance: 0.61\n"
+        "- https://arxiv.org/abs/2508.01234\n\n"
+        "## Second Paper 论文\n\n"
+        "- id: `DOI:10/xyz` · 2025 · source: s2-recommendation\n",
+        encoding="utf-8",
+    )
+
+    # digest GET returns parsed candidates + review status
+    data = client.get(f"/api/workspace/radar/digest?file={f.name}&workspace={ws}").json()
+    assert data["status"] == "pending-review"
+    assert data["kind"] == "digest"
+    assert len(data["candidates"]) == 2
+    c0 = data["candidates"][0]
+    assert c0["arxiv_id"] == "2508.01234"
+    assert c0["relevance"] == 0.61
+    assert c0["url"] == "https://arxiv.org/abs/2508.01234"
+
+    # accept-to-inbox writes the queue file
+    body = {"file": f.name, "index": 0, "action": "accept-to-inbox", "workspace": str(ws)}
+    res = client.post("/api/workspace/radar/candidate", json=body)
+    assert res.status_code == 200
+    created = res.json()["created"]
+    accepted = ws / created
+    assert accepted.is_file()
+    text = accepted.read_text(encoding="utf-8")
+    assert "to-ingest" in text and "2508.01234" in text
+
+    # duplicate accept -> 409; bad index -> 404
+    assert client.post("/api/workspace/radar/candidate", json=body).status_code == 409
+    assert client.post("/api/workspace/radar/candidate",
+                       json={**body, "index": 99}).status_code == 404
+
+    # create-issue is best-effort: env may lack bd or a beads root
+    res = client.post("/api/workspace/radar/candidate",
+                      json={**body, "index": 1, "action": "create-issue"})
+    assert res.status_code in (200, 409, 502, 503)
+
+    # mark-reviewed flips exactly once, then conflicts
+    res = client.post("/api/workspace/radar/review",
+                      json={"file": f.name, "workspace": str(ws)})
+    assert res.status_code == 200
+    assert "status: reviewed" in f.read_text(encoding="utf-8")
+    res = client.post("/api/workspace/radar/review",
+                      json={"file": f.name, "workspace": str(ws)})
+    assert res.status_code == 409
+
+    # traversal guard on the write path
+    res = client.post("/api/workspace/radar/review",
+                      json={"file": "../../config.yaml", "workspace": str(ws)})
+    assert res.status_code in (400, 404)
+
+
 def test_radar_citation_gap_reports_visible(client):
     ws = client.test_workspace
     gap = ws / "inbox" / "radar" / "2026-08-18-citation-gaps.md"

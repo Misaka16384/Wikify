@@ -51,6 +51,19 @@ class KBToggleRequest(BaseModel):
     enabled: bool
 
 
+class RadarReviewRequest(BaseModel):
+    file: str
+    action: str = "mark-reviewed"
+    workspace: Optional[str] = None
+
+
+class RadarCandidateRequest(BaseModel):
+    file: str
+    index: int
+    action: str  # accept-to-inbox | create-issue
+    workspace: Optional[str] = None
+
+
 class JobCreateRequest(BaseModel):
     # Whitelisted operation id (see magi.ui.jobs.OPS) — raw argv is not accepted.
     op: str = Field(..., min_length=1)
@@ -319,26 +332,101 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             "digests": digests,
         }
 
-    @app.get("/api/workspace/radar/digest")
-    def get_radar_digest(file: str = Query(...), workspace: Optional[str] = Query(None)) -> dict:
-        ws = _resolve_workspace(workspace)
+    def _radar_report_path(ws: Path, file: str) -> Path:
         digest_dir = (ws / "inbox" / "radar").resolve()
         target_path = (digest_dir / file).resolve()
-
         try:
-            if not target_path.is_relative_to(digest_dir):
-                raise HTTPException(status_code=400, detail="Invalid digest path")
+            ok = target_path.is_relative_to(digest_dir)
         except (ValueError, AttributeError):
+            ok = False
+        if not ok:
             raise HTTPException(status_code=400, detail="Invalid digest path")
-
         if not target_path.is_file():
             raise HTTPException(status_code=404, detail=f"Digest file not found: {file}")
+        return target_path
 
+    @app.get("/api/workspace/radar/digest")
+    def get_radar_digest(file: str = Query(...), workspace: Optional[str] = Query(None)) -> dict:
+        from magi.radar import parse_digest_candidates
+
+        ws = _resolve_workspace(workspace)
+        target_path = _radar_report_path(ws, file)
         try:
             content = target_path.read_text(encoding="utf-8", errors="replace")
-            return {"file": file, "content": content}
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Cannot read digest: {exc}")
+        return {
+            "file": file,
+            "content": content,
+            "status": "pending-review" if "status: pending-review" in content else "reviewed",
+            "kind": "citation-gap" if file.endswith("-citation-gaps.md") else "digest",
+            "candidates": parse_digest_candidates(content),
+        }
+
+    @app.post("/api/workspace/radar/review")
+    def post_radar_review(req: RadarReviewRequest) -> dict:
+        from magi.radar import mark_report_reviewed
+
+        if req.action != "mark-reviewed":
+            raise HTTPException(status_code=400, detail=f"Unknown action: {req.action}")
+        ws = _resolve_workspace(req.workspace)
+        target = _radar_report_path(ws, req.file)
+        if not mark_report_reviewed(target):
+            raise HTTPException(status_code=409, detail=f"Report is not pending-review: {req.file}")
+        return {"file": req.file, "status": "reviewed"}
+
+    @app.post("/api/workspace/radar/candidate")
+    def post_radar_candidate(req: RadarCandidateRequest) -> dict:
+        from magi.radar import parse_digest_candidates
+
+        ws = _resolve_workspace(req.workspace)
+        target = _radar_report_path(ws, req.file)
+        cands = parse_digest_candidates(target.read_text(encoding="utf-8", errors="replace"))
+        if not (0 <= req.index < len(cands)):
+            raise HTTPException(status_code=404, detail=f"No candidate #{req.index} in {req.file}")
+        cand = cands[req.index]
+
+        if req.action == "accept-to-inbox":
+            import yaml
+
+            slug = re.sub(r"[^\w\-]+", "-", (cand["title"] or "paper").lower()).strip("-")[:60] or "paper"
+            dest = ws / "inbox" / f"radar-accept-{slug}.md"
+            if dest.exists():
+                raise HTTPException(status_code=409, detail=f"Already accepted: {dest.name}")
+            url = cand["url"] or (f"https://arxiv.org/abs/{cand['arxiv_id']}" if cand["arxiv_id"] else None)
+            fm = {"title": cand["title"], "type": "papers", "source": "radar",
+                  "id": cand["id"], "arxiv_id": cand["arxiv_id"], "url": url,
+                  "status": "to-ingest"}
+            fm = {k: v for k, v in fm.items() if v is not None}
+            body = ("---\n" + yaml.safe_dump(fm, allow_unicode=True, sort_keys=False)
+                    + "---\n\n" + f"# {cand['title']}\n\n"
+                    + (f"{url}\n\n" if url else "")
+                    + f"Accepted from {req.file} via WebUI radar review — "
+                      "download the PDF/source into inbox/ and run the wiki_ingest skill.\n")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(body, encoding="utf-8")
+            return {"created": f"inbox/{dest.name}", "candidate": cand}
+
+        if req.action == "create-issue":
+            from magi.pm import _run_bd, bd_available, find_beads_root
+
+            if not bd_available():
+                raise HTTPException(status_code=503, detail="bd (Beads) is not installed")
+            beads_root = find_beads_root(ws)
+            if beads_root is None:
+                raise HTTPException(status_code=409, detail="No beads workspace found — run 'magi pm init' first")
+            title = f"[{ws.name}] Survey: {cand['title']}"[:200]
+            url = cand["url"] or (f"https://arxiv.org/abs/{cand['arxiv_id']}" if cand["arxiv_id"] else "")
+            desc = (url + (f" (id {cand['id']})" if cand["id"] else "")).strip() or "radar candidate"
+            proc = _run_bd(["create", "-t", "survey", title,
+                            "--label", "radar", "--label", f"topic:{ws.name}",
+                            "-d", desc], cwd=beads_root)
+            if proc.returncode != 0:
+                raise HTTPException(status_code=502, detail=f"bd create failed: {proc.stderr[-200:]}")
+            return {"issue_created": True, "candidate": cand,
+                    "output": proc.stdout.strip()[-200:]}
+
+        raise HTTPException(status_code=400, detail=f"Unknown action: {req.action}")
 
     @app.get("/api/workspace/search")
     def get_workspace_search(

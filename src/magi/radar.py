@@ -239,6 +239,62 @@ def pending_names(reports: list[dict], kind: str) -> list[str]:
     return [r["name"] for r in reports if r["kind"] == kind and r["status"] == "pending-review"]
 
 
+def parse_digest_candidates(text: str) -> list[dict]:
+    """Parse a digest's candidate sections for programmatic review actions.
+
+    Understands the format cmd_harvest writes: `## <title>` headings followed
+    by `- id: \\`<id>\\` · ...` metadata lines and bare `- <url>` link lines.
+    Tolerant of citation-gap reports (whose sections parse as title-only).
+    """
+    out: list[dict] = []
+    cur: dict | None = None
+    for line in text.splitlines():
+        m = re.match(r"^##\s+(.+?)\s*$", line)
+        if m:
+            if cur:
+                out.append(cur)
+            cur = {"index": len(out), "title": m.group(1), "id": None,
+                   "arxiv_id": None, "url": None, "relevance": None}
+            continue
+        if cur is None:
+            continue
+        mid = re.match(r"^- id: `([^`]+)`", line)
+        if mid:
+            cur["id"] = mid.group(1)
+            mrel = re.search(r"relevance: (-?[0-9.]+)", line)
+            if mrel:
+                try:
+                    cur["relevance"] = float(mrel.group(1))
+                except ValueError:
+                    pass
+            continue
+        murl = re.match(r"^- (https?://\S+)\s*$", line)
+        if murl:
+            url = murl.group(1)
+            if cur["url"] is None:
+                cur["url"] = url
+            ma = re.search(r"arxiv\.org/abs/([\w.\-]+)", url)
+            if ma and cur["arxiv_id"] is None:
+                cur["arxiv_id"] = re.sub(r"v\d+$", "", ma.group(1))
+    if cur:
+        out.append(cur)
+    return out
+
+
+def mark_report_reviewed(path: Path) -> bool:
+    """Flip `status: pending-review` -> `status: reviewed` (first occurrence).
+
+    Returns False when the report is not pending (already reviewed / foreign
+    format) — callers surface that as a conflict rather than rewriting blindly.
+    """
+    text = path.read_text(encoding="utf-8", errors="replace")
+    if "status: pending-review" not in text:
+        return False
+    path.write_text(text.replace("status: pending-review", "status: reviewed", 1),
+                    encoding="utf-8")
+    return True
+
+
 # --------------------------------------------------------------------------
 # relevance scoring: cosine(candidate embedding, library centroid)
 # --------------------------------------------------------------------------
