@@ -29,6 +29,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("hub", "restore"): ("magi.kb.llmwiki", ["archive", "restore"], "Restore an archived topic"),
     ("hub", "register"): ("magi.kb.llmwiki", ["archive", "register"], "Register an existing topic in the hub"),
     ("sync",): ("magi.sync", [], "Workspace onboarding: sync ratio + three-core status"),
+    ("ui",): ("magi.ui.server", [], "Launch the local MAGI WebUI dashboard"),
     ("setup",): ("magi.setup_cmd", [], "Provision the environment (beads, models, plugin) + doctor"),
     ("migrate",): ("magi.migrate", [], "Migrate a pre-magi (Wikify) workspace (hub or topic)"),
     # work state (Beads bridge)

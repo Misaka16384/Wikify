@@ -221,7 +221,7 @@ def build_report(cwd: Path | None = None) -> dict:
         digest_dir = topic / "inbox" / "radar"
         if digest_dir.is_dir():
             pending = sum(
-                1 for p in digest_dir.glob("*-digest.md")
+                1 for p in digest_dir.glob("*-digest*.md")
                 if "status: pending-review" in p.read_text(encoding="utf-8", errors="replace")
             )
             if pending:

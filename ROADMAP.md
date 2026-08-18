@@ -2,8 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-18 · 当前阶段：**v1.0.0 已发布**（tag `v1.0.0`，GitHub Release https://github.com/Misaka16384/magi/releases/tag/v1.0.0 ；版本号同步于 pyproject.toml / `magi.__version__` / .claude-plugin/plugin.json）。此前：M0–M6 完成 + code review（15 findings）修复 + 六画像真实用户模拟（56 frictions：0 blocker/14 major/24 minor/18 papercut）全部修复
+> 最后更新：2026-08-18 · 当前阶段：**v1.1.0 已发布**（tag `v1.1.0`，GitHub Release https://github.com/Misaka16384/magi/releases/tag/v1.1.0 ；版本号同步于 pyproject.toml / `magi.__version__` / .claude-plugin/plugin.json）。此前：M0–M7 全部完成（WebUI 看板正式上线）。
 >
+> 2026-08-18 M7：MAGI WebUI 本地看板（`magi ui`，`--host/--port/--no-open/--check`）+ 零构建 Anthropic 纸墨陶土橙 SPA（7 个功能 Tab + SSE 实时子进程任务流 + 危险操作双重确认 + 只读 SQL 图谱安全守卫）。FastAPI+Uvicorn 依赖闭环，全套单元测试与冒烟测试通过。
 > 2026-08-18 M6：全局知识库注册表 + 联邦检索（`magi kb register/list/enable/disable/unregister`，注册表在 `~/.config/magi/registry.json`，`magi index` 自动注册；`magi search` 默认联邦当前工作区+启用库，结果带 kb 标记，`--scope local`/`--kb` 收窄；跨库 RRF 融合）+ kb-only profile（`magi setup --kb-only` 还原经典 Wikify 体验，Balthasar 停用且不计入同步率）。测试经 MAGI_CONFIG_HOME 隔离，冒烟含联邦回归锁。
 >
 > 2026-08-18 安装体验升级：一键安装脚本（install.ps1/install.sh，uv/rustup 引导模式）+ `magi setup`（bd/模型/plugin 自动装配 + 环境体检 + 旧版检测/清除）+ `magi migrate` hub 模式（一键全主题迁移）。真实一键命令已在本机端到端验证（含 GitHub git+ 源安装与 Claude Code plugin 注册）。
@@ -29,7 +30,7 @@
 | D7 | 跨平台硬约束：Windows + macOS。`pandoc-crossref.exe` 改 PATH 查找；macOS 注意 sqlite loadable extension（需 Homebrew/uv Python）|
 | D8 | 三 host 都支持且冒烟测试：Claude Code（主）、Codex、Antigravity。v1 不做 MCP；JSON 接口按未来 `magi mcp` 一比一映射设计 |
 | D9 | 旧数据干净切换，一次性 `magi migrate`，不做兼容层 |
-| D10 | 不做：capability IR/host compiler、AutoResearchClaw 式 control plane、自研 UI、OpenCode/dsh 适配 |
+| D10 | 不做：capability IR/host compiler、AutoResearchClaw 式 control plane、OpenCode/dsh 适配（注：自研 UI 作为轻量 inspection/ops WebUI 看板已在 M7 里程碑纳入） |
 
 ## Radar 配置（M3 用）
 
@@ -128,6 +129,15 @@ magi radar ...               # M3
 - [x] radar_review skill 增 citation-gap triage 节：判断真实引用义务 → `bd create -t review`，明确禁止自动起草 outreach
 - [x] config：`radar.own_arxiv_ids`（含 2401.00505）+ `citation_gap.min_shared_refs/years`
 - [x] live 实测（锚点 2401.00505）：30 推荐 → 4 幸存，含共享 13 篇参考文献的强信号候选
+
+### M7 — WebUI 看板（✅ 完成）
+
+- [x] 后端基础设施：`fastapi>=0.100.0` + `uvicorn>=0.22.0` 依赖写入 `pyproject.toml`，配置 `magi.ui` 的 package-data。
+- [x] CLI 入口：在 `src/magi/cli.py` 注册 `magi ui` 命令，支持 `--host`、`--port`、`--no-open`、`--check`。
+- [x] 任务管理器：`src/magi/ui/jobs.py` 实现 `TaskManager`，支持后台子进程调度、环形日志缓冲区、SSE 日志长连接流式推送与优雅取消。
+- [x] API 路由：`src/magi/ui/api.py` 暴露全局状态、KB 注册表管理、工作区内省（三核同步率、Claims 验证、Casper 检索、Radar digests、只读 Graph SQL 白名单守卫）与异步任务调度。
+- [x] 前端界面：`src/magi/ui/static/` 零构建 Anthropic/Claude 纸墨美学 SPA（陶土暖橙点缀、深浅主题自适应、7 个核心功能 Tab、实时终端输出、Danger Zone 二次确认对话框）。
+- [x] 自动化测试与冒烟测试：`tests/test_ui_api.py` 完整覆盖核心端点与安全白名单；`tests/smoke_test.py` 集成 WebUI 冒烟检验。
 
 ## 交接须知（给接手的 agent）
 

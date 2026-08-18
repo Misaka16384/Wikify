@@ -241,6 +241,23 @@ def main() -> int:
         vrep = json.loads(vr.stdout)
         assert vrep["results"][0]["status"] == "verified", f"normalized match failed: {vrep}"
 
+        # 11. M7: WebUI validation probe and API smoke checks
+        run(["ui", "--check"], cwd=topic)
+        from fastapi.testclient import TestClient
+        from magi.ui.api import create_app
+
+        ui_client = TestClient(create_app())
+        st_res = ui_client.get("/api/status")
+        assert st_res.status_code == 200 and "version" in st_res.json(), "WebUI status check failed"
+        kb_res = ui_client.get("/api/kb")
+        assert kb_res.status_code == 200 and "kbs" in kb_res.json(), "WebUI KB list check failed"
+        ws_res = ui_client.get(f"/api/workspace/sync?workspace={topic}")
+        assert ws_res.status_code == 200 and "sync_ratio" in ws_res.json(), "WebUI workspace sync check failed"
+        g_res = ui_client.get(f"/api/workspace/graph/query?sql=SELECT+COUNT(*)+AS+n+FROM+claims&workspace={topic}")
+        assert g_res.status_code == 200 and g_res.json()["results"][0]["n"] >= 1, "WebUI graph query check failed"
+        root_res = ui_client.get("/")
+        assert root_res.status_code == 200 and "MAGI" in root_res.text, "WebUI static SPA serving failed"
+
         print("\nALL SMOKE TESTS PASSED")
         return 0
     finally:
@@ -249,3 +266,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
+

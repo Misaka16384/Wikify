@@ -2,7 +2,7 @@
   "$schema": "https://agentplugins.dev/schemas/1.0.0/plugin.schema.json",
   "name": "magi",
   "description": "Agent-native research workspace: paper ingestion, concept wiki, knowledge graph, claim verification. Skills drive the `magi` CLI (install: uv tool install magi-research / pip install magi-research).",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "homepage": "https://github.com/Misaka16384/magi",
   "license": "MIT"
 }
