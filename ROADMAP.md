@@ -2,8 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-18 · 当前阶段：**v1.1.1 已发布**（tag `v1.1.1`，GitHub Release https://github.com/Misaka16384/magi/releases/tag/v1.1.1 ；版本号同步于 pyproject.toml / `magi.__version__` / .claude-plugin/plugin.json）。此前：M0–M7 全部完成（WebUI 看板正式上线 + 去底层框架化与中英双语国际化 i18n 完成）。
+> 最后更新：2026-08-18 · 当前阶段：**v1.1.2 已发布**（tag `v1.1.2`；版本号同步于 pyproject.toml / `magi.__version__` / .claude-plugin/plugin.json / plugin.json）。此前：M0–M7 全部完成（WebUI 看板正式上线 + i18n 双语 + EVA 战术主题）。
 >
+> 2026-08-18 M7 EVA 主题 (v1.1.2)：MAGI MODE 战术主题完成——三贤者三体阵列 HUD（MELCHIOR·1 科学者 / BALTHASAR·2 母親 / CASPER·3 女性，实时核状态 + 中央六角同调率）、CRT 扫描线/蜂窝网格/斜切控件/警示条纹 Danger Zone/启动同步序列（全部动画尊重 prefers-reduced-motion）。安全加固：移除通配 CORS（设计红线回归）、新增 Trusted Host 白名单（防 DNS rebinding）、非环回绑定告警。
 > 2026-08-18 M7 WebUI 润色 (v1.1.1)：去底层框架术语（全面抽象为科研任务流/知识网络概念）+ 原生中英双语国际化（`中 / EN` 切换与持久化，全站卡片/模态框/诊断与中英文 README 联动）。
 > 2026-08-18 M6：全局知识库注册表 + 联邦检索（`magi kb register/list/enable/disable/unregister`，注册表在 `~/.config/magi/registry.json`，`magi index` 自动注册；`magi search` 默认联邦当前工作区+启用库，结果带 kb 标记，`--scope local`/`--kb` 收窄；跨库 RRF 融合）+ kb-only profile（`magi setup --kb-only` 还原经典 Wikify 体验，Balthasar 停用且不计入同步率）。测试经 MAGI_CONFIG_HOME 隔离，冒烟含联邦回归锁。
 >

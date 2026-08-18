@@ -195,6 +195,8 @@ magi ui --port 8080 --no-open # 自定义端口且不自启浏览器
 
 包含 7 大面板：Dashboard（全局同步率与注册库）、Melchior（认知网络/Claims/图谱 SQL）、Balthasar（Beads 任务）、Casper（混合检索实验台）、Radar（文献雷达/Digest 阅读）、Operations & Danger Zone（SSE 实时终端/二次确认安全操作）与内置文档。
 
+顶栏的 **⚡ MAGI MODE** 可一键切换 EVA/NERV 战术主题：三贤者三体阵列 HUD（MELCHIOR·1 / BALTHASAR·2 / CASPER·3 实时状态 + 同调率）、CRT 扫描线、蜂窝网格、警示条纹 Danger Zone 与启动同步序列。看板仅监听 `127.0.0.1`，带 Host 白名单防护，不发送任何 CORS 头。
+
 ---
 
 ## 5. 从 Wikify 迁移（老用户指引）

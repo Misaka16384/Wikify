@@ -197,6 +197,8 @@ magi ui --port 8080 --no-open # custom port without auto-opening the browser
 
 Features 7 functional panels: Dashboard (global sync & KB registry), Melchior (epistemic state & claims), Balthasar (Beads tasks), Casper (hybrid search lab), Radar (digest reader), Operations & Danger Zone (live SSE terminal & double-confirmation actions), and Documentation.
 
+The **⚡ MAGI MODE** toggle in the top bar switches to an EVA/NERV tactical theme: a live tri-monolith HUD (MELCHIOR·1 / BALTHASAR·2 / CASPER·3 core states + sync ratio), CRT scanlines, honeycomb field, hazard-striped Danger Zone, and a boot synchronization sequence. The dashboard binds to `127.0.0.1` only, enforces a trusted-Host allowlist, and emits no CORS headers.
+
 ---
 
 ## 5. Migrating from Wikify (existing users)
