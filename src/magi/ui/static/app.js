@@ -267,6 +267,15 @@
 
       // Radar kinds
       badge_kind_citation_gap: "引文缺口",
+
+      // Ops catalog & danger confirm
+      ops_loading: "正在加载操作目录...",
+      op_stats: "📊 工作区统计",
+      btn_danger_install_schedule: "注册/卸载定时收割",
+      danger_install_schedule_desc: "在系统任务计划中注册（或卸载）每日文献雷达定时收割任务。",
+      danger_confirm_ph: "在此输入操作 ID 以确认",
+      danger_type_to_confirm: "为防误触，请在下方输入框输入 {op} 后点击确认。",
+      danger_confirm_mismatch: "确认文本不匹配：需要输入 {op}",
     },
 
     en: {
@@ -528,6 +537,15 @@
 
       // Radar kinds
       badge_kind_citation_gap: "Citation Gap",
+
+      // Ops catalog & danger confirm
+      ops_loading: "Loading operations…",
+      op_stats: "📊 Workspace Stats",
+      btn_danger_install_schedule: "Install/Remove Schedule",
+      danger_install_schedule_desc: "Register (or uninstall) the daily literature-radar harvest in the system scheduler.",
+      danger_confirm_ph: "type the operation id to confirm",
+      danger_type_to_confirm: "To prevent accidents, type {op} below and press Confirm.",
+      danger_confirm_mismatch: "Confirmation text mismatch: type {op}",
     },
   };
 
@@ -721,8 +739,6 @@
     toastContainer: document.getElementById("toast-container"),
   };
 
-  let pendingDangerCommand = null;
-
   // ------------------------------------------------------------------------
   // Utilities
   // ------------------------------------------------------------------------
@@ -733,6 +749,12 @@
     if (state.lang !== "zh" || !msg) return msg;
     const rules = [
       [/^Directory does not exist: (.+)$/, "目录不存在：$1"],
+      [/^Unknown operation: (.+)$/, "未知操作：$1"],
+      [/^Dangerous operation requires confirm='(.+)'$/, "危险操作需要输入 $1 确认"],
+      [/^max 3 concurrent jobs.*$/, "已有 3 个任务在运行——请等待其中一个结束"],
+      [/^this workspace already has an active job$/, "该工作区已有任务在运行"],
+      [/^a global operation is running.*$/, "有全局操作正在运行——请等待其结束"],
+      [/^global operations require no other running jobs$/, "全局操作要求没有其他任务在运行"],
       [/^KB '(.+)' not found in registry$/, "注册表中找不到知识库 '$1'"],
       [/^Job not found$/, "找不到该后台任务"],
       [/^Unable to cancel job.*$/, "无法中止该任务（不存在或已结束）"],
@@ -976,17 +998,8 @@
     }
 
     // Re-render open danger modal with localized content if active
-    if (pendingDangerCommand && els.dangerModal && els.dangerModal.classList.contains("open")) {
-      const action = pendingDangerCommand.action;
-      const title = t(`danger_${action}_title`);
-      const desc = t(`danger_${action}_desc`);
-      pendingDangerCommand.title = title;
-      els.dangerModalTitle.textContent = `${t("danger_modal_prefix")}: ${title}`;
-      els.dangerModalDesc.innerHTML = `
-        <strong style="color: var(--accent-danger);">${t("warning_label")}:</strong> ${escapeHtml(desc)}
-        <br><br>
-        ${t("cmd_to_execute")}: <code>magi ${escapeHtml(pendingDangerCommand.cmd)}</code>
-      `;
+    if (pendingDangerOp && els.dangerModal && els.dangerModal.classList.contains("open")) {
+      openDangerConfirm(pendingDangerOp);
     }
 
     // Refresh dynamic data of active tab
@@ -1128,10 +1141,10 @@
   // Keyed by the sync report's structured hint codes (report.hints_structured
   // from the backend) — no prose parsing.
   const HINT_ACTIONS = {
-    "graph-stale": { i18n: "hint_graph_build", action: { type: "job", cmd: "graph build", nameKey: "op_build_graph" } },
-    "index-missing": { i18n: "hint_index", action: { type: "job", cmd: "index", nameKey: "op_rebuild_index" } },
-    "index-stale": { i18n: "hint_index", action: { type: "job", cmd: "index", nameKey: "op_rebuild_index" } },
-    "backlog-untracked": { i18n: "hint_backlog_sync", action: { type: "job", cmd: "pm backlog-sync", nameKey: "op_backlog_sync" } },
+    "graph-stale": { i18n: "hint_graph_build", action: { type: "job", op: "graph-build", nameKey: "op_build_graph" } },
+    "index-missing": { i18n: "hint_index", action: { type: "job", op: "index", nameKey: "op_rebuild_index" } },
+    "index-stale": { i18n: "hint_index", action: { type: "job", op: "index", nameKey: "op_rebuild_index" } },
+    "backlog-untracked": { i18n: "hint_backlog_sync", action: { type: "job", op: "backlog-sync", nameKey: "op_backlog_sync" } },
     "pm-uninit": { i18n: "hint_pm_init", action: { type: "tab", tab: "operations" } },
     "radar-digests-pending": { i18n: "hint_radar_review", action: { type: "tab", tab: "radar" } },
     "radar-gaps-pending": { i18n: "hint_radar_review", action: { type: "tab", tab: "radar" } },
@@ -1182,7 +1195,7 @@
         btn.className = "btn btn-secondary btn-sm";
         if (rule.action.type === "job") {
           btn.textContent = t("btn_hint_run");
-          btn.addEventListener("click", () => launchJob(rule.action.cmd, t(rule.action.nameKey)));
+          btn.addEventListener("click", () => launchJob(rule.action.op, t(rule.action.nameKey)));
         } else {
           btn.textContent = t("btn_hint_goto");
           btn.addEventListener("click", () => switchTab(rule.action.tab));
@@ -1607,29 +1620,87 @@
   // Tab 6: Operations & SSE Terminal
   // ------------------------------------------------------------------------
 
-  async function launchJob(command, displayName) {
+  // Launch a whitelisted operation (see GET /api/ops). Raw argv is not a
+  // thing anymore — the server rejects anything outside the catalog.
+  async function launchJob(opId, displayName, confirmToken) {
     if (!state.workspace) {
       showToast(t("toast_select_ws_first"), "error");
       return;
     }
 
     try {
-      const cmdParts = command.trim().split(/\s+/).filter(Boolean);
       const res = await apiFetch("/api/jobs", {
         method: "POST",
         body: JSON.stringify({
-          command: cmdParts,
-          workspace: state.workspace,
-          name: displayName || command,
+          op: opId,
+          kb: state.workspace,
+          confirm: confirmToken || null,
         }),
       });
 
-      showToast(t("toast_job_started", { name: displayName || command }), "info");
+      showToast(t("toast_job_started", { name: displayName || opId }), "info");
       switchTab("operations");
-      startLogStream(res.job_id, displayName || command);
+      startLogStream(res.job_id, displayName || opId);
     } catch (err) {
       showToast(t("toast_job_fail", { error: err.message }), "error");
     }
+  }
+
+  // ------------------------------------------------------------------------
+  // Ops catalog (server-driven operation buttons)
+  // ------------------------------------------------------------------------
+
+  let OPS_CATALOG = [];
+  let pendingDangerOp = null;
+
+  async function loadOpsCatalog() {
+    try {
+      const data = await apiFetch("/api/ops");
+      OPS_CATALOG = data.ops || [];
+      renderOpsPanels();
+    } catch (_) {}
+  }
+
+  function renderOpsPanels() {
+    const common = document.getElementById("ops-common-grid");
+    const danger = document.getElementById("ops-danger-grid");
+    if (!common || !danger) return;
+    common.innerHTML = "";
+    danger.innerHTML = "";
+    OPS_CATALOG.forEach((entry) => {
+      const btn = document.createElement("button");
+      btn.setAttribute("data-i18n", entry.label_i18n);
+      btn.textContent = t(entry.label_i18n);
+      btn.title = entry.argv.join(" ");
+      if (entry.danger) {
+        btn.className = "btn btn-danger danger-action-btn";
+        btn.addEventListener("click", () => openDangerConfirm(entry));
+        danger.appendChild(btn);
+      } else {
+        // radar ops already have dedicated buttons on the radar tab
+        if (entry.op === "radar-harvest" || entry.op === "radar-citation-gap") return;
+        btn.className = "btn btn-secondary op-task-btn";
+        btn.addEventListener("click", () => launchJob(entry.op, t(entry.label_i18n)));
+        common.appendChild(btn);
+      }
+    });
+  }
+
+  function openDangerConfirm(entry) {
+    pendingDangerOp = entry;
+    els.dangerModalTitle.textContent = `${t("danger_modal_prefix")}: ${t(entry.label_i18n)}`;
+    const desc = entry.desc_i18n ? t(entry.desc_i18n) : "";
+    els.dangerModalDesc.innerHTML = `
+      <strong style="color: var(--accent-danger);">${t("warning_label")}:</strong> ${escapeHtml(desc)}
+      <br><br>
+      ${t("cmd_to_execute")}: <code>${escapeHtml(entry.argv.join(" "))}</code>
+      <br><br>
+      ${escapeHtml(t("danger_type_to_confirm", { op: entry.op }))}
+    `;
+    const input = document.getElementById("danger-confirm-input");
+    if (input) input.value = "";
+    els.dangerModal.classList.add("open");
+    if (input) input.focus();
   }
 
   function startLogStream(jobId, jobName) {
@@ -1878,60 +1949,36 @@
 
   // Balthasar backlog sync
   els.btnBacklogSync.addEventListener("click", () => {
-    launchJob("pm backlog-sync", t("btn_backlog_sync"));
+    launchJob("backlog-sync", t("btn_backlog_sync"));
   });
 
   // Radar actions
   els.btnRadarHarvest.addEventListener("click", () => {
-    launchJob("radar harvest", t("btn_radar_harvest"));
+    launchJob("radar-harvest", t("btn_radar_harvest"));
   });
   els.btnRadarCitationGap.addEventListener("click", () => {
-    launchJob("radar citation-gap", t("btn_radar_citation_gap"));
+    launchJob("radar-citation-gap", t("btn_radar_citation_gap"));
   });
 
-  // Operations common buttons
-  els.opTaskBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const opKey = btn.dataset.op || btn.getAttribute("data-i18n");
-      const i18nKey = opKey && opKey.startsWith("op_") ? opKey : (opKey ? `op_${opKey}` : null);
-      const name = i18nKey ? t(i18nKey) : (btn.dataset.name || btn.dataset.cmd);
-      launchJob(btn.dataset.cmd, name);
-    });
-  });
-
-  // Danger actions with 2-step confirmation modal
-  els.dangerActionBtns.forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const action = btn.dataset.action;
-      const title = t(`danger_${action}_title`);
-      const desc = t(`danger_${action}_desc`);
-      pendingDangerCommand = {
-        cmd: btn.dataset.cmd,
-        action: action,
-        title: title,
-      };
-
-      els.dangerModalTitle.textContent = `${t("danger_modal_prefix")}: ${title}`;
-      els.dangerModalDesc.innerHTML = `
-        <strong style="color: var(--accent-danger);">${t("warning_label")}:</strong> ${escapeHtml(desc)}
-        <br><br>
-        ${t("cmd_to_execute")}: <code>magi ${escapeHtml(pendingDangerCommand.cmd)}</code>
-      `;
-      els.dangerModal.classList.add("open");
-    });
-  });
-
+  // Operations & danger buttons are rendered by renderOpsPanels() from the
+  // server's ops catalog — only the modal chrome is wired here.
   els.dangerModalCancel.addEventListener("click", () => {
     els.dangerModal.classList.remove("open");
-    pendingDangerCommand = null;
+    pendingDangerOp = null;
   });
 
   els.dangerModalConfirm.addEventListener("click", () => {
-    if (pendingDangerCommand) {
-      launchJob(pendingDangerCommand.cmd, pendingDangerCommand.title);
+    if (pendingDangerOp) {
+      const input = document.getElementById("danger-confirm-input");
+      const typed = input ? input.value.trim() : "";
+      if (typed !== pendingDangerOp.op) {
+        showToast(t("danger_confirm_mismatch", { op: pendingDangerOp.op }), "error");
+        return;
+      }
+      launchJob(pendingDangerOp.op, t(pendingDangerOp.label_i18n), pendingDangerOp.op);
     }
     els.dangerModal.classList.remove("open");
-    pendingDangerCommand = null;
+    pendingDangerOp = null;
   });
 
   // Terminal buttons
@@ -1964,6 +2011,7 @@
   applyTheme(state.theme);
   setLanguage(state.lang);
   loadInitialStatus();
+  loadOpsCatalog();
 
   // Deep-link override: ?tab=melchior|operations|...
   try {

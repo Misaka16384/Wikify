@@ -414,25 +414,10 @@
             <h3 class="card-title" data-i18n="ops_common_title">Common Maintenance Operations</h3>
             <span class="card-subtitle" data-i18n="ops_common_sub">Non-destructive routines</span>
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-            <button class="btn btn-secondary op-task-btn" data-cmd="index" data-op="rebuild_index" data-i18n="op_rebuild_index">
-              🔍 Rebuild Index
-            </button>
-            <button class="btn btn-secondary op-task-btn" data-cmd="graph build" data-op="build_graph" data-i18n="op_build_graph">
-              🕸️ Build Graph
-            </button>
-            <button class="btn btn-secondary op-task-btn" data-cmd="wiki reindex" data-op="reindex_wiki" data-i18n="op_reindex_wiki">
-              📑 Reindex Wiki Tables
-            </button>
-            <button class="btn btn-secondary op-task-btn" data-cmd="link" data-op="semantic_link" data-i18n="op_semantic_link">
-              🔗 Semantic Link
-            </button>
-            <button class="btn btn-secondary op-task-btn" data-cmd="lint --fix" data-op="lint_fix" data-i18n="op_lint_fix">
-              🧹 Lint & Auto-Fix
-            </button>
-            <button class="btn btn-secondary op-task-btn" data-cmd="pm backlog-sync" data-op="backlog_sync" data-i18n="op_backlog_sync">
-              🎯 Backlog to Tasks
-            </button>
+          <!-- Buttons rendered from GET /api/ops — the server-side whitelist
+               is the single source of truth for what can run. -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;" id="ops-common-grid">
+            <span style="color: var(--text-muted); font-size: 0.85rem;" data-i18n="ops_loading">Loading operations…</span>
           </div>
         </div>
 
@@ -442,20 +427,7 @@
           <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;" data-i18n="danger_sub">
             These operations alter workspace structure, reset state, or delete legacy files. Each action requires explicit confirmation.
           </p>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-            <button class="btn btn-danger danger-action-btn" data-cmd="setup" data-action="setup" data-i18n="btn_danger_setup">
-              Provision Setup
-            </button>
-            <button class="btn btn-danger danger-action-btn" data-cmd="migrate" data-action="migrate" data-i18n="btn_danger_migrate">
-              Migrate Workspace
-            </button>
-            <button class="btn btn-danger danger-action-btn" data-cmd="pm init" data-action="pm_init" data-i18n="btn_danger_pm_init">
-              Initialize Task Tracking
-            </button>
-            <button class="btn btn-danger danger-action-btn" data-cmd="setup --remove-legacy" data-action="remove_legacy" data-i18n="btn_danger_legacy">
-              Remove Legacy Copies
-            </button>
-          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;" id="ops-danger-grid"></div>
         </div>
       </div>
 
@@ -501,6 +473,10 @@
     <div class="modal-window">
       <h3 class="modal-header" id="danger-modal-title" data-i18n="danger_modal_title">Confirm Action</h3>
       <p class="modal-body" id="danger-modal-desc" data-i18n="danger_modal_default_desc">Are you sure you want to proceed with this operation?</p>
+      <input type="text" id="danger-confirm-input" class="text-input"
+             style="width: 100%; margin-bottom: 1.1rem; font-family: var(--font-mono);"
+             placeholder="type the operation id to confirm" data-i18n-placeholder="danger_confirm_ph"
+             autocomplete="off" spellcheck="false">
       <div class="modal-footer">
         <button class="btn btn-secondary" id="danger-modal-cancel" data-i18n="btn_modal_cancel">Cancel</button>
         <button class="btn btn-danger" id="danger-modal-confirm" data-i18n="btn_modal_confirm">Confirm & Run</button>

@@ -252,25 +252,37 @@ def test_kb_registry_errors(client):
 def test_jobs_lifecycle(client):
     ws = str(client.test_workspace)
 
-    # Empty command validation error
-    res = client.post("/api/jobs", json={"command": [], "workspace": ws})
+    # Raw argv is no longer a thing — the old body shape must be rejected
+    res = client.post("/api/jobs", json={"command": ["--version"], "workspace": ws})
     assert res.status_code == 422
 
-    # Create a quick job (e.g. `magi --version`)
-    res = client.post("/api/jobs", json={"command": ["--version"], "workspace": ws, "name": "Version Check"})
+    # Unknown op rejected by the whitelist
+    res = client.post("/api/jobs", json={"op": "rm-rf", "kb": ws})
+    assert res.status_code == 400
+
+    # Danger op without server-side confirm rejected
+    res = client.post("/api/jobs", json={"op": "migrate", "kb": ws})
+    assert res.status_code == 400
+    assert "confirm" in res.json()["detail"]
+
+    # Undeclared param rejected
+    res = client.post("/api/jobs", json={"op": "stats", "kb": ws, "params": {"nuke": True}})
+    assert res.status_code == 400
+
+    # Whitelisted op runs
+    res = client.post("/api/jobs", json={"op": "stats", "kb": ws})
     assert res.status_code == 200
     job_id = res.json()["job_id"]
-    assert job_id
+    assert res.json()["op"] == "stats"
 
-    # Wait briefly for process to run
-    time.sleep(0.6)
-
-    # Inspect job
-    res = client.get(f"/api/jobs/{job_id}")
-    assert res.status_code == 200
-    job_data = res.json()
-    assert job_data["id"] == job_id
-    assert len(job_data["logs"]) > 0
+    job_data = {}
+    for _ in range(60):
+        job_data = client.get(f"/api/jobs/{job_id}").json()
+        if job_data.get("status") in ("completed", "failed", "cancelled"):
+            break
+        time.sleep(0.25)
+    assert job_data.get("status") in ("completed", "failed", "cancelled")
+    assert len(job_data.get("logs", [])) > 0
 
     # SSE streaming test with replayed logs
     res = client.get(f"/api/jobs/{job_id}/stream")
@@ -282,21 +294,65 @@ def test_jobs_lifecycle(client):
     assert res.status_code == 200
     assert any(j["id"] == job_id for j in res.json()["jobs"])
 
+    # Ops catalog drives the frontend
+    ops = client.get("/api/ops").json()["ops"]
+    op_ids = {o["op"] for o in ops}
+    assert {"index", "graph-build", "stats", "migrate", "radar-install-schedule"} <= op_ids
+    assert all(o.get("label_i18n") for o in ops)
+    assert all(o["danger"] for o in ops if o["op"] in ("setup", "migrate", "pm-init"))
+
     # Non-existent job
     assert client.get("/api/jobs/nonexistent-id").status_code == 404
     assert client.post("/api/jobs/nonexistent-id/cancel").status_code == 400
 
 
-def test_job_cancellation(client):
+def test_job_persistence_survives_in_archive(client):
     ws = str(client.test_workspace)
-    # Start a longer job or check cancellation
-    res = client.post("/api/jobs", json={"command": ["sync"], "workspace": ws, "name": "Sync Job"})
+    res = client.post("/api/jobs", json={"op": "stats", "kb": ws})
     assert res.status_code == 200
     job_id = res.json()["job_id"]
 
-    # Cancel immediately
-    res = client.post(f"/api/jobs/{job_id}/cancel")
-    assert res.status_code in (200, 400)
+    for _ in range(60):
+        jobs = client.get("/api/jobs").json()["jobs"]
+        if all(j["status"] not in ("pending", "running") for j in jobs):
+            break
+        time.sleep(0.25)
+
+    archive = Path(os.environ["MAGI_CONFIG_HOME"]) / "ui-jobs.jsonl"
+    assert archive.is_file(), "finished jobs must be persisted to the config home"
+    ids = [json.loads(line).get("id")
+           for line in archive.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert job_id in ids
+
+
+def test_taskmanager_concurrency_gate(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAGI_CONFIG_HOME", str(tmp_path / "cfg"))
+    from magi.ui.jobs import Job, JobConflict, TaskManager
+
+    tm = TaskManager()
+    busy_ws = str(tmp_path / "ws-a")
+    fake = Job("fakejob00001", ["index"], busy_ws, op_id="index", scope="kb")
+    fake.status = "running"
+    tm._jobs[fake.id] = fake
+
+    # same-KB second job blocked
+    with pytest.raises(JobConflict):
+        tm.create_job(["stats"], workspace=busy_ws, op_id="stats", scope="kb")
+    # global op blocked while anything runs
+    with pytest.raises(JobConflict):
+        tm.create_job(["setup"], workspace=str(tmp_path / "other"), op_id="setup", scope="global")
+    # anything blocked while a global op runs
+    fake.scope = "global"
+    with pytest.raises(JobConflict):
+        tm.create_job(["stats"], workspace=str(tmp_path / "other"), op_id="stats", scope="kb")
+    fake.scope = "kb"
+    # global cap of 3
+    for i in range(2):
+        extra = Job(f"fakejob0000{i + 2}", ["index"], str(tmp_path / f"ws-{i}"), op_id="index", scope="kb")
+        extra.status = "running"
+        tm._jobs[extra.id] = extra
+    with pytest.raises(JobConflict):
+        tm.create_job(["stats"], workspace=str(tmp_path / "ws-z"), op_id="stats", scope="kb")
 
 
 def test_docs_and_static(client):
@@ -535,27 +591,30 @@ def test_invalid_workspace_isolation(client):
     assert "no index at output/index.db" in res_search.json().get("error", "")
 
 
-def test_task_manager_pruning_and_ring_buffer(tmp_path):
+def test_task_manager_pruning_and_ring_buffer(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAGI_CONFIG_HOME", str(tmp_path / "cfg"))
     from magi.ui.jobs import TaskManager
 
+    def _drain(tm):
+        for _ in range(80):
+            if all(j.status not in ("pending", "running") for j in tm._jobs.values()):
+                return
+            time.sleep(0.25)
+
     tm = TaskManager(max_history=3)
-    # Create 4 jobs
-    j1 = tm.create_job(command=["--version"], workspace=str(tmp_path), name="Job 1")
-    j2 = tm.create_job(command=["--version"], workspace=str(tmp_path), name="Job 2")
-    j3 = tm.create_job(command=["--version"], workspace=str(tmp_path), name="Job 3")
+    # Distinct workspaces — the concurrency gate rejects same-KB parallelism
+    for i in range(3):
+        tm.create_job(command=["--version"], workspace=str(tmp_path / f"ws{i}"), name=f"Job {i}")
+    _drain(tm)
+    j4 = tm.create_job(command=["--version"], workspace=str(tmp_path / "ws3"), name="Job 4")
+    _drain(tm)
 
-    time.sleep(0.5)
-
-    j4 = tm.create_job(command=["--version"], workspace=str(tmp_path), name="Job 4")
-    time.sleep(0.5)
-
-    jobs = tm.list_jobs()
-    # Length should not exceed max_history
-    assert len(jobs) <= 3
-    assert any(j["id"] == j4.id for j in jobs)
+    # Live map is pruned to max_history; the newest job survives
+    assert len(tm._jobs) <= 3
+    assert j4.id in tm._jobs
 
     # Test ring buffer line limit
-    j_ring = tm.create_job(command=["--version"], workspace=str(tmp_path), name="Ring Job")
+    j_ring = tm.create_job(command=["--version"], workspace=str(tmp_path / "ws-ring"), name="Ring Job")
     for i in range(2500):
         j_ring.append_log(f"log line {i}")
     assert len(j_ring.logs) == 2000

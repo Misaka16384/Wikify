@@ -52,9 +52,11 @@ class KBToggleRequest(BaseModel):
 
 
 class JobCreateRequest(BaseModel):
-    command: List[str] = Field(..., min_length=1)
-    workspace: Optional[str] = None
-    name: Optional[str] = None
+    # Whitelisted operation id (see magi.ui.jobs.OPS) — raw argv is not accepted.
+    op: str = Field(..., min_length=1)
+    kb: Optional[str] = None          # registry name or workspace path; default: server workspace
+    params: Dict[str, bool] = Field(default_factory=dict)
+    confirm: Optional[str] = None     # must equal `op` for danger operations
 
 
 # --------------------------------------------------------------------------
@@ -447,11 +449,67 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     # 3. Asynchronous Jobs API
     # ----------------------------------------------------------------------
 
+    @app.get("/api/ops")
+    def list_ops_endpoint() -> dict:
+        # The catalog drives ALL operation buttons in the frontend — the UI
+        # holds zero op-specific knowledge beyond i18n labels.
+        from magi.ui.jobs import OPS
+
+        return {"ops": [
+            {
+                "op": op_id,
+                "scope": spec["scope"],
+                "danger": spec["danger"],
+                "label_i18n": spec["label_i18n"],
+                "desc_i18n": spec.get("desc_i18n"),
+                "argv": ["magi", *spec["argv"]],
+                "params": sorted((spec.get("params") or {}).keys()),
+            }
+            for op_id, spec in OPS.items()
+        ]}
+
     @app.post("/api/jobs")
     def create_job_endpoint(req: JobCreateRequest) -> dict:
-        ws = str(_resolve_workspace(req.workspace))
-        job = task_manager.create_job(command=req.command, workspace=ws, name=req.name)
-        return {"job_id": job.id, "status": job.status, "name": job.name}
+        from magi.ui.jobs import OPS, JobConflict
+
+        spec = OPS.get(req.op)
+        if spec is None:
+            raise HTTPException(status_code=400, detail=f"Unknown operation: {req.op}")
+        # Danger ops re-verify on the server: the frontend's type-to-confirm
+        # box feeds this field, but the check must not live only in JS.
+        if spec["danger"] and req.confirm != req.op:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Dangerous operation requires confirm='{req.op}'")
+
+        argv = list(spec["argv"])
+        declared = spec.get("params") or {}
+        for pname, enabled in (req.params or {}).items():
+            if pname not in declared:
+                raise HTTPException(status_code=400, detail=f"Unknown param '{pname}' for {req.op}")
+            if enabled:
+                argv.append(declared[pname])
+
+        ws: Optional[Path] = None
+        if req.kb:
+            p = Path(req.kb)
+            if p.is_dir():
+                ws = p.resolve()
+            else:
+                entry = load_registry().get("kbs", {}).get(req.kb)
+                if entry:
+                    ws = Path(entry["path"]).resolve()
+                else:
+                    raise HTTPException(status_code=404, detail=f"KB '{req.kb}' not found in registry")
+        if ws is None:
+            ws = _resolve_workspace(None)
+
+        try:
+            job = task_manager.create_job(command=argv, workspace=str(ws),
+                                          name=req.op, op_id=req.op, scope=spec["scope"])
+        except JobConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        return {"job_id": job.id, "status": job.status, "name": job.name, "op": req.op}
 
     @app.get("/api/jobs")
     def list_jobs_endpoint() -> dict:
@@ -461,6 +519,11 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     def get_job_endpoint(job_id: str) -> dict:
         job = task_manager.get_job(job_id)
         if not job:
+            rec = task_manager.get_archived(job_id)
+            if rec is not None:
+                data = dict(rec)
+                data["logs"] = data.pop("log_tail", [])
+                return data
             raise HTTPException(status_code=404, detail="Job not found")
         data = job.to_dict()
         with job._lock:
