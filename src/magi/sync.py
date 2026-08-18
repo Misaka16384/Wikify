@@ -190,15 +190,25 @@ def build_report(cwd: Path | None = None) -> dict:
             hints.append(f"claims: {n_unv} unverified — inspect with magi graph query "
                          "\"SELECT text, status FROM claims WHERE status NOT IN ('verified','web-verified')\"")
 
-    b = balthasar_status(topic)
-    cores["balthasar"] = b
-    weights["balthasar"] = 1.0
-    if not b["bd_installed"]:
-        hints.append("install beads (bd) for work-state tracking: https://github.com/gastownhall/beads")
-    elif not b["beads_root"]:
-        hints.append("magi pm init   # initialize beads at the hub root")
-    elif (b["ready"] or 0) > 0:
-        hints.append("bd ready   # there is actionable work")
+    try:
+        from magi.kb_registry import load_settings
+
+        kb_only = load_settings().get("profile") == "kb-only"
+    except Exception:
+        kb_only = False
+
+    if kb_only:
+        cores["balthasar"] = {"state": "disabled", "note": "kb-only profile", "score": None}
+    else:
+        b = balthasar_status(topic)
+        cores["balthasar"] = b
+        weights["balthasar"] = 1.0
+        if not b["bd_installed"]:
+            hints.append("install beads (bd) for work-state tracking: https://github.com/gastownhall/beads")
+        elif not b["beads_root"]:
+            hints.append("magi pm init   # initialize beads at the hub root")
+        elif (b["ready"] or 0) > 0:
+            hints.append("bd ready   # there is actionable work")
 
     if topic:
         c = casper_status(topic)
@@ -273,7 +283,9 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print("|- MELCHIOR  (knowledge)  no topic workspace here — run 'magi init' in a topic directory")
     b = report["cores"]["balthasar"]
-    if b["beads_root"]:
+    if b.get("state") == "disabled":
+        print("|- BALTHASAR (intent)     disabled (kb-only profile — 'magi setup --full' to enable)")
+    elif b.get("beads_root"):
         print(f"|- BALTHASAR (intent)     {_fmt(b['ready'])} ready · {_fmt(b['in_progress'])} in progress · {_fmt(b['blocked'])} blocked")
     else:
         print("|- BALTHASAR (intent)     beads offline")

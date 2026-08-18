@@ -72,6 +72,8 @@ magi setup --check
 
 `magi setup` flags: `--no-beads` / `--no-models` / `--no-plugin` / `--remove-legacy` (delete detected legacy copies).
 
+**Want the classic Wikify experience (knowledge base only, no task management)?** Use `magi setup --kb-only`: skips the Beads install and `magi sync` stops suggesting task tracking (the BALTHASAR core shows disabled and is excluded from the sync ratio). Restore any time with `magi setup --full`. Everything else (radar etc.) is invoke-only — unused features stay invisible.
+
 ### 2.2 Manual install (fallback)
 
 <details>
@@ -158,6 +160,19 @@ Trigger via slash commands in your agent (namespaced `magi:` under the Claude Co
 | Survey | `wiki_research` | parallel subagent research → a provenance-backed survey report |
 | Radar | `radar_review` | triage radar digests: score → bd survey issues → mark reviewed |
 | Maintain | `wiki_hub_manager` | archive / restore topics (`magi hub archive/restore`) |
+
+### The global KB registry (cross-workspace search)
+
+Every workspace auto-registers in a user-global registry (`~/.config/magi/registry.json`) when you run `magi index`. **`magi search` federates by default: the current workspace + every enabled registered KB**, with results tagged `[kb:name]`:
+
+```powershell
+magi kb list                    # all registered KBs and their searchable state
+magi kb disable <name>          # exclude a KB from global search (enable to restore)
+magi search "..." --scope local # current workspace only (classic behavior)
+magi search "..." --kb <name>   # target one registered KB
+```
+
+The current workspace is always searchable; other KBs are governed by enable/disable. `magi kb register <path>` registers any workspace manually; `unregister` removes only the registry entry, never files.
 
 ### The literature radar (`magi radar`)
 

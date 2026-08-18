@@ -287,7 +287,17 @@ def cmd_index(args: argparse.Namespace) -> int:
     )
     print(f"index: {total} chunks ({changed} files updated, {unchanged} unchanged, "
           f"{len(gone)} pruned) · vectors {vec_total}/{total}"
-          + ("" if dims else " · BM25-only (Ollama unavailable)"))
+          + ("" if dims else (" · BM25-only (--no-vectors)" if args.no_vectors
+                             else " · BM25-only (Ollama unavailable)")))
+
+    # Register this workspace in the global KB registry so other
+    # workspaces can federate over it (magi kb list / disable to manage).
+    try:
+        from magi.kb_registry import register_kb
+
+        register_kb(root, quiet=True)
+    except Exception:
+        pass
     return 0
 
 
@@ -309,29 +319,20 @@ def _rrf(ranks: dict[int, dict[str, int]]) -> dict[int, float]:
     }
 
 
-def cmd_search(args: argparse.Namespace) -> int:
-    root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
-    if root is None:
-        return _die("no workspace found",
-                    hint="run from a topic directory or pass --topic-dir",
-                    as_json=args.json)
-    db_path = root / "output" / "index.db"
-    opened = open_db(db_path)
-    if opened is None:
-        return _die("no index at output/index.db",
-                    hint="run 'magi index' first",
-                    as_json=args.json)
-    conn, vec_loaded = opened
+def _search_one_db(conn, vec_loaded, args, qvec, n):
+    """Run the BM25/vector legs on one index db.
 
+    Returns (ranks {cid: {leg: rank}}, bm25_hits, vector_hits, vector_used).
+    """
     where = ""
     params: list = []
     if args.collection:
         where = " AND c.collection = ?"
         params.append(args.collection)
 
-    n = max(args.k * 3, 20)
     ranks: dict[int, dict[str, int]] = {}
     bm25_hits = vector_hits = 0
+    vector_used = False
 
     if args.mode in ("hybrid", "bm25"):
         rows = conn.execute(
@@ -343,35 +344,99 @@ def cmd_search(args: argparse.Namespace) -> int:
         for r, (cid,) in enumerate(rows):
             ranks.setdefault(cid, {})["bm25"] = r + 1
 
+    if qvec is not None and args.mode in ("hybrid", "vector") and _has_vec_table(conn, vec_loaded):
+        dims_row = conn.execute("SELECT value FROM meta WHERE key='dims'").fetchone()
+        if dims_row and int(dims_row[0]) == len(qvec):
+            rows = conn.execute(
+                "SELECT v.rowid FROM chunks_vec v JOIN chunks c ON c.id = v.rowid "
+                f"WHERE v.embedding MATCH ? AND k = ?{where} ORDER BY v.distance",
+                [_serialize(qvec), n, *params],
+            ).fetchall()
+            vector_used = True
+            vector_hits = len(rows)
+            for r, (cid,) in enumerate(rows):
+                ranks.setdefault(cid, {})["vector"] = r + 1
+        else:
+            print("note: index dims mismatch current embedding model — re-run 'magi index' there",
+                  file=sys.stderr)
+    return ranks, bm25_hits, vector_hits, vector_used
+
+
+def cmd_search(args: argparse.Namespace) -> int:
+    """Federated search: current workspace + enabled KBs from the global
+    registry. --scope local restricts to the current workspace; --kb
+    <name> targets one registered KB."""
+    from magi.kb_registry import load_registry, searchable_kbs
+
+    root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
+
+    targets = []
+    if args.kb:
+        if args.kb == "local":
+            if root is None:
+                return _die("no local workspace found", hint="run from a topic directory", as_json=args.json)
+            targets = [("local", root / "output" / "index.db")]
+        else:
+            entry = load_registry()["kbs"].get(args.kb)
+            if not entry:
+                return _die(f"unknown KB '{args.kb}'", hint="see 'magi kb list'", as_json=args.json)
+            targets = [(args.kb, Path(entry["path"]) / "output" / "index.db")]
+    else:
+        if root is not None and args.scope in ("auto", "local"):
+            targets.append(("local", root / "output" / "index.db"))
+        if args.scope in ("auto", "global"):
+            targets.extend((name, p / "output" / "index.db")
+                           for name, p in searchable_kbs(exclude=root))
+        if not targets:
+            if args.scope == "local":
+                return _die("no workspace found", hint="run from a topic directory or pass --topic-dir",
+                            as_json=args.json)
+            return _die("no workspace here and no searchable registered KBs",
+                        hint="run inside a topic dir, or 'magi kb register' + 'magi kb enable'",
+                        as_json=args.json)
+
+    opened_targets = []
+    for name, dbp in targets:
+        o = open_db(dbp)
+        if o is None:
+            if name == "local" and len(targets) == 1:
+                return _die("no index at output/index.db", hint="run 'magi index' first", as_json=args.json)
+            print(f"note: KB '{name}' has no index — skipping", file=sys.stderr)
+            continue
+        opened_targets.append((name, *o))
+    if not opened_targets:
+        return _die("no searchable index found in any target KB",
+                    hint="run 'magi index' in the workspace(s)", as_json=args.json)
+
+    n = max(args.k * 3, 20)
+    qvec = Embedder().embed(args.query) if args.mode in ("hybrid", "vector") else None
+
+    merged = {}
+    conns = {}
+    bm25_hits = vector_hits = 0
     vector_available = False
-    if args.mode in ("hybrid", "vector") and _has_vec_table(conn, vec_loaded):
-        qvec = Embedder().embed(args.query)
-        if qvec is not None:
-            dims_row = conn.execute("SELECT value FROM meta WHERE key='dims'").fetchone()
-            if dims_row and int(dims_row[0]) == len(qvec):
-                rows = conn.execute(
-                    "SELECT v.rowid FROM chunks_vec v JOIN chunks c ON c.id = v.rowid "
-                    f"WHERE v.embedding MATCH ? AND k = ?{where} ORDER BY v.distance",
-                    [_serialize(qvec), n, *params],
-                ).fetchall()
-                vector_available = True
-                vector_hits = len(rows)
-                for r, (cid,) in enumerate(rows):
-                    ranks.setdefault(cid, {})["vector"] = r + 1
-            else:
-                print("note: index dims mismatch current embedding model — re-run 'magi index'",
-                      file=sys.stderr)
+    for name, conn, vec_loaded in opened_targets:
+        conns[name] = conn
+        ranks, bh, vh, vused = _search_one_db(conn, vec_loaded, args, qvec, n)
+        bm25_hits += bh
+        vector_hits += vh
+        vector_available = vector_available or vused
+        for cid, legs in ranks.items():
+            merged[(name, cid)] = legs
+
     if args.mode == "vector" and not vector_available:
         return _die("vector search unavailable (no vectors in index or Ollama down)",
-                    hint="start Ollama and re-run 'magi index'",
-                    as_json=args.json)
+                    hint="start Ollama and re-run 'magi index'", as_json=args.json)
 
-    scores = _rrf(ranks)
+    scores = {
+        key: sum(1.0 / (RRF_K + r) for r in legs.values())
+        for key, legs in merged.items()
+    }
     top = sorted(scores.items(), key=lambda kv: -kv[1])[: args.k]
 
     results = []
-    for cid, score in top:
-        row = conn.execute(
+    for (name, cid), score in top:
+        row = conns[name].execute(
             "SELECT path, collection, heading, start_line, end_line, content "
             "FROM chunks WHERE id=?", (cid,),
         ).fetchone()
@@ -380,14 +445,16 @@ def cmd_search(args: argparse.Namespace) -> int:
         path, coll, heading, s, e, content = row
         snippet = " ".join(content.split())[:300]
         results.append({
-            "path": path, "collection": coll, "heading": heading,
+            "kb": name, "path": path, "collection": coll, "heading": heading,
             "lines": [s, e], "score": round(score, 5),
-            "bm25_rank": ranks[cid].get("bm25"), "vector_rank": ranks[cid].get("vector"),
+            "bm25_rank": merged[(name, cid)].get("bm25"),
+            "vector_rank": merged[(name, cid)].get("vector"),
             "snippet": snippet,
         })
 
     payload = {
-        "query": args.query, "mode": args.mode,
+        "query": args.query, "mode": args.mode, "scope": args.kb or args.scope,
+        "kbs_searched": [name for name, *_ in opened_targets],
         "vector_available": vector_available,
         "bm25_hits": bm25_hits, "vector_hits": vector_hits,
         "results": results,
@@ -398,11 +465,15 @@ def cmd_search(args: argparse.Namespace) -> int:
         if not results:
             print("no results")
         for i, r in enumerate(results, 1):
-            marks = "+".join(k for k in ("bm25", "vector") if r[f"{k}_rank" if k == "bm25" else "vector_rank"] is not None)
-            print(f"{i}. {r['path']}:{r['lines'][0]}-{r['lines'][1]} [{r['collection']}] ({marks})")
+            marks = "+".join(k for k in ("bm25", "vector")
+                             if r["bm25_rank" if k == "bm25" else "vector_rank"] is not None)
+            kb_tag = "" if r["kb"] == "local" else f" [kb:{r['kb']}]"
+            print(f"{i}. {r['path']}:{r['lines'][0]}-{r['lines'][1]} [{r['collection']}]{kb_tag} ({marks})")
             if r["heading"]:
                 print(f"   # {r['heading']}")
             print(f"   {r['snippet'][:200]}")
+        if len(payload["kbs_searched"]) > 1:
+            print(f"(searched: {', '.join(payload['kbs_searched'])} — narrow with --scope local or --kb <name>)")
         if not vector_available and args.mode == "hybrid":
             print("(BM25-only: vectors unavailable — is Ollama running? re-run 'magi index' after starting it)")
     return 0
@@ -425,6 +496,10 @@ def main(argv: list[str] | None = None) -> int:
     p_search.add_argument("--collection", choices=["concepts", "references", "topics", "theses", "raw", "other"])
     p_search.add_argument("-k", type=int, default=8, help="Max results (default 8)")
     p_search.add_argument("--mode", choices=["hybrid", "bm25", "vector"], default="hybrid")
+    p_search.add_argument("--scope", choices=["auto", "local", "global"], default="auto",
+                          help="auto = current workspace + enabled registered KBs (default); "
+                               "local = current workspace only; global = registered KBs only")
+    p_search.add_argument("--kb", help="Search a single registered KB by name ('local' = current workspace)")
     p_search.add_argument("--json", action="store_true")
     p_search.set_defaults(func=cmd_search)
 

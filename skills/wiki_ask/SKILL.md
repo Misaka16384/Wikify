@@ -21,6 +21,7 @@ This skill transforms the agent into a conversational interface for the knowledg
 When tasked with answering a question, follow these strategies depending on the nature of the inquiry:
 
 ### Strategy 0: Hybrid Retrieval (start here for most questions)
+0.  Scope note: `magi search` federates over the current workspace PLUS any enabled globally-registered KBs (results carry a `kb` field / `[kb:name]` tag). Add `--scope local` to restrict to this workspace; cite cross-KB results with their KB name so the reader can locate the file.
 1.  Run `magi search "<query>" -k 8 --json` — hybrid BM25+vector search over the whole corpus. Scope with `--collection references` (papers) or `--collection concepts` when the question type is clear.
 2.  **ALWAYS open the top hits with your file-read tool** and read the full section before citing — never cite from a search snippet alone.
 3.  If results look empty or stale, run `magi index` first (`magi sync` warns about a stale index).

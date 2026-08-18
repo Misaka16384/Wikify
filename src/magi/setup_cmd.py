@@ -206,16 +206,37 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-beads", action="store_true", help="Skip Beads installation")
     parser.add_argument("--no-models", action="store_true", help="Skip Ollama model pulls")
     parser.add_argument("--no-plugin", action="store_true", help="Skip Claude Code plugin registration")
+    parser.add_argument("--kb-only", action="store_true",
+                        help="Knowledge-base-only profile (the classic Wikify experience): "
+                             "skip Beads, and magi sync stops suggesting task tracking. "
+                             "Revert with --full.")
+    parser.add_argument("--full", action="store_true", help="Restore the full profile (undo --kb-only)")
     parser.add_argument("--remove-legacy", action="store_true",
                         help="DELETE detected legacy Wikify skill/bin copies")
     args = parser.parse_args(argv)
 
+    from magi.kb_registry import load_settings, save_settings
+
+    settings = load_settings()
+    if args.kb_only:
+        settings["profile"] = "kb-only"
+        save_settings(settings)
+        print("[setup] profile set to kb-only (task tracking disabled; revert with 'magi setup --full')")
+    elif args.full:
+        settings["profile"] = "full"
+        save_settings(settings)
+        print("[setup] profile set to full")
+    kb_only = settings.get("profile") == "kb-only"
+
     results: list[tuple[str, str]] = []
     if args.check:
+        results.append(("profile", settings.get("profile", "full")))
         results.append(("legacy", handle_legacy(remove=False)))
     else:
-        if not args.no_beads:
+        if not args.no_beads and not kb_only:
             results.append(("beads", install_beads()))
+        elif kb_only:
+            results.append(("beads", "skipped (kb-only profile)"))
         if not args.no_models:
             results.append(("ollama", setup_ollama_models()))
         if not args.no_plugin:

@@ -71,6 +71,8 @@ magi setup --check
 
 `magi setup` 的可选开关：`--no-beads` / `--no-models` / `--no-plugin` / `--remove-legacy`（删除检测到的旧版拷贝）。
 
+**只想要经典 Wikify 体验（纯知识库，不要任务管理）？** 用 `magi setup --kb-only`：跳过 Beads 安装，`magi sync` 不再提示任务相关内容（BALTHASAR 核显示 disabled 且不计入同步率）。随时 `magi setup --full` 恢复完整体验。雷达等其余功能均为按需调用，不用即无感。
+
 ### 2.2 手动安装（备选）
 
 <details>
@@ -156,6 +158,19 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 | 综述 | `wiki_research` | 多 subagent 并行调研 → 带 provenance 的综述报告 |
 | 雷达 | `radar_review` | 对 radar 摘要做 triage：评分 → bd survey issues → 标记已审 |
 | 维护 | `wiki_hub_manager` | 主题归档 / 恢复（`magi hub archive/restore`） |
+
+### 全局知识库注册表（跨库检索）
+
+每个工作区在 `magi index` 时自动注册进用户级注册表（`~/.config/magi/registry.json`）。**`magi search` 默认联邦检索：当前工作区 + 所有启用的已注册知识库**，结果带 `[kb:名称]` 来源标记：
+
+```powershell
+magi kb list                    # 查看全部已注册知识库及其可检索状态
+magi kb disable <name>          # 把某个库排除出全局检索（enable 恢复）
+magi search "..." --scope local # 只搜当前工作区（经典行为）
+magi search "..." --kb <name>   # 定向搜某一个注册库
+```
+
+当前工作区永远默认可检索；其他库通过 `enable/disable` 控制。`magi kb register <path>` 可手动注册任意工作区，`unregister` 只移除注册项、不动文件。
 
 ### 文献雷达（`magi radar`）
 

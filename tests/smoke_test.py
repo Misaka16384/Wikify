@@ -47,6 +47,9 @@ def run(args: list[str], cwd: Path, expect: tuple[int, ...] = (0,), timeout: int
 
 def main() -> int:
     sandbox = Path(tempfile.mkdtemp(prefix="magi_smoke_"))
+    # Isolate the global KB registry/settings: cmd_index auto-registers
+    # workspaces, and smoke must never pollute the user's real registry.
+    os.environ["MAGI_CONFIG_HOME"] = str(sandbox / "magicfg")
     print(f"sandbox: {sandbox}")
     try:
         hub = sandbox / "hub"
@@ -181,6 +184,28 @@ def main() -> int:
         rs = run(["radar", "status", "--topic-dir", str(topic), "--json"], cwd=topic)
         rrep = json.loads(rs.stdout)
         assert rrep["seen_total"] == 0 and rrep["pending_digests"] == [], "fresh workspace radar not clean"
+
+        # 9b. global KB registry + federated search (auto-registered by magi index)
+        kl = run(["kb", "list", "--json"], cwd=topic)
+        kreg = json.loads(kl.stdout)
+        assert any(k["name"] == "smoke-topic" for k in kreg["kbs"]), "index did not auto-register KB"
+        topic2 = hub / "topics" / "second-topic"
+        topic2.mkdir(parents=True)
+        run(["init", "--topic-dir", str(topic2), "--name", "Second", "--scope", "s"], cwd=topic2)
+        (topic2 / "wiki" / "concepts").mkdir(parents=True, exist_ok=True)
+        (topic2 / "wiki" / "concepts" / "unique-fact.md").write_text(
+            "---\ntitle: Unique Fact\ntype: concept\n---\n\n"
+            "Zeta functions regularize divergent sums.\n",
+            encoding="utf-8")
+        run(["index", "--topic-dir", str(topic2), "--no-vectors"], cwd=topic2)
+        fed = run(["search", "zeta functions divergent", "--mode", "bm25", "--json"], cwd=topic)
+        fres = json.loads(fed.stdout)
+        assert any(r["kb"] == "second-topic" for r in fres["results"]),             f"federated search missed the other KB: {fres}"
+        loc = run(["search", "zeta functions divergent", "--mode", "bm25", "--scope", "local", "--json"], cwd=topic)
+        assert not json.loads(loc.stdout)["results"], "--scope local leaked other KBs"
+        run(["kb", "disable", "second-topic"], cwd=topic)
+        fed2 = run(["search", "zeta functions divergent", "--mode", "bm25", "--json"], cwd=topic)
+        assert not json.loads(fed2.stdout)["results"], "kb disable did not exclude the KB"
 
         # 10. M4: claims/provenance — magi:claims block -> graph tables; verify v2
         theses = topic / "wiki" / "theses"

@@ -64,7 +64,12 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("verify",): ("magi.kb.verify_claims", [], "Verify CLAIM/FINDING evidence blocks"),
     # retrieval
     ("index",): ("magi.retrieval", ["index"], "Build/refresh the hybrid retrieval index"),
-    ("search",): ("magi.retrieval", ["search"], "Hybrid BM25+vector search (RRF fusion)"),
+    ("search",): ("magi.retrieval", ["search"], "Hybrid search: local workspace + enabled global KBs"),
+    ("kb", "register"): ("magi.kb_registry", ["register"], "Register a workspace in the global KB registry"),
+    ("kb", "list"): ("magi.kb_registry", ["list"], "List registered knowledge bases"),
+    ("kb", "enable"): ("magi.kb_registry", ["enable"], "Include a KB in global search"),
+    ("kb", "disable"): ("magi.kb_registry", ["disable"], "Exclude a KB from global search"),
+    ("kb", "unregister"): ("magi.kb_registry", ["unregister"], "Remove a KB from the registry"),
     ("grep",): ("magi.kb.grep", [], "Regex search over given files"),
     ("link",): ("magi.kb.semantic_link", [], "Embedding-based concept linking and dedup"),
     # literature radar
@@ -79,6 +84,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
 
 _GROUP_HELP = {
     "hub": "Multi-topic hub management",
+    "kb": "Global knowledge-base registry (cross-workspace search)",
     "ingest": "Document ingestion (PDF/LaTeX -> Markdown)",
     "wiki": "Concept and reference card operations",
     "graph": "SQLite knowledge graph",

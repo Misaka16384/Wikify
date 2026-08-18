@@ -4,6 +4,8 @@
 >
 > 最后更新：2026-08-18 · 当前阶段：**M0–M5 完成 + code review（15 findings）修复 + 六画像真实用户模拟（56 frictions：0 blocker/14 major/24 minor/18 papercut）全部修复**
 >
+> 2026-08-18 M6：全局知识库注册表 + 联邦检索（`magi kb register/list/enable/disable/unregister`，注册表在 `~/.config/magi/registry.json`，`magi index` 自动注册；`magi search` 默认联邦当前工作区+启用库，结果带 kb 标记，`--scope local`/`--kb` 收窄；跨库 RRF 融合）+ kb-only profile（`magi setup --kb-only` 还原经典 Wikify 体验，Balthasar 停用且不计入同步率）。测试经 MAGI_CONFIG_HOME 隔离，冒烟含联邦回归锁。
+>
 > 2026-08-18 安装体验升级：一键安装脚本（install.ps1/install.sh，uv/rustup 引导模式）+ `magi setup`（bd/模型/plugin 自动装配 + 环境体检 + 旧版检测/清除）+ `magi migrate` hub 模式（一键全主题迁移）。真实一键命令已在本机端到端验证（含 GitHub git+ 源安装与 Claude Code plugin 注册）。
 >
 > 用户模拟结论：六个画像（新手/逐字执行 skill 的 agent/radar 首用/claims 研究流/双主题任务管理/中文+空格路径）全部走完全程 40/40 步。修复亮点：lint 不再隔离 init 生成的协议文件；wikilink 边解析为真实节点 id（文档中的 join/路径查询恢复有效）；radar 同日二次 harvest 不再覆盖已审 digest（编号并列 + 台账追加）；hub 命令就地向上发现；search/lint 退出码与 --json 错误信封统一；CJK 目录名自动 slug 化 bd 前缀；graph query/grep 输出中文不再转义；citation-gap 报告含我方论文元数据与共享文献名。
