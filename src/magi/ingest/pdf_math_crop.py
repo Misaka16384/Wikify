@@ -3,10 +3,13 @@ import sys
 import argparse
 
 try:
-    import fitz  # PyMuPDF
+    import pymupdf as fitz  # modern import name; silences the fitz deprecation warning
 except ImportError:
-    print("Error: PyMuPDF is not installed. Run 'pip install pymupdf' to use this script.")
-    sys.exit(1)
+    try:
+        import fitz  # PyMuPDF (legacy)
+    except ImportError:
+        print("Error: PyMuPDF is not installed. Run 'pip install pymupdf' to use this script.")
+        sys.exit(1)
 
 def extract_crop(pdf_path, search_text, output_path, expand_margin=150, page_num=None):
     if not os.path.exists(pdf_path):

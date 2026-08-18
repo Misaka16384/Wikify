@@ -10,12 +10,18 @@ from pathlib import Path
 def run_cmd(cmd_list):
     """Run a command as a list (no shell=True). Returns True on success."""
     print(f"Running: {' '.join(cmd_list)}")
-    result = subprocess.run(cmd_list, shell=False, capture_output=True, text=True)
-    if result.returncode != 0:
-        print(f"Error (exit {result.returncode}):\n{result.stderr}", file=sys.stderr)
-        return False
+    env = dict(os.environ, PYTHONIOENCODING="utf-8")
+    result = subprocess.run(cmd_list, shell=False, capture_output=True, text=True,
+                            encoding="utf-8", errors="replace", env=env)
+    # Tools like `magi math check` report their findings on stdout and use a
+    # non-zero exit as a business result — always relay stdout so the user
+    # can see WHAT failed, then stderr for the actual error channel.
     if result.stdout.strip():
         print(result.stdout.strip())
+    if result.returncode != 0:
+        if result.stderr.strip():
+            print(f"Error (exit {result.returncode}):\n{result.stderr.strip()}", file=sys.stderr)
+        return False
     return True
 
 def main(argv=None):

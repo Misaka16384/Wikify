@@ -16,7 +16,10 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 
-import fitz  # PyMuPDF
+try:
+    import pymupdf as fitz  # modern import name; silences the fitz deprecation warning
+except ImportError:
+    import fitz  # PyMuPDF (legacy)
 
 # Longer alternatives first; CASE-SENSITIVE on purpose (APS "FIG." vs ref "Fig.").
 FIG_RE = re.compile(r'^\s*(FIGURE|Figure|FIG|Fig|TABLE|Table|SCHEME|Scheme)\b\.?\s*(\d+)([^\d].*)?$', re.S)

@@ -11,6 +11,7 @@ PDF to Markdown Agent
 """
 
 import os
+import re
 import sys
 import time
 import argparse
@@ -115,7 +116,8 @@ class PDF2MarkdownAgent:
         self,
         pdf_path: str,
         output_dir: Optional[str] = None,
-        title: Optional[str] = None
+        title: Optional[str] = None,
+        page_range: Optional[tuple] = None
     ) -> ConversionResult:
         """
         执行 PDF 到 Markdown 的转换
@@ -184,11 +186,25 @@ class PDF2MarkdownAgent:
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
-                console=console
+                console=console,
+                disable=not console.is_terminal,  # 非 TTY（重定向日志）下不刷进度帧
             ) as progress:
                 task = progress.add_task("正在转换 PDF...", total=None)
                 pages = self.pdf_processor.convert_to_images(str(pdf_path), str(temp_dir))
                 progress.update(task, description=f"[green]✓[/green] 已转换 {len(pages)} 页")
+
+            if page_range is not None:
+                lo, hi = page_range
+                total_in_pdf = len(pages)
+                pages = [p for p in pages
+                         if p.page_number >= lo and (hi is None or p.page_number <= hi)]
+                console.print(f"[cyan]--pages[/cyan] 限定：处理第 {lo}-{hi if hi is not None else total_in_pdf} 页（共 {len(pages)} 页）")
+                if not pages:
+                    raise RuntimeError(f"--pages 范围 {lo}-{hi} 不含任何页（PDF 共 {total_in_pdf} 页）")
+
+            cached_n = sum(1 for p in pages if (temp_dir / f"page_{p.page_number}.json").exists())
+            if cached_n:
+                console.print(f"[green]✓[/green] 检测到 {cached_n} 页已有 OCR 缓存，将直接复用（中断后重跑即断点续跑）")
 
             # Step 3: OCR 处理
             console.print(Panel("[bold blue]Step 3: OCR 识别[/bold blue]", expand=False))
@@ -200,9 +216,11 @@ class PDF2MarkdownAgent:
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
                 TaskProgressColumn(),
-                console=console
+                console=console,
+                disable=not console.is_terminal,
             ) as progress:
                 task = progress.add_task("OCR 处理中", total=len(pages))
+                pages_done = 0
 
                 for page in pages:
                     progress.update(task, description=f"OCR 处理第 {page.page_number}/{len(pages)} 页")
@@ -260,13 +278,17 @@ class PDF2MarkdownAgent:
                     
                     ocr_results.append(result)
 
+                    pages_done += 1
                     if not result.success:
                         errors.append(f"第 {page.page_number} 页 OCR 失败: {result.error_message}")
                         console.print(f"[red]  第 {page.page_number} 页失败: {result.error_message}[/red]")
                     else:
-                        # 显示每页耗时
-                        status = "首次加载" if elapsed > 15 else "正常"
-                        console.print(f"[dim]  第 {page.page_number} 页完成: {elapsed:.1f}秒 ({status})[/dim]")
+                        # 每页耗时 + 剩余时间估计（按已测页的均值）
+                        avg = total_ocr_time / max(1, len(page_times))
+                        remain = len(pages) - pages_done
+                        eta_min = avg * remain / 60
+                        eta_str = f"，预计剩余 {eta_min:.0f} 分钟" if remain and eta_min >= 1 else ""
+                        console.print(f"[dim]  第 {page.page_number} 页完成: {elapsed:.1f}秒{eta_str}[/dim]")
 
                     progress.advance(task)
             
@@ -306,6 +328,11 @@ class PDF2MarkdownAgent:
             
             # 注入 YAML Frontmatter
             fm = {"title": title, "source": pdf_path.name, "type": "papers", "ingested": today_str, "tags": [], "summary": ""}
+            # 从文件名提取 arXiv ID，供文献雷达识别库内论文
+            arxiv_m = re.search(r"\b(\d{4}\.\d{4,5})(?:v\d+)?\b", pdf_path.name)
+            if arxiv_m:
+                fm["arxiv_id"] = arxiv_m.group(1)
+                fm["arxiv_url"] = f"https://arxiv.org/abs/{arxiv_m.group(1)}"
             yaml_frontmatter = "---\n" + yaml.safe_dump(fm, allow_unicode=True, sort_keys=False, default_flow_style=False) + "---\n\n"
             final_content = yaml_frontmatter + markdown_content
 
@@ -314,8 +341,10 @@ class PDF2MarkdownAgent:
 
             console.print(f"[green]✓[/green] Markdown 已保存: {md_path}")
 
-            # Step 6: 清理临时文件
-            if not self.config["output"].get("keep_temp_images", False):
+            # Step 6: 清理临时文件（有失败页时保留缓存，便于修复后断点续跑）
+            if errors:
+                console.print(f"[yellow]保留 OCR 缓存目录 {temp_dir}（有失败页；重跑将复用成功页）[/yellow]")
+            elif not self.config["output"].get("keep_temp_images", False):
                 import shutil
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -385,8 +414,27 @@ def main(argv=None):
         help="配置文件路径",
         default=None
     )
+    parser.add_argument(
+        "--pages",
+        help="只处理指定页范围，如 1-5、3（单页）、10-（到末页）。已 OCR 的页有缓存，可分段续跑",
+        default=None
+    )
 
     args = parser.parse_args(argv)
+
+    page_range = None
+    if args.pages:
+        m = re.fullmatch(r"(\d+)(?:-(\d*))?", args.pages.strip())
+        if not m:
+            console.print(f"[red]--pages 格式无效: {args.pages}（示例: 1-5 / 3 / 10-）[/red]")
+            return 2
+        lo = int(m.group(1))
+        hi_raw = m.group(2)
+        hi = None if hi_raw == "" else (int(hi_raw) if hi_raw else lo)
+        if hi is not None and hi < lo:
+            console.print(f"[red]--pages 范围无效: {args.pages}[/red]")
+            return 2
+        page_range = (lo, hi)
 
     # 创建 Agent
     agent = PDF2MarkdownAgent(config_path=args.config)
@@ -395,7 +443,8 @@ def main(argv=None):
     result = agent.convert(
         pdf_path=args.pdf_path,
         output_dir=args.output,
-        title=args.title
+        title=args.title,
+        page_range=page_range
     )
 
     if result.success:
