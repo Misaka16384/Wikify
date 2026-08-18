@@ -25,6 +25,7 @@ When the user asks to ingest PDFs using local OCR (or runs the command without a
         *   Run the local OCR conversion on the PDF:
             ```bash
             magi ingest ocr "<PDF_PATH>" -o "<TOPIC_DIR>/raw/<type>" -t "<DOC_TITLE>"
+        *Pacing long papers*: local OCR runs at minutes-per-page on modest GPUs. For long PDFs use `--pages 1-5` style ranges to process in segments — every finished page is cached, so an interrupted or segmented run resumes for free (re-run the same command; cached pages load instantly). The per-page log line prints an ETA.
             ```
         *   *Note: This command now automatically generates the standard YAML frontmatter and writes the file as `YYYY-MM-DD-slug.md` directly into your output directory. You do NOT need to rename the file or append YAML manually.*
     *   For `.md` files or general inbox files, call the ingest helper script:

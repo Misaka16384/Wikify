@@ -37,7 +37,8 @@ When the user asks to ingest documents (or runs the command without a path):
         *Note: after `ingest add --move`, the inbox original no longer exists — pass the `raw/` destination path (printed by the command) as `"<ORIGINAL_FILE_PATH>"` to `magi ingest finalize` in Step 5. (If you pass the old inbox path instead, the `source already processed/moved - skipping inbox archival` notice is expected and harmless.)*
     *   **For `.tex` files (and arXiv `.tar.gz` source bundles)**: You **MUST** use the Pandoc conversion script. Run:
         `magi ingest tex "<TEX_OR_TARGZ_PATH>" -o "<TOPIC_DIR>\raw\<type>"`
-        *Note: This script automatically generates YAML frontmatter, writes the file, and extracts referenced figures into `images/` (rasterising `.pdf`/`.eps` figures to PNG, prefixed with the doc slug). Skip Step 4. Check the printed `Figures: N embedded, M unresolved` line.*
+        *Note: This script automatically generates YAML frontmatter (including `arxiv_id:` when the filename carries one), writes the file, and extracts referenced figures into `images/` (rasterising `.pdf`/`.eps` figures to PNG, prefixed with the doc slug). Skip Step 4. Check the printed `Figures: N embedded, M unresolved` line — and take any `figure(s) ... dropped by Pandoc` warning seriously: compare against the source PDF.*
+        *Bibliography: if the bundle has a `.bib` it is used with citeproc; if it only ships a compiled `.bbl` (the arXiv norm), the tool inlines it automatically — citations then render as `[@key]` with a full References list. Either asset is preserved next to the markdown as `<slug>.bib`/`.bbl` (used later by `magi bib`). Do not hand-craft empty `.bib` files.*
 4.  **Assign Slug & YAML**: Write to `raw/<type>/YYYY-MM-DD-slug.md` with standard frontmatter:
     ```yaml
     ---
@@ -56,12 +57,12 @@ When the user asks to ingest documents (or runs the command without a path):
     ```
 
 6.  **Manual Math Error Correction (Agentic Fallback)**:
-    *   **CRITICAL:** If `magi ingest finalize` outputs any warnings like `[WARNING] Math syntax errors in <FILE>:`, you MUST immediately stop and fix them.
-    *   Do NOT guess the fix for semantic errors like `Double subscript` or `Unexpected end of stream`.
-    *   You MUST use your file reading, search, or multimodal vision tools to read the **original source PDF** at the corresponding location to see the actual formula.
-    *   **CRITICAL TOOL**: If you cannot easily infer the formula structure, you MUST use the provided PDF cropping tool to extract the exact region around the error as an image for your multimodal vision:
+    *   If `magi ingest finalize` outputs warnings like `[WARNING] Math syntax errors in <FILE>:`, triage them **by kind** before fixing anything:
+        *   `Undefined control sequence` entries carrying the validator's *"may be a macro from a package this validator lacks"* note are usually **false positives** (obscure package macros). Spot-check ONE against the PDF; if the markdown matches the paper, leave the rest alone — do NOT rewrite valid macros.
+        *   Structural errors (`Double subscript`, `Missing }`, `Unexpected end of stream`) are real. Do NOT guess their fix.
+    *   For real errors, read the **original source PDF** at the corresponding location. If you cannot easily infer the formula structure, use the PDF cropping tool:
         `magi ingest crop "<PDF_PATH>" --text "<search_text_near_error>" --out "<TOPIC_DIR>\scratch\crop.png"`
-    *   View the generated `crop.png`, then manually edit the Markdown file to correct the semantic math errors based on the ground truth in the original paper, and re-run `magi math check <FILE>` to confirm all errors are gone.
+    *   View the generated `crop.png`, correct the Markdown from the ground truth, and re-run `magi math check <FILE>` until only annotated possible-macro entries remain.
 
 7.  **Global Lint & Index (End of Batch)**:
     *   **CRITICAL:** Once ALL files in the `inbox/` have been processed through steps 1-6, you MUST run the global lint and index operation ONCE outside the loop:

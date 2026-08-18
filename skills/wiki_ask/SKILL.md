@@ -62,7 +62,8 @@ If the user asks highly specific, detail-oriented questions requiring deep dives
 If the user asks about the connection or path between two distinct concepts (e.g., "How is Concept A connected to Concept B?"):
 1.  Query the local SQLite graph database using a `WITH RECURSIVE` SQL query to find paths up to 3 hops.
 2.  **Example Path-Finding Query**:
-    `magi graph query "WITH RECURSIVE undirected_edges(node1, node2) AS (SELECT source_id, target_id FROM edges UNION SELECT target_id, source_id FROM edges), path_search(current_node, path, depth) AS (SELECT 'node-A-id', 'node-A-id', 0 UNION ALL SELECT u.node2, p.path || ' -> ' || u.node2, p.depth + 1 FROM undirected_edges u JOIN path_search p ON u.node1 = p.current_node WHERE p.depth < 3 AND p.path NOT LIKE '%' || u.node2 || '%') SELECT path FROM path_search WHERE current_node = 'node-B-id' LIMIT 5"`
+    `magi graph query "WITH RECURSIVE undirected_edges(node1, node2) AS (SELECT source_id, target_id FROM edges WHERE source_id NOT LIKE 'tag:%' AND target_id NOT LIKE 'tag:%' AND source_id NOT LIKE 'alias:%' AND target_id NOT LIKE 'alias:%' UNION SELECT target_id, source_id FROM edges WHERE source_id NOT LIKE 'tag:%' AND target_id NOT LIKE 'tag:%' AND source_id NOT LIKE 'alias:%' AND target_id NOT LIKE 'alias:%'), path_search(current_node, path, depth) AS (SELECT 'node-A-id', 'node-A-id', 0 UNION ALL SELECT u.node2, p.path || ' -> ' || u.node2, p.depth + 1 FROM undirected_edges u JOIN path_search p ON u.node1 = p.current_node WHERE p.depth < 3 AND p.path NOT LIKE '%' || u.node2 || '%') SELECT path FROM path_search WHERE current_node = 'node-B-id' LIMIT 5"`
+    *(The `NOT LIKE 'tag:%'/'alias:%'` filters matter: paths routed through shared tag nodes are semantically meaningless "shortcuts" and would otherwise dominate the results.)*
 3.  Analyze the returned path and read the intermediate concepts if needed to explain *why* they are connected.
 
 ## Synthesizing the Final Answer

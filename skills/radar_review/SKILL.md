@@ -19,7 +19,7 @@ The deterministic radar (`magi radar harvest`, usually run nightly by the schedu
 
 1. **Locate pending work**: `magi radar status --json`. If `pending_digests` is empty, report "radar clean" and stop.
 2. **Load context**: read the pending digest file(s) with your file-read tool. For workspace grounding, note the top concepts: `magi graph query "SELECT title FROM nodes WHERE type='concept' ORDER BY id LIMIT 30"` (or `magi stats <TOPIC_DIR> wiki-summary`).
-3. **Score each candidate** (work from the digest; consult `output/radar/candidates.jsonl` for full abstracts):
+3. **Score each candidate** (work from the digest; consult `output/radar/candidates.jsonl` for full abstracts). When the digest is marked *"Sorted by relevance"*, each candidate carries a `relevance:` cosine score against the library's own embedding centroid — use it as a prior (top of the file = most likely relevant; scores below ~0.3 are usually noise) but still apply judgment:
    - Run `magi search "<candidate title + key abstract phrases>" -k 5 --json` to see how strongly the candidate overlaps existing knowledge.
    - Classify: **read-now** (directly advances an active question — check `bd ready`), **relevant** (extends the wiki's core topics), **skip** (out of scope).
    - Judge from the abstract against the workspace scope (`config.md`); do NOT fetch full PDFs during triage.

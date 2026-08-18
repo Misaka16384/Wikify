@@ -134,6 +134,8 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
   -> drop sources in inbox/ and run the wiki_ingest skill to start building the library
 ```
 
+> 同步率随三核就绪程度浮动：上例是 beads 已初始化、索引已建的空库（90%）；如果还没跑 `magi pm init` 或 `magi index`，数字会更低——照着 hints 的提示逐条执行即可，不是配置错了。
+
 然后把 PDF / LaTeX / 笔记丢进 `inbox/`，在你的 agent 里说一句"摄入 inbox 里的论文"（或直接 `/magi:wiki_ingest`），流水线就开始了。
 
 ---
@@ -157,6 +159,7 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 | 审查 | `wiki_audit` | 跨论文矛盾审计（claim/证据验证 + 溯源落库） |
 | 综述 | `wiki_research` | 多 subagent 并行调研 → 带 provenance 的综述报告 |
 | 雷达 | `radar_review` | 对 radar 摘要做 triage：评分 → bd survey issues → 标记已审 |
+| 写作 | `wiki_draft` | 在 `drafts/` 里写论文草稿：检索取证 → `magi bib` 导出引用 → pandoc 导出 LaTeX |
 | 维护 | `wiki_hub_manager` | 主题归档 / 恢复（`magi hub archive/restore`） |
 
 ### 全局知识库注册表（跨库检索）
@@ -172,12 +175,30 @@ magi search "..." --kb <name>   # 定向搜某一个注册库
 
 当前工作区永远默认可检索；其他库通过 `enable/disable` 控制。`magi kb register <path>` 可手动注册任意工作区，`unregister` 只移除注册项、不动文件。
 
+> 检索小抄：`--path 'raw/papers/2026-*<slug>*'` 可把语义检索限定在某一篇论文里；中英文问题都支持（中文经 CJK 二元组分词进 BM25，向量侧由嵌入模型天然跨语言）。
+
+### 写作与引用（`drafts/` + `magi bib`）
+
+草稿是工作区一等公民：放在 `drafts/`，被 `magi index` 收进检索（collection `drafts`），但不进图谱、不计同步率。引用直接从参考卡导出：
+
+```powershell
+magi bib pretko-2020            # 参考卡 frontmatter → BibTeX 条目
+magi bib --all -o drafts/refs.bib
+magi bib pretko-2020 --fetch    # 有 arxiv_id 时拉取 arXiv 官方 BibTeX
+```
+
+`magi ingest tex` 会把源码包里的 `.bib`/`.bbl` 原样保留在 markdown 旁边（`raw/papers/<slug>.bib`），文件名里的 arXiv ID 也会写入 frontmatter `arxiv_id:` 供雷达识别。完整写作流程见 `wiki_draft` skill。
+
+> 关于 claims 的边界：`magi verify` 的 `verified` 意为**引文存在性验证**（引文确实逐字出现在来源里，含空白/连字/全角标点鲁棒匹配）——它不判断命题与引文在语义上是否一致，那一层由 LLM/人工审查负责（`magi claims verify` 是同一命令的别名）。
+
 ### 文献雷达（`magi radar`）
 
 工作区 `config.yaml` 的 `radar:` 段配置 arXiv 分类、种子论文与我方论文后：
 
 ```powershell
 magi radar harvest              # 手动收割：S2 推荐 ∪ arXiv 新文 → inbox/radar/日期-digest.md
+                                # （候选按"与本库嵌入质心的余弦相关度"排序并标注 relevance 分；
+                                #   config 里 radar.min_relevance 可设过滤阈值）
 magi radar install-schedule     # 注册每日定时收割（Windows 任务计划程序 / macOS launchd；--uninstall 卸载）
 magi radar citation-gap         # 侦察"该引我方论文却未引"的近期文献（四层漏斗，人工审核队列）
 ```

@@ -2,7 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-18 · 当前阶段：**v1.1.2 已发布**（tag `v1.1.2`；版本号同步于 pyproject.toml / `magi.__version__` / .claude-plugin/plugin.json / plugin.json）。此前：M0–M7 全部完成（WebUI 看板正式上线 + i18n 双语 + EVA 战术主题）。
+> 最后更新：2026-08-18 · 当前阶段：**v1.2.0 已发布**（tag `v1.2.0`；版本号同步于 pyproject.toml / `magi.__version__` / .claude-plugin/plugin.json / plugin.json）。此前：M0–M8 全部完成。
+>
+> 2026-08-18 M8 全周期加固 (v1.2.0)：真实科研用户全周期模拟（建库→摄入→编译→检索→任务→雷达→写论文，23 个摩擦点全部修复）+ WebUI 浏览器点击审计。准确率侧：FTS5 CJK 二元组分词（中文 BM25 从 0 命中修到可用，旧索引自动迁移 fts_version=2）、claims 宽松匹配层（连字/断词/全角/CJK 空格）、radar 嵌入质心相关度排序（`radar.min_relevance`）、检索剔除 See Also/Sources boilerplate、`--path` glob 过滤。摄入侧：ingest tex 相对路径崩溃修复、.bbl-only 自动内联（引用不再全灭）、HTML `<img>`/`<embed>` 图片抽取 + 丢图安全网、`.bib/.bbl` sidecar 保留、arXiv ID 入 frontmatter、OCR `--pages`/ETA/断点续跑提示/非 TTY 静默、pymupdf 弃用告警消除。工具链一致性：add-concept 标题源 lint 可解析（title/aliases 回退）、lint 仅 critical 判 FAIL（exit 同步）、raw tags/summary 降为 warning、math check 预置物理宏包 + 误报注记、finalize 透传 stdout、verify 幽灵 malformed 块修复。新能力：`magi bib`（BibTeX 导出，--fetch 拉 arXiv 官方条目）、`drafts/` 写作约定 + `wiki_draft` skill、`magi claims verify` 别名。WebUI：可执行 hints 卡、检索空态指引、常见错误中文化、README 图片走 GitHub raw、citation-gap 报告可见（badge + 计数）。
 >
 > 2026-08-18 M7 EVA 主题 (v1.1.2)：MAGI MODE 战术主题完成——三贤者三体阵列 HUD（MELCHIOR·1 科学者 / BALTHASAR·2 母親 / CASPER·3 女性，实时核状态 + 中央六角同调率）、CRT 扫描线/蜂窝网格/斜切控件/警示条纹 Danger Zone/启动同步序列（全部动画尊重 prefers-reduced-motion）。安全加固：移除通配 CORS（设计红线回归）、新增 Trusted Host 白名单（防 DNS rebinding）、非环回绑定告警。
 > 2026-08-18 M7 WebUI 润色 (v1.1.1)：去底层框架术语（全面抽象为科研任务流/知识网络概念）+ 原生中英双语国际化（`中 / EN` 切换与持久化，全站卡片/模态框/诊断与中英文 README 联动）。
@@ -55,9 +57,10 @@ magi lint [--fix]            # ← llm-wiki.py lint
 magi stats <dir> <mode>      # ← llm-wiki.py stats
 magi math format|check
 magi validate <file> --schema
-magi verify <claims-file>    # verify_claims，兼容 CLAIM:/FINDING:
+magi verify <claims-file>    # verify_claims，兼容 CLAIM:/FINDING:（别名 magi claims verify）
+magi bib [card|--all]        # v1.2.0: 参考卡 frontmatter → BibTeX（--fetch 拉 arXiv 官方条目）
 magi grep                    # ← search-wiki.py（M2 后仍保留，精确正则用）
-magi search / index          # M2: FTS5+sqlite-vec+RRF 混合检索
+magi search / index          # M2: FTS5+sqlite-vec+RRF 混合检索（v1.2.0: CJK 二元组分词 + --path + drafts/）
 magi link [--dedup-only]     # ← skills/wiki_semantic_link/semantic_linker.py
 magi tags extract|apply
 magi radar ...               # M3

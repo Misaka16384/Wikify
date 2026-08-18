@@ -136,6 +136,8 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
   -> drop sources in inbox/ and run the wiki_ingest skill to start building the library
 ```
 
+> The sync ratio depends on how many cores are ready: the example shows an empty library with beads initialized and an index built (90%). Without `magi pm init` or `magi index` yet, the number is lower — just follow the hints; nothing is misconfigured.
+
 Then drop PDFs / LaTeX / notes into `inbox/` and tell your agent to ingest them (or invoke `/magi:wiki_ingest`).
 
 ---
@@ -159,6 +161,7 @@ Trigger via slash commands in your agent (namespaced `magi:` under the Claude Co
 | Audit | `wiki_audit` | cross-paper contradiction audit (claim/evidence verification + provenance) |
 | Survey | `wiki_research` | parallel subagent research → a provenance-backed survey report |
 | Radar | `radar_review` | triage radar digests: score → bd survey issues → mark reviewed |
+| Write | `wiki_draft` | paper drafts in `drafts/`: evidence-backed writing → `magi bib` citation export → pandoc LaTeX export |
 | Maintain | `wiki_hub_manager` | archive / restore topics (`magi hub archive/restore`) |
 
 ### The global KB registry (cross-workspace search)
@@ -174,12 +177,30 @@ magi search "..." --kb <name>   # target one registered KB
 
 The current workspace is always searchable; other KBs are governed by enable/disable. `magi kb register <path>` registers any workspace manually; `unregister` removes only the registry entry, never files.
 
+> Search tips: `--path 'raw/papers/2026-*<slug>*'` narrows semantic search to one paper; Chinese and English queries both work (CJK bigram tokenization feeds BM25, and the embedding model handles cross-lingual matching on the vector side).
+
+### Writing & citations (`drafts/` + `magi bib`)
+
+Drafts are first-class citizens: they live in `drafts/`, are indexed for search (collection `drafts`), but stay out of the graph and sync ratio. Citations export straight from reference cards:
+
+```powershell
+magi bib pretko-2020            # reference-card frontmatter → BibTeX entry
+magi bib --all -o drafts/refs.bib
+magi bib pretko-2020 --fetch    # pull arXiv's official BibTeX when the card has an arxiv_id
+```
+
+`magi ingest tex` preserves the source package's `.bib`/`.bbl` next to the raw markdown (`raw/papers/<slug>.bib`), and writes any arXiv ID found in the filename into frontmatter `arxiv_id:` for the radar. See the `wiki_draft` skill for the full workflow.
+
+> Claims boundary: `magi verify`'s `verified` means **quote-existence verification** (the quote really appears verbatim in the source, with whitespace/ligature/full-width-punctuation-robust matching) — it does not judge whether the claim and the quote agree semantically; that layer belongs to LLM/human review (`magi claims verify` is an alias of the same command).
+
 ### The literature radar (`magi radar`)
 
 After configuring the `radar:` section of the workspace `config.yaml` (arXiv categories, seed papers, your own papers):
 
 ```powershell
 magi radar harvest              # manual harvest: S2 recommendations ∪ new arXiv listings → inbox/radar/<date>-digest.md
+                                # (candidates sorted by cosine relevance to the library's embedding centroid,
+                                #  each annotated with a relevance score; set radar.min_relevance to filter)
 magi radar install-schedule     # daily scheduled harvest (Task Scheduler / launchd; --uninstall to remove)
 magi radar citation-gap         # scout recent papers that arguably should cite yours (four-layer funnel, human-review queue)
 ```
