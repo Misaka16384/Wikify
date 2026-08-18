@@ -184,6 +184,17 @@ magi radar citation-gap         # 侦察"该引我方论文却未引"的近期�
 
 夜间确定性收割 + 下次会话由 `radar_review` skill 做 LLM triage——`magi sync` 会提示待审摘要。
 
+### 本地 WebUI 看板（`magi ui`）
+
+MAGI 内置了基于 Claude 纸墨美学的零构建本地轻量看板（FastAPI + 原生 SPA），用于直观查看三核状态、执行维护与检索实验：
+
+```powershell
+magi ui                       # 启动并在默认浏览器中打开本地看板（http://127.0.0.1:8000）
+magi ui --port 8080 --no-open # 自定义端口且不自启浏览器
+```
+
+包含 7 大面板：Dashboard（全局同步率与注册库）、Melchior（认知网络/Claims/图谱 SQL）、Balthasar（Beads 任务）、Casper（混合检索实验台）、Radar（文献雷达/Digest 阅读）、Operations & Danger Zone（SSE 实时终端/二次确认安全操作）与内置文档。
+
 ---
 
 ## 5. 从 Wikify 迁移（老用户指引）

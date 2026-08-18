@@ -186,6 +186,17 @@ magi radar citation-gap         # scout recent papers that arguably should cite 
 
 Deterministic harvest runs at night; the `radar_review` skill does LLM triage in your next session — `magi sync` will point at pending digests.
 
+### Local WebUI Dashboard (`magi ui`)
+
+MAGI includes a zero-build, Claude-styled local inspection and operations dashboard (FastAPI + native SPA) for visual triaging and maintenance:
+
+```powershell
+magi ui                       # launch and open the local dashboard in default browser (http://127.0.0.1:8000)
+magi ui --port 8080 --no-open # custom port without auto-opening the browser
+```
+
+Features 7 functional panels: Dashboard (global sync & KB registry), Melchior (epistemic state & claims), Balthasar (Beads tasks), Casper (hybrid search lab), Radar (digest reader), Operations & Danger Zone (live SSE terminal & double-confirmation actions), and Documentation.
+
 ---
 
 ## 5. Migrating from Wikify (existing users)
