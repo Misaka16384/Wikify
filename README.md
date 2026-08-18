@@ -1,216 +1,242 @@
 # MAGI
+
 *[中文](README.md) | [English](README_en.md)*
 
-**MAGI** 是一个 agent-native 的科研工作环境：人是驾驶员，LLM agent 是机体，确定性的 `magi` CLI 是拘束具——三者同步率越高，科研越快。它将学术论文（PDF/LaTeX）摄入、编译为 Obsidian 兼容的概念卡片知识库，并以三核架构管理科研状态：
+**MAGI** 是一个 agent-native 的科研工作环境：人是驾驶员，LLM agent 是机体，确定性的 `magi` CLI 是拘束具——三者同步率越高，科研越快。它把学术论文（PDF/LaTeX）摄入、编译为 Obsidian 兼容的概念卡片知识库，并用三核架构管理完整的科研状态：
 
-- **MELCHIOR（知识）**：概念/文献卡片 + SQLite 知识图谱 + claim/证据溯源（`magi graph` / `magi verify`）
-- **BALTHASAR（意图）**：基于 [Beads](https://github.com/gastownhall/beads) 的科研任务图（question/survey/derivation/computation/experiment/review）
-- **CASPER（检索）**：本地混合检索（FTS5 BM25 + sqlite-vec 向量 + RRF，`magi index` / `magi search`）
+| 核 | 状态 | 由谁承载 | 回答的问题 |
+|---|---|---|---|
+| **MELCHIOR** | 认知状态（知识） | 概念/文献卡片 + SQLite 知识图谱 + claim/证据溯源 | 我们知道什么？为什么可信？ |
+| **BALTHASAR** | 意图状态（工作） | [Beads](https://github.com/gastownhall/beads)（`bd`）科研任务图 | 我们在做什么？下一步是什么？ |
+| **CASPER** | 检索状态 | 本地混合检索（FTS5 BM25 + sqlite-vec 向量 + RRF） | 此刻该读什么？ |
 
-进入任意 workspace 先跑 `magi sync`——它输出**同步率**和三核状态；`magi radar` 是文献雷达（定时发现新论文 + "该引未引"侦察）。支持 Claude Code / Codex / Antigravity 等 CLI agent 宿主，同一份 skills 通吃。
+进入任意工作区先跑 **`magi sync`**——它输出**同步率**、三核状态和逐条可执行的修复提示。`magi radar` 是文献雷达：定时发现相关新论文，并侦察"知识上应引用我方论文却未引用"的候选。同一份 skills 通吃 Claude Code / Codex / Antigravity 等 CLI agent 宿主。
+
+任何命令的完整语法：`magi <command> --help`；全景：`magi --help`。
+
+---
 
 ## 🌟 项目展示
 
-以下是由本 AI 自动化流水线完全生成并维护的知识库效果展示：
-
 ![知识图谱可视化](./graph.png)
-*一张自动生成的密集语义图，展示了物理和数学概念。*
-
-![知识图谱细节](./graph2.png)
-*后台嵌入引擎自动注入的深层语义关联视图。*
+*自动生成的密集语义图谱，展示物理与数学概念。*
 
 ![编译出的文献卡片](./note1.png)
-*利用本地 OCR 和 Pandoc，直接从排版混乱的 PDF 中编译出的整洁文献卡片。*
+*从排版混乱的 PDF 编译出的整洁文献卡片。*
 
 ![数学与概念提取](./note2.png)
-*从 LaTeX 源码中完美提取并格式化的数学证明和引理。*
+*从 LaTeX 源码提取并格式化的数学证明与引理。*
 
 ---
 
-## 1. 核心功能
+## 1. 架构：CLI、Skills 与宿主的分工
 
-将其加载到您的 AI 助手后，您可以通过输入一系列显式且确定性的**斜杠命令** (`/wiki_xxx`) 来直接命令 AI 助手执行以下操作：
-- **摄入 (Ingest)**：将重度数学公式的 PDF（通过高保真云端版面分析 API 或本地 OCR）和 LaTeX 源码转换为 Markdown。
-- **编译 (Compile)**：将数学定义、定理和概念提取为一张张相互链接的 Obsidian 独立卡片。
-- **去重与链接 (Deduplicate & Link)**：自动发现重复概念，物理合并去重，并使用本地向量嵌入实现相关卡片的语义双链关联。
-- **交互式问答 (Interactive Q&A)**：与您的整个知识库对话，AI 将严格使用本地关系图谱、SQL 查询和正则检索来回答您——**保证零幻觉**，并附带精确文献引用。
-- **自愈与公式纠错 (Auto-Healing & Math Correction)**：智能 Linter 自动检测并修复失效链接，修复 LLM 产生的 YAML 元数据反斜杠转义错误，并基于 pdflatex 校验 LaTeX 数学公式的语法正确性。
+```text
+你（驾驶员）
+  └─ Claude Code / Codex / Antigravity（机体：负责推理、写作、判断）
+       ├─ skills/*/SKILL.md   —— 教 agent「何时、为何」执行各条流水线
+       └─ magi CLI（拘束具）  —— 所有确定性操作：摄入、图谱、检索、校验、任务、雷达
+            └─ 持久状态在文件与数据库里：raw/ wiki/ output/ .beads/
+```
+
+- **CLI 负责语法**且自描述（`--help`）；**skills 只讲方法论**，不复制参数清单。
+- 持久状态永远落盘；agent 的上下文是一次性的（fresh-context worker 模式）。
+- JSON 输出（`--json`）的形状即未来 `magi mcp` 的工具契约。
 
 ---
 
-## 2. 系统依赖
+## 2. 安装
 
-部署技能前，请确保您的系统安装了以下运行时依赖。
+### 2.1 `magi` CLI（必装）
 
-### 2.1 安装 `magi` CLI
-需要 **Python 3.10+**。所有确定性能力现在通过统一的 `magi` 命令行工具提供（用 [uv](https://docs.astral.sh/uv/) 或 pipx 安装到全局 PATH）：
+需要 **Python 3.10+** 和 [uv](https://docs.astral.sh/uv/)（或 pipx）：
 
 ```powershell
 git clone https://github.com/Misaka16384/magi.git
 cd magi
-uv tool install .        # 或: pipx install .
-magi --help              # 查看全部子命令
+uv tool install .            # 或: pipx install .
+magi --version               # magi 0.1.0
 ```
 
-任何子命令的完整语法用 `magi <command> --help` 查看。进入一个工作区后先跑 `magi sync` 确认环境。
+升级：
 
-### 2.2 系统级外部程序
-本流水线依赖一些外部工具，必须将它们添加到系统的 `PATH` 环境变量中：
-
-1.  **Poppler-utils (`pdftoppm` & `pdfimages`)** — 用于渲染 PDF 页面和提取图表。
-    *   *Windows (Scoop)*: `scoop install poppler`
-    *   *Windows (Choco)*: `choco install poppler`
-    *   *macOS (Homebrew)*: `brew install poppler`
-    *   *Linux (APT)*: `sudo apt-get install poppler-utils`
-2.  **Ripgrep (`rg`)** — 提供极速的多文件引用映射和 wikilink 重构。
-    *   *Windows (Scoop)*: `scoop install ripgrep`
-    *   *Windows (Choco)*: `choco install ripgrep`
-    *   *macOS (Homebrew)*: `brew install ripgrep`
-    *   *Linux (APT)*: `sudo apt-get install ripgrep`
-3.  **Pandoc** — 用于自动摄入并将 LaTeX (`.tex`) 文档转换为 Markdown。*(注：本仓库已为 Windows 用户内置了 `pandoc-crossref`，无需额外安装)*
-    *   *Windows (Scoop)*: `scoop install pandoc`
-    *   *Windows (Choco)*: `choco install pandoc`
-    *   *macOS (Homebrew)*: `brew install pandoc`
-    *   *Linux (APT)*: `sudo apt-get install pandoc`
-4.  **TeX / `pdflatex`（推荐）** — 为摄入过程中的深度数学语义校验（双下标、括号不匹配、错误分隔符）提供支持。*可选但推荐*：若缺少 `pdflatex`，系统会自动回退到基于 `pylatexenc` 的轻量结构校验。
-    *   *Windows (Scoop)*: `scoop install miktex`
-    *   *Windows (Choco)*: `choco install miktex`
-    *   *macOS (Homebrew)*: `brew install --cask mactex-no-gui`
-    *   *Linux (APT)*: `sudo apt-get install texlive-latex-extra`
-
-### 2.3 Ollama 本地模型
-离线图像转录与语义链接依赖于后台运行的 Ollama 服务：
 ```powershell
-ollama pull glm-ocr
-ollama pull qwen3-embedding:0.6b
+git pull && uv tool install . --force --reinstall
+```
+
+> 包名为 `magi-research`，命令名为 `magi`。暂未发布 PyPI，从仓库安装即可。
+
+### 2.2 Beads（`bd`，强烈推荐）
+
+任务/工作状态由 [Beads](https://github.com/gastownhall/beads) 承载（`magi pm init` 会配置六种科研 issue 类型：question / survey / derivation / computation / experiment / review）。
+
+- **Windows**：`irm https://raw.githubusercontent.com/gastownhall/beads/main/install.ps1 | iex`（或从 [Releases](https://github.com/gastownhall/beads/releases) 下载 `beads_*_windows_amd64.zip`，把 `bd.exe` 放进 PATH）
+- **macOS / Linux**：见[官方安装文档](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md)（Homebrew / npm / go install 均支持）
+
+没有 `bd` 时 MAGI 相关功能优雅降级（sync 会提示安装）。
+
+### 2.3 Ollama（推荐）
+
+向量检索（`magi index` / `magi search` 的混合模式、`magi link` 语义双链）与本地 OCR 依赖本地 Ollama：
+
+```powershell
+ollama pull qwen3-embedding:0.6b   # 向量嵌入
+ollama pull glm-ocr                # 本地 OCR（可选；也可用 MinerU 云端）
+```
+
+Ollama 不可达时检索自动降级为 BM25-only，索引可事后补向量。
+
+### 2.4 系统级外部工具（按需）
+
+| 工具 | 用途 | 说明 |
+|---|---|---|
+| **Pandoc** | `magi ingest tex`（LaTeX → Markdown） | Windows 的 `pandoc-crossref.exe` 已内置于 `vendor/windows/`（加入 PATH 或在 config.yaml 的 `tools.pandoc_crossref_path` 指定） |
+| **Poppler**（`pdftoppm`/`pdfimages`） | 本地 OCR 管线渲染 PDF 页面 | `scoop/choco/brew/apt install poppler` |
+| **pdflatex**（可选） | 数学公式深度校验 | 缺失时自动回退 `pylatexenc` 轻量校验 |
+
+（历史依赖 ripgrep 已不再需要。）
+
+### 2.5 Skills 安装（教 agent 用 MAGI）
+
+所有宿主共享仓库里同一份 `skills/*/SKILL.md`：
+
+- **Claude Code**（推荐走 plugin，附带 SessionStart hook 自动跑 `magi sync`）：
+  ```bash
+  claude plugin marketplace add Misaka16384/magi
+  claude plugin install magi
+  ```
+  skills 以 `/magi:wiki_ingest` 这样的命名空间出现；本地开发模式可 `claude plugin install <仓库目录>`。
+- **Codex 及其他 Agent Plugins 1.0 宿主**：仓库根部自带 `plugin.json`，按宿主的插件安装流程指向本仓库。
+- **Gemini / Antigravity**：把 `skills/` 复制（或链接）到 `<project>/.agents/skills/`。
+
+---
+
+## 3. 快速上手（5 分钟）
+
+```powershell
+mkdir KnowledgeHub ; cd KnowledgeHub
+magi hub init                # 中央枢纽（wikis.json 注册表）
+magi pm init                 # beads + 六种科研 issue 类型（会 git-init 本目录）
+
+mkdir topics\quantum-toys ; cd topics\quantum-toys
+magi init --name "Quantum Toys" --scope "玩具模型中的量子现象"
+# ↑ 自动注册进 hub；生成 CLAUDE.md / AGENTS.md（agent 入场协议）、config.yaml、scratch/
+
+magi sync                    # 同步率 + 三核状态 + 下一步提示
+```
+
+```text
+MAGI SYSTEM ONLINE — sync ratio 90.0%
+|- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 0
+|- BALTHASAR (intent)     0 ready · 0 in progress · 0 blocked
+`- CASPER    (retrieval)  index fresh · 0 chunks · vectors 0/0
+  -> drop sources in inbox/ and run the wiki_ingest skill to start building the library
+```
+
+然后把 PDF / LaTeX / 笔记丢进 `inbox/`，在你的 agent 里说一句"摄入 inbox 里的论文"（或直接 `/magi:wiki_ingest`），流水线就开始了。
+
+---
+
+## 4. 研究生命周期（skills 总览）
+
+在 agent 聊天框里以斜杠命令触发（Claude Code plugin 下带 `magi:` 前缀），或直接用自然语言描述需求：
+
+| 阶段 | Skill | 作用 |
+|---|---|---|
+| 基建 | `wiki_hub_init` / `wiki_init` | 建 hub / 建主题工作区 |
+| 摄入 | `wiki_ingest` | PDF/LaTeX/URL → Markdown（MinerU 云端或原生视觉转录；MinerU Token 填入工作区 `config.yaml` 的 `ocr.mineru_api_token`） |
+| 摄入 | `wiki_ingest_ocr` | 完全本地离线 OCR 路线（Ollama `glm-ocr`） |
+| 编译 | `wiki_compile` | raw 文献 → 文献卡片 + 概念卡片（与 bd 任务闭环：`magi pm backlog-sync` 的 `magi-compile` 标签） |
+| 编译 | `wiki_enrich` | 深扫已编译文献，补挖遗漏的定理/概念 |
+| 关联 | `wiki_semantic_link` | Ollama 向量语义双链 + 高相似度自动去重合并（`magi link`） |
+| 规范 | `wiki_tag_sync` / `wiki_concept_sync` | 标签本体论清洗 / 同义概念物理归并 |
+| 质量 | `wiki_lint` | 死链自愈、frontmatter 修复、LaTeX 校验（`magi lint --fix`） |
+| 图谱 | `wiki_graph_index` | 重建 SQLite 图谱（`magi graph build` / `magi graph query`） |
+| 问答 | `wiki_ask` | 混合检索 + 图遍历 + 严格引用的零幻觉问答 |
+| 审查 | `wiki_audit` | 跨论文矛盾审计（claim/证据验证 + 溯源落库） |
+| 综述 | `wiki_research` | 多 subagent 并行调研 → 带 provenance 的综述报告 |
+| 雷达 | `radar_review` | 对 radar 摘要做 triage：评分 → bd survey issues → 标记已审 |
+| 维护 | `wiki_hub_manager` | 主题归档 / 恢复（`magi hub archive/restore`） |
+
+### 文献雷达（`magi radar`）
+
+工作区 `config.yaml` 的 `radar:` 段配置 arXiv 分类、种子论文与我方论文后：
+
+```powershell
+magi radar harvest              # 手动收割：S2 推荐 ∪ arXiv 新文 → inbox/radar/日期-digest.md
+magi radar install-schedule     # 注册每日定时收割（Windows 任务计划程序 / macOS launchd；--uninstall 卸载）
+magi radar citation-gap         # 侦察"该引我方论文却未引"的近期文献（四层漏斗，人工审核队列）
+```
+
+夜间确定性收割 + 下次会话由 `radar_review` skill 做 LLM triage——`magi sync` 会提示待审摘要。
+
+---
+
+## 5. 从 Wikify 迁移（老用户指引）
+
+MAGI 是 Wikify 的全面重构：脚本集升级为统一 CLI，任务状态外接 Beads，新增混合检索、claim 溯源与文献雷达。**你的数据完全兼容**——`raw/`、`wiki/`、`inbox/` 格式未变。
+
+### 5.1 迁移步骤
+
+```powershell
+# 1. 删除旧安装拷贝（重要：旧 SKILL.md 会误导 agent 调用已不存在的脚本路径）
+#    删除 ~/.claude（或项目 .claude / .agents）下由 install.ps1 复制进去的 skills/wiki_* 和 bin/
+
+# 2. 安装新版（见上文 §2）：magi CLI + 宿主 plugin
+
+# 3. 在每个旧的主题工作区里执行（非破坏性）：
+cd <你的旧topic目录>
+magi migrate
+#    ↳ 补齐 CLAUDE.md / AGENTS.md / config.yaml / scratch/（沿用 config.md 里的旧标题与 scope）
+#      重建 output/graph.db（新增 claims/evidence 表）与 _index.md；raw/ wiki/ 内容一字不动
+
+# 4. 在 hub 根部启用任务状态，在各 topic 建检索索引：
+magi pm init
+magi index
+
+# 5. 验收：
+magi sync
+```
+
+### 5.2 变化对照
+
+| 旧（Wikify） | 新（MAGI） |
+|---|---|
+| `install.ps1` / `install.sh` 复制 `skills/`+`bin/` | `uv tool install .` + 宿主 plugin（§2.5） |
+| `python <BIN>/llm-wiki.py lint --fix <dir>` | `magi lint --fix <dir>` |
+| `python <BIN>/llm-wiki.py graph <dir>` | `magi graph build <dir>` |
+| `python <BIN>/query-graph.py "<SQL>"` | `magi graph query "<SQL>"` |
+| `python <BIN>/search-wiki.py <regex> <files>` | `magi grep <regex> <files>`；语义检索新增 `magi index` + `magi search` |
+| `python <BIN>/ingest_helper.py --file ...` | `magi ingest add --file ...`（其余摄入脚本同理归入 `magi ingest *`） |
+| `semantic_linker.py` | `magi link` |
+| `verify_claims.py` | `magi verify`（v2：`--json`、空白归一化匹配、`--fetch-web`） |
+| `requirements.txt` 手动装依赖 | 随 CLI 自动安装 |
+| 任务/进度记在 `log.md` | Beads（`bd`）任务图；`log.md` 降级为人读叙事 |
+| `~/.config/llm-wiki/config.json`（hub 路径） | `~/.config/magi/config.json`（旧路径仍被自动回退读取） |
+| 依赖 ripgrep | 不再需要 |
+
+---
+
+## 6. Obsidian 集成
+
+在 Obsidian 中**直接打开具体的主题工作区目录**（不要打开 Hub 根目录）。在 设置 → 档案与链接 → 排除档案 中添加两条正则，让图谱只显示纯粹的知识卡片：
+
+```regex
+/(?:^|/)(?:_index|log|config|uncompiled-source-coverage|CLAUDE|AGENTS)\.md$/
+```
+
+```regex
+/^\..*|(?:^|/)(?:scratch|inbox|raw|output|vendor)(?:/|$)/
 ```
 
 ---
 
-## 3. 安装与部署
+## 7. 开发
 
-CLI 装好后（见 2.1），skills 只是教 agent **何时/为何**调用 `magi` 的薄文档，按宿主分发：
-
-### Claude Code（推荐走 plugin）
-```bash
-claude plugin marketplace add Misaka16384/magi
-claude plugin install magi
+```powershell
+git clone https://github.com/Misaka16384/magi.git ; cd magi
+uv venv && uv pip install -e .
+.venv\Scripts\python.exe tests\smoke_test.py     # 端到端冒烟（含回归锁）
 ```
-或本地开发模式：`claude plugin install <repo目录>`。
 
-### Codex 及其他 Agent Plugins 1.0 宿主
-仓库根部自带 Agent Plugins 1.0 的 `plugin.json`，按宿主的 plugin 安装流程指向本仓库即可。
-
-### Gemini / Antigravity
-将本仓库的 `skills/` 目录复制（或链接）到 `<project>/.agents/skills/`。
-
-> 所有宿主共享同一份 `skills/*/SKILL.md`；脚本路径已不存在——skills 直接调用 PATH 上的 `magi` 命令。
-
----
-
-## 4. 学术文献处理完整生命周期流程
-
-当智能体技能（Skills）成功加载到您的 AI 助手后，您可以通过在助手的聊天 UI 中直接输入显式的**斜杠命令** (`/wiki_xxx`)，来管理文献从摄入到研究问答的完整生命周期：
-
-### 📥 第 1 阶段：基建与初始化
-*   **创建中央枢纽 (Central Hub)**
-    *   *面临场景*：您需要搭建一个中央枢纽目录来注册、路由和管理多个不同主题的知识库。
-    *   *直接输入斜杠命令*：在您想要作为中央枢纽的父目录下（例如通用路径 `~/KnowledgeHub`）打出：`/wiki_hub_init`。
-    *   *预期效果*：自动生成 `topics/` 文件夹和 `wikis.json` 中央注册表文件。
-*   **创建主题工作区 (Topic Workspace)**
-    *   *面临场景*：您准备开始一个新的学术研究主题（例如量子计算 `quantum-computing`），需要为其创建独立的存储库。
-    *   *直接输入斜杠命令*：在 Hub 目录下新建并进入子文件夹（例如 `~/KnowledgeHub/topics/quantum-computing`），并在聊天 UI 中打出：`/wiki_init`。
-    *   *预期效果*：瞬间在该目录下生成标准的主题工作区目录结构（`raw/`、`wiki/`、`inbox/`、`output/`），自动创建默认配置文件（`config.md`、`log.md`、`_index.md`），并将该主题自动注册到中央 Hub 路由中。
-
-### 📄 第 2 阶段：文献摄入与数字化
-*   **处理待摄入文献**
-    *   *面临场景*：您在主题工作区的 `inbox/` 目录下放置了待处理的原始学术论文（PDF 或 LaTeX 源码）。
-    *   *直接输入斜杠命令与配置*：
-        *   **云端版面分析（强烈推荐，公式还原度极高）**：请先前往 [mineru.net](https://mineru.net) 官网注册并免费获取您的 MinerU API Token。将其填入 workspace 根目录的 `config.yaml`（由 `magi init` 自动生成；也可放在用户级 `~/.config/magi/config.yaml`）：
-            ```yaml
-            ocr:
-              mineru_api_token: "您的_MINERU_API_TOKEN"
-              use_mineru: true
-            ```
-            随后在聊天 UI 中打出：`/wiki_ingest`。
-        *   **本地离线摄入（完全免费且离线）**：如果您倾向于本地处理，请确保通过命令行拉取了 Ollama 的本地 OCR 模型（`ollama pull glm-ocr`），随后在聊天 UI 中打出：`/wiki_ingest_ocr`。
-    *   *预期效果*：自动解析 PDF 的排版及数学公式，转化为纯净的 Markdown 格式输出到 `raw/articles/` 或 `raw/papers/` 中。
-
-### 🔬 第 3 阶段：深度编译与核心概念提取
-*   **卡片编译**
-    *   *面临场景*：`raw/` 下已生成转换好的原始 Markdown 论文，您需要将其抽取为文献笔记与单独的概念卡片。
-    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_compile`。
-    *   *预期效果*：自动从文献中提取所有数学定义、定理和核心概念，以独立卡片形式存入 `wiki/concepts/`，同时在 `wiki/references/` 下建立正式的文献索引卡片。
-*   **知识库语义挖掘**
-    *   *面临场景*：您希望对已编译的文献卡片做深度扫描，以确保没有任何关键的定理、引理或数学公式被遗漏。
-    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_enrich`。
-    *   *预期效果*：AI 深度检查文献文本，自动补挖遗漏的公式或概念，并在 `wiki/concepts/` 下自动生成新的补充卡片。
-
-### 🔗 第 4 阶段：关联、校验与语义规范化
-*   **计算语义嵌入与构建双链**
-    *   *面临场景*：您需要让知识库中的卡片根据语义相似度自动产生关联，发现概念间隐藏的交集。
-    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_semantic_link`。
-    *   *预期效果*：调用 Ollama 向量模型计算所有概念卡片的相似度，自动在卡片底部注入美观的 `[[相关概念|别名]]` 双链。若概念相似度 $\ge 0.95$，还会在底层执行无人值守的物理去重合并。
-*   **标签规范化 (Map-Reduce)**
-    *   *面临场景*：随着文献的增多，碎片化、单复数、同义词标签变得杂乱无章。
-    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_tag_sync`。
-    *   *预期效果*：运行 Map-Reduce 清洗全库的元数据标签，将混乱的标签降维合并为干净的本体论 (Ontology) 标准标签白名单。
-*   **概念去重与物理归并**
-    *   *面临场景*：知识库中存在同义但不同名的冗余卡片，需要合并以保持图谱的高纯净度。
-    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_concept_sync`。
-    *   *预期效果*：物理合并同义概念文件，合并 frontmatter 别名，并自动重定向和重构全库所有受影响的 `[[双链]]` 引用。
-*   **死链自愈与格式校验**
-    *   *面临场景*：您想要对工作区进行全面体检，修补断裂的死双链或校验 LaTeX 公式语法。
-    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_lint`。
-    *   *预期效果*：全局自愈断裂的双链（通过 Alias 路由映射接驳到新概念文件），自动转义 YAML frontmatter 中因 LLM 幻觉产生的不合规反斜杠，并校验公式语法。
-*   **关系图谱数据库索引更新**
-    *   *面临场景*：在手动或自动修改完卡片关系后，需要更新底层关系图谱缓存。
-    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_graph_index`。
-    *   *预期效果*：重新扫描全库的双链拓扑结构，更新 `output/graph.db` SQLite 数据库，以便 AI 助手后续能够进行高性能的图关系查询。
-
-### 💬 第 5 阶段：问答、知识审查与论文综述
-*   **严格文献引用问答**
-    *   *面临场景*：您想针对整个文献库进行深度问答，并要求其给出绝对真实的推导与文献出处。
-    *   *直接输入斜杠命令*：在聊天 UI 中打出 `/wiki_ask` 并跟随问题，例如：`/wiki_ask "A 理论与 B 定理在多维空间的映射关系是什么？"`。
-    *   *预期效果*：AI 组合执行关系图谱 SQL 查询和向量 RAG 混合检索，返回带有严谨 `[[wikilinks]]` 文献引用的解答，**杜绝虚假幻觉**。
-*   **理论矛盾审查**
-    *   *面临场景*：您想找出不同学术论文之间在公式推导、假设前提或实验结论上的学术矛盾或物理不一致。
-    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_audit`。
-    *   *预期效果*：多视角智能体协作审计，输出一份格式优雅的审查报告，精准点出不同论文之间的潜在矛盾。
-*   **自动文献综述撰写**
-    *   *面临场景*：您需要针对某个复杂的研究方向，基于知识库撰写一份高度专业化、引用详实的学术综述报告。
-    *   *直接输入斜杠命令*：在聊天 UI 中打出 `/wiki_research` 并跟随您的综述研究主题。
-    *   *预期效果*：并行启动专业文献调研智能体，自动生成一份极具深度且引用完备的学术综述论文，输出到 `output/` 目录下。
-
-### 🧹 第 6 阶段：多主题长期维护与归档
-*   **工作区归档与恢复**
-    *   *面临场景*：某个研究主题已经阶段性结束，您希望将其物理归档以保持当前工作区轻量化。
-    *   *直接输入斜杠命令*：在聊天 UI 中打出：`/wiki_hub_manager`。
-    *   *预期效果*：自动将选定的主题目录安全地迁移/解包到 `topics/.archive/` 目录下，并自动同步更新 Hub 中央路由注册表 `wikis.json`。可随时通过同一命令一键还原。
-
----
-
-## 5. Obsidian 知识库集成与关系图谱净化指南
-
-为了在 Obsidian 中获得极致的图谱可视化和沉浸式科研体验，请在 Obsidian 中**直接打开具体的主题工作区目录**（例如 `~/KnowledgeHub/topics/quantum-computing`），**不要**打开 Hub 根目录。
-
-### ⚙️ 一键排除非知识类系统文件（净化关系图与全局搜索）
-因为主题工作区内包含自动生成的索引地图、智能体操作日志、项目配置等，您需要将它们在 Obsidian 的全局搜索和关系图谱中隐藏，从而只展示最纯粹的**数学/物理文献卡片与核心概念图谱**。
-
-1.  打开 Obsidian，进入 **设置 (Settings)** -> **档案与链接 (Files and links)**。
-2.  找到 **排除档案 (Excluded files)** 配置项。
-3.  点击“添加新规则”，粘贴并启用以下两个正则表达式：
-
-*   **排除非知识类元数据与日志 Markdown 文件**：
-    ```regex
-    /(?:^|/)(?:_index|log|config|uncompiled-source-coverage)\.md$/
-    ```
-    *(本条规则能瞬间在 Obsidian 中隐去所有子目录及根目录下自动生成的目录大地图、Agent 执行日志、主题配置及文献未编译待办列表)。*
-
-*   **排除系统点号文件夹、Agent 运行时、scratch、inbox 与 raw 目录**：
-    ```regex
-    /^\..*|(?:^|/)(?:scratch|inbox|raw)(?:/|$)/
-    ```
-    *(本条规则将显式隐藏如 `.agents/` 运行时、`.git/` 仓库元数据、`.backup/` 自动备份、以及任意 `scratch`、`inbox` 和 `raw` 目录，保证知识图谱的绝佳美感)。*
-
-配置完成后，Obsidian 的全局搜索、反向链接和 Graph View 关系图谱将变得极其空灵干净，只保留由双链优雅交织的学术卡片网络。
+路线图与交接文档见 [ROADMAP.md](./ROADMAP.md)。

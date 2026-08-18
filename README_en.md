@@ -1,220 +1,247 @@
 # MAGI
+
 *[English](README_en.md) | [中文](README.md)*
 
-**MAGI** is an agent-native research workspace: the human pilots, the LLM agent is the mecha, and the deterministic `magi` CLI is the restraint armor — the higher the sync ratio, the faster the science. It ingests academic papers (PDF/LaTeX) into an Obsidian-compatible concept-card knowledge base and manages research state through a three-core architecture:
+**MAGI** is an agent-native research workspace: the human pilots, the LLM agent is the mecha, and the deterministic `magi` CLI is the restraint armor — the higher the sync ratio, the faster the science. It ingests academic papers (PDF/LaTeX) into an Obsidian-compatible concept-card knowledge base and manages the full research state through a three-core architecture:
 
-- **MELCHIOR (knowledge)**: concept/reference cards + SQLite knowledge graph + claim/evidence provenance (`magi graph` / `magi verify`)
-- **BALTHASAR (intent)**: research task graph on [Beads](https://github.com/gastownhall/beads) (question/survey/derivation/computation/experiment/review issue types)
-- **CASPER (retrieval)**: local hybrid search (FTS5 BM25 + sqlite-vec vectors + RRF; `magi index` / `magi search`)
+| Core | State | Carried by | Question answered |
+|---|---|---|---|
+| **MELCHIOR** | Epistemic (knowledge) | concept/reference cards + SQLite knowledge graph + claim/evidence provenance | What do we know, and why is it credible? |
+| **BALTHASAR** | Intent (work) | [Beads](https://github.com/gastownhall/beads) (`bd`) research task graph | What are we doing, and what's next? |
+| **CASPER** | Retrieval | local hybrid search (FTS5 BM25 + sqlite-vec vectors + RRF) | What should I read right now? |
 
-Enter any workspace and run `magi sync` — it reports the **sync ratio** and three-core status; `magi radar` is the literature radar (scheduled discovery of new papers + citation-gap scouting). One shared skills tree serves Claude Code / Codex / Antigravity and other CLI agent hosts.
+Enter any workspace and run **`magi sync`** — it reports the **sync ratio**, three-core status, and concrete restore hints. `magi radar` is the literature radar: scheduled discovery of relevant new papers, plus scouting for recent papers that arguably should cite yours but don't. One shared skills tree serves Claude Code / Codex / Antigravity and other CLI agent hosts.
 
-## 🌟 Project Showcase
+Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 
-Here are some glimpses of the knowledge base generated and maintained entirely by this AI pipeline:
+---
+
+## 🌟 Showcase
 
 ![Knowledge Graph Visualization](./graph.png)
-*A dense, auto-generated semantic graph of mathematical and physical concepts.*
+*An automatically generated dense semantic graph of physics and math concepts.*
 
-![Knowledge Graph Details](./graph2.png)
-*Detailed view of the semantic links injected by the background embedding engine.*
+![Compiled Literature Card](./note1.png)
+*A clean reference card compiled from a messy PDF.*
 
-![Compiled Literature Note](./note1.png)
-*A pristine literature note compiled directly from a messy PDF using local OCR and Pandoc.*
-
-![Math and Concept Extraction](./note2.png)
-*Beautifully formatted mathematical proofs and lemmas extracted flawlessly from LaTeX source.*
+![Math & Concept Extraction](./note2.png)
+*Proofs and lemmas extracted and formatted from LaTeX sources.*
 
 ---
 
-## 1. What it Does
+## 1. Architecture: CLI, skills, and hosts
 
-When loaded into your AI assistant, you can utilize a rich set of deterministic **slash commands** (`/wiki_xxx`) to perform:
-- **Ingest**: Convert math-heavy PDFs (via layout-preserving cloud APIs or local OCR) and LaTeX source files into Markdown.
-- **Compile**: Extract mathematical definitions, theorems, and concepts into individual, interlinked Obsidian cards.
-- **Deduplicate & Link**: Automatically find duplicate concepts, merge them safely, and semantically link related files using local vector embeddings.
-- **Interactive Q&A**: Chat with your entire knowledge base where the AI strictly answers using local RAG, Graph SQL queries, and regex search—guaranteeing zero hallucinations and exact citations.
-- **Auto-Healing & Math Correction**: The intelligent linter automatically detects dead links and self-heals the knowledge graph using a global concept alias routing system. It also features robust YAML self-healing to automatically repair LLM-hallucinated syntax errors in frontmatter, and pdflatex-backed validation to check LaTeX mathematical formula correctness.
+```text
+You (the pilot)
+  └─ Claude Code / Codex / Antigravity  (the mecha: reasoning, writing, judgment)
+       ├─ skills/*/SKILL.md   — teach the agent WHEN and WHY to run each pipeline
+       └─ magi CLI (restraint armor) — every deterministic operation:
+            ingestion, graph, retrieval, validation, tasks, radar
+            └─ durable state lives on disk: raw/ wiki/ output/ .beads/
+```
+
+- The **CLI owns syntax** and is self-describing (`--help`); **skills teach methodology** and never duplicate flag lists.
+- Durable state always lives in files/databases; agent context is disposable (fresh-context workers).
+- The `--json` output shapes are the future `magi mcp` tool contracts.
 
 ---
 
-## 2. System Dependencies
+## 2. Installation
 
-Before deploying the skills, ensure your system has the following runtime dependencies installed.
+### 2.1 The `magi` CLI (required)
 
-### 2.1 Python Dependencies
-**Python 3.10+** is required. Install the global packages:
+Requires **Python 3.10+** and [uv](https://docs.astral.sh/uv/) (or pipx):
+
 ```powershell
-pip install -r requirements.txt
+git clone https://github.com/Misaka16384/magi.git
+cd magi
+uv tool install .            # or: pipx install .
+magi --version               # magi 0.1.0
 ```
 
-> **Tip**: Consider using a virtual environment to avoid conflicts:
+Upgrade:
+
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\activate  # Windows
-# source .venv/bin/activate  # Linux/macOS
-pip install -r requirements.txt
+git pull && uv tool install . --force --reinstall
 ```
 
-### 2.2 System-Level External Binaries
-The pipeline relies on several external utilities that must be present in your system's `PATH`:
+> Package name `magi-research`, command name `magi`. Not on PyPI yet — install from the repo.
 
-1.  **Poppler-utils (`pdftoppm` & `pdfimages`)** — Required for rendering PDF pages and extracting diagrams.
-    *   *Windows (Scoop)*: `scoop install poppler`
-    *   *Windows (Choco)*: `choco install poppler`
-    *   *macOS (Homebrew)*: `brew install poppler`
-    *   *Linux (APT)*: `sudo apt-get install poppler-utils`
-2.  **Ripgrep (`rg`)** — Powers fast, multi-file citation mapping and wikilink refactoring.
-    *   *Windows (Scoop)*: `scoop install ripgrep`
-    *   *Windows (Choco)*: `choco install ripgrep`
-    *   *macOS (Homebrew)*: `brew install ripgrep`
-    *   *Linux (APT)*: `sudo apt-get install ripgrep`
-3.  **Pandoc** — Required for automated ingestion and conversion of LaTeX (`.tex`) documents to Markdown. *(Note: `pandoc-crossref` is already bundled with this repository for Windows users)*.
-    *   *Windows (Scoop)*: `scoop install pandoc`
-    *   *Windows (Choco)*: `choco install pandoc`
-    *   *macOS (Homebrew)*: `brew install pandoc`
-    *   *Linux (APT)*: `sudo apt-get install pandoc`
-4.  **TeX / `pdflatex` (Recommended)** — Powers the deep semantic math validation (double subscripts, unbalanced braces, bad delimiters) run during ingestion. *Optional but recommended*: if `pdflatex` is absent, the system automatically falls back to lighter structural checks via `pylatexenc`.
-    *   *Windows (Scoop)*: `scoop install miktex`
-    *   *Windows (Choco)*: `choco install miktex`
-    *   *macOS (Homebrew)*: `brew install --cask mactex-no-gui`
-    *   *Linux (APT)*: `sudo apt-get install texlive-latex-extra`
+### 2.2 Beads (`bd`, strongly recommended)
 
-### 2.3 Ollama Local Models
-The offline transcription and semantic linking rely on Ollama running as a background service:
+Work state lives in [Beads](https://github.com/gastownhall/beads); `magi pm init` provisions six research issue types (question / survey / derivation / computation / experiment / review).
+
+- **Windows**: `irm https://raw.githubusercontent.com/gastownhall/beads/main/install.ps1 | iex` (or grab `beads_*_windows_amd64.zip` from [Releases](https://github.com/gastownhall/beads/releases) and put `bd.exe` on PATH)
+- **macOS / Linux**: see the [official install docs](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md) (Homebrew / npm / go install)
+
+MAGI degrades gracefully without `bd` (sync will hint at installing it).
+
+### 2.3 Ollama (recommended)
+
+Vector retrieval (`magi index` / `magi search` hybrid mode, `magi link` semantic linking) and local OCR use a local Ollama:
+
 ```powershell
-ollama pull glm-ocr
-ollama pull qwen3-embedding:0.6b
+ollama pull qwen3-embedding:0.6b   # embeddings
+ollama pull glm-ocr                # local OCR (optional; MinerU cloud also supported)
+```
+
+When Ollama is unreachable, retrieval degrades to BM25-only and vectors can be backfilled later.
+
+### 2.4 System-level external tools (as needed)
+
+| Tool | Used by | Notes |
+|---|---|---|
+| **Pandoc** | `magi ingest tex` (LaTeX → Markdown) | Windows `pandoc-crossref.exe` is vendored in `vendor/windows/` (add to PATH or set `tools.pandoc_crossref_path` in config.yaml) |
+| **Poppler** (`pdftoppm`/`pdfimages`) | local OCR pipeline PDF rendering | `scoop/choco/brew/apt install poppler` |
+| **pdflatex** (optional) | deep math validation | falls back to `pylatexenc` when absent |
+
+(The historic ripgrep dependency is gone.)
+
+### 2.5 Installing the skills (teaching your agent)
+
+Every host shares the same `skills/*/SKILL.md` tree:
+
+- **Claude Code** (recommended: plugin; ships a SessionStart hook that runs `magi sync` automatically):
+  ```bash
+  claude plugin marketplace add Misaka16384/magi
+  claude plugin install magi
+  ```
+  Skills appear namespaced as `/magi:wiki_ingest` etc.; for local dev use `claude plugin install <repo-dir>`.
+- **Codex and other Agent Plugins 1.0 hosts**: the repo root ships a `plugin.json`; point your host's plugin flow at this repository.
+- **Gemini / Antigravity**: copy (or link) `skills/` into `<project>/.agents/skills/`.
+
+---
+
+## 3. Quick start (5 minutes)
+
+```powershell
+mkdir KnowledgeHub ; cd KnowledgeHub
+magi hub init                # central hub (wikis.json registry)
+magi pm init                 # beads + research issue types (git-inits this directory)
+
+mkdir topics\quantum-toys ; cd topics\quantum-toys
+magi init --name "Quantum Toys" --scope "quantum phenomena in toy models"
+# ↑ auto-registers in the hub; generates CLAUDE.md / AGENTS.md (agent entry
+#   protocol), config.yaml, scratch/
+
+magi sync                    # sync ratio + three cores + next-step hints
+```
+
+```text
+MAGI SYSTEM ONLINE — sync ratio 90.0%
+|- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 0
+|- BALTHASAR (intent)     0 ready · 0 in progress · 0 blocked
+`- CASPER    (retrieval)  index fresh · 0 chunks · vectors 0/0
+  -> drop sources in inbox/ and run the wiki_ingest skill to start building the library
+```
+
+Then drop PDFs / LaTeX / notes into `inbox/` and tell your agent to ingest them (or invoke `/magi:wiki_ingest`).
+
+---
+
+## 4. The research lifecycle (skills overview)
+
+Trigger via slash commands in your agent (namespaced `magi:` under the Claude Code plugin) or plain natural language:
+
+| Phase | Skill | What it does |
+|---|---|---|
+| Setup | `wiki_hub_init` / `wiki_init` | scaffold the hub / a topic workspace |
+| Ingest | `wiki_ingest` | PDF/LaTeX/URL → Markdown (MinerU cloud or native vision; put your MinerU token in the workspace `config.yaml` under `ocr.mineru_api_token`) |
+| Ingest | `wiki_ingest_ocr` | fully local OCR route (Ollama `glm-ocr`) |
+| Compile | `wiki_compile` | raw sources → reference + concept cards (closes the bd loop: `magi pm backlog-sync`'s `magi-compile` label) |
+| Compile | `wiki_enrich` | deep-scan compiled sources for missed theorems/concepts |
+| Link | `wiki_semantic_link` | Ollama-embedding semantic wikilinks + auto-merge of near-duplicates (`magi link`) |
+| Normalize | `wiki_tag_sync` / `wiki_concept_sync` | tag ontology cleanup / physical merge of synonym concepts |
+| Quality | `wiki_lint` | dead-link healing, frontmatter repair, LaTeX validation (`magi lint --fix`) |
+| Graph | `wiki_graph_index` | rebuild the SQLite graph (`magi graph build` / `magi graph query`) |
+| Q&A | `wiki_ask` | hybrid retrieval + graph traversal + strictly cited, zero-hallucination answers |
+| Audit | `wiki_audit` | cross-paper contradiction audit (claim/evidence verification + provenance) |
+| Survey | `wiki_research` | parallel subagent research → a provenance-backed survey report |
+| Radar | `radar_review` | triage radar digests: score → bd survey issues → mark reviewed |
+| Maintain | `wiki_hub_manager` | archive / restore topics (`magi hub archive/restore`) |
+
+### The literature radar (`magi radar`)
+
+After configuring the `radar:` section of the workspace `config.yaml` (arXiv categories, seed papers, your own papers):
+
+```powershell
+magi radar harvest              # manual harvest: S2 recommendations ∪ new arXiv listings → inbox/radar/<date>-digest.md
+magi radar install-schedule     # daily scheduled harvest (Task Scheduler / launchd; --uninstall to remove)
+magi radar citation-gap         # scout recent papers that arguably should cite yours (four-layer funnel, human-review queue)
+```
+
+Deterministic harvest runs at night; the `radar_review` skill does LLM triage in your next session — `magi sync` will point at pending digests.
+
+---
+
+## 5. Migrating from Wikify (existing users)
+
+MAGI is a full rebuild of Wikify: the script collection became a unified CLI, task state moved to Beads, and hybrid retrieval, claim provenance, and the literature radar are new. **Your data is fully compatible** — `raw/`, `wiki/`, `inbox/` formats are unchanged.
+
+### 5.1 Migration steps
+
+```powershell
+# 1. Delete the old installed copies (important: stale SKILL.md files will
+#    mislead agents into calling script paths that no longer exist).
+#    Remove the skills/wiki_* and bin/ folders that install.ps1 copied into
+#    ~/.claude (or your project's .claude / .agents).
+
+# 2. Install the new stack (§2): magi CLI + host plugin.
+
+# 3. In each old topic workspace, run (non-destructive):
+cd <your-old-topic-dir>
+magi migrate
+#    ↳ adds CLAUDE.md / AGENTS.md / config.yaml / scratch/ (reusing the old
+#      title & scope from config.md), rebuilds output/graph.db (now with
+#      claims/evidence tables) and _index.md; raw/ and wiki/ are untouched.
+
+# 4. Enable work-state at the hub root and build each topic's search index:
+magi pm init
+magi index
+
+# 5. Verify:
+magi sync
+```
+
+### 5.2 What changed
+
+| Old (Wikify) | New (MAGI) |
+|---|---|
+| `install.ps1` / `install.sh` copying `skills/`+`bin/` | `uv tool install .` + host plugin (§2.5) |
+| `python <BIN>/llm-wiki.py lint --fix <dir>` | `magi lint --fix <dir>` |
+| `python <BIN>/llm-wiki.py graph <dir>` | `magi graph build <dir>` |
+| `python <BIN>/query-graph.py "<SQL>"` | `magi graph query "<SQL>"` |
+| `python <BIN>/search-wiki.py <regex> <files>` | `magi grep <regex> <files>`; semantic search is new: `magi index` + `magi search` |
+| `python <BIN>/ingest_helper.py --file ...` | `magi ingest add --file ...` (all ingestion scripts live under `magi ingest *`) |
+| `semantic_linker.py` | `magi link` |
+| `verify_claims.py` | `magi verify` (v2: `--json`, whitespace-normalized matching, `--fetch-web`) |
+| manual `requirements.txt` install | dependencies ship with the CLI |
+| progress tracked in `log.md` | Beads (`bd`) task graph; `log.md` is now a human-readable narrative |
+| `~/.config/llm-wiki/config.json` (hub path) | `~/.config/magi/config.json` (the legacy path is still read as a fallback) |
+| ripgrep dependency | no longer needed |
+
+---
+
+## 6. Obsidian integration
+
+Open the **specific topic workspace directory** in Obsidian (not the hub root). Under Settings → Files and links → Excluded files, add these two regexes so the graph shows only pure knowledge cards:
+
+```regex
+/(?:^|/)(?:_index|log|config|uncompiled-source-coverage|CLAUDE|AGENTS)\.md$/
+```
+
+```regex
+/^\..*|(?:^|/)(?:scratch|inbox|raw|output|vendor)(?:/|$)/
 ```
 
 ---
 
-## 3. Deployment
+## 7. Development
 
-With the CLI installed (see 2.1), skills are thin documents teaching agents **when/why** to call `magi`, distributed per host:
-
-### Claude Code (recommended: plugin)
-```bash
-claude plugin marketplace add Misaka16384/magi
-claude plugin install magi
+```powershell
+git clone https://github.com/Misaka16384/magi.git ; cd magi
+uv venv && uv pip install -e .
+.venv\Scripts\python.exe tests\smoke_test.py     # end-to-end smoke (with regression locks)
 ```
-Or local dev mode: `claude plugin install <repo-dir>`.
 
-### Codex and other Agent Plugins 1.0 hosts
-The repo root ships an Agent Plugins 1.0 `plugin.json`; point your host's plugin install flow at this repository.
-
-### Gemini / Antigravity
-Copy (or link) this repo's `skills/` directory to `<project>/.agents/skills/`.
-
-> Every host shares the same `skills/*/SKILL.md` files; script paths are gone — skills invoke the `magi` command on PATH directly.
-
----
-
-## 4. Chronological Academic Literature Lifecycle
-
-Once the skills are loaded into your AI assistant, you can manage the entire literature pipeline using explicit **slash commands** (`/wiki_xxx`) directly in your assistant's chat UI. 
-
-Below is the chronological lifecycle of building and maintaining your knowledge base:
-
-### 📥 Phase 1: Setup & Initialization
-*   **Central Hub Creation**
-    *   *Situation*: You want to establish a central root directory to host and register multiple topic wikis.
-    *   *Slash Command*: Run `/wiki_hub_init` under your desired parent folder (e.g. `~/KnowledgeHub`).
-    *   *Expected Result*: Bootstraps a global `topics/` directory and a `wikis.json` registry file to track all future topics.
-*   **Topic Workspace Creation**
-    *   *Situation*: You are starting research on a new scientific subject (e.g. Quantum Computing) and need a dedicated workspace.
-    *   *Slash Command*: Create a subfolder under topics (e.g. `~/KnowledgeHub/topics/quantum-computing`), open it, and type `/wiki_init` in the chat UI.
-    *   *Expected Result*: Instantly generates the standardized workspace subdirectories (`raw/`, `wiki/`, `inbox/`, `output/`), creates the baseline configuration files (`config.md`, `log.md`, `_index.md`), and registers the new topic vault in the central Hub.
-
-### 📄 Phase 2: Ingestion & Digitalization
-*   **Processing Pending Literature**
-    *   *Situation*: You have messy raw papers (PDFs/LaTeX preprints) inside the workspace's `inbox/` directory.
-    *   *Slash Command & Configuration*:
-        *   **Cloud Layout Parser (Highly Recommended)**: Register at [mineru.net](https://mineru.net) to get your MinerU API token. Fill it into the workspace-root `config.yaml` (generated by `magi init`; the user-level `~/.config/magi/config.yaml` also works):
-            ```yaml
-            ocr:
-              mineru_api_token: "YOUR_MINERU_API_TOKEN"
-              use_mineru: true
-            ```
-            Then type `/wiki_ingest` in the chat UI.
-        *   **Offline Local Parser (Fallback)**: If you prefer full offline operation, ensure you have pulled Ollama's local OCR model (`ollama pull glm-ocr`) and type `/wiki_ingest_ocr` in the chat UI.
-    *   *Expected Result*: Transcribes complex layouts and mathematical formulas into pristine Markdown files inside `raw/articles/` and `raw/papers/`.
-
-### 🔬 Phase 3: Deep Compilation & Concept Extraction
-*   **Card Compilation**
-    *   *Situation*: Raw markdown articles are generated in `raw/`, and you want to extract structured literature notes and concept cards.
-    *   *Slash Command*: Type `/wiki_compile` in the chat UI.
-    *   *Expected Result*: Extracts novel physical or mathematical terms, formulas, and definitions into separate cards under `wiki/concepts/`, and creates formal literature index cards under `wiki/references/`.
-*   **Semantic Enrichment**
-    *   *Situation*: You want to deeply inspect the compiled literature notes to ensure no critical mathematical lemmas, proofs, or theorems were missed.
-    *   *Slash Command*: Type `/wiki_enrich` in the chat UI.
-    *   *Expected Result*: AI scans the literature note's text, automatically extracts missing equations and definitions, and generates supplementary concept cards under `wiki/concepts/`.
-
-### 🔗 Phase 4: Linking, Validation & Ontology Synchronization
-*   **Semantic Embedding Links**
-    *   *Situation*: You want to automatically discover hidden mathematical relationships and cross-references between concept cards.
-    *   *Slash Command*: Type `/wiki_semantic_link` in the chat UI.
-    *   *Expected Result*: Generates vector embeddings for all cards using Ollama's embedding model, calculates cosine similarity, appends a beautifully formatted `[[Related Concepts]]` section to the bottom of matching cards, and automatically merges duplicate concepts with a cosine similarity of $\ge 0.95$.
-*   **Tag Normalization**
-    *   *Situation*: Overlapping, redundant, or synonymous tags are cluttering your metadata.
-    *   *Slash Command*: Type `/wiki_tag_sync` in the chat UI.
-    *   *Expected Result*: standardizes tags into a unified, clean ontology whitelist across all cards using a Map-Reduce agent architecture.
-*   **Concept Deduplication & Physical Merging**
-    *   *Situation*: Duplicate or highly overlapping concepts exist under slightly different names.
-    *   *Slash Command*: Type `/wiki_concept_sync` in the chat UI.
-    *   *Expected Result*: Triggers a zero-hallucination physical merging engine that safely consolidates card files, appends aliases in the frontmatter, and redirects references globally.
-*   **Vault Integrity Check & Auto-Healing**
-    *   *Situation*: You want to validate that all mathematical formulas compile correctly and all double-bracket `[[wikilinks]]` are active.
-    *   *Slash Command*: Type `/wiki_lint` in the chat UI.
-    *   *Expected Result*: Verifies the entire workspace, auto-heals dead/broken links to their new canonical targets using global alias maps, repairs unescaped backslashes in frontmatter YAML, and compiles LaTeX formulas to verify syntax correctness.
-*   **Knowledge Graph Database Synchronization**
-    *   *Situation*: You want to update the relationship index database for fast semantic queries.
-    *   *Slash Command*: Type `/wiki_graph_index` in the chat UI.
-    *   *Expected Result*: Rebuilds the SQLite `graph.db` database inside the topic's `output/` directory, mapping all double-bracket linkages for relational SQL graph queries.
-
-### 💬 Phase 5: Q&A, Contradiction Audit & Research Synthesis
-*   **Strict Hallucination-Free Q&A**
-    *   *Situation*: You want to query your knowledge vault and get exact answers backed by mathematical proofs.
-    *   *Slash Command*: Type `/wiki_ask` in the chat UI followed by your question (e.g. `/wiki_ask "What is the relation between theory A and theorem B?"`).
-    *   *Expected Result*: Runs a unified Vector RAG + Graph SQL relation search, producing a highly precise answer strictly cited with `[[wikilinks]]` directly to your cards.
-*   **Theoretical Inconsistency Audit**
-    *   *Situation*: You want to check if different papers or theories in your vault make conflicting claims.
-    *   *Slash Command*: Type `/wiki_audit` in the chat UI.
-    *   *Expected Result*: Spawns parallel agents to cross-compare literature notes, outputting a structured report listing potential scientific contradictions or mismatched assumptions.
-*   **Academic Synthesis & Literature Reviews**
-    *   *Situation*: You want a comprehensive, multi-perspective literature review or research synthesis paper on a complex query.
-    *   *Slash Command*: Type `/wiki_research` followed by your query in the chat UI.
-    *   *Expected Result*: Launches specialized research subagents that compile a complete, publication-grade academic review in the `output/` directory.
-
-### 🧹 Phase 6: Long-term Maintenance & Hub Archiving
-*   **Hub Topic Archiving**
-    *   *Situation*: A research topic is complete, and you want to clean up your active workspace without losing files.
-    *   *Slash Command*: Type `/wiki_hub_manager` in the chat UI to archive the topic.
-    *   *Expected Result*: Packages and moves the specific topic directory to `topics/.archive/` and updates the central hub registry `wikis.json`. The topic can be fully restored at any time.
-
----
-
-## 5. Obsidian Workspace Integration & Configuration
-
-To visualize your knowledge vault beautifully in Obsidian, import the **specific topic directory** (e.g. `~/KnowledgeHub/topics/quantum-computing`), **not** the Hub root directory.
-
-### ⚙️ Hiding System and Index Files from Graph & Search
-Because the workspace contains autogenerated indexes, agent action logs, and runtime configs, you must hide them in Obsidian to ensure your **Graph View** and **Global Search** display only pure mathematical concepts and literature cards.
-
-1.  Open Obsidian and navigate to **Settings** -> **Files and links** (设置 -> 档案与链接).
-2.  Locate the **Excluded files** (排除档案) setting.
-3.  Add the following regular expressions (or click "Add new" and paste them):
-
-*   **Exclude Specific Metadata Markdown Files**:
-    ```regex
-    /(?:^|/)(?:_index|log|config|uncompiled-source-coverage)\.md$/
-    ```
-    *(This instantly hides all autogenerated directory indices, action logs, configs, and literature backlog tracking files at any directory depth).*
-
-*   **Exclude Dot Directories, System Files, scratch, inbox & raw Folders**:
-    ```regex
-    /^\..*|(?:^|/)(?:scratch|inbox|raw)(?:/|$)/
-    ```
-    *(This explicitly excludes agent runtime directories like `.agents/`, `.git/`, `.backup/`, scratch, inbox, and raw directories, and related hidden metadata files).*
-
-Once applied, Obsidian's search, backlinks, and graph representation will remain absolutely clean, leaving you with a pristine, beautiful mathematical/physical knowledge graph.
+Roadmap and handoff notes: [ROADMAP.md](./ROADMAP.md).
