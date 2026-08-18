@@ -2,7 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-18 · 当前阶段：**v1.3.0 已发布**（tag `v1.3.0`；版本号同步于 pyproject.toml / `magi.__version__` / .claude-plugin/plugin.json / plugin.json）。此前：M0–M9 全部完成。
+> 最后更新：2026-08-18 · 当前阶段：**v1.3.1 已发布**（tag `v1.3.1`；版本号同步于 pyproject.toml / `magi.__version__` / .claude-plugin/plugin.json / plugin.json）。此前：M0–M9 全部完成。
+>
+> 2026-08-18 WebUI 视觉重构 (v1.3.1)：三主题设计系统整体重写（styles.css 全量、index.html 语义化、app.js 生成标记类化）。**基础双主题「Institute」**——制图纸底 + 毫米格水印 + 普鲁士蓝墨水主色、书卷衬线标题（Iowan/Palatino 栈）、Cascadia 等宽数据、metric 卡「测量值」排印 + 角标注册记号；暗色版为同语言的天文台蓝黑。**EVA MAGI MODE 深度打磨**——全屏背景插画层（初号机头部技术图解线稿：紫罗兰描线 + 绿色单眼 + 尺寸标注；左上 AT 力场同心六边形呼吸动画；右缘竖排「三賢者統合思考体・同調率監視中」），卡片改半透明 + backdrop-blur 保文字可读，琥珀色阶收纪律（#FF9421 系），tab 频道编号 00-06，全部动画尊重 prefers-reduced-motion。**缩放/响应加固**——rem 化、`minmax(min(100%,…))` 网格、topbar flex-wrap 三级换行、表格 .table-scroll + 粘性表头、split-pane 900px 折叠、iframe 视口矩阵实测 320/390/640/768/1024 × 7 tab 零横向溢出。**杂项**——i18n 按钮 emoji 清退（58 处）、原生控件 color-scheme 跟随主题、自定义 select 箭头、细滚动条、:focus-visible 焦点环、markdown 表格样式补齐。契约零改动（纯前端静态资源 + i18n 字符串）。
 >
 > 2026-08-18 M9 逻辑⇄WebUI 对齐 (v1.3.0)：**契约统一**——`retrieval.run_search()` 单实现（CLI `--json` 与 `/api/workspace/search` 逐字段一致 = 未来 mcp 契约，UI 免费获得联邦 scope/collection/`--path` 过滤，连接不再泄漏）、`build_report` 新增 `hints_structured`（code+text 双轨，前端按 code 渲染按钮，删正则）、`radar.scan_reports()` 单一事实源，`tests/test_contracts.py` 契约锁。**jobs 收权**——OPS 白名单（不再收 raw argv）、danger 服务端 confirm==op、并发闸门（同库 1 活跃/全局 3/global 独占）、`GET /api/ops` 驱动全部操作按钮（危险区补 install-schedule）、任务历史落盘 ui-jobs.jsonl（256KB/40 条上限，跨重启回放 20 条）。**radar 审阅写路径**——mark-reviewed / accept-to-inbox / create-issue 三端点 + digest 阅读器按钮。**新能力上 UI**——BibTeX 复制导出、检索过滤器（scope/collection/path + kb/collection badge）、drafts 区块、config.yaml 白名单字段编辑器（`core.config_edit` 手术式改行，保注释，safe_load 回验防腐蚀）。**语义收口**——「查看工作空间」+ Browsing 徽标 + localStorage 恢复；README 三级回退（repo→wheel metadata→GitHub raw，装态不再空白）；端口默认改 8737（忙时探测 8738-8746，显式指定忙则报错）。
 >

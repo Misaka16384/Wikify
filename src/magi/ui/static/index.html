@@ -9,13 +9,20 @@
 </head>
 <body>
 
+  <!-- EVA MAGI MODE background artwork (decorative, hidden outside the theme) -->
+  <div class="app-bg" aria-hidden="true">
+    <div class="app-bg-hex"></div>
+    <div class="app-bg-unit"></div>
+    <div class="app-bg-kanji">三賢者統合思考体・同調率監視中</div>
+  </div>
+
   <!-- Top Bar -->
   <header class="topbar">
     <div class="brand">
       <div class="brand-icon">M</div>
       <div>
         <span class="brand-title">MAGI</span>
-        <span class="brand-badge" id="app-version">v1.3.0</span>
+        <span class="brand-badge" id="app-version">v1.3.1</span>
       </div>
       <span class="eva-clock" id="eva-clock" aria-hidden="true"></span>
     </div>
@@ -23,7 +30,7 @@
     <div class="topbar-controls">
       <div class="workspace-select-group">
         <label for="workspace-select" class="control-label" data-i18n="workspace_label">Viewing:</label>
-        <select id="workspace-select" class="select-input" style="min-width: 200px;">
+        <select id="workspace-select" class="select-input">
           <option value="" data-i18n="loading_workspaces">Loading workspaces...</option>
         </select>
         <span class="stat-pill warning" id="browsing-badge" style="display: none;"
@@ -46,22 +53,22 @@
       </div>
 
       <!-- MAGI MODE Toggle Button -->
-      <button class="icon-btn magi-mode-btn" id="magi-mode-btn" title="Toggle EVA NERV MAGI Command Theme" data-i18n-title="magi_mode_btn_title" data-i18n="magi_mode_btn">⚡ MAGI MODE</button>
+      <button class="icon-btn magi-mode-btn" id="magi-mode-btn" title="Toggle EVA NERV MAGI Command Theme" data-i18n-title="magi_mode_btn_title" data-i18n="magi_mode_btn">MAGI MODE</button>
 
-      <button class="icon-btn" id="doctor-btn" title="Environment Doctor Check" data-i18n-title="doctor_btn_title" data-i18n="doctor_btn">🩺 Doctor</button>
-      <button class="icon-btn" id="theme-toggle-btn" title="Toggle Light/Dark Theme" data-i18n-title="theme_btn_title">🌓</button>
+      <button class="icon-btn" id="doctor-btn" title="Environment Doctor Check" data-i18n-title="doctor_btn_title" data-i18n="doctor_btn">Doctor</button>
+      <button class="icon-btn" id="theme-toggle-btn" title="Toggle Light/Dark Theme" data-i18n-title="theme_btn_title">☾</button>
     </div>
   </header>
 
   <!-- Navigation Tabs -->
   <nav class="tabs-nav">
-    <button class="tab-btn active" data-tab="dashboard" data-i18n="tab_dashboard">📊 Dashboard</button>
-    <button class="tab-btn" data-tab="melchior" data-i18n="tab_melchior">🧠 Melchior (Cognitive)</button>
-    <button class="tab-btn" data-tab="balthasar" data-i18n="tab_balthasar">🎯 Balthasar (Tasks)</button>
-    <button class="tab-btn" data-tab="casper" data-i18n="tab_casper">🔍 Casper (Retrieval)</button>
-    <button class="tab-btn" data-tab="radar" data-i18n="tab_radar">📡 Literature Radar</button>
-    <button class="tab-btn" data-tab="operations" data-i18n="tab_operations">⚙️ Operations & Danger Zone</button>
-    <button class="tab-btn" data-tab="docs" data-i18n="tab_docs">📖 Docs & Help</button>
+    <button class="tab-btn active" data-tab="dashboard" data-ch="00" data-i18n="tab_dashboard">Dashboard</button>
+    <button class="tab-btn" data-tab="melchior" data-ch="01" data-i18n="tab_melchior">Melchior (Cognitive)</button>
+    <button class="tab-btn" data-tab="balthasar" data-ch="02" data-i18n="tab_balthasar">Balthasar (Tasks)</button>
+    <button class="tab-btn" data-tab="casper" data-ch="03" data-i18n="tab_casper">Casper (Retrieval)</button>
+    <button class="tab-btn" data-tab="radar" data-ch="04" data-i18n="tab_radar">Literature Radar</button>
+    <button class="tab-btn" data-tab="operations" data-ch="05" data-i18n="tab_operations">Operations &amp; Danger Zone</button>
+    <button class="tab-btn" data-tab="docs" data-ch="06" data-i18n="tab_docs">Docs &amp; Help</button>
   </nav>
 
   <!-- Main Container -->
@@ -135,20 +142,20 @@
       </div>
 
       <!-- Actionable sync hints (populated from the sync report) -->
-      <div class="card" id="sync-hints-card" style="margin-bottom: 1.5rem; display: none;">
+      <div class="card" id="sync-hints-card" style="display: none;">
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="hints_title">Suggested Actions</h3>
             <p class="card-subtitle" data-i18n="hints_subtitle">What the sync report recommends doing next</p>
           </div>
         </div>
-        <div id="sync-hints-list" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
+        <div id="sync-hints-list" class="stack-list"></div>
       </div>
 
       <div class="grid-4">
         <div class="card metric-box">
           <span class="metric-label" data-i18n="dash_sync_label">Sync Ratio</span>
-          <span class="metric-value" id="dash-sync-ratio" style="color: var(--accent-sage);">--%</span>
+          <span class="metric-value tone-sage" id="dash-sync-ratio">--%</span>
           <span class="card-subtitle" id="dash-sync-subtitle" data-i18n="dash_sync_subtitle">Melchior + Balthasar + Casper</span>
         </div>
         <div class="card metric-box">
@@ -158,7 +165,7 @@
         </div>
         <div class="card metric-box">
           <span class="metric-label" data-i18n="dash_radar_label">Pending Digests</span>
-          <span class="metric-value" id="dash-pending-digests" style="color: var(--accent-amber);">0</span>
+          <span class="metric-value tone-amber" id="dash-pending-digests">0</span>
           <span class="card-subtitle" data-i18n="dash_radar_subtitle">Literature radar</span>
         </div>
         <div class="card metric-box">
@@ -168,15 +175,15 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card">
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="dash_kb_table_title">Registered Knowledge Bases</h3>
             <p class="card-subtitle" data-i18n="dash_kb_table_subtitle">Global registry located at ~/.config/magi/registry.json</p>
           </div>
-          <button class="btn btn-secondary btn-sm" id="refresh-kb-btn" data-i18n="btn_refresh">🔄 Refresh</button>
+          <button class="btn btn-secondary btn-sm" id="refresh-kb-btn" data-i18n="btn_refresh">Refresh</button>
         </div>
-        <div style="overflow-x: auto;">
+        <div class="table-scroll">
           <table class="data-table" id="kb-table">
             <thead>
               <tr>
@@ -190,7 +197,7 @@
               </tr>
             </thead>
             <tbody id="kb-table-body">
-              <tr><td colspan="7" style="text-align: center;" data-i18n="loading_kbs">Loading knowledge bases...</td></tr>
+              <tr><td colspan="7" class="empty-cell" data-i18n="loading_kbs">Loading knowledge bases...</td></tr>
             </tbody>
           </table>
         </div>
@@ -201,10 +208,10 @@
           <h3 class="card-title" data-i18n="reg_kb_title">Register New Knowledge Base</h3>
           <span class="card-subtitle" data-i18n="reg_kb_subtitle">Add a topic directory to the global registry</span>
         </div>
-        <form id="register-kb-form" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-          <input type="text" id="reg-kb-path" class="text-input" placeholder="Absolute or relative path..." data-i18n-placeholder="reg_kb_path_ph" style="flex: 2; min-width: 250px;" required>
-          <input type="text" id="reg-kb-name" class="text-input" placeholder="Custom name (optional)..." data-i18n-placeholder="reg_kb_name_ph" style="flex: 1; min-width: 150px;">
-          <label style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; cursor: pointer;">
+        <form id="register-kb-form" class="form-row">
+          <input type="text" id="reg-kb-path" class="text-input grow-2" placeholder="Absolute or relative path..." data-i18n-placeholder="reg_kb_path_ph" required>
+          <input type="text" id="reg-kb-name" class="text-input grow-1" placeholder="Custom name (optional)..." data-i18n-placeholder="reg_kb_name_ph">
+          <label class="check-label">
             <input type="checkbox" id="reg-kb-enabled" checked> <span data-i18n="reg_kb_enable_label">Enable in search</span>
           </label>
           <button type="submit" class="btn btn-primary" data-i18n="btn_reg_kb">Register KB</button>
@@ -212,15 +219,15 @@
       </div>
 
       <!-- Workspace config (whitelisted fields; writes are surgical) -->
-      <div class="card" style="margin-top: 1.5rem;">
+      <div class="card">
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="cfg_title">Workspace Config</h3>
             <p class="card-subtitle" data-i18n="cfg_subtitle">Research knobs from config.yaml — edits preserve the rest of the file</p>
           </div>
         </div>
-        <div id="config-fields" style="display: flex; flex-direction: column; gap: 0.5rem;">
-          <p style="color: var(--text-muted); font-size: 0.85rem;" data-i18n="cfg_loading">Loading config...</p>
+        <div id="config-fields" class="stack-list">
+          <p class="empty-note" data-i18n="cfg_loading">Loading config...</p>
         </div>
       </div>
     </section>
@@ -240,7 +247,7 @@
         </div>
         <div class="card metric-box">
           <span class="metric-label" data-i18n="mel_graph_label">Graph Freshness</span>
-          <span class="metric-value" id="melchior-graph-status" style="font-size: 1.3rem;">--</span>
+          <span class="metric-value metric-value-sm" id="melchior-graph-status">--</span>
           <span class="card-subtitle" data-i18n="mel_graph_subtitle">Knowledge graph network</span>
         </div>
         <div class="card metric-box">
@@ -251,15 +258,15 @@
       </div>
 
       <!-- Claims Verification -->
-      <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card">
         <div class="card-header">
           <div>
-            <h3 class="card-title" data-i18n="mel_claims_title">Claims & Evidence Provenance Layer</h3>
+            <h3 class="card-title" data-i18n="mel_claims_title">Claims &amp; Evidence Provenance Layer</h3>
             <p class="card-subtitle" data-i18n="mel_claims_subtitle">Formal assertions verified against local wiki cards or web sources</p>
           </div>
-          <button class="btn btn-secondary btn-sm" id="refresh-claims-btn" data-i18n="btn_refresh_claims">🔄 Refresh Claims</button>
+          <button class="btn btn-secondary btn-sm" id="refresh-claims-btn" data-i18n="btn_refresh_claims">Refresh Claims</button>
         </div>
-        <div style="max-height: 280px; overflow-y: auto;">
+        <div class="table-scroll vh-280">
           <table class="data-table">
             <thead>
               <tr>
@@ -270,14 +277,14 @@
               </tr>
             </thead>
             <tbody id="claims-table-body">
-              <tr><td colspan="4" style="text-align: center;" data-i18n="loading_claims">Loading claims...</td></tr>
+              <tr><td colspan="4" class="empty-cell" data-i18n="loading_claims">Loading claims...</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
       <!-- Uncompiled Backlog -->
-      <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card">
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="mel_backlog_title">Uncompiled Raw Document Backlog</h3>
@@ -285,8 +292,8 @@
           </div>
           <span class="badge badge-terracotta" id="backlog-count-badge">0 items</span>
         </div>
-        <ul id="backlog-list" style="list-style: none; max-height: 180px; overflow-y: auto; font-family: var(--font-mono); font-size: 0.85rem;">
-          <li style="color: var(--text-muted); padding: 0.3rem 0;" data-i18n="clean_backlog">Clean: No uncompiled raw files.</li>
+        <ul id="backlog-list" class="file-list">
+          <li class="file-li muted" data-i18n="clean_backlog">Clean: No uncompiled raw files.</li>
         </ul>
       </div>
 
@@ -297,77 +304,77 @@
             <h3 class="card-title" data-i18n="mel_sql_title">Read-Only Graph SQL Console</h3>
             <p class="card-subtitle" data-i18n="mel_sql_subtitle">Query nodes, edges, claims, and tags via SQLite read-only guard</p>
           </div>
-          <div style="display: flex; gap: 0.5rem;">
+          <div class="card-actions">
             <button class="btn btn-secondary btn-sm preset-sql-btn" data-sql="SELECT * FROM nodes LIMIT 10" data-i18n="preset_nodes">Nodes</button>
             <button class="btn btn-secondary btn-sm preset-sql-btn" data-sql="SELECT * FROM edges WHERE type='wikilink' LIMIT 10" data-i18n="preset_links">Wikilinks</button>
             <button class="btn btn-secondary btn-sm preset-sql-btn" data-sql="SELECT * FROM claims LIMIT 10" data-i18n="preset_claims">Claims</button>
           </div>
         </div>
-        <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
-          <textarea id="sql-query-input" class="text-input" rows="2" style="flex: 1; font-family: var(--font-mono); font-size: 0.85rem;" placeholder="SELECT * FROM nodes WHERE type='concept' LIMIT 10" data-i18n-placeholder="sql_query_ph"></textarea>
+        <div class="form-row sql-row">
+          <textarea id="sql-query-input" class="text-input mono-input" rows="2" placeholder="SELECT * FROM nodes WHERE type='concept' LIMIT 10" data-i18n-placeholder="sql_query_ph"></textarea>
           <button class="btn btn-primary" id="run-sql-btn" data-i18n="btn_run_sql">Execute SQL</button>
         </div>
-        <div id="sql-result-container" style="max-height: 300px; overflow: auto;">
-          <p style="color: var(--text-muted); font-size: 0.85rem;" data-i18n="sql_run_prompt">Run a query above to see tabular results.</p>
+        <div id="sql-result-container" class="table-scroll vh-300">
+          <p class="empty-note" data-i18n="sql_run_prompt">Run a query above to see tabular results.</p>
         </div>
       </div>
 
       <!-- References & citations -->
-      <div class="card" style="margin-top: 1.5rem;">
+      <div class="card">
         <div class="card-header">
           <div>
-            <h3 class="card-title" data-i18n="mel_bib_title">References & Citations</h3>
+            <h3 class="card-title" data-i18n="mel_bib_title">References &amp; Citations</h3>
             <p class="card-subtitle" data-i18n="mel_bib_subtitle">Reference cards with one-click BibTeX export (magi bib)</p>
           </div>
-          <button class="btn btn-secondary btn-sm" id="btn-copy-all-bib" data-i18n="btn_copy_all_bibtex">📋 Copy all BibTeX</button>
+          <button class="btn btn-secondary btn-sm" id="btn-copy-all-bib" data-i18n="btn_copy_all_bibtex">Copy all BibTeX</button>
         </div>
-        <div id="bib-list" style="max-height: 260px; overflow-y: auto;">
-          <p style="color: var(--text-muted); font-size: 0.85rem;" data-i18n="bib_loading">Loading reference cards...</p>
+        <div id="bib-list" class="scroll-box vh-260">
+          <p class="empty-note" data-i18n="bib_loading">Loading reference cards...</p>
         </div>
       </div>
 
       <!-- Drafts -->
-      <div class="card" style="margin-top: 1.5rem;">
+      <div class="card">
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="mel_drafts_title">Drafts</h3>
             <p class="card-subtitle" data-i18n="mel_drafts_subtitle">Paper drafts under drafts/ — indexed for search, outside the graph (wiki_draft skill)</p>
           </div>
         </div>
-        <ul id="drafts-list" style="list-style: none; max-height: 180px; overflow-y: auto; font-family: var(--font-mono); font-size: 0.85rem;">
-          <li style="color: var(--text-muted); padding: 0.3rem 0;" data-i18n="drafts_none">No drafts yet — the wiki_draft skill sets up the writing workflow.</li>
+        <ul id="drafts-list" class="file-list">
+          <li class="file-li muted" data-i18n="drafts_none">No drafts yet — the wiki_draft skill sets up the writing workflow.</li>
         </ul>
       </div>
     </section>
 
     <!-- Tab 3: Balthasar -->
     <section id="tab-balthasar" class="tab-panel">
-      <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card">
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="bal_title">Research Task Tracking</h3>
             <p class="card-subtitle" data-i18n="bal_subtitle">Deterministic work graph and issue tracker</p>
           </div>
-          <div style="display: flex; gap: 0.5rem;">
-            <button class="btn btn-secondary btn-sm" id="btn-backlog-sync" data-i18n="btn_backlog_sync">🔄 Sync Backlog to Tasks</button>
+          <div class="card-actions">
+            <button class="btn btn-secondary btn-sm" id="btn-backlog-sync" data-i18n="btn_backlog_sync">Sync Backlog to Tasks</button>
           </div>
         </div>
-        <div id="task-status-banner" style="margin-bottom: 1.25rem;"></div>
+        <div id="task-status-banner"></div>
 
         <div class="grid-4" id="task-metrics-grid">
           <div class="card metric-box">
             <span class="metric-label" data-i18n="bal_ready_label">Ready</span>
-            <span class="metric-value" id="task-ready-val" style="color: var(--accent-sage);">0</span>
+            <span class="metric-value tone-sage" id="task-ready-val">0</span>
             <span class="card-subtitle" data-i18n="bal_ready_sub">Actionable tasks</span>
           </div>
           <div class="card metric-box">
             <span class="metric-label" data-i18n="bal_progress_label">In Progress</span>
-            <span class="metric-value" id="task-progress-val" style="color: var(--accent-primary);">0</span>
+            <span class="metric-value tone-primary" id="task-progress-val">0</span>
             <span class="card-subtitle" data-i18n="bal_progress_sub">Active execution</span>
           </div>
           <div class="card metric-box">
             <span class="metric-label" data-i18n="bal_blocked_label">Blocked</span>
-            <span class="metric-value" id="task-blocked-val" style="color: var(--accent-danger);">0</span>
+            <span class="metric-value tone-danger" id="task-blocked-val">0</span>
             <span class="card-subtitle" data-i18n="bal_blocked_sub">Awaiting dependencies</span>
           </div>
           <div class="card metric-box">
@@ -381,7 +388,7 @@
 
     <!-- Tab 4: Casper -->
     <section id="tab-casper" class="tab-panel">
-      <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card">
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="cas_title">Casper Hybrid Retrieval Playground</h3>
@@ -403,7 +410,7 @@
           </select>
           <button type="submit" class="btn btn-primary" data-i18n="btn_search">Search</button>
         </form>
-        <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center;">
+        <div class="search-filters">
           <select id="search-scope-select" class="select-input">
             <option value="auto" data-i18n="opt_scope_auto">Federated (this KB + enabled KBs)</option>
             <option value="local" data-i18n="opt_scope_local">This workspace only</option>
@@ -416,20 +423,20 @@
             <option value="raw" data-i18n="opt_coll_raw">raw</option>
             <option value="drafts" data-i18n="opt_coll_drafts">drafts</option>
           </select>
-          <input type="text" id="search-path-input" class="text-input" style="flex: 1; min-width: 220px; font-family: var(--font-mono); font-size: 0.8rem;"
+          <input type="text" id="search-path-input" class="text-input mono-input path-input"
                  placeholder="path glob, e.g. raw/papers/2026-*" data-i18n-placeholder="search_path_ph">
         </div>
 
-        <div id="search-info-bar" style="margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--text-secondary);"></div>
+        <div id="search-info-bar" class="search-info-bar"></div>
         <div id="search-results-list">
-          <p style="color: var(--text-muted); text-align: center; padding: 2rem 0;" data-i18n="search_prompt">Enter a search query to inspect hybrid ranking and excerpts.</p>
+          <p class="empty-note search-empty" data-i18n="search_prompt">Enter a search query to inspect hybrid ranking and excerpts.</p>
         </div>
       </div>
     </section>
 
     <!-- Tab 5: Literature Radar -->
     <section id="tab-radar" class="tab-panel">
-      <div class="grid-3" style="margin-bottom: 1.25rem;">
+      <div class="grid-3">
         <div class="card metric-box">
           <span class="metric-label" data-i18n="radar_seen_label">Seen Papers Ledger</span>
           <span class="metric-value" id="radar-seen-count">0</span>
@@ -437,27 +444,27 @@
         </div>
         <div class="card metric-box">
           <span class="metric-label" data-i18n="radar_pending_label">Pending Digests</span>
-          <span class="metric-value" id="radar-pending-count" style="color: var(--accent-amber);">0</span>
+          <span class="metric-value tone-amber" id="radar-pending-count">0</span>
           <span class="card-subtitle" data-i18n="radar_pending_sub">Awaiting agent triage</span>
         </div>
-        <div class="card" style="display: flex; flex-direction: column; justify-content: center; gap: 0.5rem;">
-          <button class="btn btn-primary" id="btn-radar-harvest" data-i18n="btn_radar_harvest">📡 Run Radar Harvest</button>
-          <button class="btn btn-secondary" id="btn-radar-citation-gap" data-i18n="btn_radar_citation_gap">🔎 Scout Citation Gaps</button>
+        <div class="card radar-actions">
+          <button class="btn btn-primary" id="btn-radar-harvest" data-i18n="btn_radar_harvest">Run Radar Harvest</button>
+          <button class="btn btn-secondary" id="btn-radar-citation-gap" data-i18n="btn_radar_citation_gap">Scout Citation Gaps</button>
         </div>
       </div>
 
       <div class="split-pane">
         <div class="pane-list">
-          <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-default); font-weight: 600; font-family: var(--font-serif);" data-i18n="radar_digests_title">
+          <div class="pane-list-header" data-i18n="radar_digests_title">
             Digests (inbox/radar/)
           </div>
           <div id="digest-files-list">
-            <p style="padding: 1rem; color: var(--text-muted);" data-i18n="loading_digests">Loading digests...</p>
+            <p class="empty-note pad-1" data-i18n="loading_digests">Loading digests...</p>
           </div>
         </div>
         <div class="pane-view">
           <div id="digest-viewer" class="markdown-body">
-            <p style="color: var(--text-muted); text-align: center; margin-top: 3rem;" data-i18n="digest_viewer_prompt">Select a digest file on the left to read and review.</p>
+            <p class="empty-note center mt-3" data-i18n="digest_viewer_prompt">Select a digest file on the left to read and review.</p>
           </div>
         </div>
       </div>
@@ -474,30 +481,30 @@
           </div>
           <!-- Buttons rendered from GET /api/ops — the server-side whitelist
                is the single source of truth for what can run. -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;" id="ops-common-grid">
-            <span style="color: var(--text-muted); font-size: 0.85rem;" data-i18n="ops_loading">Loading operations…</span>
+          <div class="ops-grid" id="ops-common-grid">
+            <span class="empty-note" data-i18n="ops_loading">Loading operations…</span>
           </div>
         </div>
 
         <!-- Danger Zone Panel -->
         <div class="danger-card">
-          <h3 class="danger-card-title" data-i18n="danger_title">⚠️ Danger Zone</h3>
-          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;" data-i18n="danger_sub">
+          <h3 class="danger-card-title" data-i18n="danger_title">Danger Zone</h3>
+          <p class="danger-card-desc" data-i18n="danger_sub">
             These operations alter workspace structure, reset state, or delete legacy files. Each action requires explicit confirmation.
           </p>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;" id="ops-danger-grid"></div>
+          <div class="ops-grid" id="ops-danger-grid"></div>
         </div>
       </div>
 
       <!-- Live Terminal Console -->
-      <div class="terminal-container" style="margin-top: 1.5rem;">
+      <div class="terminal-container">
         <div class="terminal-header">
           <div class="terminal-title">
             <span class="status-dot" id="term-status-dot"></span>
             <span id="term-job-name" data-i18n="term_idle">Terminal: Idle</span>
           </div>
-          <div style="display: flex; gap: 0.5rem; align-items: center;">
-            <label class="terminal-autoscroll-label" style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; cursor: pointer;">
+          <div class="terminal-controls">
+            <label class="terminal-autoscroll-label">
               <input type="checkbox" id="term-autoscroll" checked> <span data-i18n="term_autoscroll_label">Auto-scroll</span>
             </label>
             <button class="btn btn-secondary btn-sm terminal-btn terminal-cancel-btn" id="term-cancel-btn" style="display: none;" data-i18n="btn_term_cancel">Cancel Job</button>
@@ -505,22 +512,22 @@
           </div>
         </div>
         <div class="terminal-body" id="terminal-output" data-i18n="term_ready_msg">Ready. Run an operation above to view real-time log output.</div>
-        <div style="padding: 0.35rem 1rem; font-size: 0.7rem; color: #737168; border-top: 1px solid #2E2E2A;"
+        <div class="terminal-footnote"
              data-i18n="term_retention_note">Job history persists across restarts (last 40 records, ui-jobs.jsonl in the magi config directory).</div>
       </div>
     </section>
 
     <!-- Tab 7: Documentation & Help -->
     <section id="tab-docs" class="tab-panel">
-      <div class="card" style="margin-bottom: 1.5rem;">
+      <div class="card">
         <div class="card-header">
-          <div style="display: flex; gap: 0.5rem;">
+          <div class="card-actions">
             <button class="btn btn-secondary btn-sm doc-switch-btn active" data-doc="readme-zh" data-i18n="doc_readme_zh">README (中文)</button>
             <button class="btn btn-secondary btn-sm doc-switch-btn" data-doc="readme-en" data-i18n="doc_readme_en">README (English)</button>
             <button class="btn btn-secondary btn-sm doc-switch-btn" data-doc="commands" data-i18n="doc_commands">CLI Commands Reference</button>
           </div>
         </div>
-        <div id="docs-content" class="markdown-body" style="max-height: 700px; overflow-y: auto; padding: 1rem;" data-i18n="loading_docs">
+        <div id="docs-content" class="markdown-body docs-body" data-i18n="loading_docs">
           Loading documentation...
         </div>
       </div>
@@ -533,20 +540,19 @@
     <div class="modal-window">
       <h3 class="modal-header" id="danger-modal-title" data-i18n="danger_modal_title">Confirm Action</h3>
       <p class="modal-body" id="danger-modal-desc" data-i18n="danger_modal_default_desc">Are you sure you want to proceed with this operation?</p>
-      <input type="text" id="danger-confirm-input" class="text-input"
-             style="width: 100%; margin-bottom: 1.1rem; font-family: var(--font-mono);"
+      <input type="text" id="danger-confirm-input" class="text-input modal-input"
              placeholder="type the operation id to confirm" data-i18n-placeholder="danger_confirm_ph"
              autocomplete="off" spellcheck="false">
       <div class="modal-footer">
         <button class="btn btn-secondary" id="danger-modal-cancel" data-i18n="btn_modal_cancel">Cancel</button>
-        <button class="btn btn-danger" id="danger-modal-confirm" data-i18n="btn_modal_confirm">Confirm & Run</button>
+        <button class="btn btn-danger" id="danger-modal-confirm" data-i18n="btn_modal_confirm">Confirm &amp; Run</button>
       </div>
     </div>
   </div>
 
   <!-- Doctor Modal -->
   <div class="modal-backdrop" id="doctor-modal">
-    <div class="modal-window" style="max-width: 650px;">
+    <div class="modal-window wide">
       <h3 class="modal-header" data-i18n="doc_modal_title">Environment Doctor Report</h3>
       <div class="modal-body" id="doctor-modal-body" data-i18n="doctor_loading">
         Loading environment diagnostic...

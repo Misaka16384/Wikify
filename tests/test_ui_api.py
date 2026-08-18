@@ -646,21 +646,23 @@ def test_eva_nerv_theme_architecture_and_css_validity(client):
     assert '[data-theme="eva"]' in css
 
     # R1: Verify signature EVA / NERV command bridge color scheme
+    # (v1.3.1 visual refactor palette; compare case-insensitively)
+    css_l = css.lower()
     # Tactical black base
-    assert "#07080a" in css
-    assert "#0c0e12" in css
-    assert "#13171f" in css
-    assert "#0d0f14" in css
+    assert "#050608" in css_l
+    assert "#0c0f14" in css_l
+    assert "#12161f" in css_l
+    assert "#0d1017" in css_l
 
-    # MAGI Terminal Amber/Orange primary alert/brand accents
-    assert "#ff8c00" in css
-    assert "#ffa500" in css
-    assert "#ff9900" in css
+    # MAGI Terminal Amber ramp: primary / hover-high / bright accents
+    assert "#ff9421" in css_l
+    assert "#ffac4e" in css_l
+    assert "#ffa51e" in css_l
 
-    # Melchior Cyan (#00e5ff), Balthasar Sage/Green (#00ff66), Casper Blood Red (#ff3344)
-    assert "#00e5ff" in css
-    assert "#00ff66" in css
-    assert "#ff3344" in css
+    # Melchior Cyan (#45d5ea), Balthasar Phosphor Green (#35ef7e), Casper Blood Red (#ff4a57)
+    assert "#45d5ea" in css_l
+    assert "#35ef7e" in css_l
+    assert "#ff4a57" in css_l
 
     # Corner brackets and tactical accents
     assert '[data-theme="eva"] .card::before' in css
@@ -794,7 +796,7 @@ def test_eva_completion_layer_hud_boot_and_tactical_css(client):
     # Chamfered tactical controls and hazard striping on danger surfaces
     assert "-webkit-clip-path: polygon(" in css
     assert "clip-path: polygon(" in css
-    assert "repeating-linear-gradient(-45deg, #ffb000" in css
+    assert "repeating-linear-gradient(-45deg, #ffb000" in css.lower()
 
     # Motion is opt-in: animations gated behind reduced-motion media query
     assert "@media (prefers-reduced-motion: no-preference)" in css

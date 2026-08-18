@@ -21,20 +21,20 @@
       sync_label: "三核同步:",
       running_jobs_label: "运行中任务:",
       sync_ratio_tooltip: "Melchior / Balthasar / Casper 三核协同同步率",
-      doctor_btn: "🩺 环境体检",
+      doctor_btn: "环境体检",
       doctor_btn_title: "环境依赖与规范体检",
       theme_btn_title: "切换深浅配色主题",
-      magi_mode_btn: "⚡ MAGI 模式",
+      magi_mode_btn: "MAGI 模式",
       magi_mode_btn_title: "开启/关闭 EVA NERV MAGI 战术主题",
 
       // Navigation Tabs
-      tab_dashboard: "📊 课题总览",
-      tab_melchior: "🧠 Melchior (认知状态)",
-      tab_balthasar: "🎯 Balthasar (任务追踪)",
-      tab_casper: "🔍 Casper (混合检索)",
-      tab_radar: "📡 文献雷达",
-      tab_operations: "⚙️ 运维与操作",
-      tab_docs: "📖 文档与指引",
+      tab_dashboard: "课题总览",
+      tab_melchior: "Melchior (认知状态)",
+      tab_balthasar: "Balthasar (任务追踪)",
+      tab_casper: "Casper (混合检索)",
+      tab_radar: "文献雷达",
+      tab_operations: "运维与操作",
+      tab_docs: "文档与指引",
 
       // Dashboard Metrics
       dash_sync_label: "三核同步率",
@@ -49,7 +49,7 @@
       // Dashboard KB Table
       dash_kb_table_title: "已注册知识库",
       dash_kb_table_subtitle: "全局注册表位于 ~/.config/magi/registry.json",
-      btn_refresh: "🔄 刷新",
+      btn_refresh: "刷新",
       th_kb_name: "知识库名称",
       th_path: "路径",
       th_searchable: "联合检索",
@@ -88,7 +88,7 @@
       mel_claims_label: "命题论据验证",
       mel_claims_title: "命题与论据溯源层",
       mel_claims_subtitle: "经本地卡片或网络来源验证的形式化学术断言",
-      btn_refresh_claims: "🔄 刷新命题",
+      btn_refresh_claims: "刷新命题",
       th_claim_status: "状态",
       th_claim_text: "命题内容",
       th_claim_evidence: "论据引文",
@@ -117,7 +117,7 @@
       // Balthasar (Tasks)
       bal_title: "科研任务流追踪",
       bal_subtitle: "确定性工作流与任务图谱",
-      btn_backlog_sync: "🔄 待办文献转任务",
+      btn_backlog_sync: "待办文献转任务",
       bal_engine_not_ready: "科研任务追踪引擎未就绪或未安装。请运行 <code>magi setup</code> 初始化工作流引擎。",
       bal_no_db_initialized: "当前工作区或 Hub 尚未初始化任务追踪库。点击下方初始化任务工作流。",
       bal_ready_label: "可执行",
@@ -155,8 +155,8 @@
       radar_seen_sub: "文献雷达跟踪记录",
       radar_pending_label: "待审阅简报",
       radar_pending_sub: "等待 Agent 审阅分流",
-      btn_radar_harvest: "📡 运行文献雷达扫描",
-      btn_radar_citation_gap: "🔎 侦察引文缺口",
+      btn_radar_harvest: "运行文献雷达扫描",
+      btn_radar_citation_gap: "侦察引文缺口",
       radar_digests_title: "文献简报 (inbox/radar/)",
       loading_digests: "正在加载文献简报...",
       no_digests: "inbox/radar/ 中未发现任何简报文件。",
@@ -168,17 +168,17 @@
       // Operations & Danger Zone
       ops_common_title: "常用维护操作",
       ops_common_sub: "非破坏性例行程序",
-      op_rebuild_index: "🔍 重建检索索引",
-      op_build_graph: "🕸️ 构建知识图谱",
-      op_reindex_wiki: "📑 重建维基索引",
-      op_semantic_link: "🔗 语义概念链接",
-      op_lint_fix: "🧹 规范检查与修复",
-      op_backlog_sync: "🎯 待办文献转任务",
-      op_index: "🔍 重建检索索引",
-      op_graph_build: "🕸️ 构建知识图谱",
-      op_wiki_reindex: "📑 重建维基索引",
-      op_link: "🔗 语义概念链接",
-      danger_title: "⚠️ 危险操作区",
+      op_rebuild_index: "重建检索索引",
+      op_build_graph: "构建知识图谱",
+      op_reindex_wiki: "重建维基索引",
+      op_semantic_link: "语义概念链接",
+      op_lint_fix: "规范检查与修复",
+      op_backlog_sync: "待办文献转任务",
+      op_index: "重建检索索引",
+      op_graph_build: "构建知识图谱",
+      op_wiki_reindex: "重建维基索引",
+      op_link: "语义概念链接",
+      danger_title: "危险操作区",
       danger_sub: "这些操作将修改工作区结构、重置状态或清理历史文件。每项操作均需二次确认。",
       btn_danger_setup: "环境一键配置",
       btn_danger_migrate: "工作区结构迁移",
@@ -274,7 +274,7 @@
       // References & drafts (Melchior)
       mel_bib_title: "文献与引用",
       mel_bib_subtitle: "参考卡一键导出 BibTeX（magi bib）",
-      btn_copy_all_bibtex: "📋 复制全库 BibTeX",
+      btn_copy_all_bibtex: "复制全库 BibTeX",
       btn_copy_bibtex: "复制 BibTeX",
       bib_loading: "正在加载参考卡...",
       bib_none: "wiki/references/ 下还没有参考卡。",
@@ -313,8 +313,8 @@
 
       // Radar review actions
       radar_actions_title: "候选操作",
-      btn_accept_inbox: "📥 收入 inbox",
-      btn_create_issue: "🎯 建阅读任务",
+      btn_accept_inbox: "收入 inbox",
+      btn_create_issue: "建阅读任务",
       btn_mark_reviewed: "✓ 标记本报告已审",
       toast_marked_reviewed: "已标记为已审：{file}",
       toast_accepted: "已写入 {path}（等待摄入）",
@@ -322,7 +322,7 @@
 
       // Ops catalog & danger confirm
       ops_loading: "正在加载操作目录...",
-      op_stats: "📊 工作区统计",
+      op_stats: "工作区统计",
       btn_danger_install_schedule: "注册/卸载定时收割",
       danger_install_schedule_desc: "在系统任务计划中注册（或卸载）每日文献雷达定时收割任务。",
       danger_confirm_ph: "在此输入操作 ID 以确认",
@@ -343,20 +343,20 @@
       sync_label: "Sync:",
       running_jobs_label: "Running Jobs:",
       sync_ratio_tooltip: "Three-core sync ratio (Melchior + Balthasar + Casper)",
-      doctor_btn: "🩺 Doctor",
+      doctor_btn: "Doctor",
       doctor_btn_title: "Environment Doctor Check",
       theme_btn_title: "Toggle Light/Dark Theme",
-      magi_mode_btn: "⚡ MAGI MODE",
+      magi_mode_btn: "MAGI MODE",
       magi_mode_btn_title: "Toggle EVA NERV MAGI Command Theme",
 
       // Navigation Tabs
-      tab_dashboard: "📊 Dashboard",
-      tab_melchior: "🧠 Melchior (Cognitive)",
-      tab_balthasar: "🎯 Balthasar (Tasks)",
-      tab_casper: "🔍 Casper (Retrieval)",
-      tab_radar: "📡 Literature Radar",
-      tab_operations: "⚙️ Operations & Danger Zone",
-      tab_docs: "📖 Docs & Help",
+      tab_dashboard: "Dashboard",
+      tab_melchior: "Melchior (Cognitive)",
+      tab_balthasar: "Balthasar (Tasks)",
+      tab_casper: "Casper (Retrieval)",
+      tab_radar: "Literature Radar",
+      tab_operations: "Operations & Danger Zone",
+      tab_docs: "Docs & Help",
 
       // Dashboard Metrics
       dash_sync_label: "Sync Ratio",
@@ -371,7 +371,7 @@
       // Dashboard KB Table
       dash_kb_table_title: "Registered Knowledge Bases",
       dash_kb_table_subtitle: "Global registry located at ~/.config/magi/registry.json",
-      btn_refresh: "🔄 Refresh",
+      btn_refresh: "Refresh",
       th_kb_name: "KB Name",
       th_path: "Path",
       th_searchable: "Searchable",
@@ -410,7 +410,7 @@
       mel_claims_label: "Claims Verified",
       mel_claims_title: "Claims & Evidence Provenance Layer",
       mel_claims_subtitle: "Formal assertions verified against local wiki cards or web sources",
-      btn_refresh_claims: "🔄 Refresh Claims",
+      btn_refresh_claims: "Refresh Claims",
       th_claim_status: "Status",
       th_claim_text: "Claim",
       th_claim_evidence: "Evidence Quote",
@@ -439,7 +439,7 @@
       // Balthasar (Tasks)
       bal_title: "Research Task Tracking",
       bal_subtitle: "Deterministic work graph and issue tracker",
-      btn_backlog_sync: "🔄 Sync Backlog to Tasks",
+      btn_backlog_sync: "Sync Backlog to Tasks",
       bal_engine_not_ready: "Task tracking engine is not ready or not installed. Run <code>magi setup</code> to initialize workflow engine.",
       bal_no_db_initialized: "No task tracking workspace initialized at workspace or hub. Click below to initialize task tracking.",
       bal_ready_label: "Ready",
@@ -477,8 +477,8 @@
       radar_seen_sub: "Literature tracking ledger",
       radar_pending_label: "Pending Digests",
       radar_pending_sub: "Awaiting agent triage",
-      btn_radar_harvest: "📡 Run Radar Harvest",
-      btn_radar_citation_gap: "🔎 Scout Citation Gaps",
+      btn_radar_harvest: "Run Radar Harvest",
+      btn_radar_citation_gap: "Scout Citation Gaps",
       radar_digests_title: "Digests (inbox/radar/)",
       loading_digests: "Loading digests...",
       no_digests: "No digests found in inbox/radar/.",
@@ -490,17 +490,17 @@
       // Operations & Danger Zone
       ops_common_title: "Common Maintenance Operations",
       ops_common_sub: "Non-destructive routines",
-      op_rebuild_index: "🔍 Rebuild Index",
-      op_build_graph: "🕸️ Build Graph",
-      op_reindex_wiki: "📑 Reindex Wiki Tables",
-      op_semantic_link: "🔗 Semantic Link",
-      op_lint_fix: "🧹 Lint & Auto-Fix",
-      op_backlog_sync: "🎯 Backlog to Tasks",
-      op_index: "🔍 Rebuild Index",
-      op_graph_build: "🕸️ Build Graph",
-      op_wiki_reindex: "📑 Reindex Wiki Tables",
-      op_link: "🔗 Semantic Link",
-      danger_title: "⚠️ Danger Zone",
+      op_rebuild_index: "Rebuild Index",
+      op_build_graph: "Build Graph",
+      op_reindex_wiki: "Reindex Wiki Tables",
+      op_semantic_link: "Semantic Link",
+      op_lint_fix: "Lint & Auto-Fix",
+      op_backlog_sync: "Backlog to Tasks",
+      op_index: "Rebuild Index",
+      op_graph_build: "Build Graph",
+      op_wiki_reindex: "Reindex Wiki Tables",
+      op_link: "Semantic Link",
+      danger_title: "Danger Zone",
       danger_sub: "These operations alter workspace structure, reset state, or delete legacy files. Each action requires explicit confirmation.",
       btn_danger_setup: "Provision Setup",
       btn_danger_migrate: "Migrate Workspace",
@@ -596,7 +596,7 @@
       // References & drafts (Melchior)
       mel_bib_title: "References & Citations",
       mel_bib_subtitle: "Reference cards with one-click BibTeX export (magi bib)",
-      btn_copy_all_bibtex: "📋 Copy all BibTeX",
+      btn_copy_all_bibtex: "Copy all BibTeX",
       btn_copy_bibtex: "Copy BibTeX",
       bib_loading: "Loading reference cards...",
       bib_none: "No reference cards under wiki/references/ yet.",
@@ -635,8 +635,8 @@
 
       // Radar review actions
       radar_actions_title: "Candidate Actions",
-      btn_accept_inbox: "📥 Accept to inbox",
-      btn_create_issue: "🎯 Create reading task",
+      btn_accept_inbox: "Accept to inbox",
+      btn_create_issue: "Create reading task",
       btn_mark_reviewed: "✓ Mark report reviewed",
       toast_marked_reviewed: "Marked reviewed: {file}",
       toast_accepted: "Wrote {path} (queued for ingestion)",
@@ -644,7 +644,7 @@
 
       // Ops catalog & danger confirm
       ops_loading: "Loading operations…",
-      op_stats: "📊 Workspace Stats",
+      op_stats: "Workspace Stats",
       btn_danger_install_schedule: "Install/Remove Schedule",
       danger_install_schedule_desc: "Register (or uninstall) the daily literature-radar harvest in the system scheduler.",
       danger_confirm_ph: "type the operation id to confirm",
@@ -927,7 +927,7 @@
       }
       const base = safeStorageGet("magi-base-theme") || "dark";
       if (els.themeToggleBtn) {
-        els.themeToggleBtn.textContent = base === "dark" ? "☀️" : "🌓";
+        els.themeToggleBtn.textContent = base === "dark" ? "☀︎" : "☽";
       }
       startEvaClock();
     } else {
@@ -937,7 +937,7 @@
         els.magiModeBtn.classList.remove("active");
       }
       if (els.themeToggleBtn) {
-        els.themeToggleBtn.textContent = theme === "dark" ? "☀️" : "🌓";
+        els.themeToggleBtn.textContent = theme === "dark" ? "☀︎" : "☽";
       }
       stopEvaClock();
       if (evaBootTimer) {
@@ -1308,19 +1308,17 @@
       const raw = item.text || "";
       const rule = item.code ? HINT_ACTIONS[item.code] : null;
       const row = document.createElement("div");
-      row.style.cssText =
-        "display:flex; align-items:center; justify-content:space-between; gap:0.75rem;" +
-        "padding:0.5rem 0.75rem; border:1px solid var(--border-subtle);" +
-        "border-radius:var(--radius-sm); background:var(--bg-subtle);";
+      row.className = "action-row";
       const left = document.createElement("div");
+      left.className = "row-main";
       if (rule && rule.i18n) {
         const label = document.createElement("div");
-        label.style.fontSize = "0.85rem";
+        label.className = "row-title";
         label.textContent = t(rule.i18n);
         left.appendChild(label);
       }
       const code = document.createElement("code");
-      code.style.cssText = "font-size:0.72rem; color:var(--text-muted); font-family:var(--font-mono);";
+      code.className = "row-code";
       code.textContent = raw;
       left.appendChild(code);
       row.appendChild(left);
@@ -1372,7 +1370,7 @@
 
   function renderKBTable(kbs) {
     if (!kbs.length) {
-      els.kbTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: var(--text-muted);">${t("no_kbs_registered")}</td></tr>`;
+      els.kbTableBody.innerHTML = `<tr><td colspan="7" class="empty-cell">${t("no_kbs_registered")}</td></tr>`;
       return;
     }
 
@@ -1478,7 +1476,7 @@
       els.melchiorClaimsRate.textContent = t("claims_verified_rate", { rate: pct });
 
       if (!claims.length) {
-        els.claimsTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">${t("no_claims")}</td></tr>`;
+        els.claimsTableBody.innerHTML = `<tr><td colspan="4" class="empty-cell">${t("no_claims")}</td></tr>`;
       } else {
         els.claimsTableBody.innerHTML = claims
           .map((c) => {
@@ -1494,7 +1492,7 @@
               <tr>
                 <td><span class="badge ${badgeClass}">${escapeHtml(statusText)}</span></td>
                 <td><strong>${escapeHtml(c.text)}</strong></td>
-                <td><em style="color: var(--text-secondary);">"${escapeHtml(c.quote || "")}"</em></td>
+                <td><em class="row-sub">"${escapeHtml(c.quote || "")}"</em></td>
                 <td><code style="font-size: 0.75rem;">${escapeHtml(c.source || "")}</code></td>
               </tr>
             `;
@@ -1509,10 +1507,10 @@
       const backlog = backlogData.backlog || [];
       els.backlogCountBadge.textContent = `${backlog.length} ${t("items_unit")}`;
       if (!backlog.length) {
-        els.backlogList.innerHTML = `<li style="color: var(--text-muted); padding: 0.3rem 0;">${t("clean_backlog")}</li>`;
+        els.backlogList.innerHTML = `<li class="file-li muted">${t("clean_backlog")}</li>`;
       } else {
         els.backlogList.innerHTML = backlog
-          .map((item) => `<li style="padding: 0.3rem 0; border-bottom: 1px solid var(--border-subtle);">📄 ${escapeHtml(item)}</li>`)
+          .map((item) => `<li class="file-li">${escapeHtml(item)}</li>`)
           .join("");
       }
     } catch (_) {}
@@ -1523,7 +1521,7 @@
 
   async function executeGraphSql(sql) {
     if (!state.workspace || !sql.trim()) return;
-    els.sqlResultContainer.innerHTML = `<p style="color: var(--text-muted);">${t("sql_executing")}</p>`;
+    els.sqlResultContainer.innerHTML = `<p class="empty-note">${t("sql_executing")}</p>`;
     try {
       const data = await apiFetch(
         `/api/workspace/graph/query?sql=${encodeURIComponent(sql)}&workspace=${encodeURIComponent(state.workspace)}`
@@ -1532,7 +1530,7 @@
       const rows = data.rows || [];
 
       if (!rows.length) {
-        els.sqlResultContainer.innerHTML = `<p style="color: var(--text-muted);">${t("sql_zero_rows")}</p>`;
+        els.sqlResultContainer.innerHTML = `<p class="empty-note">${t("sql_zero_rows")}</p>`;
         return;
       }
 
@@ -1552,7 +1550,7 @@
       html += `</tbody></table>`;
       els.sqlResultContainer.innerHTML = html;
     } catch (err) {
-      els.sqlResultContainer.innerHTML = `<div style="color: var(--accent-danger); font-family: var(--font-mono); font-size: 0.85rem; padding: 0.5rem; background: var(--accent-danger-wash); border-radius: 4px;">${escapeHtml(err.message)}</div>`;
+      els.sqlResultContainer.innerHTML = `<div class="error-box">${escapeHtml(err.message)}</div>`;
     }
   }
 
@@ -1572,7 +1570,7 @@
   async function loadBibList() {
     const list = document.getElementById("bib-list");
     if (!list || !state.workspace) return;
-    list.innerHTML = `<p style="color: var(--text-muted); font-size:0.85rem;">${t("bib_loading")}</p>`;
+    list.innerHTML = `<p class="empty-note">${t("bib_loading")}</p>`;
     let data = null;
     try {
       const res = await fetch(`/api/workspace/bib?all=1&workspace=${encodeURIComponent(state.workspace)}`);
@@ -1580,23 +1578,21 @@
     } catch (_) {}
     state.bibEntries = (data && data.entries) || [];
     if (!state.bibEntries.length) {
-      list.innerHTML = `<p style="color: var(--text-muted); font-size:0.85rem;">${t("bib_none")}</p>`;
+      list.innerHTML = `<p class="empty-note">${t("bib_none")}</p>`;
       return;
     }
     list.innerHTML = "";
     state.bibEntries.forEach((e) => {
       const row = document.createElement("div");
-      row.style.cssText =
-        "display:flex; align-items:center; justify-content:space-between; gap:0.75rem;" +
-        "padding:0.35rem 0.5rem; border-bottom:1px solid var(--border-subtle);";
+      row.className = "list-row";
       const left = document.createElement("div");
-      left.style.cssText = "min-width:0; font-size:0.85rem;";
+      left.className = "row-main";
       const tl = document.createElement("div");
-      tl.style.cssText = "overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+      tl.className = "row-title trunc";
       tl.textContent = (e.title || e.card) + (e.year ? ` (${e.year})` : "");
       left.appendChild(tl);
       const sub = document.createElement("code");
-      sub.style.cssText = "font-size:0.72rem; color:var(--text-muted);";
+      sub.className = "row-code";
       sub.textContent = e.bibtex ? e.card : `${e.card} — ${t("bib_no_entry")}`;
       left.appendChild(sub);
       row.appendChild(left);
@@ -1618,11 +1614,11 @@
       const data = await apiFetch(`/api/workspace/drafts?workspace=${encodeURIComponent(state.workspace)}`);
       const drafts = data.drafts || [];
       if (!drafts.length) {
-        ul.innerHTML = `<li style="color: var(--text-muted); padding: 0.3rem 0;">${t("drafts_none")}</li>`;
+        ul.innerHTML = `<li class="file-li muted">${t("drafts_none")}</li>`;
         return;
       }
       ul.innerHTML = drafts
-        .map((d) => `<li style="padding: 0.3rem 0; border-bottom: 1px solid var(--border-subtle);">📝 ${escapeHtml(d.path)}${d.title ? ` — <span style="color: var(--text-secondary);">${escapeHtml(d.title)}</span>` : ""}</li>`)
+        .map((d) => `<li class="file-li">${escapeHtml(d.path)}${d.title ? ` — <span class="row-sub">${escapeHtml(d.title)}</span>` : ""}</li>`)
         .join("");
     } catch (_) {}
   }
@@ -1646,16 +1642,14 @@
       box.innerHTML = "";
       (data.fields || []).forEach((f) => {
         const row = document.createElement("div");
-        row.style.cssText =
-          "display:flex; align-items:center; gap:0.75rem; padding:0.35rem 0;" +
-          "border-bottom:1px solid var(--border-subtle); flex-wrap:wrap;";
+        row.className = "cfg-row";
         const label = document.createElement("div");
-        label.style.cssText = "flex:1 1 320px; min-width:260px;";
+        label.className = "cfg-label";
         const name = document.createElement("code");
-        name.style.cssText = "font-size:0.78rem;";
+        name.className = "cfg-key";
         name.textContent = f.key;
         const desc = document.createElement("div");
-        desc.style.cssText = "font-size:0.75rem; color:var(--text-muted);";
+        desc.className = "cfg-desc";
         desc.textContent = t(CFG_LABEL_KEYS[f.key] || f.key);
         label.appendChild(name);
         label.appendChild(desc);
@@ -1669,8 +1663,7 @@
         } else {
           input = document.createElement("input");
           input.type = "text";
-          input.className = "text-input";
-          input.style.cssText = "flex:1 1 220px; font-family:var(--font-mono); font-size:0.8rem;";
+          input.className = "text-input cfg-input";
           if (f.type === "list") {
             input.value = (f.value || []).join(", ");
             input.placeholder = t("cfg_list_hint");
@@ -1723,7 +1716,7 @@
       const engineReady = (pm.task_engine_ready !== undefined ? pm.task_engine_ready : pm.beads_available);
       if (!engineReady) {
         els.taskStatusBanner.innerHTML = `
-          <div class="stat-pill warning" style="border-radius: var(--radius-md); padding: 0.75rem;">
+          <div class="banner-pill warning">
             ${t("bal_engine_not_ready")}
           </div>
         `;
@@ -1735,7 +1728,7 @@
       }
       if (!pm.summary) {
         els.taskStatusBanner.innerHTML = `
-          <div class="stat-pill info" style="border-radius: var(--radius-md); padding: 0.75rem;">
+          <div class="banner-pill info">
             ${t("bal_no_db_initialized")}
           </div>
         `;
@@ -1760,7 +1753,7 @@
 
   async function executeSearch(query, mode, limit) {
     if (!state.workspace || !query.trim()) return;
-    els.searchResultsList.innerHTML = `<p style="color: var(--text-muted); text-align: center; padding: 2rem 0;">${t("searching_text")}</p>`;
+    els.searchResultsList.innerHTML = `<p class="empty-note search-empty">${t("searching_text")}</p>`;
     els.searchInfoBar.textContent = "";
 
     const scopeSel = document.getElementById("search-scope-select");
@@ -1775,8 +1768,8 @@
       const data = await apiFetch(`/api/workspace/search?${qs}`);
 
       if (data.error) {
-        const hintLine = data.hint ? `<div style="font-size:0.78rem; color: var(--text-muted); margin-top:0.3rem;">${escapeHtml(data.hint)}</div>` : "";
-        els.searchResultsList.innerHTML = `<div class="stat-pill warning" style="margin: 1rem 0;">${escapeHtml(localizeApiError(data.error))}</div>${hintLine}`;
+        const hintLine = data.hint ? `<div class="hint-note">${escapeHtml(data.hint)}</div>` : "";
+        els.searchResultsList.innerHTML = `<div class="banner-pill warning">${escapeHtml(localizeApiError(data.error))}</div>${hintLine}`;
         return;
       }
 
@@ -1788,15 +1781,15 @@
       });
       if (!data.vector_available) {
         const note = document.createElement("div");
-        note.style.cssText = "margin-top:0.25rem; font-size:0.78rem; color:var(--text-muted);";
+        note.className = "hint-note";
         note.textContent = t("vec_unavailable_hint");
         els.searchInfoBar.appendChild(note);
       }
 
       if (!data.results.length) {
         els.searchResultsList.innerHTML =
-          `<p style="color: var(--text-muted); text-align: center; padding: 2rem 0 0.5rem;">${t("search_no_results")}</p>` +
-          `<p style="color: var(--text-muted); text-align: center; font-size: 0.8rem; padding-bottom: 2rem;">${t("search_no_results_hint")}</p>`;
+          `<p class="empty-note search-empty" style="padding-bottom: 0.5rem;">${t("search_no_results")}</p>` +
+          `<p class="empty-note center" style="padding-bottom: 2rem;">${t("search_no_results_hint")}</p>`;
         return;
       }
 
@@ -1812,14 +1805,14 @@
             <div class="search-hit-card">
               <div class="search-hit-header">
                 <div class="search-hit-title">${escapeHtml(hit.heading || hit.path)}</div>
-                <div style="display: flex; gap: 0.4rem; align-items: center;">
+                <div class="search-hit-badges">
                   ${kbBadge}${collBadge}
                   <span class="badge badge-terracotta">RRF ${hit.score}</span>
                   ${hit.bm25_rank ? `<span class="badge badge-blue">BM25 #${hit.bm25_rank}</span>` : ""}
                   ${hit.vector_rank ? `<span class="badge badge-sage">Vec #${hit.vector_rank}</span>` : ""}
                 </div>
               </div>
-              <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
+              <div class="search-hit-path">
                 ${escapeHtml(hit.path)} (${t("search_lines", { start: lineStart, end: lineEnd })})
               </div>
               <div class="search-hit-snippet">${escapeHtml(hit.snippet || hit.content || "")}</div>
@@ -1828,7 +1821,7 @@
         })
         .join("");
     } catch (err) {
-      els.searchResultsList.innerHTML = `<div style="color: var(--accent-danger);">${escapeHtml(err.message)}</div>`;
+      els.searchResultsList.innerHTML = `<div class="error-box">${escapeHtml(err.message)}</div>`;
     }
   }
 
@@ -1848,8 +1841,8 @@
 
       const digests = radar.digests || [];
       if (!digests.length) {
-        els.digestFilesList.innerHTML = `<p style="padding: 1rem; color: var(--text-muted);">${t("no_digests")}</p>`;
-        els.digestViewer.innerHTML = `<p style="color: var(--text-muted); text-align: center; margin-top: 3rem;">${t("digest_viewer_prompt")}</p>`;
+        els.digestFilesList.innerHTML = `<p class="empty-note pad-1">${t("no_digests")}</p>`;
+        els.digestViewer.innerHTML = `<p class="empty-note center mt-3">${t("digest_viewer_prompt")}</p>`;
         return;
       }
 
@@ -1864,8 +1857,8 @@
           const isSelected = state.activeDigest ? (d.name === state.activeDigest) : (idx === 0);
           return `
             <div class="pane-item ${isSelected ? "active" : ""}" data-file="${escapeHtml(d.name)}">
-              <div style="font-weight: 500; font-size: 0.9rem;">${escapeHtml(d.name)}</div>
-              <div style="margin-top: 0.3rem;">
+              <div class="pane-item-name">${escapeHtml(d.name)}</div>
+              <div class="pane-item-meta">
                 <span class="badge ${badgeClass}">${escapeHtml(badgeText)}</span>${kindBadge}
               </div>
             </div>
@@ -1895,7 +1888,7 @@
 
   async function loadDigestContent(filename) {
     if (!state.workspace || !filename) return;
-    els.digestViewer.innerHTML = `<p style="color: var(--text-muted);">${t("digest_loading", { file: escapeHtml(filename) })}</p>`;
+    els.digestViewer.innerHTML = `<p class="empty-note">${t("digest_loading", { file: escapeHtml(filename) })}</p>`;
     try {
       const data = await apiFetch(
         `/api/workspace/radar/digest?file=${encodeURIComponent(filename)}&workspace=${encodeURIComponent(state.workspace)}`
@@ -1928,25 +1921,22 @@
     const cands = data.candidates || [];
     if (cands.length && data.kind === "digest") {
       const box = document.createElement("div");
-      box.style.cssText = "margin-top:1rem; border-top:1px solid var(--border-default); padding-top:0.75rem;";
+      box.className = "digest-actions";
       const title = document.createElement("div");
-      title.style.cssText = "font-weight:600; margin-bottom:0.5rem;";
+      title.className = "digest-actions-title";
       title.textContent = t("radar_actions_title");
       box.appendChild(title);
       cands.forEach((c) => {
         const row = document.createElement("div");
-        row.style.cssText =
-          "display:flex; align-items:center; justify-content:space-between; gap:0.75rem;" +
-          "padding:0.4rem 0.6rem; border:1px solid var(--border-subtle);" +
-          "border-radius:var(--radius-sm); margin-bottom:0.4rem; background:var(--bg-subtle);";
+        row.className = "action-row";
         const label = document.createElement("div");
-        label.style.cssText = "font-size:0.85rem; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;";
+        label.className = "row-title trunc";
         const rel = (c.relevance !== null && c.relevance !== undefined) ? `[${c.relevance}] ` : "";
         label.textContent = rel + c.title;
         label.title = c.title;
         row.appendChild(label);
         const btns = document.createElement("div");
-        btns.style.cssText = "display:flex; gap:0.4rem; flex-shrink:0;";
+        btns.className = "row-btns";
         [["accept-to-inbox", "btn_accept_inbox"], ["create-issue", "btn_create_issue"]].forEach(([action, key]) => {
           const b = document.createElement("button");
           b.className = "btn btn-secondary btn-sm";
@@ -1962,7 +1952,7 @@
 
     if (data.status === "pending-review") {
       const foot = document.createElement("div");
-      foot.style.cssText = "margin-top:1rem; text-align:right;";
+      foot.className = "digest-foot";
       const btn = document.createElement("button");
       btn.className = "btn btn-primary";
       btn.textContent = t("btn_mark_reviewed");
@@ -2157,7 +2147,7 @@
       b.classList.toggle("active", b.dataset.doc === docKey);
     });
 
-    els.docsContent.innerHTML = `<p style="color: var(--text-muted);">${t("loading_docs")}</p>`;
+    els.docsContent.innerHTML = `<p class="empty-note">${t("loading_docs")}</p>`;
     try {
       if (docKey === "commands") {
         const data = await apiFetch("/api/docs/commands");
@@ -2206,7 +2196,7 @@
 
   async function openDoctorModal() {
     els.doctorModal.classList.add("open");
-    els.doctorModalBody.innerHTML = `<p style="color: var(--text-muted);">${t("doctor_running")}</p>`;
+    els.doctorModalBody.innerHTML = `<p class="empty-note">${t("doctor_running")}</p>`;
     try {
       const data = await apiFetch("/api/doctor");
       const doc = data.doctor || [];
