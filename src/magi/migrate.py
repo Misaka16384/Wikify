@@ -19,26 +19,62 @@ import sys
 from pathlib import Path
 
 from magi.core.wiki_common import parse_frontmatter
-from magi.core.workspace import find_workspace_root
+from magi.core.workspace import find_workspace_root, is_hub_root
+
+
+def _migrate_hub(hub: Path) -> int:
+    """Hub mode: migrate every active topic under <hub>/topics/."""
+    topics = sorted(
+        d for d in (hub / "topics").iterdir()
+        if d.is_dir() and d.name != ".archive" and ((d / "wiki").is_dir() or (d / "raw").is_dir())
+    )
+    if not topics:
+        print(f"Hub detected at {hub} but no topics found under topics/.")
+        return 0
+    print(f"Hub detected at {hub} — migrating {len(topics)} topic(s):\n")
+    failures = 0
+    for t in topics:
+        rc = _migrate_topic(t)
+        failures += 1 if rc else 0
+        print()
+    print(f"Hub migration complete: {len(topics) - failures}/{len(topics)} topics migrated.")
+    print("Next: magi pm init   # provision beads once, at this hub root")
+    return 1 if failures else 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="magi migrate", description=__doc__)
-    parser.add_argument("path", nargs="?", help="Workspace to migrate (default: discovered from cwd)")
+    parser.add_argument("path", nargs="?", help="Workspace or hub to migrate (default: discovered from cwd)")
     args = parser.parse_args(argv)
+
+    base = Path(args.path).resolve() if args.path else Path.cwd()
+    if is_hub_root(base):
+        return _migrate_hub(base)
 
     root = find_workspace_root(args.path) if args.path else find_workspace_root()
     if root is None:
         # Legacy workspaces predate the marker-file requirement: accept a
         # bare wiki/ or raw/ dir at the given path (or cwd) directly.
-        base = Path(args.path).resolve() if args.path else Path.cwd()
         if (base / "wiki").is_dir() or (base / "raw").is_dir():
             root = base
         else:
             print("No workspace found here. Run inside a topic directory "
-                  "(a folder containing wiki/ or raw/) or pass a path.", file=sys.stderr)
+                  "(a folder containing wiki/ or raw/), at a hub root, or pass a path.",
+                  file=sys.stderr)
             return 1
 
+    rc = _migrate_topic(root)
+    if rc == 0:
+        print("\nRecommended next steps:")
+        print("  magi pm init        # provision beads at the hub root (work-state tracking)")
+        print("  magi index          # build the hybrid retrieval index (needs Ollama for vectors)")
+        print("  magi sync           # check the sync ratio")
+        print("\nIf you installed the old Wikify skills by copying skills/+bin/ into "
+              "~/.claude or .agents/, remove them: magi setup --remove-legacy")
+    return rc
+
+
+def _migrate_topic(root: Path) -> int:
     # Carry the legacy identity into the new scaffolding.
     name, scope = root.name, "A topic wiki."
     config_md = root / "config.md"
@@ -68,13 +104,6 @@ def main(argv: list[str] | None = None) -> int:
         status = "ok" if proc.returncode == 0 else f"FAILED ({proc.stderr.strip()[-200:]})"
         print(f"  magi {' '.join(step[:2])}: {status}")
 
-    print("\nDone. Recommended next steps:")
-    print("  magi pm init        # provision beads at the hub root (work-state tracking)")
-    print("  magi index          # build the hybrid retrieval index (needs Ollama for vectors)")
-    print("  magi sync           # check the sync ratio")
-    print("\nIf you installed the old Wikify skills by copying skills/+bin/ into "
-          "~/.claude or .agents/, delete those copies — skills now ship as a "
-          "plugin and all scripts live in the magi CLI.")
     return 0
 
 

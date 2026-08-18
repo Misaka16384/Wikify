@@ -47,46 +47,50 @@
 
 ## 2. 安装
 
-### 2.1 `magi` CLI（必装）
+### 2.1 一键安装（推荐）
 
-需要 **Python 3.10+** 和 [uv](https://docs.astral.sh/uv/)（或 pipx）：
-
-```powershell
-git clone https://github.com/Misaka16384/magi.git
-cd magi
-uv tool install .            # 或: pipx install .
-magi --version               # magi 0.1.0
-```
-
-升级：
+**Windows（PowerShell）：**
 
 ```powershell
-git pull && uv tool install . --force --reinstall
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Misaka16384/magi/main/install.ps1 | iex"
 ```
 
-> 包名为 `magi-research`，命令名为 `magi`。暂未发布 PyPI，从仓库安装即可。
+**macOS / Linux：**
 
-### 2.2 Beads（`bd`，强烈推荐）
+```bash
+curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | sh
+```
 
-任务/工作状态由 [Beads](https://github.com/gastownhall/beads) 承载（`magi pm init` 会配置六种科研 issue 类型：question / survey / derivation / computation / experiment / review）。
+脚本会自动完成：装 [uv](https://docs.astral.sh/uv/)（如缺）→ 从 GitHub 安装 `magi` CLI（含 Python，无需预装）→ 执行 **`magi setup`**：安装 [Beads](https://github.com/gastownhall/beads)（`bd`）、拉取 Ollama 嵌入模型（如 Ollama 在场）、注册 Claude Code plugin（如 `claude` 在场）、检测旧版 Wikify 残留 → 输出环境体检表。**幂等，重跑即升级。**
 
-- **Windows**：`irm https://raw.githubusercontent.com/gastownhall/beads/main/install.ps1 | iex`（或从 [Releases](https://github.com/gastownhall/beads/releases) 下载 `beads_*_windows_amd64.zip`，把 `bd.exe` 放进 PATH）
-- **macOS / Linux**：见[官方安装文档](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md)（Homebrew / npm / go install 均支持）
-
-没有 `bd` 时 MAGI 相关功能优雅降级（sync 会提示安装）。
-
-### 2.3 Ollama（推荐）
-
-向量检索（`magi index` / `magi search` 的混合模式、`magi link` 语义双链）与本地 OCR 依赖本地 Ollama：
+随时体检环境：
 
 ```powershell
-ollama pull qwen3-embedding:0.6b   # 向量嵌入
-ollama pull glm-ocr                # 本地 OCR（可选；也可用 MinerU 云端）
+magi setup --check
 ```
 
-Ollama 不可达时检索自动降级为 BM25-only，索引可事后补向量。
+`magi setup` 的可选开关：`--no-beads` / `--no-models` / `--no-plugin` / `--remove-legacy`（删除检测到的旧版拷贝）。
 
-### 2.4 系统级外部工具（按需）
+### 2.2 手动安装（备选）
+
+<details>
+<summary>展开手动步骤</summary>
+
+**CLI**（Python 3.10+，uv 或 pipx）：
+
+```powershell
+uv tool install --python 3.12 git+https://github.com/Misaka16384/magi
+# 或本地开发: git clone … && cd magi && uv tool install .
+# 升级: 重跑上面命令加 --force
+```
+
+**Beads**：Windows 用 `irm https://raw.githubusercontent.com/gastownhall/beads/main/install.ps1 | iex`，macOS/Linux 见[官方文档](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md)。没有 `bd` 时 MAGI 优雅降级。
+
+**Ollama 模型**：`ollama pull qwen3-embedding:0.6b`（向量检索）；`ollama pull glm-ocr`（本地 OCR，可选）。Ollama 不可达时检索自动降级 BM25-only。
+
+</details>
+
+### 2.3 系统级外部工具（按需，`magi setup --check` 会体检）
 
 | 工具 | 用途 | 说明 |
 |---|---|---|
@@ -96,16 +100,11 @@ Ollama 不可达时检索自动降级为 BM25-only，索引可事后补向量。
 
 （历史依赖 ripgrep 已不再需要。）
 
-### 2.5 Skills 安装（教 agent 用 MAGI）
+### 2.4 Skills 安装（教 agent 用 MAGI）
 
 所有宿主共享仓库里同一份 `skills/*/SKILL.md`：
 
-- **Claude Code**（推荐走 plugin，附带 SessionStart hook 自动跑 `magi sync`）：
-  ```bash
-  claude plugin marketplace add Misaka16384/magi
-  claude plugin install magi
-  ```
-  skills 以 `/magi:wiki_ingest` 这样的命名空间出现；本地开发模式可 `claude plugin install <仓库目录>`。
+- **Claude Code**：一键安装脚本已自动注册（`magi setup` 完成 `claude plugin marketplace add Misaka16384/magi` + `claude plugin install magi`）。skills 以 `/magi:wiki_ingest` 这样的命名空间出现，plugin 附带 SessionStart hook 自动跑 `magi sync`；本地开发模式可 `claude plugin install <仓库目录>`。
 - **Codex 及其他 Agent Plugins 1.0 宿主**：仓库根部自带 `plugin.json`，按宿主的插件安装流程指向本仓库。
 - **Gemini / Antigravity**：把 `skills/` 复制（或链接）到 `<project>/.agents/skills/`。
 
@@ -176,33 +175,30 @@ magi radar citation-gap         # 侦察"该引我方论文却未引"的近期�
 
 MAGI 是 Wikify 的全面重构：脚本集升级为统一 CLI，任务状态外接 Beads，新增混合检索、claim 溯源与文献雷达。**你的数据完全兼容**——`raw/`、`wiki/`、`inbox/` 格式未变。
 
-### 5.1 迁移步骤
+### 5.1 迁移步骤（三条命令）
 
 ```powershell
-# 1. 删除旧安装拷贝（重要：旧 SKILL.md 会误导 agent 调用已不存在的脚本路径）
-#    删除 ~/.claude（或项目 .claude / .agents）下由 install.ps1 复制进去的 skills/wiki_* 和 bin/
+# 1. 一键安装新版（§2.1 的脚本；magi setup 会顺带检测旧版拷贝并提示）
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Misaka16384/magi/main/install.ps1 | iex"
 
-# 2. 安装新版（见上文 §2）：magi CLI + 宿主 plugin
+# 2. 删除旧安装拷贝（旧 SKILL.md 会误导 agent 调用已不存在的脚本路径）
+magi setup --remove-legacy
 
-# 3. 在每个旧的主题工作区里执行（非破坏性）：
-cd <你的旧topic目录>
+# 3. 在 Hub 根目录一键迁移全部主题（非破坏性）：
+cd <你的KnowledgeHub>
 magi migrate
-#    ↳ 补齐 CLAUDE.md / AGENTS.md / config.yaml / scratch/（沿用 config.md 里的旧标题与 scope）
-#      重建 output/graph.db（新增 claims/evidence 表）与 _index.md；raw/ wiki/ 内容一字不动
+#    ↳ 逐个 topic 补齐 CLAUDE.md / AGENTS.md / config.yaml / scratch/（沿用 config.md
+#      里的旧标题与 scope），重建 graph.db（新增 claims/evidence 表）与 _index.md；
+#      raw/ wiki/ 内容一字不动。单个 topic 目录里跑则只迁移该 topic。
 
-# 4. 在 hub 根部启用任务状态，在各 topic 建检索索引：
-magi pm init
-magi index
-
-# 5. 验收：
-magi sync
+# 收尾：hub 根 `magi pm init` 启用任务状态；各 topic `magi index` 建检索索引；`magi sync` 验收。
 ```
 
 ### 5.2 变化对照
 
 | 旧（Wikify） | 新（MAGI） |
 |---|---|
-| `install.ps1` / `install.sh` 复制 `skills/`+`bin/` | `uv tool install .` + 宿主 plugin（§2.5） |
+| `install.ps1` / `install.sh` **复制** `skills/`+`bin/` 到 agent 目录 | 同名脚本已改为**一键引导安装**（uv + CLI + `magi setup`，§2.1）；skills 走宿主 plugin |
 | `python <BIN>/llm-wiki.py lint --fix <dir>` | `magi lint --fix <dir>` |
 | `python <BIN>/llm-wiki.py graph <dir>` | `magi graph build <dir>` |
 | `python <BIN>/query-graph.py "<SQL>"` | `magi graph query "<SQL>"` |

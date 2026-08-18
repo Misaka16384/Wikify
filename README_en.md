@@ -48,46 +48,50 @@ You (the pilot)
 
 ## 2. Installation
 
-### 2.1 The `magi` CLI (required)
+### 2.1 One-line install (recommended)
 
-Requires **Python 3.10+** and [uv](https://docs.astral.sh/uv/) (or pipx):
-
-```powershell
-git clone https://github.com/Misaka16384/magi.git
-cd magi
-uv tool install .            # or: pipx install .
-magi --version               # magi 0.1.0
-```
-
-Upgrade:
+**Windows (PowerShell):**
 
 ```powershell
-git pull && uv tool install . --force --reinstall
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Misaka16384/magi/main/install.ps1 | iex"
 ```
 
-> Package name `magi-research`, command name `magi`. Not on PyPI yet — install from the repo.
+**macOS / Linux:**
 
-### 2.2 Beads (`bd`, strongly recommended)
+```bash
+curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | sh
+```
 
-Work state lives in [Beads](https://github.com/gastownhall/beads); `magi pm init` provisions six research issue types (question / survey / derivation / computation / experiment / review).
+The script does everything: installs [uv](https://docs.astral.sh/uv/) if missing, installs the `magi` CLI from GitHub (Python included — no preinstall needed), then runs **`magi setup`**: installs [Beads](https://github.com/gastownhall/beads) (`bd`), pulls the Ollama embedding model (when Ollama is present), registers the Claude Code plugin (when `claude` is present), detects legacy Wikify leftovers, and prints an environment doctor table. **Idempotent — re-run to upgrade.**
 
-- **Windows**: `irm https://raw.githubusercontent.com/gastownhall/beads/main/install.ps1 | iex` (or grab `beads_*_windows_amd64.zip` from [Releases](https://github.com/gastownhall/beads/releases) and put `bd.exe` on PATH)
-- **macOS / Linux**: see the [official install docs](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md) (Homebrew / npm / go install)
-
-MAGI degrades gracefully without `bd` (sync will hint at installing it).
-
-### 2.3 Ollama (recommended)
-
-Vector retrieval (`magi index` / `magi search` hybrid mode, `magi link` semantic linking) and local OCR use a local Ollama:
+Check your environment any time:
 
 ```powershell
-ollama pull qwen3-embedding:0.6b   # embeddings
-ollama pull glm-ocr                # local OCR (optional; MinerU cloud also supported)
+magi setup --check
 ```
 
-When Ollama is unreachable, retrieval degrades to BM25-only and vectors can be backfilled later.
+`magi setup` flags: `--no-beads` / `--no-models` / `--no-plugin` / `--remove-legacy` (delete detected legacy copies).
 
-### 2.4 System-level external tools (as needed)
+### 2.2 Manual install (fallback)
+
+<details>
+<summary>Expand manual steps</summary>
+
+**CLI** (Python 3.10+, uv or pipx):
+
+```powershell
+uv tool install --python 3.12 git+https://github.com/Misaka16384/magi
+# or local dev: git clone ... && cd magi && uv tool install .
+# upgrade: re-run with --force
+```
+
+**Beads**: Windows `irm https://raw.githubusercontent.com/gastownhall/beads/main/install.ps1 | iex`; macOS/Linux see the [official docs](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md). MAGI degrades gracefully without `bd`.
+
+**Ollama models**: `ollama pull qwen3-embedding:0.6b` (vector search); `ollama pull glm-ocr` (local OCR, optional). Retrieval degrades to BM25-only when Ollama is unreachable.
+
+</details>
+
+### 2.3 System-level external tools (as needed; `magi setup --check` reports them)
 
 | Tool | Used by | Notes |
 |---|---|---|
@@ -97,16 +101,11 @@ When Ollama is unreachable, retrieval degrades to BM25-only and vectors can be b
 
 (The historic ripgrep dependency is gone.)
 
-### 2.5 Installing the skills (teaching your agent)
+### 2.4 Installing the skills (teaching your agent)
 
 Every host shares the same `skills/*/SKILL.md` tree:
 
-- **Claude Code** (recommended: plugin; ships a SessionStart hook that runs `magi sync` automatically):
-  ```bash
-  claude plugin marketplace add Misaka16384/magi
-  claude plugin install magi
-  ```
-  Skills appear namespaced as `/magi:wiki_ingest` etc.; for local dev use `claude plugin install <repo-dir>`.
+- **Claude Code**: the one-line installer registers this automatically (`magi setup` runs `claude plugin marketplace add Misaka16384/magi` + `claude plugin install magi`). Skills appear namespaced as `/magi:wiki_ingest` etc., and the plugin ships a SessionStart hook that runs `magi sync`; for local dev use `claude plugin install <repo-dir>`.
 - **Codex and other Agent Plugins 1.0 hosts**: the repo root ships a `plugin.json`; point your host's plugin flow at this repository.
 - **Gemini / Antigravity**: copy (or link) `skills/` into `<project>/.agents/skills/`.
 
@@ -178,36 +177,33 @@ Deterministic harvest runs at night; the `radar_review` skill does LLM triage in
 
 MAGI is a full rebuild of Wikify: the script collection became a unified CLI, task state moved to Beads, and hybrid retrieval, claim provenance, and the literature radar are new. **Your data is fully compatible** — `raw/`, `wiki/`, `inbox/` formats are unchanged.
 
-### 5.1 Migration steps
+### 5.1 Migration steps (three commands)
 
 ```powershell
-# 1. Delete the old installed copies (important: stale SKILL.md files will
-#    mislead agents into calling script paths that no longer exist).
-#    Remove the skills/wiki_* and bin/ folders that install.ps1 copied into
-#    ~/.claude (or your project's .claude / .agents).
+# 1. One-line install of the new stack (the §2.1 script; magi setup also
+#    detects legacy copies and warns about them)
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Misaka16384/magi/main/install.ps1 | iex"
 
-# 2. Install the new stack (§2): magi CLI + host plugin.
+# 2. Delete the old installed copies (stale SKILL.md files mislead agents
+#    into calling script paths that no longer exist)
+magi setup --remove-legacy
 
-# 3. In each old topic workspace, run (non-destructive):
-cd <your-old-topic-dir>
+# 3. Migrate ALL topics in one go from the hub root (non-destructive):
+cd <your-KnowledgeHub>
 magi migrate
-#    ↳ adds CLAUDE.md / AGENTS.md / config.yaml / scratch/ (reusing the old
-#      title & scope from config.md), rebuilds output/graph.db (now with
-#      claims/evidence tables) and _index.md; raw/ and wiki/ are untouched.
+#    ↳ per topic: adds CLAUDE.md / AGENTS.md / config.yaml / scratch/ (reusing
+#      the old title & scope from config.md), rebuilds graph.db (now with
+#      claims/evidence tables) and _index.md; raw/ and wiki/ untouched.
+#      Run inside a single topic dir to migrate just that topic.
 
-# 4. Enable work-state at the hub root and build each topic's search index:
-magi pm init
-magi index
-
-# 5. Verify:
-magi sync
+# Finish up: `magi pm init` at the hub root; `magi index` in each topic; `magi sync` to verify.
 ```
 
 ### 5.2 What changed
 
 | Old (Wikify) | New (MAGI) |
 |---|---|
-| `install.ps1` / `install.sh` copying `skills/`+`bin/` | `uv tool install .` + host plugin (§2.5) |
+| `install.ps1` / `install.sh` **copying** `skills/`+`bin/` into agent dirs | same filenames are now the **one-line bootstrap installer** (uv + CLI + `magi setup`, §2.1); skills ship via host plugins |
 | `python <BIN>/llm-wiki.py lint --fix <dir>` | `magi lint --fix <dir>` |
 | `python <BIN>/llm-wiki.py graph <dir>` | `magi graph build <dir>` |
 | `python <BIN>/query-graph.py "<SQL>"` | `magi graph query "<SQL>"` |
