@@ -774,6 +774,50 @@ def test_eva_completion_layer_hud_boot_and_tactical_css(client):
     assert "prefers-reduced-motion" in js
 
 
+def test_radar_citation_gap_reports_visible(client):
+    ws = client.test_workspace
+    gap = ws / "inbox" / "radar" / "2026-08-18-citation-gaps.md"
+    gap.write_text(
+        "---\ndate: 2026-08-18\nstatus: pending-review\n---\n# Citation Gap Scout\n",
+        encoding="utf-8",
+    )
+
+    res = client.get(f"/api/workspace/radar?workspace={ws}")
+    assert res.status_code == 200
+    data = res.json()
+
+    assert "2026-08-18-citation-gaps.md" in data["pending_citation_gaps"]
+    kinds = {d["name"]: d["kind"] for d in data["digests"]}
+    assert kinds["2026-08-18-citation-gaps.md"] == "citation-gap"
+    assert kinds["2026-08-18-digest.md"] == "digest"
+    # original contract: pending_digests stays digests-only
+    assert "2026-08-18-citation-gaps.md" not in data["pending_digests"]
+
+    # sync hints must surface pending citation-gap reports too
+    from magi.sync import build_report
+    rep = build_report(ws)
+    assert any("citation-gap report(s) pending" in h for h in rep["hints"])
+
+
+def test_sync_hints_card_and_researcher_guidance(client):
+    html = client.get("/").text
+    assert 'id="sync-hints-card"' in html
+    assert 'id="sync-hints-list"' in html
+    assert 'data-i18n="hints_title"' in html
+
+    js = client.get("/app.js").text
+    # actionable hints pipeline
+    assert "HINT_RULES" in js
+    assert "renderSyncHints" in js
+    assert "renderSyncHints(rep.hints)" in js
+    # researcher-facing guidance & bilingual error mapping
+    assert "localizeApiError" in js
+    assert "vec_unavailable_hint" in js
+    assert "search_no_results_hint" in js
+    # README repo-relative images resolve against GitHub raw
+    assert "raw.githubusercontent.com/Misaka16384/magi/main/" in js
+
+
 def test_vendored_marked_is_complete_and_digests_escape_html(client):
     # v1.1.0 shipped a truncated marked.min.js (12.9KB of ~40KB) that failed to
     # parse, silently disabling all markdown rendering. Guard against recurrence.

@@ -15,7 +15,7 @@
       <div class="brand-icon">M</div>
       <div>
         <span class="brand-title">MAGI</span>
-        <span class="brand-badge" id="app-version">v1.1.2</span>
+        <span class="brand-badge" id="app-version">v1.2.0</span>
       </div>
       <span class="eva-clock" id="eva-clock" aria-hidden="true"></span>
     </div>
@@ -130,6 +130,17 @@
             </g>
           </svg>
         </div>
+      </div>
+
+      <!-- Actionable sync hints (populated from the sync report) -->
+      <div class="card" id="sync-hints-card" style="margin-bottom: 1.5rem; display: none;">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="hints_title">Suggested Actions</h3>
+            <p class="card-subtitle" data-i18n="hints_subtitle">What the sync report recommends doing next</p>
+          </div>
+        </div>
+        <div id="sync-hints-list" style="display: flex; flex-direction: column; gap: 0.5rem;"></div>
       </div>
 
       <div class="grid-4">

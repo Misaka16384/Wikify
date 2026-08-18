@@ -245,6 +245,28 @@
       toast_kb_status_updated: "知识库 '{name}' 检索状态已更新。",
       toast_ws_switched: "已切换当前工作空间。",
       toast_kb_unregistered: "已注销知识库 '{name}'。",
+
+      // Sync Hints (actionable)
+      hints_title: "建议操作",
+      hints_subtitle: "同步报告给出的下一步建议——点按钮直接执行",
+      hint_graph_build: "知识图谱落后于卡片内容，需要重建",
+      hint_index: "检索索引缺失或已过期，需要重建",
+      hint_backlog_sync: "有未编译文献尚未纳入任务追踪",
+      hint_pm_init: "任务引擎尚未初始化（在 运维与操作 中初始化）",
+      hint_radar_review: "有文献雷达简报等待审阅",
+      hint_claims_unverified: "有学术命题尚未验证（到 Melchior 面板查看）",
+      hint_bd_ready: "有可直接开工的任务（到 Balthasar 面板查看）",
+      hint_install_beads: "任务引擎 (beads) 未安装——见安装指引",
+      hint_ingest_start: "把论文 PDF / 源文件放进 inbox/，用 wiki_ingest 技能开始建库",
+      btn_hint_run: "执行",
+      btn_hint_goto: "前往",
+
+      // Search guidance
+      vec_unavailable_hint: "向量检索未启用：需要本机 Ollama 嵌入模型，且在运行 magi index 建索引时可用。当前仅 BM25 全文检索。",
+      search_no_results_hint: "建议：改用 2-3 个关键词（而非整句）、切换检索模式，或确认当前工作区已运行过「重建检索索引」。",
+
+      // Radar kinds
+      badge_kind_citation_gap: "引文缺口",
     },
 
     en: {
@@ -484,6 +506,28 @@
       toast_kb_status_updated: "KB '{name}' search status updated.",
       toast_ws_switched: "Switched active workspace.",
       toast_kb_unregistered: "Unregistered KB '{name}'.",
+
+      // Sync Hints (actionable)
+      hints_title: "Suggested Actions",
+      hints_subtitle: "What the sync report recommends next — click to run",
+      hint_graph_build: "Knowledge graph is behind the cards and needs a rebuild",
+      hint_index: "Retrieval index is missing or stale and needs a rebuild",
+      hint_backlog_sync: "Uncompiled sources are not yet tracked as tasks",
+      hint_pm_init: "Task engine is not initialized (do it in Operations)",
+      hint_radar_review: "Literature radar digests are waiting for review",
+      hint_claims_unverified: "Some claims are still unverified (see Melchior)",
+      hint_bd_ready: "There is actionable work ready (see Balthasar)",
+      hint_install_beads: "Task engine (beads) is not installed — see install guide",
+      hint_ingest_start: "Drop paper PDFs / sources into inbox/ and run the wiki_ingest skill",
+      btn_hint_run: "Run",
+      btn_hint_goto: "Open",
+
+      // Search guidance
+      vec_unavailable_hint: "Vector search is off: it needs a local Ollama embedding model available when 'magi index' builds the index. Currently BM25-only.",
+      search_no_results_hint: "Try 2-3 keywords instead of a full sentence, switch the search mode, or make sure this workspace has a built index (Rebuild Index).",
+
+      // Radar kinds
+      badge_kind_citation_gap: "Citation Gap",
     },
   };
 
@@ -683,6 +727,26 @@
   // Utilities
   // ------------------------------------------------------------------------
 
+  // Common backend errors arrive in English; translate the frequent ones so a
+  // Chinese-UI researcher gets an actionable message instead of raw API text.
+  function localizeApiError(msg) {
+    if (state.lang !== "zh" || !msg) return msg;
+    const rules = [
+      [/^Directory does not exist: (.+)$/, "目录不存在：$1"],
+      [/^KB '(.+)' not found in registry$/, "注册表中找不到知识库 '$1'"],
+      [/^Job not found$/, "找不到该后台任务"],
+      [/^Unable to cancel job.*$/, "无法中止该任务（不存在或已结束）"],
+      [/^No index found.*'magi index'.*$/, "当前工作区还没有检索索引——请先在 运维与操作 里点「重建检索索引」"],
+      [/^Knowledge graph database not found.*$/, "知识图谱数据库不存在——请先在 运维与操作 里点「构建知识图谱」"],
+      [/^Digest file not found: (.+)$/, "找不到简报文件：$1"],
+      [/^Failed to generate sync report: (.+)$/, "生成同步报告失败：$1"],
+    ];
+    for (const [re, rep] of rules) {
+      if (re.test(msg)) return msg.replace(re, rep);
+    }
+    return msg;
+  }
+
   async function apiFetch(url, options = {}) {
     try {
       const res = await fetch(url, {
@@ -691,7 +755,7 @@
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.detail || data.error || `HTTP ${res.status}`);
+        throw new Error(localizeApiError(data.detail || data.error) || `HTTP ${res.status}`);
       }
       return data;
     } catch (err) {
@@ -1049,10 +1113,74 @@
         els.syncRatioBadge.className = "stat-pill info";
       }
       updateEvaHud(rep);
+      renderSyncHints(rep.hints);
     } catch (err) {
       els.syncRatioVal.textContent = "--%";
       updateEvaHud(null);
+      renderSyncHints([]);
     }
+  }
+
+  // ------------------------------------------------------------------------
+  // Actionable sync hints
+  // ------------------------------------------------------------------------
+
+  const HINT_RULES = [
+    { test: /^magi graph build/, i18n: "hint_graph_build", action: { type: "job", cmd: "graph build", nameKey: "op_build_graph" } },
+    { test: /^magi index/, i18n: "hint_index", action: { type: "job", cmd: "index", nameKey: "op_rebuild_index" } },
+    { test: /^magi pm backlog-sync/, i18n: "hint_backlog_sync", action: { type: "job", cmd: "pm backlog-sync", nameKey: "op_backlog_sync" } },
+    { test: /^magi pm init/, i18n: "hint_pm_init", action: { type: "tab", tab: "operations" } },
+    { test: /^radar:/, i18n: "hint_radar_review", action: { type: "tab", tab: "radar" } },
+    { test: /^claims:/, i18n: "hint_claims_unverified", action: { type: "tab", tab: "melchior" } },
+    { test: /^bd ready/, i18n: "hint_bd_ready", action: { type: "tab", tab: "balthasar" } },
+    { test: /^install beads/, i18n: "hint_install_beads", action: null },
+    { test: /^drop sources/, i18n: "hint_ingest_start", action: null },
+  ];
+
+  function renderSyncHints(hints) {
+    const card = document.getElementById("sync-hints-card");
+    const list = document.getElementById("sync-hints-list");
+    if (!card || !list) return;
+    list.innerHTML = "";
+    const items = Array.isArray(hints) ? hints : [];
+    if (!items.length) {
+      card.style.display = "none";
+      return;
+    }
+    card.style.display = "";
+    items.forEach((raw) => {
+      const rule = HINT_RULES.find((r) => r.test.test(raw));
+      const row = document.createElement("div");
+      row.style.cssText =
+        "display:flex; align-items:center; justify-content:space-between; gap:0.75rem;" +
+        "padding:0.5rem 0.75rem; border:1px solid var(--border-subtle);" +
+        "border-radius:var(--radius-sm); background:var(--bg-subtle);";
+      const left = document.createElement("div");
+      if (rule) {
+        const label = document.createElement("div");
+        label.style.fontSize = "0.85rem";
+        label.textContent = t(rule.i18n);
+        left.appendChild(label);
+      }
+      const code = document.createElement("code");
+      code.style.cssText = "font-size:0.72rem; color:var(--text-muted); font-family:var(--font-mono);";
+      code.textContent = raw;
+      left.appendChild(code);
+      row.appendChild(left);
+      if (rule && rule.action) {
+        const btn = document.createElement("button");
+        btn.className = "btn btn-secondary btn-sm";
+        if (rule.action.type === "job") {
+          btn.textContent = t("btn_hint_run");
+          btn.addEventListener("click", () => launchJob(rule.action.cmd, t(rule.action.nameKey)));
+        } else {
+          btn.textContent = t("btn_hint_goto");
+          btn.addEventListener("click", () => switchTab(rule.action.tab));
+        }
+        row.appendChild(btn);
+      }
+      list.appendChild(row);
+    });
   }
 
   // ------------------------------------------------------------------------
@@ -1065,7 +1193,8 @@
     if (state.workspace) {
       try {
         const radar = await apiFetch(`/api/workspace/radar?workspace=${encodeURIComponent(state.workspace)}`);
-        const pendingN = radar.pending_digests ? radar.pending_digests.length : 0;
+        const pendingN = (radar.pending_digests ? radar.pending_digests.length : 0)
+          + (radar.pending_citation_gaps ? radar.pending_citation_gaps.length : 0);
         els.dashPendingDigests.textContent = pendingN;
         els.dashPendingDigests.classList.toggle("eva-alert", pendingN > 0);
       } catch (_) {}
@@ -1320,7 +1449,7 @@
       );
 
       if (data.error) {
-        els.searchResultsList.innerHTML = `<div class="stat-pill warning" style="margin: 1rem 0;">${escapeHtml(data.error)}</div>`;
+        els.searchResultsList.innerHTML = `<div class="stat-pill warning" style="margin: 1rem 0;">${escapeHtml(localizeApiError(data.error))}</div>`;
         return;
       }
 
@@ -1330,9 +1459,17 @@
         bm25: data.bm25_hits || 0,
         vec: vecStatus,
       });
+      if (!data.vector_available) {
+        const note = document.createElement("div");
+        note.style.cssText = "margin-top:0.25rem; font-size:0.78rem; color:var(--text-muted);";
+        note.textContent = t("vec_unavailable_hint");
+        els.searchInfoBar.appendChild(note);
+      }
 
       if (!data.results.length) {
-        els.searchResultsList.innerHTML = `<p style="color: var(--text-muted); text-align: center; padding: 2rem 0;">${t("search_no_results")}</p>`;
+        els.searchResultsList.innerHTML =
+          `<p style="color: var(--text-muted); text-align: center; padding: 2rem 0 0.5rem;">${t("search_no_results")}</p>` +
+          `<p style="color: var(--text-muted); text-align: center; font-size: 0.8rem; padding-bottom: 2rem;">${t("search_no_results_hint")}</p>`;
         return;
       }
 
@@ -1370,7 +1507,8 @@
     try {
       const radar = await apiFetch(`/api/workspace/radar?workspace=${encodeURIComponent(state.workspace)}`);
       els.radarSeenCount.textContent = radar.seen_total || 0;
-      const radarPendingN = radar.pending_digests ? radar.pending_digests.length : 0;
+      const radarPendingN = (radar.pending_digests ? radar.pending_digests.length : 0)
+        + (radar.pending_citation_gaps ? radar.pending_citation_gaps.length : 0);
       els.radarPendingCount.textContent = radarPendingN;
       els.radarPendingCount.classList.toggle("eva-alert", radarPendingN > 0);
 
@@ -1386,12 +1524,15 @@
           const isPending = d.status === "pending-review";
           const badgeClass = isPending ? "badge-terracotta" : "badge-sage";
           const badgeText = isPending ? t("status_pending_review") : t("status_reviewed");
+          const kindBadge = d.kind === "citation-gap"
+            ? `<span class="badge badge-blue" style="margin-left: 0.3rem;">${t("badge_kind_citation_gap")}</span>`
+            : "";
           const isSelected = state.activeDigest ? (d.name === state.activeDigest) : (idx === 0);
           return `
             <div class="pane-item ${isSelected ? "active" : ""}" data-file="${escapeHtml(d.name)}">
               <div style="font-weight: 500; font-size: 0.9rem;">${escapeHtml(d.name)}</div>
               <div style="margin-top: 0.3rem;">
-                <span class="badge ${badgeClass}">${escapeHtml(badgeText)}</span>
+                <span class="badge ${badgeClass}">${escapeHtml(badgeText)}</span>${kindBadge}
               </div>
             </div>
           `;
@@ -1564,6 +1705,17 @@
         const mdText = data.content || (langParam === "en" ? data.readme_en : data.readme_zh) || t("no_docs_found");
         if (window.marked && mdText) {
           els.docsContent.innerHTML = window.marked.parse(mdText);
+          // README references repo-relative images the local server does not
+          // host — resolve them against the GitHub repo and hide any that
+          // still fail (e.g. offline).
+          els.docsContent.querySelectorAll("img").forEach((img) => {
+            const src = img.getAttribute("src") || "";
+            if (src && !/^(https?:|data:)/i.test(src)) {
+              img.src = "https://raw.githubusercontent.com/Misaka16384/magi/main/" + src.replace(/^\.?\//, "");
+            }
+            img.addEventListener("error", () => { img.style.display = "none"; });
+            img.style.maxWidth = "100%";
+          });
         } else {
           els.docsContent.textContent = mdText;
         }
