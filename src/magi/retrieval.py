@@ -67,24 +67,83 @@ def open_db(db_path: Path, create: bool = False) -> tuple[sqlite3.Connection, bo
     return conn, vec_loaded
 
 
+# FTS5's default unicode61 tokenizer treats a whole run of CJK characters as
+# ONE token, which blinds BM25 for Chinese/Japanese queries entirely. We index
+# and query through overlapping character bigrams instead ("注意力" ->
+# "注意 意力") — the standard CJK IR baseline. Latin text passes through
+# untouched, so English search behaviour is unchanged.
+_CJK_RUN = re.compile(r"[㐀-䶿一-鿿豈-﫿぀-ヿ]+")
+
+FTS_VERSION = "2"
+
+
+def fts_text(text: str) -> str:
+    """Segment CJK runs into overlapping bigrams for FTS indexing/querying."""
+    def _seg(m: re.Match) -> str:
+        s = m.group(0)
+        if len(s) < 2:
+            return f" {s} "
+        return " " + " ".join(s[i:i + 2] for i in range(len(s) - 1)) + " "
+    return _CJK_RUN.sub(_seg, text)
+
+
+def _fts_schema_version(conn: sqlite3.Connection) -> str | None:
+    try:
+        row = conn.execute("SELECT value FROM meta WHERE key='fts_version'").fetchone()
+        return row[0] if row else None
+    except sqlite3.OperationalError:
+        return None
+
+
 def ensure_schema(conn: sqlite3.Connection, dims: int | None, vec_loaded: bool = False) -> None:
     conn.executescript(
         """
         CREATE TABLE IF NOT EXISTS files(path TEXT PRIMARY KEY, hash TEXT, mtime REAL);
         CREATE TABLE IF NOT EXISTS chunks(
             id INTEGER PRIMARY KEY, path TEXT, collection TEXT, heading TEXT,
-            start_line INT, end_line INT, content TEXT);
-        CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
-            content, content='chunks', content_rowid='id');
-        CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
-            INSERT INTO chunks_fts(rowid, content) VALUES (new.id, new.content);
-        END;
-        CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
-            INSERT INTO chunks_fts(chunks_fts, rowid, content) VALUES('delete', old.id, old.content);
-        END;
+            start_line INT, end_line INT, content TEXT, content_fts TEXT);
         CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT);
         """
     )
+    # Legacy dbs predate the content_fts column
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(chunks)")}
+    if "content_fts" not in cols:
+        conn.execute("ALTER TABLE chunks ADD COLUMN content_fts TEXT")
+
+    if _fts_schema_version(conn) != FTS_VERSION:
+        # (Re)build the FTS layer with CJK bigram segmentation. Runs once per
+        # index db — new dbs take this path on first creation too.
+        conn.executescript(
+            """
+            DROP TRIGGER IF EXISTS chunks_ai;
+            DROP TRIGGER IF EXISTS chunks_ad;
+            DROP TABLE IF EXISTS chunks_fts;
+            """
+        )
+        rows = conn.execute("SELECT id, content FROM chunks").fetchall()
+        if rows:
+            conn.executemany(
+                "UPDATE chunks SET content_fts=? WHERE id=?",
+                [(fts_text(c or ""), i) for i, c in rows],
+            )
+        conn.executescript(
+            """
+            CREATE VIRTUAL TABLE chunks_fts USING fts5(
+                content_fts, content='chunks', content_rowid='id');
+            CREATE TRIGGER chunks_ai AFTER INSERT ON chunks BEGIN
+                INSERT INTO chunks_fts(rowid, content_fts) VALUES (new.id, new.content_fts);
+            END;
+            CREATE TRIGGER chunks_ad AFTER DELETE ON chunks BEGIN
+                INSERT INTO chunks_fts(chunks_fts, rowid, content_fts) VALUES('delete', old.id, old.content_fts);
+            END;
+            """
+        )
+        conn.execute("INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')")
+        conn.execute(
+            "INSERT OR REPLACE INTO meta(key, value) VALUES('fts_version', ?)",
+            (FTS_VERSION,),
+        )
+        conn.commit()
     if dims and vec_loaded:
         conn.execute(
             f"CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(embedding float[{dims}])"
@@ -151,17 +210,27 @@ def _serialize(vec: list[float]) -> bytes:
 # indexing
 # --------------------------------------------------------------------------
 
+# Navigation/backmatter headings in wiki cards that carry no retrievable
+# content of their own (mostly wikilink lists).
+_BOILERPLATE_HEADINGS = {
+    "see also", "sources", "references", "related", "further reading",
+    "参考文献", "相关条目", "另见", "来源",
+}
+
+
 def _collection_of(rel: Path) -> str:
     parts = rel.parts
     if parts[0] == "raw":
         return "raw"
+    if parts[0] == "drafts":
+        return "drafts"
     if parts[0] == "wiki" and len(parts) > 1 and parts[1] in ("concepts", "references", "topics", "theses"):
         return parts[1]
     return "other"
 
 
 def _iter_corpus(root: Path):
-    for base in ("wiki", "raw"):
+    for base in ("wiki", "raw", "drafts"):
         d = root / base
         if not d.is_dir():
             continue
@@ -236,10 +305,14 @@ def cmd_index(args: argparse.Namespace) -> int:
         conn.execute("DELETE FROM chunks WHERE path=?", (rel,))
         collection = _collection_of(Path(rel))
         for heading, s, e, body in _chunk(text):
+            # Card-template boilerplate sections (See Also / Sources lists)
+            # otherwise crowd real content out of the BM25 top ranks.
+            if collection != "raw" and heading.strip().rstrip(":").lower() in _BOILERPLATE_HEADINGS:
+                continue
             cur = conn.execute(
-                "INSERT INTO chunks(path, collection, heading, start_line, end_line, content) "
-                "VALUES(?,?,?,?,?,?)",
-                (rel, collection, heading, s, e, body),
+                "INSERT INTO chunks(path, collection, heading, start_line, end_line, content, content_fts) "
+                "VALUES(?,?,?,?,?,?,?)",
+                (rel, collection, heading, s, e, body, fts_text(body)),
             )
             if vec_on:
                 vec = embedder.embed(body)
@@ -308,7 +381,8 @@ def cmd_index(args: argparse.Namespace) -> int:
 def _fts_query(q: str) -> str:
     # OR semantics: full-question queries should still hit documents that
     # match only some tokens (BM25 ranking rewards multi-token matches).
-    tokens = [t.replace('"', "") for t in q.split() if t.strip('"')]
+    # CJK runs are bigram-segmented to mirror how the index was built.
+    tokens = [t.replace('"', "") for t in fts_text(q).split() if t.strip('"')]
     return " OR ".join(f'"{t}"' for t in tokens) if tokens else '""'
 
 
@@ -326,15 +400,22 @@ def _search_one_db(conn, vec_loaded, args, qvec, n):
     """
     where = ""
     params: list = []
-    if args.collection:
-        where = " AND c.collection = ?"
+    if getattr(args, "collection", None):
+        where += " AND c.collection = ?"
         params.append(args.collection)
+    if getattr(args, "path", None):
+        where += " AND c.path GLOB ?"
+        params.append(args.path)
 
     ranks: dict[int, dict[str, int]] = {}
     bm25_hits = vector_hits = 0
     vector_used = False
 
     if args.mode in ("hybrid", "bm25"):
+        if _fts_schema_version(conn) != FTS_VERSION and _CJK_RUN.search(args.query):
+            print("note: this index predates CJK-aware tokenization — "
+                  "re-run 'magi index' there to make Chinese queries match",
+                  file=sys.stderr)
         rows = conn.execute(
             "SELECT c.id FROM chunks_fts f JOIN chunks c ON c.id = f.rowid "
             f"WHERE chunks_fts MATCH ?{where} ORDER BY bm25(chunks_fts) LIMIT ?",
@@ -464,6 +545,9 @@ def cmd_search(args: argparse.Namespace) -> int:
     else:
         if not results:
             print("no results")
+            if _CJK_RUN.search(args.query):
+                print("(tip: if this index was built before CJK-aware tokenization, "
+                      "re-run 'magi index'; otherwise try shorter keywords or --mode vector)")
         for i, r in enumerate(results, 1):
             marks = "+".join(k for k in ("bm25", "vector")
                              if r["bm25_rank" if k == "bm25" else "vector_rank"] is not None)
@@ -493,7 +577,9 @@ def main(argv: list[str] | None = None) -> int:
     p_search = sub.add_parser("search", help="Hybrid BM25+vector search with RRF fusion")
     p_search.add_argument("query")
     p_search.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
-    p_search.add_argument("--collection", choices=["concepts", "references", "topics", "theses", "raw", "other"])
+    p_search.add_argument("--collection", choices=["concepts", "references", "topics", "theses", "raw", "drafts", "other"])
+    p_search.add_argument("--path", help="Only search chunks whose file path matches this glob, "
+                                         "e.g. --path 'raw/papers/2026-*higher-rank*' (applies per KB)")
     p_search.add_argument("-k", type=int, default=8, help="Max results (default 8)")
     p_search.add_argument("--mode", choices=["hybrid", "bm25", "vector"], default="hybrid")
     p_search.add_argument("--scope", choices=["auto", "local", "global"], default="auto",
