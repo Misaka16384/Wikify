@@ -304,7 +304,9 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         digest_dir = ws / "inbox" / "radar"
         digests: list[dict] = []
         if digest_dir.is_dir():
-            for p in sorted(digest_dir.glob("*-digest*.md"), reverse=True):
+            entries = [(p, "digest") for p in digest_dir.glob("*-digest*.md")]
+            entries += [(p, "citation-gap") for p in digest_dir.glob("*-citation-gaps.md")]
+            for p, kind in sorted(entries, key=lambda e: e[0].name, reverse=True):
                 try:
                     text = p.read_text(encoding="utf-8", errors="replace")
                     status = "pending-review" if "status: pending-review" in text else "reviewed"
@@ -312,6 +314,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                         "name": p.name,
                         "path": str(p.relative_to(ws)).replace("\\", "/"),
                         "status": status,
+                        "kind": kind,
                         "mtime": p.stat().st_mtime,
                         "size": p.stat().st_size,
                     })
@@ -321,7 +324,10 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         return {
             "workspace": str(ws),
             "seen_total": seen_count,
-            "pending_digests": [d["name"] for d in digests if d["status"] == "pending-review"],
+            "pending_digests": [d["name"] for d in digests
+                                if d["status"] == "pending-review" and d["kind"] == "digest"],
+            "pending_citation_gaps": [d["name"] for d in digests
+                                      if d["status"] == "pending-review" and d["kind"] == "citation-gap"],
             "digests": digests,
         }
 

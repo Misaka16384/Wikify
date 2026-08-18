@@ -226,6 +226,12 @@ def build_report(cwd: Path | None = None) -> dict:
             )
             if pending:
                 hints.append(f"radar: {pending} digest(s) pending — run the radar_review skill")
+            gap_pending = sum(
+                1 for p in digest_dir.glob("*-citation-gaps.md")
+                if "status: pending-review" in p.read_text(encoding="utf-8", errors="replace")
+            )
+            if gap_pending:
+                hints.append(f"radar: {gap_pending} citation-gap report(s) pending — run the radar_review skill")
     else:
         cores["casper"] = {"state": "offline", "note": "no workspace", "score": None}
         if hub:

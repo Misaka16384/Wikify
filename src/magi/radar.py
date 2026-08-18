@@ -129,11 +129,18 @@ def harvest_s2(seeds: list[str], limit: int) -> list[dict]:
     out = []
     for p in data.get("recommendedPapers", []) or []:
         ext = p.get("externalIds") or {}
+        title = (p.get("title") or "").strip()
+        # Drop metadata-broken records (no title, or nothing but a title
+        # fragment) — they cannot be triaged and pollute the digest.
+        if not title:
+            continue
+        if not p.get("year") and not p.get("abstract") and not ext:
+            continue
         out.append({
             "id": ext.get("ArXiv") or ext.get("DOI") or p.get("paperId"),
             "arxiv_id": ext.get("ArXiv"),
             "doi": ext.get("DOI"),
-            "title": (p.get("title") or "").strip(),
+            "title": title,
             "year": p.get("year"),
             "abstract": (p.get("abstract") or "")[:1500],
             "url": p.get("url"),
@@ -199,6 +206,68 @@ def harvest_arxiv(categories: list[str], days: int,
 
 
 # --------------------------------------------------------------------------
+# relevance scoring: cosine(candidate embedding, library centroid)
+# --------------------------------------------------------------------------
+
+def _score_candidates(topic: Path, cands: list[dict]) -> bool:
+    """Attach c['score'] to each candidate: cosine similarity between the
+    candidate's title+abstract embedding and the centroid of the library's
+    own wiki chunk embeddings. Returns True when at least one candidate got
+    scored (requires a vectorized index.db and a reachable Ollama)."""
+    idx = topic / "output" / "index.db"
+    if not idx.is_file() or not cands:
+        return False
+    try:
+        import numpy as np
+
+        from magi.retrieval import Embedder, open_db
+
+        opened = open_db(idx)
+        if not opened:
+            return False
+        conn, vec_loaded = opened
+        try:
+            if not vec_loaded:
+                return False
+            rows = conn.execute(
+                "SELECT v.embedding FROM chunks_vec v JOIN chunks c ON c.id = v.rowid "
+                "WHERE c.collection IN ('concepts', 'references', 'topics', 'theses') "
+                "LIMIT 400"
+            ).fetchall()
+        finally:
+            conn.close()
+        if not rows:
+            return False
+        mat = np.array([np.frombuffer(r[0], dtype=np.float32) for r in rows])
+        centroid = mat.mean(axis=0)
+        norm = float(np.linalg.norm(centroid))
+        if norm == 0:
+            return False
+        centroid = centroid / norm
+
+        emb = Embedder()
+        scored_any = False
+        for c in cands:
+            text = f"{c.get('title') or ''}\n{(c.get('abstract') or '')[:800]}".strip()
+            if not text:
+                continue
+            vec = emb.embed(text)
+            if vec is None:
+                break  # Ollama went away — keep whatever we scored so far
+            v = np.asarray(vec, dtype=np.float32)
+            if v.shape != centroid.shape:
+                return False  # index built with a different embedding model
+            vn = float(np.linalg.norm(v))
+            if vn:
+                c["score"] = round(float(np.dot(centroid, v / vn)), 3)
+                scored_any = True
+        return scored_any
+    except Exception as exc:
+        print(f"warning: relevance scoring skipped ({exc})", file=sys.stderr)
+        return False
+
+
+# --------------------------------------------------------------------------
 # harvest command
 # --------------------------------------------------------------------------
 
@@ -250,6 +319,24 @@ def cmd_harvest(args: argparse.Namespace) -> int:
             continue  # already in the library
         dedup.add(cid)
         fresh.append(c)
+
+    # Score against the library fingerprint BEFORE the cap so the budget is
+    # spent on the most relevant candidates, not on listing order.
+    print("[radar] scoring candidates against library embedding centroid...", file=sys.stderr)
+    scored = _score_candidates(topic, fresh)
+    if scored:
+        min_rel = cfg_get(cfg, "radar.min_relevance", None)
+        if min_rel is not None:
+            before = len(fresh)
+            fresh = [c for c in fresh if c.get("score") is None or c["score"] >= float(min_rel)]
+            dropped = before - len(fresh)
+            if dropped:
+                print(f"[radar] dropped {dropped} candidate(s) below radar.min_relevance={min_rel}",
+                      file=sys.stderr)
+        fresh.sort(key=lambda c: c.get("score", -1.0), reverse=True)
+    else:
+        print("[radar] relevance scoring unavailable (needs vectorized index + Ollama) — "
+              "digest keeps source order", file=sys.stderr)
     fresh = fresh[:max_c]
 
     today = dt.date.today().isoformat()
@@ -291,12 +378,18 @@ def cmd_harvest(args: argparse.Namespace) -> int:
             "then set `status: reviewed` in this file's frontmatter.",
             "",
         ]
+        if scored:
+            lines.append("_Sorted by relevance to this library (embedding cosine vs. wiki centroid)._")
+            lines.append("")
         for c in fresh:
             arxiv_link = f"https://arxiv.org/abs/{c['arxiv_id']}" if c.get("arxiv_id") else ""
             link = c.get("url") or arxiv_link
             lines.append(f"## {c['title']}")
             lines.append("")
-            lines.append(f"- id: `{c['id']}` · {c.get('year', '?')} · source: {c['source']}")
+            meta = f"- id: `{c['id']}` · {c.get('year', '?')} · source: {c['source']}"
+            if c.get("score") is not None:
+                meta += f" · relevance: {c['score']}"
+            lines.append(meta)
             if link:
                 lines.append(f"- {link}")
             if arxiv_link and arxiv_link != link:
@@ -507,6 +600,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     radar_dir = topic / "output" / "radar"
     ledger = _load_ledger(radar_dir / "seen.jsonl")
     pending = []
+    gap_pending = []
     failed_sources = None
     digest_dir = topic / "inbox" / "radar"
     if digest_dir.is_dir():
@@ -515,6 +609,12 @@ def cmd_status(args: argparse.Namespace) -> int:
             try:
                 if "status: pending-review" in p.read_text(encoding="utf-8"):
                     pending.append(p.name)
+            except OSError:
+                continue
+        for p in sorted(digest_dir.glob("*-citation-gaps.md")):
+            try:
+                if "status: pending-review" in p.read_text(encoding="utf-8"):
+                    gap_pending.append(p.name)
             except OSError:
                 continue
         if digests:
@@ -527,12 +627,14 @@ def cmd_status(args: argparse.Namespace) -> int:
             except OSError:
                 pass
     payload = {"seen_total": len(ledger), "pending_digests": pending,
+               "pending_citation_gaps": gap_pending,
                "last_digest_failed_sources": failed_sources}
     if args.json:
         print(json.dumps(payload, ensure_ascii=False))
     else:
-        print(f"radar: {len(ledger)} papers seen · {len(pending)} digest(s) pending review")
-        for name in pending:
+        print(f"radar: {len(ledger)} papers seen · {len(pending)} digest(s) pending review"
+              + (f" · {len(gap_pending)} citation-gap report(s) pending" if gap_pending else ""))
+        for name in pending + gap_pending:
             print(f"  -> inbox/radar/{name}")
         if failed_sources:
             print(f"  warning: last digest had failed sources: {failed_sources}")
