@@ -277,28 +277,39 @@ def clean_math_delimiters(content, is_raw=False):
     return "\n".join(final_lines)
 
 
+def _orphan_dollar_lines(text):
+    """Lines with an odd number of $$ that are not a bare $$ delimiter."""
+    hits = []
+    for idx, line in enumerate(text.split('\n')):
+        if line.count('$$') % 2 == 1 and line.strip() != '$$':
+            hits.append((idx + 1, line.strip()))
+    return hits
+
+
 def process_file(file_path):
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
         content = content.replace('\r\n', '\n')
-        
+
         # Check path for raw scope
         is_raw = "raw/" in file_path.replace("\\", "/")
-        
-        # Check for orphaned $$ (Pattern 5)
-        lines = content.split('\n')
-        for idx, line in enumerate(lines):
-            count = line.count('$$')
-            if count % 2 == 1:
-                if line.strip() != '$$':
-                    print(f"[\033[93mWARNING\033[0m] Orphaned $$ found on line {idx + 1} of {os.path.basename(file_path)}: {line.strip()}")
-        
+
+        pre_orphans = _orphan_dollar_lines(content)
         formatted = clean_math_delimiters(content, is_raw=is_raw)
-        
+        # Only warn about what the cleaner could NOT fix — warning about
+        # every line it is about to normalize just buries the real issues.
+        post_orphans = _orphan_dollar_lines(formatted)
+        n_fixed = max(0, len(pre_orphans) - len(post_orphans))
+
         if formatted != content:
             atomic_write(file_path, formatted, encoding='utf-8', newline='\n')
-            print(f"  Formatted: {file_path}")
+            summary = f"  Formatted: {file_path}"
+            if n_fixed:
+                summary += f" (normalized {n_fixed} $$ delimiter issue(s))"
+            print(summary)
+        for line_no, snippet in post_orphans:
+            print(f"[\033[93mWARNING\033[0m] Orphaned $$ remains on line {line_no} of {os.path.basename(file_path)} (needs manual fix): {snippet}")
     except (IOError, UnicodeDecodeError) as e:
         print(f"  Error processing {file_path}: {e}")
 

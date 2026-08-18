@@ -146,9 +146,25 @@ def parse_latex_log(log_lines):
 
 def validate_math_pdflatex(valid_blocks, valid_inlines):
     issues = []
+    # Physics/math literature leans on more than the ams trio (\bm, \mathscr,
+    # \ket, ...). Load the common packages when the TeX distro has them and
+    # degrade to harmless fallbacks when it doesn't, so validation flags real
+    # typos instead of every missing-package macro.
     tex_lines = [
         r"\documentclass{article}",
         r"\usepackage{amsmath,amssymb,amsfonts}",
+        r"\IfFileExists{bm.sty}{\usepackage{bm}}{\providecommand{\bm}[1]{\boldsymbol{#1}}}",
+        r"\IfFileExists{mathtools.sty}{\usepackage{mathtools}}{}",
+        r"\IfFileExists{mathrsfs.sty}{\usepackage{mathrsfs}}{\providecommand{\mathscr}[1]{\mathcal{#1}}}",
+        r"\IfFileExists{dsfont.sty}{\usepackage{dsfont}}{\providecommand{\mathds}[1]{\mathbb{#1}}}",
+        r"\IfFileExists{slashed.sty}{\usepackage{slashed}}{\providecommand{\slashed}[1]{#1}}",
+        r"\IfFileExists{cancel.sty}{\usepackage{cancel}}{\providecommand{\cancel}[1]{#1}}",
+        r"\IfFileExists{physics.sty}{\usepackage{physics}}{}",
+        r"\providecommand{\ket}[1]{\lvert #1\rangle}",
+        r"\providecommand{\bra}[1]{\langle #1\rvert}",
+        r"\providecommand{\braket}[1]{\langle #1\rangle}",
+        r"\providecommand{\tr}{\operatorname{tr}}",
+        r"\providecommand{\Tr}{\operatorname{Tr}}",
         r"\begin{document}"
     ]
     
@@ -296,7 +312,10 @@ def validate_math_pdflatex(valid_blocks, valid_inlines):
 def format_issue_for_cli(issue):
     line_range = f"{issue['md_line']}-{issue['md_end_line']}" if issue['md_line'] != issue['md_end_line'] else str(issue['md_line'])
     math_type = "Block Math" if issue['is_block'] else "Inline Math"
-    header = f"Line {line_range} [{math_type}]: {issue['error']}"
+    error = issue['error']
+    if "undefined control sequence" in error.lower():
+        error += "  (note: may be a macro from a package this validator lacks, not a typo — compare with the source PDF before rewriting)"
+    header = f"Line {line_range} [{math_type}]: {error}"
     indented_context = "\n".join("      " + line for line in issue['context'].split('\n'))
     return f"{header}\n{indented_context}"
 

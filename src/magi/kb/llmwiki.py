@@ -115,6 +115,7 @@ ROOT_ALLOWED = {
     "scratch",
     "raw",
     "wiki",
+    "drafts",
     "inventory",
     "datasets",
     "output",
@@ -649,11 +650,11 @@ def is_schema_checked_path(root: Path, path: Path) -> bool:
     return parts[0] in {"raw", "wiki", "inventory", "datasets"}
 
 
-def require_fields(ctx: LintContext, doc: Document, fields: list[str]) -> None:
+def require_fields(ctx: LintContext, doc: Document, fields: list[str], severity: str = "critical") -> None:
     for field in fields:
         value = doc.frontmatter.get(field)
         if value in (None, "", []):
-            ctx.issue("critical", f"Required frontmatter field is missing or empty: {field}.", doc.path)
+            ctx.issue(severity, f"Required frontmatter field is missing or empty: {field}.", doc.path)
 
 
 def check_enum(
@@ -783,7 +784,11 @@ def check_frontmatter_schema(ctx: LintContext) -> None:
         if not parts:
             continue
         if parts[0] == "raw":
-            require_fields(ctx, doc, ["title", "source", "type", "ingested", "tags", "summary"])
+            require_fields(ctx, doc, ["title", "source", "type", "ingested"])
+            # tags/summary on raw conversions are enrichment the ingest tools
+            # cannot infer — flag them, but a fresh `magi ingest tex` output
+            # must not fail its own toolchain's lint.
+            require_fields(ctx, doc, ["tags", "summary"], severity="warning")
             check_enum(ctx, doc, "type", RAW_TYPES)
         elif parts[0] == "wiki":
             if doc.frontmatter.get("type") == "thesis":
@@ -1475,6 +1480,34 @@ def resolve_source_ref(ctx: LintContext, owner: Path, ref: str, wiki_source: boo
 
     if wiki_source:
         slug = slugify(Path(ref).stem)
+
+        # Reference-card fallback: sources are frequently given as a paper
+        # title (exactly what `add-concept --source "<Title>"` writes) —
+        # resolve against wiki cards by file slug, frontmatter title, or
+        # aliases before falling back to raw/ scanning.
+        card_matches: list[Path] = []
+        for doc in ctx.documents.values():
+            try:
+                rel_doc = doc.path.resolve().relative_to(ctx.root)
+            except ValueError:
+                continue
+            if rel_doc.parts[0] != "wiki" or doc.path.resolve() == owner.resolve():
+                continue
+            names = [doc.path.stem]
+            title = doc.frontmatter.get("title")
+            if title:
+                names.append(str(title))
+            aliases = doc.frontmatter.get("aliases")
+            if isinstance(aliases, list):
+                names.extend(str(a) for a in aliases)
+            if any(slugify(str(n)) == slug for n in names if n):
+                card_matches.append(doc.path.resolve())
+        if len(card_matches) == 1:
+            return card_matches[0]
+        if len(card_matches) > 1:
+            ctx.issue("warning", f"Source reference is ambiguous (matches multiple wiki cards): {ref}.", owner)
+            return None
+
         exact_matches: list[Path] = []
         contains_matches: list[Path] = []
         for raw_file in content_markdown_files(ctx.root / "raw"):
@@ -1959,7 +1992,7 @@ def run_lint(args: argparse.Namespace) -> int:
         else:
             print_text_report(ctx)
         counts = ctx.counts()
-        return 1 if counts["critical"] or counts["warning"] or counts["suggestion"] else 0
+        return 1 if counts["critical"] else 0  # PASS (even with warnings) exits 0
 
     load_documents(ctx)
     fix_legacy_wiki_frontmatter(ctx)
@@ -1988,7 +2021,7 @@ def run_lint(args: argparse.Namespace) -> int:
         print_text_report(ctx)
 
     counts = ctx.counts()
-    return 1 if counts["critical"] or counts["warning"] or counts["suggestion"] else 0
+    return 1 if counts["critical"] else 0  # PASS (even with warnings) exits 0
 
 
 
@@ -2016,13 +2049,16 @@ def print_json_report(ctx: LintContext) -> None:
 
 def print_text_report(ctx: LintContext) -> None:
     counts = ctx.counts()
-    failed = counts["critical"] or counts["warning"] or counts["suggestion"]
+    # Only criticals fail the run: researchers must be able to reach a green
+    # verdict, or the lint gets ignored entirely. Warnings stay visible in
+    # the summary as review items.
+    failed = counts["critical"]
     print(f"magi lint: {ctx.root}")
     if ctx.fixes:
         print("\nAuto-fixed:")
         for fix in ctx.fixes:
             print(f"- {fix}")
-    if failed or counts["info"]:
+    if any(counts[k] for k in ("critical", "warning", "suggestion", "info")):
         print("\nFindings:")
         for issue in sorted(ctx.active_issues(), key=lambda item: item.sort_key()):
             prefix = {
@@ -2042,7 +2078,10 @@ def print_text_report(ctx: LintContext) -> None:
         f"{counts['suggestion']} suggestions, {counts['info']} info, "
         f"{len(ctx.fixes)} auto-fixed."
     )
-    print("Result: " + ("FAIL" if failed else "PASS"))
+    verdict = "FAIL" if failed else "PASS"
+    if not failed and (counts["warning"] or counts["suggestion"]):
+        verdict += f" ({counts['warning']} warning(s) to review)"
+    print("Result: " + verdict)
 
 
 def append_log(path: Path, operation: str, message: str) -> None:
