@@ -80,6 +80,57 @@
   --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.45);
 }
 
+[data-theme="eva"] {
+  --bg-canvas: #07080a;
+  --bg-surface: #0c0e12;
+  --bg-subtle: #13171f;
+  --bg-card: #0d0f14;
+  --bg-hover: #181d26;
+  --bg-terminal: #050608;
+
+  --text-primary: #f0f4f8;
+  --text-secondary: #9aa5b5;
+  --text-muted: #5c6675;
+  --text-subtle: #3a4250;
+
+  /* Primary Alert/Brand: MAGI Terminal Amber/Orange */
+  --accent-primary: #ff8c00;
+  --accent-primary-hover: #ffa500;
+  --accent-primary-wash: rgba(255, 140, 0, 0.12);
+  --accent-primary-border: rgba(255, 140, 0, 0.35);
+
+  /* Melchior Cyan */
+  --accent-blue: #00e5ff;
+  --accent-blue-wash: rgba(0, 229, 255, 0.14);
+
+  /* Balthasar Sage/Green */
+  --accent-sage: #00ff66;
+  --accent-sage-wash: rgba(0, 255, 102, 0.14);
+
+  /* Casper Blood Red/Amber */
+  --accent-danger: #ff3344;
+  --accent-danger-wash: rgba(255, 51, 68, 0.14);
+
+  /* Alert Amber */
+  --accent-amber: #ff9900;
+  --accent-amber-wash: rgba(255, 153, 0, 0.15);
+
+  --border-default: #1e2633;
+  --border-subtle: #141a24;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.85);
+
+  /* Core tactical accents */
+  --eva-melchior: #00e5ff;
+  --eva-melchior-glow: rgba(0, 229, 255, 0.4);
+  --eva-balthasar: #00ff66;
+  --eva-balthasar-glow: rgba(0, 255, 102, 0.4);
+  --eva-casper: #ff3344;
+  --eva-casper-glow: rgba(255, 51, 68, 0.4);
+  --eva-amber-glow: rgba(255, 140, 0, 0.45);
+}
+
 /* Reset & Global */
 * {
   box-sizing: border-box;
@@ -238,6 +289,30 @@ body {
 .icon-btn:hover {
   background-color: var(--bg-hover);
   color: var(--text-primary);
+}
+
+.magi-mode-btn {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  gap: 0.35rem;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+}
+
+.magi-mode-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.magi-mode-btn.active,
+[data-theme="eva"] .magi-mode-btn {
+  background-color: var(--accent-primary-wash);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  box-shadow: 0 0 10px rgba(255, 140, 0, 0.4);
 }
 
 /* Language Switcher Toggle */
@@ -546,6 +621,25 @@ body {
   font-size: 0.8rem;
 }
 
+.terminal-autoscroll-label {
+  color: #B0AEA5;
+}
+
+.terminal-btn {
+  background-color: #2A2A27;
+  color: #ECEAE4;
+  border-color: #3E3E38;
+}
+
+.terminal-btn:hover {
+  background-color: #383834;
+  color: #FFFFFF;
+}
+
+.terminal-cancel-btn {
+  color: #D95D5D;
+}
+
 .terminal-title {
   display: flex;
   align-items: center;
@@ -841,4 +935,1066 @@ body {
   .split-pane { grid-template-columns: 1fr; height: auto; }
   .topbar { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
   .topbar-controls { width: 100%; justify-content: space-between; }
+}
+
+/* ==========================================================================
+   EVA (NERV MAGI Supercomputer) Tactical Theme Extensions
+   ========================================================================== */
+
+[data-theme="eva"] body {
+  background-color: var(--bg-canvas);
+  background-image:
+    linear-gradient(rgba(255, 140, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 140, 0, 0.03) 1px, transparent 1px),
+    radial-gradient(circle at 50% 0%, rgba(255, 140, 0, 0.06) 0%, transparent 70%);
+  background-size: 28px 28px, 28px 28px, 100% 100%;
+  background-attachment: fixed;
+}
+
+/* Topbar & Brand in EVA Mode */
+[data-theme="eva"] .topbar {
+  background-color: rgba(12, 14, 18, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255, 140, 0, 0.3);
+  box-shadow: 0 2px 16px rgba(255, 140, 0, 0.08);
+}
+
+[data-theme="eva"] .brand-icon {
+  background: linear-gradient(135deg, #ff9900, #ff5500);
+  box-shadow: 0 0 12px rgba(255, 140, 0, 0.5);
+  font-family: var(--font-mono);
+  font-weight: 800;
+  border: 1px solid rgba(255, 200, 0, 0.6);
+}
+
+[data-theme="eva"] .brand-title {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #ff9900;
+  text-shadow: 0 0 10px rgba(255, 153, 0, 0.35);
+}
+
+[data-theme="eva"] .brand-badge {
+  background-color: rgba(255, 140, 0, 0.15);
+  color: #ff9900;
+  border: 1px solid rgba(255, 140, 0, 0.5);
+  box-shadow: 0 0 8px rgba(255, 140, 0, 0.2);
+}
+
+/* Tactical Corner Brackets on Card Frames */
+[data-theme="eva"] .card {
+  position: relative;
+  background: linear-gradient(145deg, rgba(14, 18, 26, 0.95), rgba(8, 10, 15, 0.98));
+  border: 1px solid rgba(255, 140, 0, 0.22);
+  border-radius: 4px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255, 140, 0, 0.05);
+}
+
+[data-theme="eva"] .card::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 9px;
+  height: 9px;
+  border-top: 2px solid var(--accent-primary);
+  border-left: 2px solid var(--accent-primary);
+  pointer-events: none;
+}
+
+[data-theme="eva"] .card::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 9px;
+  height: 9px;
+  border-bottom: 2px solid var(--accent-primary);
+  border-right: 2px solid var(--accent-primary);
+  pointer-events: none;
+}
+
+[data-theme="eva"] .card:hover {
+  border-color: rgba(255, 140, 0, 0.45);
+  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.85), 0 0 12px rgba(255, 140, 0, 0.12);
+}
+
+[data-theme="eva"] .card-header {
+  border-bottom: 1px solid rgba(255, 140, 0, 0.18);
+}
+
+[data-theme="eva"] .card-title {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Tactical Nav Tabs */
+[data-theme="eva"] .tabs-nav {
+  background-color: rgba(12, 14, 18, 0.9);
+  border-bottom: 1px solid rgba(255, 140, 0, 0.25);
+}
+
+[data-theme="eva"] .tab-btn {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
+  transition: all var(--transition-fast);
+}
+
+[data-theme="eva"] .tab-btn:hover {
+  color: #ffa500;
+}
+
+[data-theme="eva"] .tab-btn.active {
+  color: #ff9900;
+  background: linear-gradient(180deg, transparent 75%, rgba(255, 140, 0, 0.15) 100%);
+  text-shadow: 0 0 8px rgba(255, 153, 0, 0.4);
+}
+
+[data-theme="eva"] .tab-btn.active::after {
+  background-color: #ff9900;
+  box-shadow: 0 0 10px #ff9900;
+  height: 2px;
+}
+
+/* Tri-Core Command Navigation Active Highlights */
+[data-theme="eva"] .tab-btn[data-tab="melchior"].active {
+  color: var(--eva-melchior);
+  text-shadow: 0 0 8px var(--eva-melchior-glow);
+}
+
+[data-theme="eva"] .tab-btn[data-tab="melchior"].active::after {
+  background-color: var(--eva-melchior);
+  box-shadow: 0 0 10px var(--eva-melchior);
+}
+
+[data-theme="eva"] .tab-btn[data-tab="balthasar"].active {
+  color: var(--eva-balthasar);
+  text-shadow: 0 0 8px var(--eva-balthasar-glow);
+}
+
+[data-theme="eva"] .tab-btn[data-tab="balthasar"].active::after {
+  background-color: var(--eva-balthasar);
+  box-shadow: 0 0 10px var(--eva-balthasar);
+}
+
+[data-theme="eva"] .tab-btn[data-tab="casper"].active {
+  color: var(--eva-casper);
+  text-shadow: 0 0 8px var(--eva-casper-glow);
+}
+
+[data-theme="eva"] .tab-btn[data-tab="casper"].active::after {
+  background-color: var(--eva-casper);
+  box-shadow: 0 0 10px var(--eva-casper);
+}
+
+/* Three-Core HUD Customizations */
+
+/* Core 1: Melchior (Cyan) */
+[data-theme="eva"] #tab-melchior .card {
+  border-color: rgba(0, 229, 255, 0.22);
+}
+
+[data-theme="eva"] #tab-melchior .card::before,
+[data-theme="eva"] #tab-melchior .card::after {
+  border-color: var(--eva-melchior);
+}
+
+[data-theme="eva"] #tab-melchior .card-title {
+  color: var(--eva-melchior);
+  text-shadow: 0 0 8px var(--eva-melchior-glow);
+}
+
+[data-theme="eva"] #melchior-concepts,
+[data-theme="eva"] #melchior-refs,
+[data-theme="eva"] #melchior-graph-status,
+[data-theme="eva"] #melchior-claims-val {
+  color: var(--eva-melchior);
+  text-shadow: 0 0 10px var(--eva-melchior-glow);
+}
+
+/* Core 2: Balthasar (Sage/Green) */
+[data-theme="eva"] #tab-balthasar .card {
+  border-color: rgba(0, 255, 102, 0.22);
+}
+
+[data-theme="eva"] #tab-balthasar .card::before,
+[data-theme="eva"] #tab-balthasar .card::after {
+  border-color: var(--eva-balthasar);
+}
+
+[data-theme="eva"] #tab-balthasar .card-title {
+  color: var(--eva-balthasar);
+  text-shadow: 0 0 8px var(--eva-balthasar-glow);
+}
+
+[data-theme="eva"] #task-ready-val,
+[data-theme="eva"] #task-open-val {
+  color: var(--eva-balthasar);
+  text-shadow: 0 0 10px var(--eva-balthasar-glow);
+}
+
+/* Core 3: Casper (Blood Red/Amber) */
+[data-theme="eva"] #tab-casper .card {
+  border-color: rgba(255, 51, 68, 0.22);
+}
+
+[data-theme="eva"] #tab-casper .card::before,
+[data-theme="eva"] #tab-casper .card::after {
+  border-color: var(--eva-casper);
+}
+
+[data-theme="eva"] #tab-casper .card-title {
+  color: #ff6677;
+  text-shadow: 0 0 8px var(--eva-casper-glow);
+}
+
+[data-theme="eva"] .search-hit-title {
+  color: #00e5ff;
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
+}
+
+/* Tactical Sync Ratio Gauges & Badges */
+[data-theme="eva"] #sync-ratio-badge {
+  background: rgba(0, 255, 102, 0.1);
+  border: 1px solid rgba(0, 255, 102, 0.4);
+  color: #00ff66;
+  box-shadow: 0 0 10px rgba(0, 255, 102, 0.25);
+  font-family: var(--font-mono);
+}
+
+[data-theme="eva"] #active-jobs-badge {
+  background: rgba(0, 229, 255, 0.12);
+  border: 1px solid rgba(0, 229, 255, 0.45);
+  color: #00e5ff;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.3);
+  font-family: var(--font-mono);
+}
+
+[data-theme="eva"] #dash-sync-ratio {
+  color: #00ff66;
+  text-shadow: 0 0 12px rgba(0, 255, 102, 0.6);
+}
+
+/* Status Indicator Dots */
+[data-theme="eva"] .status-dot {
+  background-color: #00ff66;
+  box-shadow: 0 0 8px rgba(0, 255, 102, 0.6);
+}
+
+[data-theme="eva"] .status-dot.running {
+  background-color: #ff9900;
+  box-shadow: 0 0 10px rgba(255, 153, 0, 0.8);
+}
+
+[data-theme="eva"] .status-dot.error {
+  background-color: #ff3344;
+  box-shadow: 0 0 8px rgba(255, 51, 68, 0.8);
+}
+
+/* Literature Radar Split Pane & Search Hit Cards */
+[data-theme="eva"] .pane-list,
+[data-theme="eva"] .pane-view {
+  background-color: #0b0e14;
+  border-color: rgba(255, 140, 0, 0.22);
+}
+
+[data-theme="eva"] .pane-item:hover {
+  background-color: rgba(255, 140, 0, 0.08);
+}
+
+[data-theme="eva"] .pane-item.active {
+  background-color: rgba(255, 140, 0, 0.15);
+  border-left-color: #ff9900;
+  box-shadow: inset 0 0 10px rgba(255, 140, 0, 0.1);
+}
+
+[data-theme="eva"] .search-hit-card {
+  background-color: #0b0e14;
+  border-color: rgba(255, 140, 0, 0.2);
+}
+
+[data-theme="eva"] .search-hit-card:hover {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
+}
+
+/* Data Tables */
+[data-theme="eva"] .data-table th {
+  background-color: #11151f;
+  color: #ff9900;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid rgba(255, 140, 0, 0.3);
+}
+
+[data-theme="eva"] .data-table td {
+  border-bottom: 1px solid #161c26;
+}
+
+[data-theme="eva"] .data-table tr:hover td {
+  background-color: rgba(255, 140, 0, 0.07);
+}
+
+/* Tactical Inputs & Controls */
+[data-theme="eva"] .select-input,
+[data-theme="eva"] .text-input,
+[data-theme="eva"] .search-input {
+  background-color: #0b0d13;
+  border: 1px solid #232b3a;
+  color: #f0f4f8;
+  font-family: var(--font-mono);
+}
+
+[data-theme="eva"] .select-input:focus,
+[data-theme="eva"] .text-input:focus,
+[data-theme="eva"] .search-input:focus {
+  border-color: #ff8c00;
+  box-shadow: 0 0 8px rgba(255, 140, 0, 0.35);
+}
+
+/* Tactical Buttons */
+[data-theme="eva"] .btn-primary {
+  background: linear-gradient(180deg, #ff9900, #d97700);
+  color: #07080a;
+  font-weight: 700;
+  border-color: #ffa500;
+  box-shadow: 0 0 10px rgba(255, 140, 0, 0.35);
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+}
+
+[data-theme="eva"] .btn-primary:hover {
+  background: linear-gradient(180deg, #ffa71a, #e68000);
+  box-shadow: 0 0 16px rgba(255, 140, 0, 0.55);
+}
+
+[data-theme="eva"] .btn-secondary {
+  background-color: #121620;
+  border-color: #232b3a;
+  color: #f0f4f8;
+  font-family: var(--font-mono);
+}
+
+[data-theme="eva"] .btn-secondary:hover {
+  background-color: #1a202c;
+  border-color: #ff8c00;
+  color: #ff8c00;
+  box-shadow: 0 0 8px rgba(255, 140, 0, 0.25);
+}
+
+[data-theme="eva"] .btn-danger {
+  background: linear-gradient(180deg, #ff3344, #c91526);
+  border-color: #ff4d5d;
+  box-shadow: 0 0 10px rgba(255, 51, 68, 0.35);
+  font-family: var(--font-mono);
+}
+
+[data-theme="eva"] .btn-danger:hover {
+  background: linear-gradient(180deg, #ff4d5d, #dc1a2d);
+  box-shadow: 0 0 16px rgba(255, 51, 68, 0.6);
+}
+
+/* Command Bridge Live Terminal Console */
+[data-theme="eva"] .terminal-container {
+  background-color: #040507;
+  border: 1px solid rgba(255, 140, 0, 0.35);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.85), inset 0 0 24px rgba(255, 140, 0, 0.04);
+}
+
+[data-theme="eva"] .terminal-header {
+  background-color: #090b10;
+  border-bottom: 1px solid rgba(255, 140, 0, 0.25);
+  color: #ff9900;
+  font-family: var(--font-mono);
+}
+
+[data-theme="eva"] .terminal-body {
+  color: #00ff66;
+  text-shadow: 0 0 4px rgba(0, 255, 102, 0.35);
+  font-family: var(--font-mono);
+}
+
+[data-theme="eva"] .terminal-autoscroll-label {
+  color: #9aa5b5;
+}
+
+[data-theme="eva"] .terminal-btn {
+  background-color: #121620;
+  color: #00ff66;
+  border-color: rgba(0, 255, 102, 0.3);
+  font-family: var(--font-mono);
+}
+
+[data-theme="eva"] .terminal-btn:hover {
+  background-color: #1a202c;
+  border-color: #00ff66;
+  color: #00ff66;
+  box-shadow: 0 0 8px rgba(0, 255, 102, 0.35);
+}
+
+[data-theme="eva"] .terminal-cancel-btn {
+  color: #ff3344;
+  border-color: rgba(255, 51, 68, 0.35);
+}
+
+[data-theme="eva"] .terminal-cancel-btn:hover {
+  background-color: #1a202c;
+  border-color: #ff3344;
+  color: #ff3344;
+  box-shadow: 0 0 8px rgba(255, 51, 68, 0.45);
+}
+
+/* Danger Card */
+[data-theme="eva"] .danger-card {
+  background-color: rgba(255, 51, 68, 0.08);
+  border: 1px solid rgba(255, 51, 68, 0.35);
+  border-left: 4px solid #ff3344;
+  box-shadow: 0 0 16px rgba(255, 51, 68, 0.12);
+}
+
+[data-theme="eva"] .danger-card-title {
+  color: #ff3344;
+  font-family: var(--font-mono);
+  text-shadow: 0 0 8px rgba(255, 51, 68, 0.4);
+}
+
+/* Modals & Dialogs */
+[data-theme="eva"] .modal-window {
+  background-color: #0b0e14;
+  border: 1px solid rgba(255, 140, 0, 0.4);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.95), 0 0 24px rgba(255, 140, 0, 0.18);
+  border-radius: 4px;
+}
+
+[data-theme="eva"] .modal-header {
+  color: #ff9900;
+  font-family: var(--font-mono);
+  border-bottom: 1px solid rgba(255, 140, 0, 0.2);
+  padding-bottom: 0.5rem;
+}
+
+/* Toast Alerts */
+[data-theme="eva"] .toast {
+  background-color: #0b0e14;
+  border: 1px solid rgba(255, 140, 0, 0.35);
+  color: #f0f4f8;
+  font-family: var(--font-mono);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.8);
+}
+
+/* Markdown prose */
+[data-theme="eva"] .markdown-body h1,
+[data-theme="eva"] .markdown-body h2,
+[data-theme="eva"] .markdown-body h3 {
+  color: #ff9900;
+  font-family: var(--font-mono);
+  border-color: rgba(255, 140, 0, 0.25);
+}
+
+[data-theme="eva"] .markdown-body code {
+  background-color: #121722;
+  color: #00e5ff;
+  border: 1px solid rgba(0, 229, 255, 0.2);
+}
+
+[data-theme="eva"] .markdown-body pre {
+  background-color: #040507;
+  border: 1px solid rgba(255, 140, 0, 0.25);
+}
+
+[data-theme="eva"] .markdown-body blockquote {
+  border-left-color: #ff8c00;
+  background: rgba(255, 140, 0, 0.05);
+  color: #9aa5b5;
+}
+
+/* ==========================================================================
+   EVA MAGI MODE — Completion Layer (v1.1.2)
+   Tactical command-bridge treatment: CRT scanlines, honeycomb field,
+   chamfered controls, hazard striping, tri-monolith HUD, boot sequence.
+   ========================================================================== */
+
+[data-theme="eva"] {
+  --font-eva-display: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP",
+    "Songti SC", "SimSun", "MS PMincho", serif;
+}
+
+/* --- CRT scanline + vignette overlay (above everything, non-interactive) --- */
+[data-theme="eva"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 99990;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.14) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.28) 100%);
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme="eva"] body::before {
+    animation: eva-flicker 7s steps(70) infinite;
+  }
+}
+
+@keyframes eva-flicker {
+  0%, 91%, 95%, 100% { opacity: 0.55; }
+  92% { opacity: 0.42; }
+  93% { opacity: 0.6; }
+  94% { opacity: 0.48; }
+}
+
+@keyframes eva-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.3; }
+}
+
+/* --- Honeycomb field layered over the tactical grid --- */
+[data-theme="eva"] body {
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'><path d='M28 1L55 16.6v31.2L28 63.4 1 47.8V16.6L28 1zm0 62.4V97' fill='none' stroke='%23ff8c00' stroke-opacity='0.05' stroke-width='1'/></svg>"),
+    linear-gradient(rgba(255, 140, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 140, 0, 0.03) 1px, transparent 1px),
+    radial-gradient(circle at 50% 0%, rgba(255, 140, 0, 0.07) 0%, transparent 70%);
+  background-size: 168px 291px, 28px 28px, 28px 28px, 100% 100%;
+  background-attachment: fixed;
+}
+
+/* --- Command-bridge topbar: unit designation + mission clock --- */
+[data-theme="eva"] .brand::after {
+  content: "汎用決議支援システム";
+  font-family: var(--font-eva-display);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.4em;
+  color: rgba(255, 153, 0, 0.7);
+  margin-left: 0.9rem;
+  padding-left: 0.9rem;
+  border-left: 1px solid rgba(255, 140, 0, 0.35);
+  white-space: nowrap;
+}
+
+.eva-clock {
+  display: none;
+}
+
+[data-theme="eva"] .eva-clock {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: #ff9900;
+  text-shadow: 0 0 6px rgba(255, 153, 0, 0.4);
+  margin-left: 0.9rem;
+  padding: 0.18rem 0.6rem;
+  border: 1px solid rgba(255, 140, 0, 0.3);
+  background: rgba(255, 140, 0, 0.05);
+}
+
+/* --- Chamfered tactical controls (glow via drop-shadow so clips keep it) --- */
+[data-theme="eva"] .btn,
+[data-theme="eva"] .icon-btn {
+  border-radius: 0;
+  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+}
+
+[data-theme="eva"] .btn-primary {
+  box-shadow: none;
+  filter: drop-shadow(0 0 6px rgba(255, 140, 0, 0.35));
+}
+
+[data-theme="eva"] .btn-primary:hover {
+  box-shadow: none;
+  filter: drop-shadow(0 0 12px rgba(255, 140, 0, 0.55));
+}
+
+[data-theme="eva"] .btn-danger {
+  box-shadow: none;
+  filter: drop-shadow(0 0 6px rgba(255, 51, 68, 0.4));
+}
+
+[data-theme="eva"] .btn-danger:hover {
+  box-shadow: none;
+  filter: drop-shadow(0 0 12px rgba(255, 51, 68, 0.6));
+}
+
+[data-theme="eva"] .select-input,
+[data-theme="eva"] .text-input,
+[data-theme="eva"] .search-input {
+  border-radius: 0;
+}
+
+[data-theme="eva"] .stat-pill,
+[data-theme="eva"] .badge {
+  border-radius: 2px;
+}
+
+/* --- Card interiors: section tick, uppercase micro-labels, ruler ticks --- */
+[data-theme="eva"] .card-title::before {
+  content: "▍";
+  color: var(--accent-primary);
+  margin-right: 0.45rem;
+}
+
+[data-theme="eva"] #tab-melchior .card-title::before { color: var(--eva-melchior); }
+[data-theme="eva"] #tab-balthasar .card-title::before { color: var(--eva-balthasar); }
+[data-theme="eva"] #tab-casper .card-title::before { color: var(--eva-casper); }
+
+[data-theme="eva"] .metric-label {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.68rem;
+  color: #8b96a8;
+}
+
+[data-theme="eva"] .metric-value {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding-bottom: 6px;
+  background: repeating-linear-gradient(90deg, rgba(255, 140, 0, 0.3) 0 1px, transparent 1px 8px)
+    bottom left / 100% 4px no-repeat;
+}
+
+/* --- Emergency blink for live alerts (only meaningful in MAGI MODE) --- */
+[data-theme="eva"] .eva-alert {
+  color: #ff9900 !important;
+  text-shadow: 0 0 14px rgba(255, 153, 0, 0.8);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme="eva"] .eva-alert {
+    animation: eva-blink 1.1s steps(1) infinite;
+  }
+}
+
+/* --- Hazard striping: danger zone reads as a physical warning surface --- */
+[data-theme="eva"] .danger-card {
+  position: relative;
+  border-radius: 0;
+  overflow: hidden;
+  padding-top: 2rem;
+}
+
+[data-theme="eva"] .danger-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background: repeating-linear-gradient(-45deg, #ffb000 0 16px, #131313 16px 32px);
+  opacity: 0.85;
+}
+
+[data-theme="eva"] .danger-card::after {
+  content: "警 告";
+  position: absolute;
+  right: 0.6rem;
+  bottom: 0.1rem;
+  font-family: var(--font-eva-display);
+  font-size: 3.4rem;
+  font-weight: 800;
+  letter-spacing: 0.4em;
+  color: rgba(255, 51, 68, 0.1);
+  pointer-events: none;
+  line-height: 1;
+}
+
+[data-theme="eva"] #danger-modal .modal-window {
+  position: relative;
+  border-color: rgba(255, 51, 68, 0.55);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.95), 0 0 24px rgba(255, 51, 68, 0.2);
+  overflow: hidden;
+  padding-top: 2rem;
+}
+
+[data-theme="eva"] #danger-modal .modal-window::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background: repeating-linear-gradient(-45deg, #ffb000 0 16px, #131313 16px 32px);
+  opacity: 0.85;
+}
+
+[data-theme="eva"] #danger-modal .modal-header {
+  color: #ff3344;
+  border-bottom-color: rgba(255, 51, 68, 0.3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme="eva"] #danger-modal .modal-header {
+    animation: eva-blink 1s steps(1) infinite;
+  }
+}
+
+/* --- Terminal: phosphor cursor while a job is live --- */
+[data-theme="eva"] .terminal-container:has(.status-dot.running) .terminal-body::after {
+  content: "▮";
+  color: #00ff66;
+  margin-left: 2px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme="eva"] .terminal-container:has(.status-dot.running) .terminal-body::after {
+    animation: eva-blink 0.8s steps(1) infinite;
+  }
+}
+
+/* --- Tri-monolith HUD (dashboard hero, only exists in MAGI MODE) --- */
+.eva-hud {
+  display: none;
+}
+
+[data-theme="eva"] .eva-hud {
+  display: block;
+  margin-bottom: 1.5rem;
+}
+
+[data-theme="eva"] .eva-hud-frame {
+  position: relative;
+  border: 1px solid rgba(255, 140, 0, 0.35);
+  background: linear-gradient(180deg, rgba(10, 12, 18, 0.92), rgba(5, 6, 9, 0.96));
+  padding: 0.9rem 1.1rem 0.6rem;
+  box-shadow: 0 0 24px rgba(255, 140, 0, 0.07), inset 0 0 40px rgba(255, 140, 0, 0.03);
+}
+
+[data-theme="eva"] .eva-hud-frame::before,
+[data-theme="eva"] .eva-hud-frame::after {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+}
+
+[data-theme="eva"] .eva-hud-frame::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid #ff9900;
+  border-left: 2px solid #ff9900;
+}
+
+[data-theme="eva"] .eva-hud-frame::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid #ff9900;
+  border-right: 2px solid #ff9900;
+}
+
+[data-theme="eva"] .eva-hud-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  margin-bottom: 0.4rem;
+}
+
+[data-theme="eva"] .eva-hud-title {
+  color: #ff9900;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  font-size: 0.9rem;
+  text-shadow: 0 0 10px rgba(255, 153, 0, 0.4);
+}
+
+[data-theme="eva"] .eva-hud-jp {
+  font-family: var(--font-eva-display);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.35em;
+  color: rgba(255, 153, 0, 0.65);
+  margin-left: 0.8rem;
+}
+
+[data-theme="eva"] .eva-hud-code {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  color: #9aa5b5;
+  border: 1px solid rgba(255, 140, 0, 0.25);
+  padding: 0.12rem 0.55rem;
+  background: rgba(255, 140, 0, 0.05);
+}
+
+[data-theme="eva"] .eva-monolith {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-height: 380px;
+}
+
+[data-theme="eva"] .eva-monolith text {
+  font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+[data-theme="eva"] .eva-ruler {
+  stroke: rgba(255, 140, 0, 0.5);
+  stroke-width: 7;
+  stroke-dasharray: 1 11;
+}
+
+[data-theme="eva"] .eva-flavor {
+  fill: #5c6675;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+}
+
+[data-theme="eva"] .eva-bus {
+  stroke: rgba(255, 140, 0, 0.22);
+  stroke-width: 3;
+}
+
+[data-theme="eva"] .eva-bus-flow {
+  stroke: rgba(255, 170, 0, 0.85);
+  stroke-width: 3;
+  stroke-dasharray: 5 15;
+  stroke-linecap: round;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme="eva"] .eva-bus-flow {
+    animation: eva-flow 1.4s linear infinite;
+  }
+}
+
+@keyframes eva-flow {
+  to { stroke-dashoffset: -20; }
+}
+
+[data-theme="eva"] .eva-core-shape {
+  fill: rgba(154, 165, 181, 0.05);
+  stroke: rgba(154, 165, 181, 0.5);
+  stroke-width: 2;
+  transition: stroke 0.25s ease, fill 0.25s ease;
+}
+
+[data-theme="eva"] .eva-core-name {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  fill: #9aa5b5;
+}
+
+[data-theme="eva"] .eva-core-code {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  fill: #5c6675;
+}
+
+[data-theme="eva"] .eva-core-jp {
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "SimSun", serif;
+}
+
+[data-theme="eva"] .eva-core-stat {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  fill: #9aa5b5;
+}
+
+[data-theme="eva"] .eva-core-detail {
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  fill: #5c6675;
+}
+
+[data-theme="eva"] .eva-core-led {
+  fill: #3a4250;
+}
+
+/* per-core identity colors */
+[data-theme="eva"] .core-mel .eva-core-name { fill: var(--eva-melchior); }
+[data-theme="eva"] .core-bal .eva-core-name { fill: var(--eva-balthasar); }
+[data-theme="eva"] .core-cas .eva-core-name { fill: var(--eva-casper); }
+
+/* core state: nominal */
+[data-theme="eva"] .eva-core.state-ok.core-mel .eva-core-shape {
+  stroke: var(--eva-melchior);
+  fill: rgba(0, 229, 255, 0.07);
+  filter: drop-shadow(0 0 6px var(--eva-melchior-glow));
+}
+[data-theme="eva"] .eva-core.state-ok.core-bal .eva-core-shape {
+  stroke: var(--eva-balthasar);
+  fill: rgba(0, 255, 102, 0.07);
+  filter: drop-shadow(0 0 6px var(--eva-balthasar-glow));
+}
+[data-theme="eva"] .eva-core.state-ok.core-cas .eva-core-shape {
+  stroke: var(--eva-casper);
+  fill: rgba(255, 51, 68, 0.07);
+  filter: drop-shadow(0 0 6px var(--eva-casper-glow));
+}
+[data-theme="eva"] .eva-core.state-ok .eva-core-stat { fill: #00ff66; }
+[data-theme="eva"] .eva-core.state-ok .eva-core-led { fill: #00ff66; }
+
+/* core state: standby / stale */
+[data-theme="eva"] .eva-core.state-warn .eva-core-shape {
+  stroke: #ff9900;
+  fill: rgba(255, 153, 0, 0.06);
+  filter: drop-shadow(0 0 5px rgba(255, 153, 0, 0.35));
+}
+[data-theme="eva"] .eva-core.state-warn .eva-core-stat { fill: #ff9900; }
+[data-theme="eva"] .eva-core.state-warn .eva-core-led { fill: #ff9900; }
+
+/* core state: error */
+[data-theme="eva"] .eva-core.state-err .eva-core-shape {
+  stroke: #ff3344;
+  fill: rgba(255, 51, 68, 0.08);
+  filter: drop-shadow(0 0 7px rgba(255, 51, 68, 0.5));
+}
+[data-theme="eva"] .eva-core.state-err .eva-core-stat { fill: #ff3344; }
+[data-theme="eva"] .eva-core.state-err .eva-core-led { fill: #ff3344; }
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme="eva"] .eva-core.state-err .eva-core-led,
+  [data-theme="eva"] .eva-core.state-err .eva-core-stat {
+    animation: eva-blink 0.9s steps(1) infinite;
+  }
+}
+
+/* core state: offline / no link */
+[data-theme="eva"] .eva-core.state-off .eva-core-shape {
+  stroke-dasharray: 6 6;
+}
+[data-theme="eva"] .eva-core.state-off .eva-core-stat { fill: #5c6675; }
+
+/* central junction */
+[data-theme="eva"] .eva-hex-shape {
+  fill: rgba(255, 140, 0, 0.05);
+  stroke: #ff9900;
+  stroke-width: 2;
+  filter: drop-shadow(0 0 8px rgba(255, 140, 0, 0.35));
+}
+
+[data-theme="eva"] .eva-hex-label-jp {
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "SimSun", serif;
+  font-size: 13px;
+  letter-spacing: 0.3em;
+  fill: rgba(255, 153, 0, 0.8);
+}
+
+[data-theme="eva"] .eva-hex-sync {
+  font-size: 32px;
+  font-weight: 700;
+  fill: #00ff66;
+  filter: drop-shadow(0 0 8px rgba(0, 255, 102, 0.55));
+}
+
+[data-theme="eva"] .eva-hex-label {
+  font-size: 10px;
+  letter-spacing: 0.32em;
+  fill: #5c6675;
+}
+
+/* --- MAGI MODE boot sequence --- */
+.eva-boot {
+  display: none;
+}
+
+.eva-boot.active {
+  display: flex;
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 140, 0, 0.02) 0 1px, transparent 1px 3px),
+    #050608;
+  align-items: center;
+  justify-content: center;
+  animation: eva-boot-fade 2.6s ease forwards;
+  pointer-events: none;
+}
+
+.eva-boot-inner {
+  text-align: center;
+  font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+}
+
+.eva-boot-title {
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "SimSun", serif;
+  font-size: 3.4rem;
+  font-weight: 800;
+  letter-spacing: 0.32em;
+  color: #ff9900;
+  text-shadow: 0 0 26px rgba(255, 153, 0, 0.6);
+  animation: eva-boot-pop 0.5s ease;
+}
+
+.eva-boot-sub {
+  margin-top: 0.4rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.5em;
+  color: #9aa5b5;
+}
+
+.eva-boot-cores {
+  margin-top: 1.3rem;
+  display: flex;
+  gap: 1.6rem;
+  justify-content: center;
+}
+
+.eva-boot-core {
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  opacity: 0;
+  animation: eva-boot-core-in 0.3s ease forwards;
+}
+
+.eva-boot-core.c1 { color: #00e5ff; text-shadow: 0 0 10px rgba(0, 229, 255, 0.5); animation-delay: 0.35s; }
+.eva-boot-core.c2 { color: #00ff66; text-shadow: 0 0 10px rgba(0, 255, 102, 0.5); animation-delay: 0.65s; }
+.eva-boot-core.c3 { color: #ff3344; text-shadow: 0 0 10px rgba(255, 51, 68, 0.5); animation-delay: 0.95s; }
+
+.eva-boot-bar {
+  width: 340px;
+  height: 8px;
+  border: 1px solid rgba(255, 140, 0, 0.5);
+  margin: 1.2rem auto 0.9rem;
+  padding: 1px;
+}
+
+.eva-boot-bar-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #ff8c00, #ffa500);
+  box-shadow: 0 0 12px rgba(255, 140, 0, 0.6);
+  animation: eva-boot-fill 1.5s 0.45s steps(24) forwards;
+}
+
+.eva-boot-status {
+  font-size: 0.7rem;
+  letter-spacing: 0.3em;
+  color: rgba(255, 153, 0, 0.75);
+}
+
+@keyframes eva-boot-pop {
+  from { transform: scale(1.12); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes eva-boot-core-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes eva-boot-fill {
+  to { width: 100%; }
+}
+
+@keyframes eva-boot-fade {
+  0%, 78% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* HUD responsiveness: hide flavor rows on narrow screens */
+@media (max-width: 700px) {
+  [data-theme="eva"] .brand::after { display: none; }
+  [data-theme="eva"] .eva-clock { display: none; }
 }

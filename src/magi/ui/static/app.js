@@ -21,6 +21,8 @@
       doctor_btn: "🩺 环境体检",
       doctor_btn_title: "环境依赖与规范体检",
       theme_btn_title: "切换深浅配色主题",
+      magi_mode_btn: "⚡ MAGI 模式",
+      magi_mode_btn_title: "开启/关闭 EVA NERV MAGI 战术主题",
 
       // Navigation Tabs
       tab_dashboard: "📊 课题总览",
@@ -258,6 +260,8 @@
       doctor_btn: "🩺 Doctor",
       doctor_btn_title: "Environment Doctor Check",
       theme_btn_title: "Toggle Light/Dark Theme",
+      magi_mode_btn: "⚡ MAGI MODE",
+      magi_mode_btn_title: "Toggle EVA NERV MAGI Command Theme",
 
       // Navigation Tabs
       tab_dashboard: "📊 Dashboard",
@@ -532,6 +536,29 @@
     return nav.startsWith("zh") ? "zh" : "en";
   }
 
+  // Detect default theme
+  function detectInitialTheme() {
+    // Deep-link override: ?theme=eva|dark|light
+    try {
+      const urlTheme = new URLSearchParams(window.location.search).get("theme");
+      if (urlTheme === "eva" || urlTheme === "dark" || urlTheme === "light") {
+        return urlTheme;
+      }
+    } catch (_) {}
+    const savedTheme = safeStorageGet("magi-theme");
+    const savedMagiMode = safeStorageGet("magi-mode");
+    if (savedTheme === "eva" || savedMagiMode === "true") {
+      return "eva";
+    }
+    if (savedTheme === "dark" || savedTheme === "light") {
+      return savedTheme;
+    }
+    if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      return "dark";
+    }
+    return "light";
+  }
+
   // ------------------------------------------------------------------------
   // State
   // ------------------------------------------------------------------------
@@ -544,7 +571,7 @@
     activeJobId: null,
     activeJobName: "",
     eventSource: null,
-    theme: safeStorageGet("magi-theme") || ((typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light"),
+    theme: detectInitialTheme(),
     lang: detectInitialLanguage(),
   };
 
@@ -554,6 +581,9 @@
 
   const els = {
     themeToggleBtn: document.getElementById("theme-toggle-btn"),
+    magiModeBtn: document.getElementById("magi-mode-btn"),
+    evaClock: document.getElementById("eva-clock"),
+    evaBoot: document.getElementById("eva-boot"),
     langToggle: document.getElementById("lang-toggle"),
     langBtnZh: document.getElementById("lang-btn-zh"),
     langBtnEn: document.getElementById("lang-btn-en"),
@@ -695,7 +725,119 @@
     state.theme = theme;
     document.documentElement.setAttribute("data-theme", theme);
     safeStorageSet("magi-theme", theme);
-    els.themeToggleBtn.textContent = theme === "dark" ? "☀️" : "🌓";
+    if (theme === "eva") {
+      safeStorageSet("magi-mode", "true");
+      if (els.magiModeBtn) {
+        els.magiModeBtn.classList.add("active");
+      }
+      const base = safeStorageGet("magi-base-theme") || "dark";
+      if (els.themeToggleBtn) {
+        els.themeToggleBtn.textContent = base === "dark" ? "☀️" : "🌓";
+      }
+    } else {
+      safeStorageSet("magi-mode", "false");
+      safeStorageSet("magi-base-theme", theme);
+      if (els.magiModeBtn) {
+        els.magiModeBtn.classList.remove("active");
+      }
+      if (els.themeToggleBtn) {
+        els.themeToggleBtn.textContent = theme === "dark" ? "☀️" : "🌓";
+      }
+    }
+  }
+
+  // ------------------------------------------------------------------------
+  // EVA MAGI MODE: mission clock, boot sequence, tri-monolith HUD
+  // ------------------------------------------------------------------------
+
+  let evaClockTimer = null;
+  let evaBootTimer = null;
+
+  function startEvaClock() {
+    if (!els.evaClock || evaClockTimer) return;
+    const pad = (n) => String(n).padStart(2, "0");
+    const tick = () => {
+      const d = new Date();
+      els.evaClock.textContent =
+        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+        `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    };
+    tick();
+    evaClockTimer = setInterval(tick, 1000);
+  }
+
+  function runEvaBoot() {
+    const b = els.evaBoot;
+    if (!b) return;
+    if (typeof window !== "undefined" && window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+    b.classList.remove("active");
+    void b.offsetWidth; // restart CSS animations from frame zero
+    b.classList.add("active");
+    if (evaBootTimer) clearTimeout(evaBootTimer);
+    evaBootTimer = setTimeout(() => b.classList.remove("active"), 2600);
+  }
+
+  // Map a sync-report core dict onto HUD state class + tactical readout
+  function evaCoreState(kind, core) {
+    if (!core) return { cls: "state-off", stat: "NO LINK", detail: "--" };
+    if (kind === "mel") {
+      const detail = `${core.concepts || 0} CPT / ${core.references || 0} REF / CLM ${core.claims_verified || 0}/${core.claims || 0}`;
+      if (core.graph === "fresh") return { cls: "state-ok", stat: "NOMINAL", detail };
+      if (core.graph === "empty-wiki") return { cls: "state-warn", stat: "STANDBY", detail };
+      if (core.graph === "stale") return { cls: "state-warn", stat: "STALE", detail };
+      return { cls: "state-warn", stat: "NO GRAPH", detail };
+    }
+    if (kind === "bal") {
+      if (core.state === "disabled") return { cls: "state-off", stat: "OFFLINE", detail: "KB-ONLY PROFILE" };
+      if (!core.bd_installed) return { cls: "state-err", stat: "NO ENGINE", detail: "RUN MAGI SETUP" };
+      if (!core.beads_root) return { cls: "state-warn", stat: "STANDBY", detail: "PM NOT INITIALIZED" };
+      return {
+        cls: "state-ok",
+        stat: "NOMINAL",
+        detail: `RDY ${core.ready ?? 0} / ACT ${core.in_progress ?? 0} / BLK ${core.blocked ?? 0}`,
+      };
+    }
+    // casper
+    if (core.state === "missing" || core.state === "offline") {
+      return { cls: "state-err", stat: "NO INDEX", detail: "RUN MAGI INDEX" };
+    }
+    const casDetail = `${core.chunks || 0} CHUNKS / ${core.vectors || 0} VEC`;
+    if (core.state === "stale") return { cls: "state-warn", stat: "STALE", detail: casDetail };
+    return { cls: "state-ok", stat: "NOMINAL", detail: casDetail };
+  }
+
+  function updateEvaHud(rep) {
+    const hud = document.getElementById("eva-hud");
+    if (!hud) return;
+    const cores = (rep && rep.cores) || {};
+    const mapping = { mel: "melchior", bal: "balthasar", cas: "casper" };
+    for (const [short, full] of Object.entries(mapping)) {
+      const st = evaCoreState(short, cores[full] || null);
+      const g = document.getElementById(`eva-core-${short}`);
+      const statEl = document.getElementById(`eva-${short}-stat`);
+      const detEl = document.getElementById(`eva-${short}-detail`);
+      if (g) {
+        g.classList.remove("state-ok", "state-warn", "state-err", "state-off");
+        g.classList.add(st.cls);
+      }
+      if (statEl) statEl.textContent = st.stat;
+      if (detEl) detEl.textContent = st.detail;
+    }
+
+    const ratio = rep && rep.sync_ratio !== null && rep.sync_ratio !== undefined ? rep.sync_ratio : null;
+    const syncEl = document.getElementById("eva-sync-val");
+    if (syncEl) syncEl.textContent = ratio !== null ? `${ratio}%` : "--%";
+
+    const modeEl = document.getElementById("eva-hud-mode");
+    if (modeEl) {
+      let mode = "STANDBY";
+      if (ratio === 100) mode = "NOMINAL";
+      else if (ratio !== null && ratio < 60) mode = "ALERT";
+      modeEl.textContent = `MODE : ${mode}`;
+      modeEl.classList.toggle("eva-alert", mode === "ALERT");
+    }
   }
 
   // ------------------------------------------------------------------------
@@ -886,8 +1028,10 @@
       } else {
         els.syncRatioBadge.className = "stat-pill info";
       }
+      updateEvaHud(rep);
     } catch (err) {
       els.syncRatioVal.textContent = "--%";
+      updateEvaHud(null);
     }
   }
 
@@ -901,7 +1045,9 @@
     if (state.workspace) {
       try {
         const radar = await apiFetch(`/api/workspace/radar?workspace=${encodeURIComponent(state.workspace)}`);
-        els.dashPendingDigests.textContent = radar.pending_digests ? radar.pending_digests.length : 0;
+        const pendingN = radar.pending_digests ? radar.pending_digests.length : 0;
+        els.dashPendingDigests.textContent = pendingN;
+        els.dashPendingDigests.classList.toggle("eva-alert", pendingN > 0);
       } catch (_) {}
 
       try {
@@ -1204,7 +1350,9 @@
     try {
       const radar = await apiFetch(`/api/workspace/radar?workspace=${encodeURIComponent(state.workspace)}`);
       els.radarSeenCount.textContent = radar.seen_total || 0;
-      els.radarPendingCount.textContent = radar.pending_digests ? radar.pending_digests.length : 0;
+      const radarPendingN = radar.pending_digests ? radar.pending_digests.length : 0;
+      els.radarPendingCount.textContent = radarPendingN;
+      els.radarPendingCount.classList.toggle("eva-alert", radarPendingN > 0);
 
       const digests = radar.digests || [];
       if (!digests.length) {
@@ -1258,7 +1406,16 @@
         `/api/workspace/radar/digest?file=${encodeURIComponent(filename)}&workspace=${encodeURIComponent(state.workspace)}`
       );
       if (window.marked) {
-        els.digestViewer.innerHTML = window.marked.parse(data.content);
+        // Digests carry external data (paper titles/abstracts from S2/arXiv).
+        // Escape raw HTML before markdown parsing so embedded tags render as
+        // text instead of executing in the dashboard. YAML frontmatter is
+        // dropped — marked would misread it as a setext heading.
+        const safeMd = String(data.content)
+          .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+        els.digestViewer.innerHTML = window.marked.parse(safeMd);
       } else {
         els.digestViewer.textContent = data.content;
       }
@@ -1432,10 +1589,32 @@
   // Event Listeners
   // ------------------------------------------------------------------------
 
-  // Theme Toggle
-  els.themeToggleBtn.addEventListener("click", () => {
-    applyTheme(state.theme === "dark" ? "light" : "dark");
-  });
+  // Theme Toggle (Light / Dark)
+  if (els.themeToggleBtn) {
+    els.themeToggleBtn.addEventListener("click", () => {
+      if (state.theme === "eva") {
+        const currentBase = safeStorageGet("magi-base-theme") || "dark";
+        const nextTheme = currentBase === "dark" ? "light" : "dark";
+        applyTheme(nextTheme);
+      } else {
+        applyTheme(state.theme === "dark" ? "light" : "dark");
+      }
+    });
+  }
+
+  // MAGI MODE Toggle
+  if (els.magiModeBtn) {
+    els.magiModeBtn.addEventListener("click", () => {
+      if (state.theme === "eva") {
+        const fallback = safeStorageGet("magi-base-theme") || "dark";
+        applyTheme(fallback);
+      } else {
+        safeStorageSet("magi-base-theme", state.theme);
+        runEvaBoot();
+        applyTheme("eva");
+      }
+    });
+  }
 
   // Language Switcher
   if (els.langBtnZh) {
@@ -1589,5 +1768,14 @@
   // Init
   applyTheme(state.theme);
   setLanguage(state.lang);
+  startEvaClock();
   loadInitialStatus();
+
+  // Deep-link override: ?tab=melchior|operations|...
+  try {
+    const urlTab = new URLSearchParams(window.location.search).get("tab");
+    if (urlTab && document.getElementById(`tab-${urlTab}`)) {
+      switchTab(urlTab);
+    }
+  } catch (_) {}
 })();

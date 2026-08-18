@@ -577,4 +577,214 @@ def test_language_detection_and_js_mechanics(client):
     assert "if (els.doctorModal && els.doctorModal.classList.contains(\"open\"))" in js
 
 
+def test_eva_nerv_theme_architecture_and_css_validity(client):
+    res_css = client.get("/styles.css")
+    assert res_css.status_code == 200
+    css = res_css.text
 
+    # Verify EVA theme selector exists
+    assert '[data-theme="eva"]' in css
+
+    # R1: Verify signature EVA / NERV command bridge color scheme
+    # Tactical black base
+    assert "#07080a" in css
+    assert "#0c0e12" in css
+    assert "#13171f" in css
+    assert "#0d0f14" in css
+
+    # MAGI Terminal Amber/Orange primary alert/brand accents
+    assert "#ff8c00" in css
+    assert "#ffa500" in css
+    assert "#ff9900" in css
+
+    # Melchior Cyan (#00e5ff), Balthasar Sage/Green (#00ff66), Casper Blood Red (#ff3344)
+    assert "#00e5ff" in css
+    assert "#00ff66" in css
+    assert "#ff3344" in css
+
+    # Corner brackets and tactical accents
+    assert '[data-theme="eva"] .card::before' in css
+    assert '[data-theme="eva"] .card::after' in css
+
+    # R2: Three-Core tactical enhancements
+    assert '[data-theme="eva"] #tab-melchior' in css
+    assert '[data-theme="eva"] #tab-balthasar' in css
+    assert '[data-theme="eva"] #tab-casper' in css
+    assert '[data-theme="eva"] .tab-btn[data-tab="melchior"].active' in css
+    assert '[data-theme="eva"] .tab-btn[data-tab="balthasar"].active' in css
+    assert '[data-theme="eva"] .tab-btn[data-tab="casper"].active' in css
+    assert '[data-theme="eva"] #sync-ratio-badge' in css
+    assert '[data-theme="eva"] #active-jobs-badge' in css
+    assert '[data-theme="eva"] .status-dot' in css
+    assert '[data-theme="eva"] .pane-list' in css
+    assert '[data-theme="eva"] .search-hit-card' in css
+    assert '[data-theme="eva"] .terminal-container' in css
+    assert '[data-theme="eva"] .terminal-body' in css
+    assert '[data-theme="eva"] .terminal-btn' in css
+    assert '[data-theme="eva"] .terminal-cancel-btn' in css
+
+
+def test_eva_theme_dom_and_js_mechanics(client):
+    res_html = client.get("/")
+    assert res_html.status_code == 200
+    html = res_html.text
+
+    # Verify MAGI MODE toggle button exists in topbar with proper i18n hooks
+    assert 'id="magi-mode-btn"' in html
+    assert 'data-i18n="magi_mode_btn"' in html
+    assert 'data-i18n-title="magi_mode_btn_title"' in html
+
+    # Verify terminal controls use CSS classes without hardcoded inline background/colors
+    assert 'class="terminal-autoscroll-label"' in html
+    assert 'class="btn btn-secondary btn-sm terminal-btn terminal-cancel-btn"' in html
+    assert 'class="btn btn-secondary btn-sm terminal-btn"' in html
+
+    res_js = client.get("/app.js")
+    assert res_js.status_code == 200
+    js = res_js.text
+
+    # Verify state, DOM element binding, and theme switcher logic
+    assert "magiModeBtn: document.getElementById(\"magi-mode-btn\")" in js
+    assert "detectInitialTheme" in js
+    assert 'safeStorageSet("magi-mode", "true")' in js
+    assert 'safeStorageSet("magi-mode", "false")' in js
+    assert 'safeStorageSet("magi-base-theme"' in js
+    assert 'els.magiModeBtn.addEventListener("click"' in js
+
+
+def test_i18n_dictionary_symmetry_and_html_coverage(client):
+    import re
+    res_html = client.get("/")
+    assert res_html.status_code == 200
+    html = res_html.text
+
+    res_js = client.get("/app.js")
+    assert res_js.status_code == 200
+    js = res_js.text
+
+    # Extract all HTML data-i18n tags
+    html_keys = set(re.findall(r'data-i18n(?:-title|-placeholder)?="([a-zA-Z0-9_]+)"', html))
+    assert len(html_keys) > 0
+    assert "magi_mode_btn" in html_keys
+    assert "magi_mode_btn_title" in html_keys
+
+    # Extract zh and en dictionary blocks
+    zh_start = js.find("zh: {")
+    en_start = js.find("en: {")
+    storage_start = js.find("// Safe localStorage")
+    assert zh_start != -1 and en_start != -1 and storage_start != -1
+
+    zh_block = js[zh_start:en_start]
+    en_block = js[en_start:storage_start]
+
+    zh_keys = set(re.findall(r'^\s*([a-zA-Z0-9_]+)\s*:', zh_block, re.MULTILINE))
+    en_keys = set(re.findall(r'^\s*([a-zA-Z0-9_]+)\s*:', en_block, re.MULTILINE))
+    # The block-opening labels themselves ("zh: {" / "en: {") match the key
+    # regex but are not translation keys.
+    zh_keys.discard("zh")
+    en_keys.discard("en")
+
+    # Test dictionary key symmetry
+    missing_in_en = zh_keys - en_keys
+    missing_in_zh = en_keys - zh_keys
+    assert not missing_in_en, f"Keys present in zh but missing in en: {missing_in_en}"
+    assert not missing_in_zh, f"Keys present in en but missing in zh: {missing_in_zh}"
+
+    # Test that all HTML keys are covered in translations
+    untranslated_zh = html_keys - zh_keys
+    untranslated_en = html_keys - en_keys
+    assert not untranslated_zh, f"HTML keys missing in zh dictionary: {untranslated_zh}"
+    assert not untranslated_en, f"HTML keys missing in en dictionary: {untranslated_en}"
+
+
+def test_eva_completion_layer_hud_boot_and_tactical_css(client):
+    css = client.get("/styles.css").text
+
+    # CRT scanline overlay + honeycomb field watermark
+    assert '[data-theme="eva"] body::before' in css
+    assert "data:image/svg+xml" in css
+
+    # Chamfered tactical controls and hazard striping on danger surfaces
+    assert "clip-path: polygon(" in css
+    assert "repeating-linear-gradient(-45deg, #ffb000" in css
+
+    # Motion is opt-in: animations gated behind reduced-motion media query
+    assert "@media (prefers-reduced-motion: no-preference)" in css
+
+    # Tri-monolith HUD, core state machine, boot sequence
+    assert '[data-theme="eva"] .eva-hud' in css
+    assert ".eva-boot.active" in css
+    assert ".eva-core.state-ok.core-mel .eva-core-shape" in css
+    assert ".eva-core.state-warn .eva-core-stat" in css
+    assert ".eva-core.state-err .eva-core-shape" in css
+    assert ".eva-core.state-off .eva-core-shape" in css
+    assert ".eva-hex-sync" in css
+    assert ".eva-clock" in css
+
+    html = client.get("/").text
+    assert 'id="eva-hud"' in html
+    assert 'id="eva-boot"' in html
+    assert 'id="eva-clock"' in html
+    for el_id in (
+        "eva-core-mel", "eva-core-bal", "eva-core-cas",
+        "eva-mel-stat", "eva-bal-stat", "eva-cas-stat",
+        "eva-mel-detail", "eva-bal-detail", "eva-cas-detail",
+        "eva-sync-val", "eva-hud-mode",
+    ):
+        assert f'id="{el_id}"' in html, f"HUD element #{el_id} missing"
+    assert "MELCHIOR" in html and "BALTHASAR" in html and "CASPER" in html
+
+    # Decorative layers must not leak into the accessibility tree
+    assert 'id="eva-hud" aria-hidden="true"' in html
+    assert 'id="eva-boot" aria-hidden="true"' in html
+
+    js = client.get("/app.js").text
+    for sym in ("startEvaClock", "runEvaBoot", "updateEvaHud", "evaCoreState"):
+        assert sym in js, f"JS symbol {sym} missing"
+    assert 'classList.toggle("eva-alert"' in js
+    assert "prefers-reduced-motion" in js
+
+
+def test_vendored_marked_is_complete_and_digests_escape_html(client):
+    # v1.1.0 shipped a truncated marked.min.js (12.9KB of ~40KB) that failed to
+    # parse, silently disabling all markdown rendering. Guard against recurrence.
+    res = client.get("/vendor/marked.min.js")
+    assert res.status_code == 200
+    body = res.text
+    assert len(body) > 30000, f"marked.min.js looks truncated ({len(body)} bytes)"
+    assert "module.exports" in body[-500:], "marked.min.js does not end cleanly"
+
+    # Digest content is external data (S2/arXiv titles); it must be
+    # HTML-escaped before going through marked.parse.
+    js = client.get("/app.js").text
+    assert "safeMd" in js
+    assert 'replace(/</g, "&lt;")' in js
+
+
+def test_host_allowlist_blocks_dns_rebinding(client):
+    # DNS rebinding delivers a foreign Host header to 127.0.0.1; the
+    # TrustedHostMiddleware must reject it before any route runs.
+    res = client.get("/api/status", headers={"Host": "evil.example.com"})
+    assert res.status_code == 400
+
+    for good_host in ("testserver", "127.0.0.1", "localhost", "127.0.0.1:8000"):
+        res = client.get("/api/status", headers={"Host": good_host})
+        assert res.status_code == 200, f"Host {good_host} should be allowed"
+
+
+def test_no_cors_headers_emitted(client):
+    # Design mandate: no CORS headers at all. JSON-body mutations then force a
+    # preflight that always fails cross-origin, making the API CSRF-free.
+    res = client.get("/api/status", headers={"Origin": "https://evil.example.com"})
+    assert res.status_code == 200
+    assert "access-control-allow-origin" not in {k.lower() for k in res.headers.keys()}
+
+    res = client.options(
+        "/api/jobs",
+        headers={
+            "Origin": "https://evil.example.com",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert "access-control-allow-origin" not in {k.lower() for k in res.headers.keys()}

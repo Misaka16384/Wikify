@@ -15,8 +15,9 @@
       <div class="brand-icon">M</div>
       <div>
         <span class="brand-title">MAGI</span>
-        <span class="brand-badge" id="app-version">v1.1.1</span>
+        <span class="brand-badge" id="app-version">v1.1.2</span>
       </div>
+      <span class="eva-clock" id="eva-clock" aria-hidden="true"></span>
     </div>
 
     <div class="topbar-controls">
@@ -42,6 +43,9 @@
         <button type="button" class="lang-pill" data-lang="en" id="lang-btn-en">EN</button>
       </div>
 
+      <!-- MAGI MODE Toggle Button -->
+      <button class="icon-btn magi-mode-btn" id="magi-mode-btn" title="Toggle EVA NERV MAGI Command Theme" data-i18n-title="magi_mode_btn_title" data-i18n="magi_mode_btn">⚡ MAGI MODE</button>
+
       <button class="icon-btn" id="doctor-btn" title="Environment Doctor Check" data-i18n-title="doctor_btn_title" data-i18n="doctor_btn">🩺 Doctor</button>
       <button class="icon-btn" id="theme-toggle-btn" title="Toggle Light/Dark Theme" data-i18n-title="theme_btn_title">🌓</button>
     </div>
@@ -63,6 +67,71 @@
 
     <!-- Tab 1: Dashboard -->
     <section id="tab-dashboard" class="tab-panel active">
+
+      <!-- EVA MAGI MODE tactical HUD (decorative; rendered only under data-theme="eva") -->
+      <div class="eva-hud" id="eva-hud" aria-hidden="true">
+        <div class="eva-hud-frame">
+          <div class="eva-hud-header">
+            <span class="eva-hud-title">MAGI SYSTEM <span class="eva-hud-jp">三賢者統合思考体</span></span>
+            <span class="eva-hud-code" id="eva-hud-mode">MODE : STANDBY</span>
+          </div>
+          <svg class="eva-monolith" viewBox="0 0 920 400" role="img" aria-label="MAGI three-core status diagram">
+            <!-- frame ruler + flavor text -->
+            <line class="eva-ruler" x1="60" y1="18" x2="860" y2="18" />
+            <text class="eva-flavor" x="60" y="394" text-anchor="start">SYS 3.31 REV.0682 — DELIBERATION LINK ESTABLISHED</text>
+            <text class="eva-flavor" x="860" y="394" text-anchor="end">PRIORITY : AAA</text>
+
+            <!-- inter-core buses (triangle + center taps) -->
+            <line class="eva-bus" x1="205" y1="150" x2="310" y2="300" />
+            <line class="eva-bus" x1="715" y1="150" x2="610" y2="300" />
+            <line class="eva-bus" x1="344" y1="116" x2="433" y2="131" />
+            <line class="eva-bus" x1="576" y1="116" x2="487" y2="131" />
+            <line class="eva-bus" x1="460" y1="260" x2="460" y2="240" />
+            <line class="eva-bus-flow" x1="344" y1="116" x2="433" y2="131" />
+            <line class="eva-bus-flow" x1="576" y1="116" x2="487" y2="131" />
+            <line class="eva-bus-flow" x1="460" y1="260" x2="460" y2="240" />
+
+            <!-- CASPER-3 (top left) -->
+            <g class="eva-core core-cas state-off" id="eva-core-cas">
+              <polygon class="eva-core-shape" points="78,40 350,40 350,132 332,150 60,150 60,58" />
+              <rect class="eva-core-led" x="330" y="48" width="10" height="10" />
+              <text class="eva-core-code" x="78" y="62" text-anchor="start">MAGI·03 <tspan class="eva-core-jp">女性</tspan></text>
+              <text class="eva-core-name" x="205" y="97" text-anchor="middle">CASPER·3</text>
+              <text class="eva-core-stat" id="eva-cas-stat" x="205" y="121" text-anchor="middle">NO LINK</text>
+              <text class="eva-core-detail" id="eva-cas-detail" x="205" y="140" text-anchor="middle">--</text>
+            </g>
+
+            <!-- BALTHASAR-2 (top right) -->
+            <g class="eva-core core-bal state-off" id="eva-core-bal">
+              <polygon class="eva-core-shape" points="570,40 842,40 860,58 860,150 588,150 570,132" />
+              <rect class="eva-core-led" x="580" y="48" width="10" height="10" />
+              <text class="eva-core-code" x="842" y="62" text-anchor="end">MAGI·02 <tspan class="eva-core-jp">母親</tspan></text>
+              <text class="eva-core-name" x="715" y="97" text-anchor="middle">BALTHASAR·2</text>
+              <text class="eva-core-stat" id="eva-bal-stat" x="715" y="121" text-anchor="middle">NO LINK</text>
+              <text class="eva-core-detail" id="eva-bal-detail" x="715" y="140" text-anchor="middle">--</text>
+            </g>
+
+            <!-- MELCHIOR-1 (bottom center) -->
+            <g class="eva-core core-mel state-off" id="eva-core-mel">
+              <polygon class="eva-core-shape" points="310,260 610,260 610,352 592,370 328,370 310,352" />
+              <rect class="eva-core-led" x="590" y="268" width="10" height="10" />
+              <text class="eva-core-code" x="328" y="282" text-anchor="start">MAGI·01 <tspan class="eva-core-jp">科学者</tspan></text>
+              <text class="eva-core-name" x="460" y="317" text-anchor="middle">MELCHIOR·1</text>
+              <text class="eva-core-stat" id="eva-mel-stat" x="460" y="341" text-anchor="middle">NO LINK</text>
+              <text class="eva-core-detail" id="eva-mel-detail" x="460" y="360" text-anchor="middle">--</text>
+            </g>
+
+            <!-- central junction hexagon: sync ratio -->
+            <g class="eva-hex-core">
+              <polygon class="eva-hex-shape" points="460,116 514,147 514,209 460,240 406,209 406,147" />
+              <text class="eva-hex-label-jp" x="460" y="152" text-anchor="middle">同調率</text>
+              <text class="eva-hex-sync" id="eva-sync-val" x="460" y="192" text-anchor="middle">--%</text>
+              <text class="eva-hex-label" x="460" y="218" text-anchor="middle">SYNC RATIO</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+
       <div class="grid-4">
         <div class="card metric-box">
           <span class="metric-label" data-i18n="dash_sync_label">Sync Ratio</span>
@@ -387,11 +456,11 @@
             <span id="term-job-name" data-i18n="term_idle">Terminal: Idle</span>
           </div>
           <div style="display: flex; gap: 0.5rem; align-items: center;">
-            <label style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; color: #B0AEA5; cursor: pointer;">
+            <label class="terminal-autoscroll-label" style="display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; cursor: pointer;">
               <input type="checkbox" id="term-autoscroll" checked> <span data-i18n="term_autoscroll_label">Auto-scroll</span>
             </label>
-            <button class="btn btn-secondary btn-sm" id="term-cancel-btn" style="display: none; background: #2A2A27; color: #D95D5D; border-color: #3E3E38;" data-i18n="btn_term_cancel">Cancel Job</button>
-            <button class="btn btn-secondary btn-sm" id="term-clear-btn" style="background: #2A2A27; color: #ECEAE4; border-color: #3E3E38;" data-i18n="btn_term_clear">Clear</button>
+            <button class="btn btn-secondary btn-sm terminal-btn terminal-cancel-btn" id="term-cancel-btn" style="display: none;" data-i18n="btn_term_cancel">Cancel Job</button>
+            <button class="btn btn-secondary btn-sm terminal-btn" id="term-clear-btn" data-i18n="btn_term_clear">Clear</button>
           </div>
         </div>
         <div class="terminal-body" id="terminal-output" data-i18n="term_ready_msg">Ready. Run an operation above to view real-time log output.</div>
@@ -438,6 +507,21 @@
       <div class="modal-footer">
         <button class="btn btn-primary" id="doctor-modal-close" data-i18n="btn_doc_close">Close</button>
       </div>
+    </div>
+  </div>
+
+  <!-- MAGI MODE boot sequence overlay (plays once when MAGI MODE is engaged) -->
+  <div class="eva-boot" id="eva-boot" aria-hidden="true">
+    <div class="eva-boot-inner">
+      <div class="eva-boot-title">MAGI SYSTEM</div>
+      <div class="eva-boot-sub">CONNECTING TRIPLE CORE</div>
+      <div class="eva-boot-cores">
+        <span class="eva-boot-core c1">MELCHIOR·1</span>
+        <span class="eva-boot-core c2">BALTHASAR·2</span>
+        <span class="eva-boot-core c3">CASPER·3</span>
+      </div>
+      <div class="eva-boot-bar"><div class="eva-boot-bar-fill"></div></div>
+      <div class="eva-boot-status">SYNCHRONIZATION IN PROGRESS — 同調開始</div>
     </div>
   </div>
 
