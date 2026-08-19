@@ -18,6 +18,28 @@ Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 
 ## 🌟 Showcase
 
+### MAGI MODE — the WebUI tactical theme
+
+`magi ui` opens a local web console (default `http://127.0.0.1:8737`) with three themes: Institute light / dark, and the headline **EVA "MAGI MODE"** — a full NERV command-deck visual system with two alert states, **red combat** and **blue quiet-watch**:
+
+![MAGI MODE, red combat state](./docs/webui-magi-red.jpg)
+*Red combat: the tri-sage HUD, full-bleed EVA artwork, liquid-glass panels, and an amber breathing glow hugging the viewport edges.*
+
+![MAGI MODE, blue quiet-watch state](./docs/webui-magi-blue.jpg)
+*Blue quiet-watch: the same HUD as a true light mode — white-frosted glass, dark cyan ink, a cyan edge glow.*
+
+![Liquid glass](./docs/webui-glass.jpg)
+*iOS-material liquid glass: the artwork reads through every panel while text stays legible; the ◐ tuner (bottom-right) adjusts blur / opacity / CRT scanlines live.*
+
+![Knowledge graph view](./docs/webui-graph.jpg)
+*An Obsidian-style force-directed graph: drag to arrange, scroll to zoom, hover to focus a neighbourhood, click to drill into links — unresolved wikilinks render as ghost nodes.*
+
+- Light/dark and MAGI MODE act **independently**: light base → blue state, dark base → red state; ☀︎/☽ switches the alert state inside the mode
+- Backdrops are aspect-matched to your screen, rotate on tab switches with a smooth crossfade, and are fully replaceable via `~/.config/magi/ui-backgrounds/{blue,red}/`
+- Every animation respects `prefers-reduced-motion`; the UI is bilingual (中 / EN) with one click
+
+### The knowledge base itself
+
 ![Knowledge Graph Visualization](./graph.png)
 *An automatically generated dense semantic graph of physics and math concepts.*
 
