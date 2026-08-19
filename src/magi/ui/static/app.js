@@ -377,6 +377,12 @@
       graph_map_empty: "图谱为空——先运行 magi graph build 构建知识图谱。",
       graph_map_truncated: "节点较多，已按连接度显示前 {n} 个",
       graph_map_no_d3: "图谱物理引擎未加载——请检查 /vendor/d3-*.min.js 是否可访问",
+
+      // Liquid-glass tuner
+      glass_btn_title: "玻璃材质调节（模糊 / 不透明度）",
+      glass_blur_label: "模糊",
+      glass_alpha_label: "不透明",
+      glass_reset: "重置",
       graph_th_title: "标题",
       graph_th_type: "类型",
       graph_th_degree: "连接度",
@@ -763,6 +769,12 @@
       graph_map_empty: "The graph is empty — run magi graph build first.",
       graph_map_truncated: "Large graph — showing the top {n} nodes by degree",
       graph_map_no_d3: "Graph physics library failed to load — check /vendor/d3-*.min.js",
+
+      // Liquid-glass tuner
+      glass_btn_title: "Glass material tuning (blur / opacity)",
+      glass_blur_label: "Blur",
+      glass_alpha_label: "Opacity",
+      glass_reset: "Reset",
       graph_th_title: "Title",
       graph_th_type: "Type",
       graph_th_degree: "Degree",
@@ -930,6 +942,14 @@
     graphMapCanvas: document.getElementById("graph-map-canvas"),
     graphMapTags: document.getElementById("graph-map-tags"),
     graphMapNote: document.getElementById("graph-map-note"),
+    // Liquid-glass tuner
+    glassTunerBtn: document.getElementById("glass-tuner-btn"),
+    glassTunerPanel: document.getElementById("glass-tuner-panel"),
+    glassBlurRange: document.getElementById("glass-blur-range"),
+    glassAlphaRange: document.getElementById("glass-alpha-range"),
+    glassBlurVal: document.getElementById("glass-blur-val"),
+    glassAlphaVal: document.getElementById("glass-alpha-val"),
+    glassResetBtn: document.getElementById("glass-reset-btn"),
     graphQ: document.getElementById("graph-q"),
     graphType: document.getElementById("graph-type"),
     graphBrowseContainer: document.getElementById("graph-browse-container"),
@@ -1200,6 +1220,61 @@
     if (bgResizeTimer) clearTimeout(bgResizeTimer);
     bgResizeTimer = setTimeout(() => applyBackground("fit"), 400);
   });
+
+  // ------------------------------------------------------------------------
+  // Liquid-glass tuner
+  //
+  // Two knobs drive every glass panel via the --glass-blur / --glass-alpha
+  // custom properties (see the EVA token block in styles.css). Values are
+  // per-browser preferences; at the defaults the inline overrides are
+  // removed so the stylesheet's own numbers stay authoritative.
+  // ------------------------------------------------------------------------
+
+  const GLASS_DEFAULTS = { blur: 10, alpha: 100 };
+
+  function glassSetting(key, fallback) {
+    const v = parseInt(safeStorageGet(key), 10);
+    return Number.isFinite(v) ? v : fallback;
+  }
+
+  function applyGlassSettings() {
+    const blur = glassSetting("magi-glass-blur", GLASS_DEFAULTS.blur);
+    const alpha = glassSetting("magi-glass-alpha", GLASS_DEFAULTS.alpha);
+    const root = document.documentElement.style;
+    if (blur === GLASS_DEFAULTS.blur) root.removeProperty("--glass-blur");
+    else root.setProperty("--glass-blur", `${blur}px`);
+    if (alpha === GLASS_DEFAULTS.alpha) root.removeProperty("--glass-alpha");
+    else root.setProperty("--glass-alpha", String(alpha / 100));
+    if (els.glassBlurRange) els.glassBlurRange.value = blur;
+    if (els.glassAlphaRange) els.glassAlphaRange.value = alpha;
+    if (els.glassBlurVal) els.glassBlurVal.textContent = `${blur}px`;
+    if (els.glassAlphaVal) els.glassAlphaVal.textContent = `${alpha}%`;
+  }
+
+  if (els.glassTunerBtn) {
+    els.glassTunerBtn.addEventListener("click", () => {
+      els.glassTunerPanel.classList.toggle("open");
+    });
+  }
+  if (els.glassBlurRange) {
+    els.glassBlurRange.addEventListener("input", () => {
+      safeStorageSet("magi-glass-blur", els.glassBlurRange.value);
+      applyGlassSettings();
+    });
+  }
+  if (els.glassAlphaRange) {
+    els.glassAlphaRange.addEventListener("input", () => {
+      safeStorageSet("magi-glass-alpha", els.glassAlphaRange.value);
+      applyGlassSettings();
+    });
+  }
+  if (els.glassResetBtn) {
+    els.glassResetBtn.addEventListener("click", () => {
+      safeStorageSet("magi-glass-blur", String(GLASS_DEFAULTS.blur));
+      safeStorageSet("magi-glass-alpha", String(GLASS_DEFAULTS.alpha));
+      applyGlassSettings();
+    });
+  }
 
   // ------------------------------------------------------------------------
   // EVA MAGI MODE: mission clock, boot sequence, tri-monolith HUD
@@ -3437,6 +3512,7 @@
   loadInitialStatus();
   loadOpsCatalog();
   initBackgrounds();
+  applyGlassSettings();
 
   // Deep-link override: ?tab=melchior|operations|...
   try {

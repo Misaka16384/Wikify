@@ -222,6 +222,11 @@
   --eva-p-ember: #E05E00;
   --eva-bg-rgb: 5, 6, 8;
 
+  /* Liquid-glass tuning knobs — the in-page tuner drives these two via
+     inline style; every glass panel derives its blur and tint from them. */
+  --glass-blur: 10px;
+  --glass-alpha: 1;
+
   --font-eva-display: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP",
     "Songti SC", "SimSun", "MS PMincho", serif;
 }
@@ -2160,9 +2165,9 @@ details.advanced-sql > summary {
    -------------------------------------------------------------------------- */
 
 [data-theme="eva"] .topbar {
-  background-color: rgba(var(--eva-bg-rgb), 0.42);
-  -webkit-backdrop-filter: blur(12px) saturate(1.8) brightness(0.72);
-  backdrop-filter: blur(12px) saturate(1.8) brightness(0.72);
+  background-color: rgba(var(--eva-bg-rgb), calc(0.42 * var(--glass-alpha)));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.2)) saturate(1.8) brightness(0.72);
+  backdrop-filter: blur(calc(var(--glass-blur) * 1.2)) saturate(1.8) brightness(0.72);
   border-bottom: 1px solid rgba(var(--eva-p), 0.3);
   box-shadow: 0 2px 16px rgba(var(--eva-p), 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
@@ -2174,9 +2179,9 @@ details.advanced-sql > summary {
 
 /* Same band, NERV dialect: per-core channel colours, mono type, a glowing rail. */
 [data-theme="eva"] .core-band {
-  background-color: rgba(var(--eva-bg-rgb), 0.35);
-  -webkit-backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
-  backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
+  background-color: rgba(var(--eva-bg-rgb), calc(0.35 * var(--glass-alpha)));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.8) brightness(0.72);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.8) brightness(0.72);
   border-bottom: 1px solid rgba(var(--eva-p), 0.28);
 }
 
@@ -2295,9 +2300,9 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .tabs-nav {
-  background-color: rgba(var(--eva-bg-rgb), 0.3);
-  -webkit-backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
-  backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
+  background-color: rgba(var(--eva-bg-rgb), calc(0.3 * var(--glass-alpha)));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.8) brightness(0.72);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.8) brightness(0.72);
   border-bottom: 1px solid rgba(var(--eva-p), 0.25);
 }
 
@@ -2363,9 +2368,9 @@ details.advanced-sql > summary {
    --eva-bg-rgb so the blue variant's glass runs cold. */
 [data-theme="eva"] .card {
   position: relative;
-  background: linear-gradient(150deg, rgba(var(--eva-bg-rgb), 0.3), rgba(var(--eva-bg-rgb), 0.44));
-  -webkit-backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
-  backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
+  background: linear-gradient(150deg, rgba(var(--eva-bg-rgb), calc(0.3 * var(--glass-alpha))), rgba(var(--eva-bg-rgb), calc(0.44 * var(--glass-alpha))));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.8) brightness(0.72);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.8) brightness(0.72);
   border: 1px solid rgba(var(--eva-p), 0.2);
   border-radius: 3px;
   box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45),
@@ -2525,16 +2530,16 @@ details.advanced-sql > summary {
 
 /* panes, rows, tables */
 [data-theme="eva"] .graph-map-wrap {
-  background-color: rgba(var(--eva-bg-rgb), 0.3);
+  background-color: rgba(var(--eva-bg-rgb), calc(0.3 * var(--glass-alpha)));
   border-color: rgba(var(--eva-p), 0.2);
 }
 
 [data-theme="eva"] .graph-map-toggle,
 [data-theme="eva"] .graph-map-note,
 [data-theme="eva"] .graph-map-hint {
-  background-color: rgba(var(--eva-bg-rgb), 0.55);
-  -webkit-backdrop-filter: blur(8px) saturate(1.6);
-  backdrop-filter: blur(8px) saturate(1.6);
+  background-color: rgba(var(--eva-bg-rgb), calc(0.55 * var(--glass-alpha)));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(1.6);
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(1.6);
   border-color: rgba(var(--eva-p), 0.25);
 }
 
@@ -2542,15 +2547,15 @@ details.advanced-sql > summary {
 
 [data-theme="eva"] .pane-list,
 [data-theme="eva"] .pane-view {
-  background-color: rgba(var(--eva-bg-rgb), 0.32);
-  -webkit-backdrop-filter: blur(9px) saturate(1.8) brightness(0.72);
-  backdrop-filter: blur(9px) saturate(1.8) brightness(0.72);
+  background-color: rgba(var(--eva-bg-rgb), calc(0.32 * var(--glass-alpha)));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.9)) saturate(1.8) brightness(0.72);
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.9)) saturate(1.8) brightness(0.72);
   border-color: rgba(var(--eva-p), 0.2);
   border-radius: 3px;
 }
 
 [data-theme="eva"] .pane-list-header {
-  background-color: rgba(var(--eva-bg-rgb), 0.5);
+  background-color: rgba(var(--eva-bg-rgb), calc(0.5 * var(--glass-alpha)));
   font-family: var(--font-mono);
   color: var(--eva-p-soft);
   letter-spacing: 0.04em;
@@ -2704,13 +2709,13 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .terminal-body {
-  background-color: rgba(var(--eva-bg-rgb), 0.42);
-  -webkit-backdrop-filter: blur(10px) saturate(1.7) brightness(0.65);
-  backdrop-filter: blur(10px) saturate(1.7) brightness(0.65);
+  background-color: rgba(var(--eva-bg-rgb), calc(0.42 * var(--glass-alpha)));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.7) brightness(0.65);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.7) brightness(0.65);
 }
 
 [data-theme="eva"] .terminal-header {
-  background-color: rgba(var(--eva-bg-rgb), 0.5);
+  background-color: rgba(var(--eva-bg-rgb), calc(0.5 * var(--glass-alpha)));
 }
 
 [data-theme="eva"] .terminal-header {
@@ -2809,9 +2814,9 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .modal-window {
-  background-color: rgba(var(--eva-bg-rgb), 0.6);
-  -webkit-backdrop-filter: blur(16px) saturate(1.8) brightness(0.7);
-  backdrop-filter: blur(16px) saturate(1.8) brightness(0.7);
+  background-color: rgba(var(--eva-bg-rgb), calc(0.6 * var(--glass-alpha)));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(1.8) brightness(0.7);
+  backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(1.8) brightness(0.7);
   border: 1px solid rgba(var(--eva-p), 0.4);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.95), 0 0 24px rgba(var(--eva-p), 0.16);
   border-radius: 0;
@@ -2920,9 +2925,9 @@ details.advanced-sql > summary {
 [data-theme="eva"] .eva-hud-frame {
   position: relative;
   border: 1px solid rgba(var(--eva-p), 0.35);
-  background: linear-gradient(180deg, rgba(var(--eva-bg-rgb), 0.32), rgba(var(--eva-bg-rgb), 0.48));
-  -webkit-backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
-  backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
+  background: linear-gradient(180deg, rgba(var(--eva-bg-rgb), calc(0.32 * var(--glass-alpha))), rgba(var(--eva-bg-rgb), calc(0.48 * var(--glass-alpha))));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.8) brightness(0.72);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.8) brightness(0.72);
   padding: 0.9rem 1.1rem 0.6rem;
   box-shadow: 0 0 24px rgba(var(--eva-p), 0.07), inset 0 0 40px rgba(var(--eva-p), 0.03),
     inset 0 1px 0 rgba(255, 255, 255, 0.09);
@@ -3248,4 +3253,86 @@ details.advanced-sql > summary {
   [data-theme="eva"] .brand::after { display: none; }
   [data-theme="eva"] .eva-clock { display: none; }
   [data-theme="eva"] .tab-btn::before { display: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Liquid-glass tuner — a small calibration widget pinned bottom-right,
+   MAGI MODE only (glass exists only there). Its own panel uses a fixed
+   recipe so it stays legible even with the knobs at zero.
+   -------------------------------------------------------------------------- */
+
+.glass-tuner { display: none; }
+
+[data-theme="eva"] .glass-tuner {
+  display: block;
+  position: fixed;
+  right: 0.9rem;
+  bottom: 2.4rem;
+  z-index: 400;
+}
+
+[data-theme="eva"] .glass-tuner-btn {
+  width: 36px;
+  height: 30px;
+  background-color: rgba(var(--eva-bg-rgb), 0.72);
+  border: 1px solid rgba(var(--eva-p), 0.35);
+  border-radius: 2px;
+  color: var(--eva-p-strong);
+  font-size: 0.92rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+[data-theme="eva"] .glass-tuner-btn:hover {
+  border-color: rgba(var(--eva-p), 0.7);
+  box-shadow: 0 0 10px rgba(var(--eva-p), 0.25);
+}
+
+[data-theme="eva"] .glass-tuner-panel {
+  display: none;
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 0.5rem);
+  width: 248px;
+  padding: 0.8rem 0.9rem 0.7rem;
+  background-color: rgba(var(--eva-bg-rgb), 0.88);
+  -webkit-backdrop-filter: blur(12px) saturate(1.5);
+  backdrop-filter: blur(12px) saturate(1.5);
+  border: 1px solid rgba(var(--eva-p), 0.35);
+  border-radius: 2px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="eva"] .glass-tuner-panel.open { display: block; }
+
+.glass-tuner-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+}
+
+.glass-tuner-row label {
+  flex: none;
+  width: 4.4em;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.glass-tuner-row input[type="range"] {
+  flex: 1 1 auto;
+  min-width: 0;
+  accent-color: var(--eva-p-strong);
+}
+
+.glass-tuner-val {
+  flex: none;
+  width: 3.4em;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--eva-p-bright);
 }
