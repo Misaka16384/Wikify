@@ -405,23 +405,39 @@ body {
 }
 
 .brand-icon {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   flex: 0 0 auto;
-  background-color: var(--accent-primary);
-  color: var(--bg-surface);
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-family: var(--font-display);
-  font-size: 1.05rem;
+  color: var(--accent-primary);
 }
+
+.brand-mark {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.bm-hex {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.6;
+  stroke-linejoin: round;
+}
+
+.bm-bus {
+  stroke: currentColor;
+  stroke-width: 1.3;
+  opacity: 0.45;
+}
+
+/* one node per core, riding the same identity tokens as the HUD */
+.bm-mel { fill: var(--accent-blue); }
+.bm-bal { fill: var(--accent-sage); }
+.bm-cas { fill: var(--accent-danger); }
 
 .brand-title {
   font-family: var(--font-display);
-  font-size: 1.22rem;
+  font-size: 1.32rem;
   font-weight: 600;
   color: var(--text-primary);
   letter-spacing: 0.05em;
@@ -862,14 +878,14 @@ body {
 
 .card-title {
   font-family: var(--font-display);
-  font-size: 1.04rem;
+  font-size: 1.18rem;
   font-weight: 600;
   color: var(--text-primary);
   letter-spacing: 0.005em;
 }
 
 .card-subtitle {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
@@ -900,16 +916,16 @@ body {
 }
 
 .metric-label {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   color: var(--text-secondary);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
 }
 
 .metric-value {
   font-family: var(--font-display);
-  font-size: clamp(1.55rem, 1.3rem + 0.8vw, 1.95rem);
+  font-size: clamp(1.9rem, 1.55rem + 1.1vw, 2.5rem);
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.15;
@@ -1310,7 +1326,7 @@ textarea.text-input {
 .tone-primary { color: var(--accent-primary); }
 .tone-danger { color: var(--accent-danger); }
 
-.metric-value-sm { font-size: 1.25rem; }
+.metric-value-sm { font-size: 1.45rem; }
 
 .empty-cell {
   text-align: center;
@@ -2311,13 +2327,26 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .brand-icon {
-  background: linear-gradient(135deg, var(--eva-p-soft), var(--eva-p-ember));
-  box-shadow: 0 0 12px rgba(var(--eva-p), 0.45);
-  font-family: var(--font-mono);
-  font-weight: 800;
-  border: 1px solid rgba(var(--eva-p), 0.55);
-  color: #07080A;
-  border-radius: 2px;
+  color: var(--eva-p-strong);
+  filter: drop-shadow(0 0 6px rgba(var(--eva-p), 0.45));
+}
+
+[data-theme="eva"] .bm-mel { fill: var(--eva-melchior); }
+[data-theme="eva"] .bm-bal { fill: var(--eva-balthasar); }
+[data-theme="eva"] .bm-cas { fill: var(--eva-casper); }
+
+/* deliberation heartbeat: the three cores blink in sequence */
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme="eva"] .bm-core {
+    animation: bm-pulse 3.6s ease-in-out infinite;
+  }
+  [data-theme="eva"] .bm-bal { animation-delay: 1.2s; }
+  [data-theme="eva"] .bm-mel { animation-delay: 2.4s; }
+}
+
+@keyframes bm-pulse {
+  0%, 24%, 100% { opacity: 0.6; }
+  12% { opacity: 1; }
 }
 
 [data-theme="eva"] .brand-title {
@@ -3433,8 +3462,6 @@ details.advanced-sql > summary {
 
 [data-theme="eva"][data-eva="blue"] .app-bg-photo { filter: brightness(1.02) saturate(1.02); }
 
-
-[data-theme="eva"][data-eva="blue"] .brand-icon { color: #F4FAFF; }
 
 [data-theme="eva"][data-eva="blue"] .btn-primary {
   color: #F4FAFF;

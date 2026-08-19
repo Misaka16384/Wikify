@@ -31,7 +31,7 @@
       tab_dashboard: "课题总览",
       tab_melchior: "Melchior (认知状态)",
       tab_balthasar: "Balthasar (任务追踪)",
-      tab_casper: "Casper (混合检索)",
+      tab_casper: "Casper (文献检索)",
       tab_radar: "文献雷达",
       tab_operations: "运维与操作",
       tab_docs: "文档与指引",
@@ -49,7 +49,7 @@
       // Three-core status band
       core_role_mel: "认知状态",
       core_role_bal: "任务追踪",
-      core_role_cas: "混合检索",
+      core_role_cas: "文献检索",
       core_sync_label: "三核同步率",
       core_state_ok: "正常",
       core_state_attention: "待处理",
@@ -61,7 +61,7 @@
       core_detail_bal_kbonly: "纯知识库模式，未启用任务追踪",
       core_detail_bal_noengine: "未安装 beads，请运行 magi setup",
       core_detail_bal_uninit: "任务库尚未初始化",
-      core_detail_cas: "{c} 分块 · {v} 向量",
+      core_detail_cas: "{c} 条内容索引 · {v} 条语义索引",
       core_detail_cas_noindex: "尚未建立检索索引",
 
       // Dashboard KB Table
@@ -150,12 +150,12 @@
       task_engine_offline: "引擎未就绪",
 
       // Casper (Retrieval)
-      cas_title: "智能混合检索",
-      cas_subtitle: "FTS5 BM25 全文检索 + 向量嵌入 + RRF 倒数排名融合",
+      cas_title: "文献检索",
+      cas_subtitle: "关键词与语义双通道检索，按相关度融合排序",
       search_input_ph: "检索概念、实验发现或文献内容...",
-      opt_hybrid: "混合检索 (BM25 + 向量)",
-      opt_bm25: "仅 BM25",
-      opt_vector: "仅向量",
+      opt_hybrid: "智能检索（关键词 + 语义）",
+      opt_bm25: "仅关键词匹配",
+      opt_vector: "仅语义相似",
       opt_limit_5: "前 5 项",
       opt_limit_10: "前 10 项",
       opt_limit_20: "前 20 项",
@@ -163,9 +163,9 @@
       search_prompt: "输入检索关键词以查看混合排名结果与内容片段。",
       searching_text: "正在全库检索中...",
       search_no_results: "未找到匹配的段落内容。",
-      search_summary: "找到 {total} 条结果 · BM25 命中: {bm25} · 向量检索: {vec}",
+      search_summary: "找到 {total} 条结果 · 关键词命中 {bm25} · 语义检索{vec}",
       search_lines: "行 {start}-{end}",
-      vec_avail_yes: "可用",
+      vec_avail_yes: "已启用",
       vec_avail_no: "未启用",
 
       // Literature Radar
@@ -283,7 +283,7 @@
       btn_hint_goto: "前往",
 
       // Search guidance
-      vec_unavailable_hint: "向量检索未启用：需要本机 Ollama 嵌入模型，且在运行 magi index 建索引时可用。当前仅 BM25 全文检索。",
+      vec_unavailable_hint: "语义检索未启用：需要本机 Ollama 语义模型，且在运行 magi index 建立索引时可用。当前仅按关键词匹配。",
       search_no_results_hint: "建议：改用 2-3 个关键词（而非整句）、切换检索模式，或确认当前工作区已运行过「重建检索索引」。",
 
       // Radar kinds
@@ -316,7 +316,7 @@
       cfg_f_radar_seed_arxiv_ids: "种子论文 arXiv ID（推荐引擎的输入）",
       cfg_f_radar_own_arxiv_ids: "我方论文 arXiv ID（citation-gap 的锚点）",
       cfg_f_ocr_use_mineru: "使用 MinerU 云端 OCR（需在 config 中配 token）",
-      cfg_f_models_embedding: "嵌入模型（Ollama 模型名）",
+      cfg_f_models_embedding: "语义模型（Ollama 模型名）",
 
       // Search filters
       opt_scope_auto: "联邦检索（本库 + 启用的注册库）",
@@ -454,7 +454,7 @@
       core_detail_bal_kbonly: "Knowledge-base only, task tracking off",
       core_detail_bal_noengine: "beads not installed — run magi setup",
       core_detail_bal_uninit: "Task store not initialized",
-      core_detail_cas: "{c} chunks · {v} vectors",
+      core_detail_cas: "{c} indexed passages · {v} with semantic index",
       core_detail_cas_noindex: "No retrieval index built",
 
       // Dashboard KB Table
@@ -543,12 +543,12 @@
       task_engine_offline: "Engine offline",
 
       // Casper (Retrieval)
-      cas_title: "Casper Hybrid Retrieval Playground",
-      cas_subtitle: "FTS5 BM25 + sqlite-vec embeddings + RRF (Reciprocal Rank Fusion)",
+      cas_title: "Literature Search",
+      cas_subtitle: "Keyword and meaning search in one pass, fused by relevance",
       search_input_ph: "Search concepts, findings, or literature...",
-      opt_hybrid: "Hybrid (BM25 + Vector)",
-      opt_bm25: "BM25 Only",
-      opt_vector: "Vector Only",
+      opt_hybrid: "Smart search (keyword + meaning)",
+      opt_bm25: "Keyword match only",
+      opt_vector: "Meaning match only",
       opt_limit_5: "Top 5",
       opt_limit_10: "Top 10",
       opt_limit_20: "Top 20",
@@ -556,10 +556,10 @@
       search_prompt: "Enter a search query to inspect hybrid ranking and excerpts.",
       searching_text: "Searching corpus...",
       search_no_results: "No matching passages found.",
-      search_summary: "Found {total} hit(s) · BM25 hits: {bm25} · Vector available: {vec}",
+      search_summary: "Found {total} hit(s) · keyword hits: {bm25} · semantic search: {vec}",
       search_lines: "lines {start}-{end}",
-      vec_avail_yes: "Yes",
-      vec_avail_no: "No",
+      vec_avail_yes: "on",
+      vec_avail_no: "off",
 
       // Literature Radar
       radar_seen_label: "Seen Papers Ledger",
@@ -676,7 +676,7 @@
       btn_hint_goto: "Open",
 
       // Search guidance
-      vec_unavailable_hint: "Vector search is off: it needs a local Ollama embedding model available when 'magi index' builds the index. Currently BM25-only.",
+      vec_unavailable_hint: "Semantic search is off: it needs a local Ollama model available when 'magi index' builds the index. Keyword matching only for now.",
       search_no_results_hint: "Try 2-3 keywords instead of a full sentence, switch the search mode, or make sure this workspace has a built index (Rebuild Index).",
 
       // Radar kinds
@@ -709,7 +709,7 @@
       cfg_f_radar_seed_arxiv_ids: "Seed paper arXiv IDs (recommendation input)",
       cfg_f_radar_own_arxiv_ids: "Your own papers' arXiv IDs (citation-gap anchors)",
       cfg_f_ocr_use_mineru: "Use MinerU cloud OCR (token configured in config)",
-      cfg_f_models_embedding: "Embedding model (Ollama model name)",
+      cfg_f_models_embedding: "Semantic model (Ollama model name)",
 
       // Search filters
       opt_scope_auto: "Federated (this KB + enabled KBs)",
@@ -1389,7 +1389,7 @@
     if (core.state === "missing" || core.state === "offline") {
       return { cls: "state-err", stat: "NO INDEX", detail: "RUN MAGI INDEX" };
     }
-    const casDetail = `${core.chunks || 0} CHUNKS / ${core.vectors || 0} VEC`;
+    const casDetail = `INDEX ${core.chunks || 0} / SEMANTIC ${core.vectors || 0}`;
     if (core.state === "stale") return { cls: "state-warn", stat: "STALE", detail: casDetail };
     return { cls: "state-ok", stat: "NOMINAL", detail: casDetail };
   }

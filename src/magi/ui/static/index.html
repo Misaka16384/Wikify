@@ -28,10 +28,23 @@
   <!-- Top Bar -->
   <header class="topbar">
     <div class="brand">
-      <div class="brand-icon">M</div>
+      <!-- Tri-sage emblem: three cores in one hex shell — the whole product
+           in one mark. Node colors ride the per-core accent tokens, so the
+           emblem re-inks itself across all four theme states. -->
+      <div class="brand-icon" aria-hidden="true">
+        <svg class="brand-mark" viewBox="0 0 48 48">
+          <polygon class="bm-hex" points="24,4 41.3,14 41.3,34 24,44 6.7,34 6.7,14"/>
+          <line class="bm-bus" x1="13.5" y1="18" x2="34.5" y2="18"/>
+          <line class="bm-bus" x1="13.5" y1="18" x2="24" y2="33"/>
+          <line class="bm-bus" x1="34.5" y1="18" x2="24" y2="33"/>
+          <circle class="bm-core bm-cas" cx="13.5" cy="18" r="3.4"/>
+          <circle class="bm-core bm-bal" cx="34.5" cy="18" r="3.4"/>
+          <circle class="bm-core bm-mel" cx="24" cy="33" r="3.4"/>
+        </svg>
+      </div>
       <div>
         <span class="brand-title">MAGI</span>
-        <span class="brand-badge" id="app-version">v1.4.4</span>
+        <span class="brand-badge" id="app-version">v1.4.5</span>
       </div>
       <span class="eva-clock" id="eva-clock" aria-hidden="true"></span>
     </div>
@@ -480,17 +493,17 @@
       <div class="card">
         <div class="card-header">
           <div>
-            <h3 class="card-title" data-i18n="cas_title">Casper Hybrid Retrieval Playground</h3>
-            <p class="card-subtitle" data-i18n="cas_subtitle">FTS5 BM25 + sqlite-vec embeddings + RRF (Reciprocal Rank Fusion)</p>
+            <h3 class="card-title" data-i18n="cas_title">Literature Search</h3>
+            <p class="card-subtitle" data-i18n="cas_subtitle">Keyword and meaning search in one pass, fused by relevance</p>
           </div>
         </div>
 
         <form id="search-form" class="search-bar-container">
           <input type="text" id="search-query-input" class="search-input" placeholder="Search concepts, findings, or literature..." data-i18n-placeholder="search_input_ph" required>
           <select id="search-mode-select" class="select-input">
-            <option value="hybrid" data-i18n="opt_hybrid">Hybrid (BM25 + Vector)</option>
-            <option value="bm25" data-i18n="opt_bm25">BM25 Only</option>
-            <option value="vector" data-i18n="opt_vector">Vector Only</option>
+            <option value="hybrid" data-i18n="opt_hybrid">Smart search (keyword + meaning)</option>
+            <option value="bm25" data-i18n="opt_bm25">Keyword match only</option>
+            <option value="vector" data-i18n="opt_vector">Meaning match only</option>
           </select>
           <select id="search-limit-select" class="select-input">
             <option value="5" data-i18n="opt_limit_5">Top 5</option>
