@@ -22,6 +22,9 @@ Desktop.ini
 # Output directories
 output/
 
+# Raw background artwork (optimized derivatives live in src/magi/ui/static/backgrounds/)
+EVA_pics/
+
 # Lock files from filelock
 *.lock
 

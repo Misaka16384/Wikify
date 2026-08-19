@@ -119,7 +119,7 @@ def harvest_s2(seeds: list[str], limit: int) -> list[dict]:
     if not seeds:
         return []
     url = ("https://api.semanticscholar.org/recommendations/v1/papers"
-           f"?fields=title,externalIds,abstract,year,url&limit={limit}")
+           f"?fields=title,externalIds,abstract,year,url,authors&limit={limit}")
     body = {"positivePaperIds": [f"ArXiv:{s}" for s in seeds]}
     try:
         data = _http_json(url, body)
@@ -145,8 +145,15 @@ def harvest_s2(seeds: list[str], limit: int) -> list[dict]:
             "abstract": (p.get("abstract") or "")[:1500],
             "url": p.get("url"),
             "source": "s2-recommendation",
+            "authors": [a.get("name") for a in (p.get("authors") or []) if a.get("name")],
         })
     return out
+
+
+def _arxiv_entry_authors(entry: str) -> list[str]:
+    """Author names from one Atom `<entry>` fragment, inner whitespace collapsed."""
+    names = re.findall(r"<author>\s*<name>([^<]+)</name>", entry, re.DOTALL)
+    return [re.sub(r"\s+", " ", n).strip() for n in names]
 
 
 def harvest_arxiv(categories: list[str], days: int,
@@ -201,6 +208,7 @@ def harvest_arxiv(categories: list[str], days: int,
                 "url": f"https://arxiv.org/abs/{arxiv_id}",
                 "source": f"arxiv-new:{cat}",
                 "published": pub_dt.date().isoformat(),
+                "authors": _arxiv_entry_authors(entry),
             })
     return out, failed
 
@@ -239,12 +247,44 @@ def pending_names(reports: list[dict], kind: str) -> list[str]:
     return [r["name"] for r in reports if r["kind"] == kind and r["status"] == "pending-review"]
 
 
+def _candidate_lines(c: dict) -> list[str]:
+    """Digest markdown lines for one candidate (no trailing blank).
+
+    parse_digest_candidates must be able to read everything written here —
+    keep the two in sync.
+    """
+    arxiv_link = f"https://arxiv.org/abs/{c['arxiv_id']}" if c.get("arxiv_id") else ""
+    link = c.get("url") or arxiv_link
+    lines = [f"## {c['title']}", ""]
+    meta = f"- id: `{c['id']}` · {c.get('year', '?')} · source: {c['source']}"
+    if c.get("score") is not None:
+        meta += f" · relevance: {c['score']}"
+    lines.append(meta)
+    names = c.get("authors") or []
+    if names:
+        # ", " is the round-trip separator parse_digest_candidates splits on,
+        # so a comma inside one name ("Rodriguez, Jr.") would read back as two
+        # authors — normalize it away here; candidates.jsonl keeps raw names.
+        shown = [re.sub(r"\s+", " ", n.replace(",", " ")).strip() for n in names[:6]]
+        lines.append("- authors: " + ", ".join(shown)
+                     + (", et al." if len(names) > 6 else ""))
+    if link:
+        lines.append(f"- {link}")
+    if arxiv_link and arxiv_link != link:
+        lines.append(f"- {arxiv_link}")
+    if c.get("abstract"):
+        lines.append(f"- abstract: {_ellipsize(c['abstract'], 500)}")
+    return lines
+
+
 def parse_digest_candidates(text: str) -> list[dict]:
     """Parse a digest's candidate sections for programmatic review actions.
 
-    Understands the format cmd_harvest writes: `## <title>` headings followed
-    by `- id: \\`<id>\\` · ...` metadata lines and bare `- <url>` link lines.
-    Tolerant of citation-gap reports (whose sections parse as title-only).
+    Understands the format _candidate_lines writes: `## <title>` headings
+    followed by `- id: \\`<id>\\` · ...` metadata lines, an optional
+    `- authors: A, B, ...` line, and bare `- <url>` link lines.
+    Tolerant of citation-gap reports (whose sections parse as title-only)
+    and of older digests without authors lines.
     """
     out: list[dict] = []
     cur: dict | None = None
@@ -254,7 +294,8 @@ def parse_digest_candidates(text: str) -> list[dict]:
             if cur:
                 out.append(cur)
             cur = {"index": len(out), "title": m.group(1), "id": None,
-                   "arxiv_id": None, "url": None, "relevance": None}
+                   "arxiv_id": None, "url": None, "relevance": None,
+                   "authors": []}
             continue
         if cur is None:
             continue
@@ -267,6 +308,13 @@ def parse_digest_candidates(text: str) -> list[dict]:
                     cur["relevance"] = float(mrel.group(1))
                 except ValueError:
                     pass
+            continue
+        mauth = re.match(r"^- authors: (.+)$", line)
+        if mauth:
+            names = mauth.group(1).split(", ")
+            if names and names[-1] == "et al.":
+                names = names[:-1]
+            cur["authors"] = names
             continue
         murl = re.match(r"^- (https?://\S+)\s*$", line)
         if murl:
@@ -472,20 +520,7 @@ def cmd_harvest(args: argparse.Namespace) -> int:
             lines.append("_Sorted by relevance to this library (embedding cosine vs. wiki centroid)._")
             lines.append("")
         for c in fresh:
-            arxiv_link = f"https://arxiv.org/abs/{c['arxiv_id']}" if c.get("arxiv_id") else ""
-            link = c.get("url") or arxiv_link
-            lines.append(f"## {c['title']}")
-            lines.append("")
-            meta = f"- id: `{c['id']}` · {c.get('year', '?')} · source: {c['source']}"
-            if c.get("score") is not None:
-                meta += f" · relevance: {c['score']}"
-            lines.append(meta)
-            if link:
-                lines.append(f"- {link}")
-            if arxiv_link and arxiv_link != link:
-                lines.append(f"- {arxiv_link}")
-            if c.get("abstract"):
-                lines.append(f"- abstract: {_ellipsize(c['abstract'], 500)}")
+            lines += _candidate_lines(c)
             lines.append("")
         digest.write_text("\n".join(lines), encoding="utf-8")
         print(f"harvest: {len(fresh)} new candidates -> {digest}")

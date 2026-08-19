@@ -55,6 +55,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     # graph
     ("graph", "build"): ("magi.kb.llmwiki", ["graph"], "Build/refresh the SQLite knowledge graph"),
     ("graph", "query"): ("magi.kb.graph_query", [], "Read-only SQL over output/graph.db"),
+    ("graph", "browse"): ("magi.kb.graph_browse", [], "Browse the knowledge graph without SQL (nodes/links/claims/tags/broken)"),
     # quality / validation
     ("lint",): ("magi.kb.llmwiki", ["lint"], "Structural checks and self-healing fixes"),
     ("stats",): ("magi.kb.llmwiki", ["stats"], "Deterministic wiki statistics"),

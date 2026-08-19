@@ -6,14 +6,23 @@
   <title>MAGI — Research Workspace WebUI</title>
   <link rel="stylesheet" href="/styles.css">
   <script src="/vendor/marked.min.js"></script>
+  <!-- d3-force microlibs (ISC, vendor/d3-force-LICENSE.txt) — physics for the graph map -->
+  <script src="/vendor/d3-dispatch.min.js"></script>
+  <script src="/vendor/d3-quadtree.min.js"></script>
+  <script src="/vendor/d3-timer.min.js"></script>
+  <script src="/vendor/d3-force.min.js"></script>
 </head>
-<body>
+<body data-tab="dashboard">
 
   <!-- EVA MAGI MODE background artwork (decorative, hidden outside the theme) -->
   <div class="app-bg" aria-hidden="true">
+    <div class="app-bg-photo" id="bg-photo-a"></div>
+    <div class="app-bg-photo" id="bg-photo-b"></div>
+    <div class="app-bg-shade"></div>
     <div class="app-bg-hex"></div>
     <div class="app-bg-unit"></div>
     <div class="app-bg-kanji">三賢者統合思考体・同調率監視中</div>
+    <div class="app-bg-ribbon"></div>
   </div>
 
   <!-- Top Bar -->
@@ -22,7 +31,7 @@
       <div class="brand-icon">M</div>
       <div>
         <span class="brand-title">MAGI</span>
-        <span class="brand-badge" id="app-version">v1.3.1</span>
+        <span class="brand-badge" id="app-version">v1.4.0</span>
       </div>
       <span class="eva-clock" id="eva-clock" aria-hidden="true"></span>
     </div>
@@ -59,6 +68,46 @@
       <button class="icon-btn" id="theme-toggle-btn" title="Toggle Light/Dark Theme" data-i18n-title="theme_btn_title">☾</button>
     </div>
   </header>
+
+  <!-- Three-core status band.
+       The product is three cores over one workspace; this band says so on
+       every tab instead of burying it in one dashboard tile. Values are filled
+       by updateCoreBand() from the same /api/workspace/sync report that drives
+       the EVA HUD, so it stays live regardless of which tab is open. -->
+  <section class="core-band" id="core-band">
+    <div class="core-cell" data-core="melchior">
+      <div class="core-cell-top">
+        <span class="core-dot" id="core-dot-mel"></span>
+        <span class="core-name">Melchior</span>
+        <span class="core-role" data-i18n="core_role_mel">Cognitive state</span>
+      </div>
+      <div class="core-stat" id="core-stat-mel">--</div>
+      <div class="core-detail" id="core-detail-mel">--</div>
+    </div>
+    <div class="core-cell" data-core="balthasar">
+      <div class="core-cell-top">
+        <span class="core-dot" id="core-dot-bal"></span>
+        <span class="core-name">Balthasar</span>
+        <span class="core-role" data-i18n="core_role_bal">Task state</span>
+      </div>
+      <div class="core-stat" id="core-stat-bal">--</div>
+      <div class="core-detail" id="core-detail-bal">--</div>
+    </div>
+    <div class="core-cell" data-core="casper">
+      <div class="core-cell-top">
+        <span class="core-dot" id="core-dot-cas"></span>
+        <span class="core-name">Casper</span>
+        <span class="core-role" data-i18n="core_role_cas">Retrieval</span>
+      </div>
+      <div class="core-stat" id="core-stat-cas">--</div>
+      <div class="core-detail" id="core-detail-cas">--</div>
+    </div>
+    <div class="core-sync">
+      <span class="core-sync-label" data-i18n="core_sync_label">Three-core sync</span>
+      <div class="core-sync-rail"><i id="core-sync-fill"></i></div>
+      <span class="core-sync-val" id="dash-sync-ratio">--%</span>
+    </div>
+  </section>
 
   <!-- Navigation Tabs -->
   <nav class="tabs-nav">
@@ -152,12 +201,8 @@
         <div id="sync-hints-list" class="stack-list"></div>
       </div>
 
-      <div class="grid-4">
-        <div class="card metric-box">
-          <span class="metric-label" data-i18n="dash_sync_label">Sync Ratio</span>
-          <span class="metric-value tone-sage" id="dash-sync-ratio">--%</span>
-          <span class="card-subtitle" id="dash-sync-subtitle" data-i18n="dash_sync_subtitle">Melchior + Balthasar + Casper</span>
-        </div>
+      <!-- Sync ratio lives in the global core band now, so it is not repeated here. -->
+      <div class="grid-3">
         <div class="card metric-box">
           <span class="metric-label" data-i18n="dash_kb_label">Registered KBs</span>
           <span class="metric-value" id="dash-kb-count">0</span>
@@ -297,7 +342,50 @@
         </ul>
       </div>
 
+      <!-- Knowledge graph browser (primary graph surface) -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="graph_card_title">Knowledge Graph</h3>
+            <p class="card-subtitle" data-i18n="graph_card_subtitle">Structured views over entries, links, claims and tags</p>
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-secondary btn-sm graph-view-btn active" data-view="map" data-i18n="graph_view_map">Graph</button>
+            <button class="btn btn-secondary btn-sm graph-view-btn" data-view="overview" data-i18n="graph_view_overview">Overview</button>
+            <button class="btn btn-secondary btn-sm graph-view-btn" data-view="nodes" data-i18n="graph_view_nodes">Entries</button>
+            <button class="btn btn-secondary btn-sm graph-view-btn" data-view="links" data-i18n="graph_view_links">Links</button>
+            <button class="btn btn-secondary btn-sm graph-view-btn" data-view="claims" data-i18n="graph_view_claims">Claims</button>
+            <button class="btn btn-secondary btn-sm graph-view-btn" data-view="tags" data-i18n="graph_view_tags">Tags</button>
+            <button class="btn btn-secondary btn-sm graph-view-btn" data-view="broken" data-i18n="graph_view_broken">Broken links</button>
+          </div>
+        </div>
+        <div class="form-row" id="graph-filter-row" style="display: none;">
+          <input type="text" id="graph-q" class="text-input" placeholder="Filter by title or id…" data-i18n-placeholder="graph_q_ph">
+          <select id="graph-type" class="select-input">
+            <option value="" data-i18n="graph_type_all">All types</option>
+            <option value="concept" data-i18n="graph_type_concept">Concept</option>
+            <option value="reference" data-i18n="graph_type_reference">Reference</option>
+            <option value="topic" data-i18n="graph_type_topic">Topic</option>
+            <option value="thesis" data-i18n="graph_type_thesis">Thesis</option>
+            <option value="claim" data-i18n="graph_type_claim">Claim</option>
+            <option value="tag" data-i18n="graph_type_tag">Tag</option>
+          </select>
+        </div>
+        <div id="graph-map-wrap" class="graph-map-wrap" style="display: none;">
+          <canvas id="graph-map-canvas"></canvas>
+          <label class="graph-map-toggle"><input type="checkbox" id="graph-map-tags">
+            <span data-i18n="graph_map_tags">Show tag nodes</span></label>
+          <div class="graph-map-note" id="graph-map-note" style="display: none;"></div>
+          <div class="graph-map-hint" data-i18n="graph_map_hint">Drag nodes · scroll to zoom · click a node to inspect its links</div>
+        </div>
+        <div id="graph-browse-container" class="table-scroll vh-300">
+          <p class="empty-note" data-i18n="graph_loading">Loading graph view…</p>
+        </div>
+      </div>
+
       <!-- Knowledge Graph SQL Console -->
+      <details class="advanced-sql">
+      <summary data-i18n="adv_sql_title">Advanced: read-only SQL console</summary>
       <div class="card">
         <div class="card-header">
           <div>
@@ -318,6 +406,7 @@
           <p class="empty-note" data-i18n="sql_run_prompt">Run a query above to see tabular results.</p>
         </div>
       </div>
+      </details>
 
       <!-- References & citations -->
       <div class="card">

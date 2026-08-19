@@ -10,6 +10,25 @@
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
+   0. Bundled Latin face — Archivo (SIL OFL 1.1, see vendor/fonts/Archivo-OFL.txt)
+   Latin subset, variable weight 400-700, 35KB. The unicode-range deliberately
+   excludes CJK so Chinese can never resolve to this face: every Han glyph falls
+   through to --font-cjk instead. That is what keeps a mixed heading like
+   "Melchior (认知状态)" from being two unrelated typefaces spliced together.
+   -------------------------------------------------------------------------- */
+
+@font-face {
+  font-family: "Archivo";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("vendor/fonts/archivo-latin-var.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* --------------------------------------------------------------------------
    1. Tokens
    -------------------------------------------------------------------------- */
 
@@ -21,7 +40,6 @@
   --bg-subtle: #EDEBE2;
   --bg-card: #FDFDFB;
   --bg-hover: #E9E6DC;
-  --bg-terminal: #14161A;
 
   --grid-minor: rgba(52, 89, 126, 0.05);
   --grid-major: rgba(52, 89, 126, 0.08);
@@ -56,19 +74,27 @@
   --shadow-md: 0 3px 10px rgba(29, 33, 38, 0.07), 0 1px 3px rgba(29, 33, 38, 0.04);
   --shadow-lg: 0 12px 32px rgba(29, 33, 38, 0.12), 0 2px 8px rgba(29, 33, 38, 0.06);
 
-  --term-bg: #14161A;
-  --term-header: #1D2026;
-  --term-border: #2A2E36;
-  --term-text: #DEE2E8;
-  --term-dim: #8B9098;
+  /* Light-theme console reads as a recessed lab-notebook panel, not a black
+     slab dropped onto drafting paper. These tokens also drive fenced code
+     blocks in the Docs tab (.markdown-body pre). */
+  --term-bg: #EDEBE2;
+  --term-header: #E2DFD4;
+  --term-border: #D2CEC0;
+  --term-text: #262A30;
+  --term-dim: #6B6760;
 
-  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", "Charter",
-    Georgia, "Songti SC", "Noto Serif SC", "SimSun", serif;
+  /* One Chinese face for the whole app. Named explicitly rather than left to
+     the OS: the previous stack let headings fall into SimSun while body text
+     landed on Microsoft YaHei, which is why the Chinese looked mismatched. */
+  --font-cjk: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI",
+    "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC";
+  --font-display: "Archivo", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    system-ui, var(--font-cjk), sans-serif;
   --font-serif: var(--font-display);
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, Roboto,
-    "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  --font-sans: "Archivo", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    system-ui, Roboto, "Helvetica Neue", var(--font-cjk), sans-serif;
   --font-mono: "Cascadia Code", "JetBrains Mono", "SF Mono", ui-monospace, Menlo,
-    Consolas, "Microsoft YaHei", monospace;
+    Consolas, var(--font-cjk), monospace;
 
   --radius-sm: 4px;
   --radius-md: 7px;
@@ -89,7 +115,6 @@
   --bg-subtle: #252A31;
   --bg-card: #1D2126;
   --bg-hover: #2C323B;
-  --bg-terminal: #101215;
 
   --grid-minor: rgba(127, 168, 206, 0.035);
   --grid-major: rgba(127, 168, 206, 0.055);
@@ -119,11 +144,11 @@
   --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.38);
   --shadow-lg: 0 12px 34px rgba(0, 0, 0, 0.5);
 
-  --term-bg: #101215;
-  --term-header: #171A1F;
-  --term-border: #262B32;
+  --term-bg: #0E1218;
+  --term-header: #151A22;
+  --term-border: #242B35;
   --term-text: #D7DBE1;
-  --term-dim: #737A84;
+  --term-dim: #7A828E;
 }
 
 [data-theme="eva"] {
@@ -134,7 +159,6 @@
   --bg-subtle: #12161F;
   --bg-card: #0D1017;
   --bg-hover: #182031;
-  --bg-terminal: #04050A;
 
   --text-primary: #E9EEF5;
   --text-secondary: #A7B2C4;
@@ -181,10 +205,67 @@
   --eva-balthasar-glow: rgba(53, 239, 126, 0.38);
   --eva-casper: #FF4A57;
   --eva-casper-glow: rgba(255, 74, 87, 0.38);
-  --eva-amber-glow: rgba(255, 148, 33, 0.42);
+  --eva-amber-glow: rgba(var(--eva-p), 0.42);
+
+  /* Primary-accent ramp consumed by the whole EVA skin below. The blue
+     quiet-watch variant swaps only this ramp and the surface tokens —
+     monolith identities and #FFB000 hazard striping are canon and stay
+     identical in both alert states. */
+  --eva-p: 255, 148, 33;
+  --eva-p2: 255, 165, 30;
+  --eva-p-strong: #FF9421;
+  --eva-p-soft: #FFA51E;
+  --eva-p-bright: #FFAC4E;
+  --eva-p-hi: #FFB347;
+  --eva-p-deep: #E07800;
+  --eva-p-deep-hi: #EE8500;
+  --eva-p-ember: #E05E00;
+  --eva-bg-rgb: 5, 6, 8;
 
   --font-eva-display: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP",
     "Songti SC", "SimSun", "MS PMincho", serif;
+}
+
+/* EVA blue — quiet-watch alert state (MAGI MODE over the light base).
+   Same tactical skin read through a cold lens: indigo decks, ice-cyan
+   telemetry. Background artwork pulls from the blue set; the red combat
+   state above keeps the amber ramp and the red artwork set. */
+[data-theme="eva"][data-eva="blue"] {
+  --bg-canvas: #0A111F;
+  --bg-surface: #0F1930;
+  --bg-subtle: #131F38;
+  --bg-card: #0D1626;
+  --bg-hover: #1B2B4A;
+
+  --text-primary: #EAF1FA;
+  --text-secondary: #A9BCD6;
+  --text-muted: #64778F;
+  --text-subtle: #3D4A61;
+
+  --accent-primary: #4FC3F0;
+  --accent-primary-hover: #8ADCF8;
+  --accent-primary-wash: rgba(96, 205, 245, 0.11);
+  --accent-primary-border: rgba(96, 205, 245, 0.36);
+
+  --border-default: #1E2C49;
+  --border-subtle: #16223A;
+
+  --term-bg: #05080F;
+  --term-header: #0B1220;
+  --term-border: rgba(96, 205, 245, 0.25);
+
+  --focus-ring: #4FC3F0;
+
+  --eva-p: 96, 205, 245;
+  --eva-p2: 122, 214, 246;
+  --eva-p-strong: #4FC3F0;
+  --eva-p-soft: #6FD0F6;
+  --eva-p-bright: #8ADCF8;
+  --eva-p-hi: #A5E4FA;
+  --eva-p-deep: #1E7FB8;
+  --eva-p-deep-hi: #2B8FC9;
+  --eva-p-ember: #16648F;
+  --eva-bg-rgb: 10, 17, 31;
 }
 
 /* --------------------------------------------------------------------------
@@ -461,6 +542,139 @@ body {
 }
 
 /* --------------------------------------------------------------------------
+   3b. Three-core status band
+
+   The signature element: the product is three cores reading one workspace, so
+   the band states that on every tab. Three vitals cells over one shared sync
+   rail — the rail is the aggregate the three cells add up to.
+   -------------------------------------------------------------------------- */
+
+/* Exactly three equal columns — auto-fit would mint extra tracks on a wide
+   screen and bunch the three cores into the left third. */
+.core-band {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: clamp(1rem, 3vw, 2.75rem);
+  background-color: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-default);
+  padding: 0.75rem clamp(0.75rem, 2.5vw, 1.5rem) 0;
+}
+
+.core-cell {
+  min-width: 0;
+  padding: 0 0 0.7rem 0.85rem;
+  border-left: 2px solid var(--border-default);
+}
+
+.core-cell[data-core="melchior"] { border-left-color: var(--accent-primary); }
+.core-cell[data-core="balthasar"] { border-left-color: var(--accent-sage); }
+.core-cell[data-core="casper"] { border-left-color: var(--accent-blue); }
+
+.core-cell-top {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.core-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background-color: var(--text-subtle);
+}
+
+.core-dot.state-ok { background-color: var(--accent-sage); }
+.core-dot.state-warn { background-color: var(--accent-amber); }
+.core-dot.state-err { background-color: var(--accent-danger); }
+.core-dot.state-off { background-color: var(--text-subtle); }
+
+.core-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.01em;
+}
+
+.core-role {
+  font-size: 0.71rem;
+  color: var(--text-muted);
+}
+
+.core-stat {
+  margin-top: 0.22rem;
+  font-size: 0.87rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.core-detail {
+  margin-top: 0.1rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.core-sync {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.4rem 0 0.5rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.core-sync-label {
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.core-sync-rail {
+  flex: 1 1 auto;
+  min-width: 48px;
+  height: 5px;
+  border-radius: 2px;
+  background-color: var(--border-default);
+  overflow: hidden;
+}
+
+.core-sync-rail > i {
+  display: block;
+  width: 0;
+  height: 100%;
+  background-color: var(--accent-primary);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .core-sync-rail > i { transition: width 0.5s ease; }
+}
+
+.core-sync-rail > i.is-ok { background-color: var(--accent-sage); }
+.core-sync-rail > i.is-mid { background-color: var(--accent-primary); }
+.core-sync-rail > i.is-low { background-color: var(--accent-amber); }
+
+.core-sync-val {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-width: 3.4em;
+  text-align: right;
+}
+
+/* one core per row once three columns stop being legible */
+@media (max-width: 720px) {
+  .core-band { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* --------------------------------------------------------------------------
    4. Navigation tabs
    -------------------------------------------------------------------------- */
 
@@ -516,6 +730,8 @@ body {
 
 .main-content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
   padding: clamp(0.9rem, 2.5vw, 1.5rem);
   max-width: 1480px;
   margin: 0 auto;
@@ -531,6 +747,22 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The console is the point of the operations tab, so it takes the slack
+   instead of leaving a half-screen of empty canvas beneath it. */
+#tab-operations .terminal-container {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#tab-operations .terminal-body {
+  flex: 1 1 auto;
+  max-height: none;
 }
 
 .grid-2, .grid-3, .grid-4 {
@@ -549,17 +781,31 @@ body {
    6. Cards & metrics
    -------------------------------------------------------------------------- */
 
+/* Ruled panels, not floating boxes: a flat sheet with a short ink rule riding
+   the top edge, the way a drawing sheet is tabbed. Drops the shadow entirely —
+   nothing in an instrument panel hovers. */
 .card {
+  position: relative;
   background-color: var(--bg-card);
   border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  padding: 1.1rem 1.2rem;
-  box-shadow: var(--shadow-sm);
-  transition: box-shadow var(--transition-normal), border-color var(--transition-normal);
+  border-radius: var(--radius-sm);
+  padding: 1.05rem 1.2rem 1.15rem;
+  box-shadow: none;
+  transition: border-color var(--transition-normal);
   min-width: 0;
 }
 
-.card:hover { box-shadow: var(--shadow-md); }
+.card::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 44px;
+  height: 2px;
+  background-color: var(--accent-primary);
+}
+
+.card:hover { border-color: var(--accent-primary-border); }
 
 .card-header {
   display: flex;
@@ -625,7 +871,7 @@ body {
   font-weight: 600;
   color: var(--text-primary);
   line-height: 1.15;
-  font-variant-numeric: lining-nums;
+  font-variant-numeric: lining-nums tabular-nums;
   overflow-wrap: anywhere;
 }
 
@@ -992,6 +1238,25 @@ textarea.text-input {
 
 .digest-actions .action-row { margin-bottom: 0.4rem; }
 
+.digest-filter-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.6rem;
+}
+
+.digest-filter-row .text-input { flex: 1 1 auto; min-width: 0; }
+
+.row-authors {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 .digest-foot {
   margin-top: 1rem;
   text-align: right;
@@ -1015,6 +1280,108 @@ textarea.text-input {
 
 .sql-row { align-items: stretch; margin-bottom: 0.75rem; }
 .sql-row textarea { flex: 1 1 260px; }
+
+/* SQL console is demoted behind a disclosure — the graph browser card above
+   it is the primary Melchior graph surface. */
+details.advanced-sql > summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+  user-select: none;
+}
+
+/* Knowledge graph browser */
+.graph-row-click { cursor: pointer; }
+.graph-row-click:hover td { background: var(--bg-subtle); }
+.graph-dangling {
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+/* Force-directed graph map (canvas) */
+.graph-map-wrap {
+  position: relative;
+  height: clamp(360px, 56vh, 640px);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-subtle);
+  overflow: hidden;
+}
+
+.graph-map-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+}
+
+.graph-map-toggle {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.55rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.graph-map-hint {
+  position: absolute;
+  left: 0.6rem;
+  bottom: 0.45rem;
+  /* chip-styled and width-bounded so it never runs under .graph-map-note */
+  max-width: 45%;
+  padding: 0.2rem 0.5rem;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.graph-map-note {
+  position: absolute;
+  right: 0.6rem;
+  bottom: 0.45rem;
+  max-width: 60%;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  padding: 0.2rem 0.5rem;
+}
+.graph-node-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+.graph-node-head .btn { margin-left: auto; }
+.graph-subhead { margin: 0.6rem 0 0.3rem; }
+.graph-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--accent-primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+#graph-filter-row .text-input { flex: 1 1 220px; min-width: 0; }
 
 .radar-actions {
   display: flex;
@@ -1079,6 +1446,13 @@ textarea.text-input {
   cursor: pointer;
 }
 
+/* the native checkbox otherwise renders as an OS-light control regardless of
+   what the console around it is doing */
+.terminal-autoscroll-label input[type="checkbox"] {
+  accent-color: var(--accent-primary);
+  margin: 0;
+}
+
 .terminal-btn {
   background-color: color-mix(in srgb, var(--term-text) 8%, transparent);
   color: var(--term-text);
@@ -1114,14 +1488,18 @@ textarea.text-input {
   50% { opacity: 1; }
 }
 
+/* Sizes to its content instead of reserving a fixed slab: an idle console is
+   one line tall, a running one grows to the cap and then scrolls. */
 .terminal-body {
   padding: 1rem;
-  height: clamp(220px, 38vh, 380px);
+  min-height: 7.5rem;
+  max-height: clamp(240px, 42vh, 460px);
   overflow-y: auto;
   font-size: 0.78rem;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .terminal-footnote {
@@ -1562,7 +1940,7 @@ textarea.text-input {
   .topbar-stats { order: 5; }
   .card { padding: 0.9rem 0.95rem; }
   .modal-window { padding: 1.1rem 1.15rem; }
-  .terminal-body { height: 260px; }
+  .terminal-body { max-height: 260px; }
 }
 
 /* ==========================================================================
@@ -1576,9 +1954,9 @@ textarea.text-input {
   background-color: var(--bg-canvas);
   background-image:
     url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'><path d='M28 1L55 16.6v31.2L28 63.4 1 47.8V16.6L28 1zm0 62.4V97' fill='none' stroke='%23ff9421' stroke-opacity='0.045' stroke-width='1'/></svg>"),
-    linear-gradient(rgba(255, 148, 33, 0.028) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 148, 33, 0.028) 1px, transparent 1px),
-    radial-gradient(circle at 50% 0%, rgba(255, 148, 33, 0.06) 0%, transparent 70%);
+    linear-gradient(rgba(var(--eva-p), 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--eva-p), 0.028) 1px, transparent 1px),
+    radial-gradient(circle at 50% 0%, rgba(var(--eva-p), 0.06) 0%, transparent 70%);
   background-size: 168px 291px, 28px 28px, 28px 28px, 100% 100%;
   background-attachment: fixed;
 }
@@ -1592,7 +1970,7 @@ textarea.text-input {
   pointer-events: none;
   background:
     repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.13) 0 1px, transparent 1px 3px),
-    radial-gradient(ellipse at center, transparent 62%, rgba(0, 0, 0, 0.3) 100%);
+    radial-gradient(ellipse at center, transparent 74%, rgba(0, 0, 0, 0.15) 100%);
   opacity: 0.5;
 }
 
@@ -1623,6 +2001,9 @@ textarea.text-input {
 
 .app-bg { display: none; }
 
+/* Two luminous pools sit on the container itself (which carries no opacity of
+   its own) so the thin linework of the art above them has something to read
+   against instead of dissolving into #050608. */
 [data-theme="eva"] .app-bg {
   display: block;
   position: fixed;
@@ -1630,6 +2011,39 @@ textarea.text-input {
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
+  background:
+    radial-gradient(ellipse 58% 52% at 88% 74%, rgba(143, 123, 255, 0.14), transparent 70%),
+    radial-gradient(ellipse 52% 46% at 4% 4%, rgba(var(--eva-p), 0.12), transparent 70%);
+}
+
+/* Full-bleed artwork backdrop. Two stacked layers crossfade so a swap never
+   pops in; app.js decides which is .visible and what it shows (blue set under
+   the blue state, red set under red, matched to the viewport's aspect ratio).
+   The canvas-tinted veil above it is what keeps telemetry readable over any
+   image — heavy at the topbar band, lightest through the middle. */
+[data-theme="eva"] .app-bg-photo {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center 30%;
+  opacity: 0;
+  will-change: opacity;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-theme="eva"] .app-bg-photo { transition: opacity 1.1s ease; }
+}
+
+[data-theme="eva"] .app-bg-photo.visible { opacity: 0.6; }
+
+[data-theme="eva"] .app-bg-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg,
+    rgba(var(--eva-bg-rgb), 0.82) 0%,
+    rgba(var(--eva-bg-rgb), 0.38) 24%,
+    rgba(var(--eva-bg-rgb), 0.16) 55%,
+    rgba(var(--eva-bg-rgb), 0.55) 100%);
 }
 
 [data-theme="eva"] .app-bg-hex {
@@ -1639,7 +2053,7 @@ textarea.text-input {
   width: 880px;
   height: 880px;
   background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='900' height='900' viewBox='-450 -450 900 900'><g fill='none' stroke='%23ff9421'><polygon points='120,0 60,104 -60,104 -120,0 -60,-104 60,-104' stroke-opacity='.5' stroke-width='3'/><polygon points='190,0 95,165 -95,165 -190,0 -95,-165 95,-165' stroke-opacity='.36' stroke-width='2.4'/><polygon points='265,0 132,230 -132,230 -265,0 -132,-230 132,-230' stroke-opacity='.26' stroke-width='2'/><polygon points='345,0 172,299 -172,299 -345,0 -172,-299 172,-299' stroke-opacity='.18' stroke-width='1.6'/><polygon points='430,0 215,372 -215,372 -430,0 -215,-372 215,-372' stroke-opacity='.11' stroke-width='1.3'/></g></svg>") center / contain no-repeat;
-  opacity: 0.12;
+  opacity: 0.34;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -1648,41 +2062,97 @@ textarea.text-input {
   }
 }
 
+/* keep these two values in step with .app-bg-hex's opacity — the animation
+   overrides it outright, so a mismatch silently reverts the artwork */
 @keyframes eva-at-breathe {
-  0%, 100% { opacity: 0.12; transform: scale(1); }
-  50% { opacity: 0.17; transform: scale(1.015); }
+  0%, 100% { opacity: 0.34; transform: scale(1); }
+  50% { opacity: 0.44; transform: scale(1.015); }
 }
 
 /* Unit-01 head — original low-poly blueprint with dimension callouts */
 [data-theme="eva"] .app-bg-unit {
   position: absolute;
-  right: max(-40px, calc(50vw - 900px));
-  bottom: -60px;
-  width: min(44vw, 620px);
+  right: max(-30px, calc(50vw - 940px));
+  bottom: -70px;
+  width: clamp(360px, 52vw, 760px);
   aspect-ratio: 640 / 900;
-  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='640' height='900' viewBox='0 0 640 900'><g fill='none' stroke='%238f7bff' stroke-width='2.5' stroke-linejoin='round' stroke-opacity='.55'><path d='M266,238 L330,196 L420,186 L492,222 L524,286 L520,362 L488,432 L470,520 L436,606 L410,690'/><path d='M266,238 L242,296 L226,338 L238,364 L212,432 L246,506 L282,562 L318,596 L352,618 L372,690'/><path d='M70,60 L252,262'/><path d='M70,60 L96,92 L266,282'/><path d='M212,432 L306,470'/><path d='M246,506 L330,522'/><path d='M330,196 L360,300'/><path d='M420,186 L432,300'/><path d='M492,222 L448,268'/></g><g stroke='%238f7bff' stroke-opacity='.3' stroke-width='1.4' fill='none'><path d='M372,690 L372,760 M410,690 L410,760'/><path d='M360,724 L422,724'/></g><polygon points='250,330 318,314 330,342 262,360' fill='%2333f077' fill-opacity='.4'/><polygon points='262,334 306,324 312,340 268,350' fill='%2333f077' fill-opacity='.85'/><g stroke='%23ffb347' stroke-opacity='.4' fill='none' stroke-width='1.2'><circle cx='290' cy='337' r='30' stroke-dasharray='4 6'/><path d='M290,297 L290,283 M290,377 L290,391 M250,337 L236,337 M330,337 L344,337'/><path d='M330,342 L430,392 L500,392'/><path d='M580,186 L580,606 M572,186 L588,186 M572,606 L588,606'/><path d='M40,60 L70,60 M40,52 L40,68'/></g><g font-family='Consolas,monospace' fill='%23ffb347' fill-opacity='.55' font-size='13' letter-spacing='2'><text x='504' y='396'>EYE SENSOR</text><text x='560' y='170'>UNIT-01</text><text x='60' y='44'>T-01</text><text x='360' y='800'>HEAD UNIT — SCHEMATIC 04</text></g></svg>") bottom right / contain no-repeat;
-  opacity: 0.16;
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='640' height='900' viewBox='0 0 640 900'><g fill='none' stroke='%238f7bff' stroke-width='2.5' stroke-linejoin='round' stroke-opacity='.55'><path d='M266,238 L330,196 L420,186 L492,222 L524,286 L520,362 L488,432 L470,520 L436,606 L410,690'/><path d='M266,238 L242,296 L226,338 L238,364 L212,432 L246,506 L282,562 L318,596 L352,618 L372,690'/><path d='M70,60 L252,262'/><path d='M70,60 L96,92 L266,282'/><path d='M212,432 L306,470'/><path d='M246,506 L330,522'/><path d='M330,196 L360,300'/><path d='M420,186 L432,300'/><path d='M492,222 L448,268'/></g><g stroke='%238f7bff' stroke-opacity='.3' stroke-width='1.4' fill='none'><path d='M372,690 L372,760 M410,690 L410,760'/><path d='M360,724 L422,724'/></g><polygon points='250,330 318,314 330,342 262,360' fill='%2333f077' fill-opacity='.4'/><polygon points='262,334 306,324 312,340 268,350' fill='%2333f077' fill-opacity='.85'/><g stroke='%23ffb347' stroke-opacity='.4' fill='none' stroke-width='1.2'><circle cx='290' cy='337' r='30' stroke-dasharray='4 6'/><path d='M290,297 L290,283 M290,377 L290,391 M250,337 L236,337 M330,337 L344,337'/><path d='M330,342 L430,392 L500,392'/><path d='M580,186 L580,606 M572,186 L588,186 M572,606 L588,606'/><path d='M40,60 L70,60 M40,52 L40,68'/></g><g font-family='Consolas,monospace' fill='%23ffb347' fill-opacity='.55' font-size='13' letter-spacing='2'><text x='504' y='396'>EYE SENSOR</text><text x='560' y='170'>UNIT-01</text><text x='60' y='44'>T-01</text><text x='360' y='800'>HEAD UNIT %E2%80%94 SCHEMATIC 04</text></g></svg>") bottom right / contain no-repeat;
+  opacity: 0.34;
 }
 
 /* vertical designation type on the far right edge */
+/* Left edge, not right: with a full-width content column the right margin is
+   card territory, and the strip was being clipped to a single glyph. */
 [data-theme="eva"] .app-bg-kanji {
   position: absolute;
-  top: 90px;
-  right: 10px;
+  top: clamp(150px, 20vh, 260px);
+  left: 10px;
   writing-mode: vertical-rl;
   font-family: var(--font-eva-display);
   font-size: clamp(1.2rem, 2.4vw, 2rem);
   font-weight: 700;
   letter-spacing: 0.52em;
-  color: rgba(255, 148, 33, 0.09);
+  color: rgba(var(--eva-p), 0.2);
   white-space: nowrap;
   user-select: none;
 }
 
-/* keep the artwork off tight viewports — the UI needs the room */
-@media (max-width: 1100px) {
-  [data-theme="eva"] .app-bg-unit { opacity: 0.09; }
+/* telemetry ribbon pinned to the bottom edge — ticks over hazard striping */
+[data-theme="eva"] .app-bg-ribbon {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 26px;
+  border-top: 1px solid rgba(var(--eva-p), 0.3);
+  background:
+    repeating-linear-gradient(90deg, rgba(var(--eva-p), 0.55) 0 1px, transparent 1px 20px),
+    repeating-linear-gradient(-45deg, rgba(255, 176, 0, 0.16) 0 12px, transparent 12px 24px);
+  opacity: 0.55;
+}
+
+/* Scale the artwork down on tight viewports rather than switching it off.
+   The old rule cut in at 1100px, which is inside the range of an ordinary
+   maximised laptop window — the art was effectively never seen. */
+@media (max-width: 900px) {
+  [data-theme="eva"] .app-bg-unit { opacity: 0.24; }
+  [data-theme="eva"] .app-bg-kanji { font-size: 1.1rem; letter-spacing: 0.4em; }
+}
+
+@media (max-width: 620px) {
   [data-theme="eva"] .app-bg-kanji { display: none; }
+  [data-theme="eva"] .app-bg-unit { opacity: 0.18; }
+}
+
+/* With a photograph on deck the schematic head would double-expose against
+   it, so it yields; the AT-field bloom stays but drops to a watermark.
+   animation: none is required — the breathe keyframes would win the opacity
+   cascade otherwise (see the eva-at-breathe note above). */
+[data-theme="eva"] body.has-bg-photo .app-bg-unit { display: none; }
+[data-theme="eva"] body.has-bg-photo .app-bg-hex { animation: none; opacity: 0.15; }
+
+/* --------------------------------------------------------------------------
+   Blue-state artwork restatements. url() cannot consume custom properties,
+   so the data-URI drawings are re-inked in the cyan ramp here; everything
+   painted with rgba(var(--eva-p)) recolors itself via the token block.
+   -------------------------------------------------------------------------- */
+
+[data-theme="eva"][data-eva="blue"] body {
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'><path d='M28 1L55 16.6v31.2L28 63.4 1 47.8V16.6L28 1zm0 62.4V97' fill='none' stroke='%234fc3f0' stroke-opacity='0.045' stroke-width='1'/></svg>"),
+    linear-gradient(rgba(var(--eva-p), 0.028) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(var(--eva-p), 0.028) 1px, transparent 1px),
+    radial-gradient(circle at 50% 0%, rgba(var(--eva-p), 0.06) 0%, transparent 70%);
+}
+
+[data-theme="eva"][data-eva="blue"] .app-bg-hex {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='900' height='900' viewBox='-450 -450 900 900'><g fill='none' stroke='%234fc3f0'><polygon points='120,0 60,104 -60,104 -120,0 -60,-104 60,-104' stroke-opacity='.5' stroke-width='3'/><polygon points='190,0 95,165 -95,165 -190,0 -95,-165 95,-165' stroke-opacity='.36' stroke-width='2.4'/><polygon points='265,0 132,230 -132,230 -265,0 -132,-230 132,-230' stroke-opacity='.26' stroke-width='2'/><polygon points='345,0 172,299 -172,299 -345,0 -172,-299 172,-299' stroke-opacity='.18' stroke-width='1.6'/><polygon points='430,0 215,372 -215,372 -430,0 -215,-372 215,-372' stroke-opacity='.11' stroke-width='1.3'/></g></svg>");
+}
+
+/* Quiet-watch schematic: same low-poly head, re-labelled as the prototype —
+   Unit-00 is the blue airframe — with callouts in ice-cyan. */
+[data-theme="eva"][data-eva="blue"] .app-bg-unit {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='640' height='900' viewBox='0 0 640 900'><g fill='none' stroke='%238f7bff' stroke-width='2.5' stroke-linejoin='round' stroke-opacity='.55'><path d='M266,238 L330,196 L420,186 L492,222 L524,286 L520,362 L488,432 L470,520 L436,606 L410,690'/><path d='M266,238 L242,296 L226,338 L238,364 L212,432 L246,506 L282,562 L318,596 L352,618 L372,690'/><path d='M70,60 L252,262'/><path d='M70,60 L96,92 L266,282'/><path d='M212,432 L306,470'/><path d='M246,506 L330,522'/><path d='M330,196 L360,300'/><path d='M420,186 L432,300'/><path d='M492,222 L448,268'/></g><g stroke='%238f7bff' stroke-opacity='.3' stroke-width='1.4' fill='none'><path d='M372,690 L372,760 M410,690 L410,760'/><path d='M360,724 L422,724'/></g><polygon points='250,330 318,314 330,342 262,360' fill='%2333f077' fill-opacity='.4'/><polygon points='262,334 306,324 312,340 268,350' fill='%2333f077' fill-opacity='.85'/><g stroke='%23a5e4fa' stroke-opacity='.4' fill='none' stroke-width='1.2'><circle cx='290' cy='337' r='30' stroke-dasharray='4 6'/><path d='M290,297 L290,283 M290,377 L290,391 M250,337 L236,337 M330,337 L344,337'/><path d='M330,342 L430,392 L500,392'/><path d='M580,186 L580,606 M572,186 L588,186 M572,606 L588,606'/><path d='M40,60 L70,60 M40,52 L40,68'/></g><g font-family='Consolas,monospace' fill='%23a5e4fa' fill-opacity='.55' font-size='13' letter-spacing='2'><text x='504' y='396'>EYE SENSOR</text><text x='560' y='170'>UNIT-00</text><text x='60' y='44'>T-00</text><text x='360' y='800'>PROTO TYPE %E2%80%94 SCHEMATIC 00</text></g></svg>");
 }
 
 /* --------------------------------------------------------------------------
@@ -1690,19 +2160,93 @@ textarea.text-input {
    -------------------------------------------------------------------------- */
 
 [data-theme="eva"] .topbar {
-  background-color: rgba(10, 13, 19, 0.92);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(255, 148, 33, 0.3);
-  box-shadow: 0 2px 16px rgba(255, 148, 33, 0.07);
+  background-color: rgba(var(--eva-bg-rgb), 0.42);
+  -webkit-backdrop-filter: blur(12px) saturate(1.8) brightness(0.72);
+  backdrop-filter: blur(12px) saturate(1.8) brightness(0.72);
+  border-bottom: 1px solid rgba(var(--eva-p), 0.3);
+  box-shadow: 0 2px 16px rgba(var(--eva-p), 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+/* On the EVA dashboard the HUD monolith already reports all three cores, so
+   the compact band would just repeat "NO LINK" three more times. Everywhere
+   else the band is the only core readout and stays. */
+[data-theme="eva"] body[data-tab="dashboard"] .core-band { display: none; }
+
+/* Same band, NERV dialect: per-core channel colours, mono type, a glowing rail. */
+[data-theme="eva"] .core-band {
+  background-color: rgba(var(--eva-bg-rgb), 0.35);
+  -webkit-backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
+  backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
+  border-bottom: 1px solid rgba(var(--eva-p), 0.28);
+}
+
+[data-theme="eva"] .core-cell {
+  border-left: 1px solid rgba(var(--eva-p), 0.16);
+  padding-left: 0.7rem;
+}
+
+[data-theme="eva"] .core-name {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+[data-theme="eva"] .core-cell[data-core="melchior"] .core-name { color: #45D5EA; }
+[data-theme="eva"] .core-cell[data-core="balthasar"] .core-name { color: #35EF7E; }
+[data-theme="eva"] .core-cell[data-core="casper"] .core-name { color: #FF4A57; }
+
+[data-theme="eva"] .core-stat {
+  font-family: var(--font-mono);
+  letter-spacing: 0.07em;
+  color: var(--eva-p-bright);
+}
+
+[data-theme="eva"] .core-role,
+[data-theme="eva"] .core-detail,
+[data-theme="eva"] .core-sync-label { color: rgba(167, 178, 196, 0.9); }
+
+[data-theme="eva"] .core-dot { border-radius: 0; }
+[data-theme="eva"] .core-dot.state-ok { background-color: #35EF7E; box-shadow: 0 0 7px rgba(53, 239, 126, 0.7); }
+[data-theme="eva"] .core-dot.state-warn { background-color: var(--eva-p-bright); box-shadow: 0 0 7px rgba(var(--eva-p), 0.7); }
+[data-theme="eva"] .core-dot.state-err { background-color: #FF4A57; box-shadow: 0 0 7px rgba(255, 74, 87, 0.7); }
+
+[data-theme="eva"] .core-sync {
+  border-top: 1px solid rgba(var(--eva-p), 0.2);
+}
+
+[data-theme="eva"] .core-sync-rail {
+  border-radius: 0;
+  background-color: rgba(var(--eva-p), 0.13);
+}
+
+[data-theme="eva"] .core-sync-rail > i {
+  background-color: var(--eva-p-strong);
+  box-shadow: 0 0 9px rgba(var(--eva-p), 0.6);
+}
+
+/* State colours must survive the equal-specificity override above. */
+[data-theme="eva"] .core-sync-rail > i.is-ok {
+  background-color: #35EF7E;
+  box-shadow: 0 0 9px rgba(53, 239, 126, 0.6);
+}
+
+[data-theme="eva"] .core-sync-rail > i.is-low {
+  background-color: #FF4A57;
+  box-shadow: 0 0 9px rgba(255, 74, 87, 0.6);
+}
+
+[data-theme="eva"] .core-sync-val {
+  color: var(--eva-p-strong);
+  text-shadow: 0 0 7px rgba(var(--eva-p), 0.4);
 }
 
 [data-theme="eva"] .brand-icon {
-  background: linear-gradient(135deg, #FFA51E, #E05E00);
-  box-shadow: 0 0 12px rgba(255, 148, 33, 0.45);
+  background: linear-gradient(135deg, var(--eva-p-soft), var(--eva-p-ember));
+  box-shadow: 0 0 12px rgba(var(--eva-p), 0.45);
   font-family: var(--font-mono);
   font-weight: 800;
-  border: 1px solid rgba(255, 200, 80, 0.55);
+  border: 1px solid rgba(var(--eva-p), 0.55);
   color: #07080A;
   border-radius: 2px;
 }
@@ -1711,14 +2255,14 @@ textarea.text-input {
   font-family: var(--font-mono);
   font-weight: 700;
   letter-spacing: 0.09em;
-  color: #FFA51E;
-  text-shadow: 0 0 10px rgba(255, 165, 30, 0.35);
+  color: var(--eva-p-soft);
+  text-shadow: 0 0 10px rgba(var(--eva-p2), 0.35);
 }
 
 [data-theme="eva"] .brand-badge {
-  background-color: rgba(255, 148, 33, 0.14);
-  color: #FFA51E;
-  border: 1px solid rgba(255, 148, 33, 0.5);
+  background-color: rgba(var(--eva-p), 0.14);
+  color: var(--eva-p-soft);
+  border: 1px solid rgba(var(--eva-p), 0.5);
   border-radius: 2px;
 }
 
@@ -1728,10 +2272,10 @@ textarea.text-input {
   font-size: 0.64rem;
   font-weight: 600;
   letter-spacing: 0.4em;
-  color: rgba(255, 165, 30, 0.65);
+  color: rgba(var(--eva-p2), 0.65);
   margin-left: 0.9rem;
   padding-left: 0.9rem;
-  border-left: 1px solid rgba(255, 148, 33, 0.35);
+  border-left: 1px solid rgba(var(--eva-p), 0.35);
   white-space: nowrap;
 }
 
@@ -1742,17 +2286,19 @@ textarea.text-input {
   font-family: var(--font-mono);
   font-size: 0.7rem;
   letter-spacing: 0.12em;
-  color: #FFA51E;
-  text-shadow: 0 0 6px rgba(255, 165, 30, 0.4);
+  color: var(--eva-p-soft);
+  text-shadow: 0 0 6px rgba(var(--eva-p2), 0.4);
   margin-left: 0.9rem;
   padding: 0.18rem 0.6rem;
-  border: 1px solid rgba(255, 148, 33, 0.3);
-  background: rgba(255, 148, 33, 0.05);
+  border: 1px solid rgba(var(--eva-p), 0.3);
+  background: rgba(var(--eva-p), 0.05);
 }
 
 [data-theme="eva"] .tabs-nav {
-  background-color: rgba(10, 13, 19, 0.9);
-  border-bottom: 1px solid rgba(255, 148, 33, 0.25);
+  background-color: rgba(var(--eva-bg-rgb), 0.3);
+  -webkit-backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
+  backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
+  border-bottom: 1px solid rgba(var(--eva-p), 0.25);
 }
 
 [data-theme="eva"] .tab-btn {
@@ -1769,19 +2315,19 @@ textarea.text-input {
   transform: translateY(-0.35em);
 }
 
-[data-theme="eva"] .tab-btn:hover { color: #FFAC4E; }
+[data-theme="eva"] .tab-btn:hover { color: var(--eva-p-bright); }
 
 [data-theme="eva"] .tab-btn.active {
-  color: #FFA51E;
-  background: linear-gradient(180deg, transparent 75%, rgba(255, 148, 33, 0.14) 100%);
-  text-shadow: 0 0 8px rgba(255, 165, 30, 0.4);
+  color: var(--eva-p-soft);
+  background: linear-gradient(180deg, transparent 75%, rgba(var(--eva-p), 0.14) 100%);
+  text-shadow: 0 0 8px rgba(var(--eva-p2), 0.4);
 }
 
 [data-theme="eva"] .tab-btn.active::before { color: inherit; }
 
 [data-theme="eva"] .tab-btn.active::after {
-  background-color: #FFA51E;
-  box-shadow: 0 0 10px #FFA51E;
+  background-color: var(--eva-p-soft);
+  box-shadow: 0 0 10px var(--eva-p-soft);
 }
 
 [data-theme="eva"] .tab-btn[data-tab="melchior"].active {
@@ -1810,14 +2356,21 @@ textarea.text-input {
 }
 
 /* cards: translucent tactical panels with corner brackets */
+/* Liquid glass, iOS-material recipe: a LOW-alpha tint plus a moderate blur
+   with a strong saturation boost — the artwork's shapes and colours stay
+   recognisable through every panel instead of smearing to grey. Legibility
+   comes from the saturated darkening, not from opacity. Tinted via
+   --eva-bg-rgb so the blue variant's glass runs cold. */
 [data-theme="eva"] .card {
   position: relative;
-  background: linear-gradient(150deg, rgba(15, 19, 28, 0.88), rgba(7, 9, 14, 0.94));
-  -webkit-backdrop-filter: blur(7px);
-  backdrop-filter: blur(7px);
-  border: 1px solid rgba(255, 148, 33, 0.2);
+  background: linear-gradient(150deg, rgba(var(--eva-bg-rgb), 0.3), rgba(var(--eva-bg-rgb), 0.44));
+  -webkit-backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
+  backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
+  border: 1px solid rgba(var(--eva-p), 0.2);
   border-radius: 3px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(255, 148, 33, 0.04);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(var(--eva-p), 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 
 [data-theme="eva"] .card::before,
@@ -1844,11 +2397,11 @@ textarea.text-input {
 }
 
 [data-theme="eva"] .card:hover {
-  border-color: rgba(255, 148, 33, 0.42);
-  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.8), 0 0 12px rgba(255, 148, 33, 0.1);
+  border-color: rgba(var(--eva-p), 0.42);
+  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.8), 0 0 12px rgba(var(--eva-p), 0.1);
 }
 
-[data-theme="eva"] .card-header { border-bottom: 1px solid rgba(255, 148, 33, 0.16); }
+[data-theme="eva"] .card-header { border-bottom: 1px solid rgba(var(--eva-p), 0.16); }
 
 [data-theme="eva"] .card-title {
   font-family: var(--font-mono);
@@ -1875,7 +2428,7 @@ textarea.text-input {
   font-family: var(--font-mono);
   font-weight: 700;
   padding-bottom: 6px;
-  background: repeating-linear-gradient(90deg, rgba(255, 148, 33, 0.3) 0 1px, transparent 1px 8px)
+  background: repeating-linear-gradient(90deg, rgba(var(--eva-p), 0.3) 0 1px, transparent 1px 8px)
     bottom left / 100% 4px no-repeat;
 }
 
@@ -1962,8 +2515,8 @@ textarea.text-input {
   box-shadow: 0 0 8px rgba(53, 239, 126, 0.55);
 }
 [data-theme="eva"] .status-dot.running {
-  background-color: #FFA51E;
-  box-shadow: 0 0 10px rgba(255, 165, 30, 0.75);
+  background-color: var(--eva-p-soft);
+  box-shadow: 0 0 10px rgba(var(--eva-p2), 0.75);
 }
 [data-theme="eva"] .status-dot.error {
   background-color: #FF4A57;
@@ -1971,32 +2524,50 @@ textarea.text-input {
 }
 
 /* panes, rows, tables */
+[data-theme="eva"] .graph-map-wrap {
+  background-color: rgba(var(--eva-bg-rgb), 0.3);
+  border-color: rgba(var(--eva-p), 0.2);
+}
+
+[data-theme="eva"] .graph-map-toggle,
+[data-theme="eva"] .graph-map-note,
+[data-theme="eva"] .graph-map-hint {
+  background-color: rgba(var(--eva-bg-rgb), 0.55);
+  -webkit-backdrop-filter: blur(8px) saturate(1.6);
+  backdrop-filter: blur(8px) saturate(1.6);
+  border-color: rgba(var(--eva-p), 0.25);
+}
+
+[data-theme="eva"] .graph-map-hint { color: var(--text-secondary); }
+
 [data-theme="eva"] .pane-list,
 [data-theme="eva"] .pane-view {
-  background-color: rgba(11, 14, 21, 0.9);
-  border-color: rgba(255, 148, 33, 0.2);
+  background-color: rgba(var(--eva-bg-rgb), 0.32);
+  -webkit-backdrop-filter: blur(9px) saturate(1.8) brightness(0.72);
+  backdrop-filter: blur(9px) saturate(1.8) brightness(0.72);
+  border-color: rgba(var(--eva-p), 0.2);
   border-radius: 3px;
 }
 
 [data-theme="eva"] .pane-list-header {
-  background-color: rgba(11, 14, 21, 0.96);
+  background-color: rgba(var(--eva-bg-rgb), 0.5);
   font-family: var(--font-mono);
-  color: #FFA51E;
+  color: var(--eva-p-soft);
   letter-spacing: 0.04em;
-  border-bottom-color: rgba(255, 148, 33, 0.25);
+  border-bottom-color: rgba(var(--eva-p), 0.25);
 }
 
-[data-theme="eva"] .pane-item:hover { background-color: rgba(255, 148, 33, 0.07); }
+[data-theme="eva"] .pane-item:hover { background-color: rgba(var(--eva-p), 0.07); }
 
 [data-theme="eva"] .pane-item.active {
-  background-color: rgba(255, 148, 33, 0.13);
-  border-left-color: #FFA51E;
-  box-shadow: inset 0 0 10px rgba(255, 148, 33, 0.08);
+  background-color: rgba(var(--eva-p), 0.13);
+  border-left-color: var(--eva-p-soft);
+  box-shadow: inset 0 0 10px rgba(var(--eva-p), 0.08);
 }
 
 [data-theme="eva"] .search-hit-card {
   background-color: rgba(11, 14, 21, 0.88);
-  border-color: rgba(255, 148, 33, 0.18);
+  border-color: rgba(var(--eva-p), 0.18);
   border-radius: 3px;
 }
 
@@ -2009,19 +2580,19 @@ textarea.text-input {
 [data-theme="eva"] .banner-pill {
   border-radius: 2px;
   background: rgba(18, 22, 31, 0.75);
-  border-color: rgba(255, 148, 33, 0.14);
+  border-color: rgba(var(--eva-p), 0.14);
 }
 
 [data-theme="eva"] .data-table th {
   background-color: rgba(17, 21, 31, 0.96);
-  color: #FFA51E;
+  color: var(--eva-p-soft);
   font-family: var(--font-mono);
   letter-spacing: 0.06em;
-  border-bottom: 1px solid rgba(255, 148, 33, 0.3);
+  border-bottom: 1px solid rgba(var(--eva-p), 0.3);
 }
 
 [data-theme="eva"] .data-table td { border-bottom: 1px solid #131926; }
-[data-theme="eva"] .data-table tr:hover td { background-color: rgba(255, 148, 33, 0.06); }
+[data-theme="eva"] .data-table tr:hover td { background-color: rgba(var(--eva-p), 0.06); }
 
 /* inputs & controls: chamfered, mono */
 [data-theme="eva"] .select-input,
@@ -2038,6 +2609,10 @@ textarea.text-input {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%23ff9421' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
 }
 
+[data-theme="eva"][data-eva="blue"] .select-input {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M1 1l4 4 4-4' fill='none' stroke='%234fc3f0' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+}
+
 [data-theme="eva"] select option {
   background-color: #0C0F14;
   color: #E9EEF5;
@@ -2046,15 +2621,15 @@ textarea.text-input {
 [data-theme="eva"] .select-input:focus,
 [data-theme="eva"] .text-input:focus,
 [data-theme="eva"] .search-input:focus {
-  border-color: #FF9421;
-  box-shadow: 0 0 8px rgba(255, 148, 33, 0.32);
+  border-color: var(--eva-p-strong);
+  box-shadow: 0 0 8px rgba(var(--eva-p), 0.32);
 }
 
-[data-theme="eva"] input[type="checkbox"] { accent-color: #FF9421; }
+[data-theme="eva"] input[type="checkbox"] { accent-color: var(--eva-p-strong); }
 
 /* tactical focus ring for keyboard navigation */
 [data-theme="eva"] :focus-visible {
-  outline: 2px solid #FF9421;
+  outline: 2px solid var(--eva-p-strong);
   outline-offset: 2px;
 }
 
@@ -2066,19 +2641,19 @@ textarea.text-input {
 }
 
 [data-theme="eva"] .btn-primary {
-  background: linear-gradient(180deg, #FFA51E, #E07800);
+  background: linear-gradient(180deg, var(--eva-p-soft), var(--eva-p-deep));
   color: #07080A;
   font-weight: 700;
-  border-color: #FFAC4E;
+  border-color: var(--eva-p-bright);
   box-shadow: none;
-  filter: drop-shadow(0 0 6px rgba(255, 148, 33, 0.35));
+  filter: drop-shadow(0 0 6px rgba(var(--eva-p), 0.35));
   font-family: var(--font-mono);
   letter-spacing: 0.02em;
 }
 
 [data-theme="eva"] .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #FFB347, #EE8500);
-  filter: drop-shadow(0 0 12px rgba(255, 148, 33, 0.55));
+  background: linear-gradient(180deg, var(--eva-p-hi), var(--eva-p-deep-hi));
+  filter: drop-shadow(0 0 12px rgba(var(--eva-p), 0.55));
 }
 
 [data-theme="eva"] .btn-secondary {
@@ -2090,15 +2665,15 @@ textarea.text-input {
 
 [data-theme="eva"] .btn-secondary:hover:not(:disabled) {
   background-color: #1A202C;
-  border-color: #FF9421;
-  color: #FF9421;
-  box-shadow: 0 0 8px rgba(255, 148, 33, 0.22);
+  border-color: var(--eva-p-strong);
+  color: var(--eva-p-strong);
+  box-shadow: 0 0 8px rgba(var(--eva-p), 0.22);
 }
 
 [data-theme="eva"] .btn-secondary.active {
-  background-color: rgba(255, 148, 33, 0.14);
-  border-color: #FFA51E;
-  color: #FFA51E;
+  background-color: rgba(var(--eva-p), 0.14);
+  border-color: var(--eva-p-soft);
+  color: var(--eva-p-soft);
 }
 
 [data-theme="eva"] .btn-danger {
@@ -2119,17 +2694,27 @@ textarea.text-input {
 
 [data-theme="eva"] .magi-mode-btn.active {
   box-shadow: none;
-  filter: drop-shadow(0 0 8px rgba(255, 148, 33, 0.45));
+  filter: drop-shadow(0 0 8px rgba(var(--eva-p), 0.45));
 }
 
 /* terminal: phosphor console */
 [data-theme="eva"] .terminal-container {
   border-radius: 0;
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.85), inset 0 0 24px rgba(255, 148, 33, 0.04);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.85), inset 0 0 24px rgba(var(--eva-p), 0.04);
+}
+
+[data-theme="eva"] .terminal-body {
+  background-color: rgba(var(--eva-bg-rgb), 0.42);
+  -webkit-backdrop-filter: blur(10px) saturate(1.7) brightness(0.65);
+  backdrop-filter: blur(10px) saturate(1.7) brightness(0.65);
 }
 
 [data-theme="eva"] .terminal-header {
-  color: #FFA51E;
+  background-color: rgba(var(--eva-bg-rgb), 0.5);
+}
+
+[data-theme="eva"] .terminal-header {
+  color: var(--eva-p-soft);
   font-family: var(--font-mono);
 }
 
@@ -2224,16 +2809,18 @@ textarea.text-input {
 }
 
 [data-theme="eva"] .modal-window {
-  background-color: #0B0E15;
-  border: 1px solid rgba(255, 148, 33, 0.4);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.95), 0 0 24px rgba(255, 148, 33, 0.16);
+  background-color: rgba(var(--eva-bg-rgb), 0.6);
+  -webkit-backdrop-filter: blur(16px) saturate(1.8) brightness(0.7);
+  backdrop-filter: blur(16px) saturate(1.8) brightness(0.7);
+  border: 1px solid rgba(var(--eva-p), 0.4);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.95), 0 0 24px rgba(var(--eva-p), 0.16);
   border-radius: 0;
 }
 
 [data-theme="eva"] .modal-header {
-  color: #FFA51E;
+  color: var(--eva-p-soft);
   font-family: var(--font-mono);
-  border-bottom: 1px solid rgba(255, 148, 33, 0.2);
+  border-bottom: 1px solid rgba(var(--eva-p), 0.2);
   padding-bottom: 0.5rem;
 }
 
@@ -2270,7 +2857,7 @@ textarea.text-input {
 /* toasts & prose */
 [data-theme="eva"] .toast {
   background-color: #0B0E15;
-  border: 1px solid rgba(255, 148, 33, 0.35);
+  border: 1px solid rgba(var(--eva-p), 0.35);
   color: #E9EEF5;
   font-family: var(--font-mono);
   border-radius: 0;
@@ -2281,9 +2868,9 @@ textarea.text-input {
 [data-theme="eva"] .markdown-body h2,
 [data-theme="eva"] .markdown-body h3,
 [data-theme="eva"] .markdown-body h4 {
-  color: #FFA51E;
+  color: var(--eva-p-soft);
   font-family: var(--font-mono);
-  border-color: rgba(255, 148, 33, 0.25);
+  border-color: rgba(var(--eva-p), 0.25);
 }
 
 [data-theme="eva"] .markdown-body a { color: #45D5EA; }
@@ -2296,24 +2883,24 @@ textarea.text-input {
 
 [data-theme="eva"] .markdown-body pre {
   background-color: #04050A;
-  border: 1px solid rgba(255, 148, 33, 0.25);
+  border: 1px solid rgba(var(--eva-p), 0.25);
 }
 
 [data-theme="eva"] .markdown-body blockquote {
-  border-left-color: #FF9421;
-  background: rgba(255, 148, 33, 0.05);
+  border-left-color: var(--eva-p-strong);
+  background: rgba(var(--eva-p), 0.05);
   color: #A7B2C4;
 }
 
-[data-theme="eva"] .markdown-body th { background: rgba(17, 21, 31, 0.9); color: #FFA51E; }
+[data-theme="eva"] .markdown-body th { background: rgba(17, 21, 31, 0.9); color: var(--eva-p-soft); }
 [data-theme="eva"] .markdown-body th, [data-theme="eva"] .markdown-body td {
-  border-color: rgba(255, 148, 33, 0.18);
+  border-color: rgba(var(--eva-p), 0.18);
 }
 
 /* emergency blink hook (applied by app.js to live counters) */
 [data-theme="eva"] .eva-alert {
-  color: #FFA51E !important;
-  text-shadow: 0 0 14px rgba(255, 165, 30, 0.8);
+  color: var(--eva-p-soft) !important;
+  text-shadow: 0 0 14px rgba(var(--eva-p2), 0.8);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -2332,10 +2919,13 @@ textarea.text-input {
 
 [data-theme="eva"] .eva-hud-frame {
   position: relative;
-  border: 1px solid rgba(255, 148, 33, 0.35);
-  background: linear-gradient(180deg, rgba(10, 12, 18, 0.9), rgba(4, 5, 9, 0.95));
+  border: 1px solid rgba(var(--eva-p), 0.35);
+  background: linear-gradient(180deg, rgba(var(--eva-bg-rgb), 0.32), rgba(var(--eva-bg-rgb), 0.48));
+  -webkit-backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
+  backdrop-filter: blur(10px) saturate(1.8) brightness(0.72);
   padding: 0.9rem 1.1rem 0.6rem;
-  box-shadow: 0 0 24px rgba(255, 148, 33, 0.07), inset 0 0 40px rgba(255, 148, 33, 0.03);
+  box-shadow: 0 0 24px rgba(var(--eva-p), 0.07), inset 0 0 40px rgba(var(--eva-p), 0.03),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
 }
 
 [data-theme="eva"] .eva-hud-frame::before,
@@ -2350,15 +2940,15 @@ textarea.text-input {
 [data-theme="eva"] .eva-hud-frame::before {
   top: -1px;
   left: -1px;
-  border-top: 2px solid #FFA51E;
-  border-left: 2px solid #FFA51E;
+  border-top: 2px solid var(--eva-p-soft);
+  border-left: 2px solid var(--eva-p-soft);
 }
 
 [data-theme="eva"] .eva-hud-frame::after {
   bottom: -1px;
   right: -1px;
-  border-bottom: 2px solid #FFA51E;
-  border-right: 2px solid #FFA51E;
+  border-bottom: 2px solid var(--eva-p-soft);
+  border-right: 2px solid var(--eva-p-soft);
 }
 
 [data-theme="eva"] .eva-hud-header {
@@ -2372,11 +2962,11 @@ textarea.text-input {
 }
 
 [data-theme="eva"] .eva-hud-title {
-  color: #FFA51E;
+  color: var(--eva-p-soft);
   font-weight: 700;
   letter-spacing: 0.18em;
   font-size: 0.88rem;
-  text-shadow: 0 0 10px rgba(255, 165, 30, 0.4);
+  text-shadow: 0 0 10px rgba(var(--eva-p2), 0.4);
 }
 
 [data-theme="eva"] .eva-hud-jp {
@@ -2384,7 +2974,7 @@ textarea.text-input {
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.35em;
-  color: rgba(255, 165, 30, 0.65);
+  color: rgba(var(--eva-p2), 0.65);
   margin-left: 0.8rem;
 }
 
@@ -2392,9 +2982,9 @@ textarea.text-input {
   font-size: 0.7rem;
   letter-spacing: 0.14em;
   color: #A7B2C4;
-  border: 1px solid rgba(255, 148, 33, 0.25);
+  border: 1px solid rgba(var(--eva-p), 0.25);
   padding: 0.12rem 0.55rem;
-  background: rgba(255, 148, 33, 0.05);
+  background: rgba(var(--eva-p), 0.05);
   white-space: nowrap;
 }
 
@@ -2408,7 +2998,7 @@ textarea.text-input {
 [data-theme="eva"] .eva-monolith text { font-family: var(--font-mono); }
 
 [data-theme="eva"] .eva-ruler {
-  stroke: rgba(255, 148, 33, 0.5);
+  stroke: rgba(var(--eva-p), 0.5);
   stroke-width: 7;
   stroke-dasharray: 1 11;
 }
@@ -2420,12 +3010,12 @@ textarea.text-input {
 }
 
 [data-theme="eva"] .eva-bus {
-  stroke: rgba(255, 148, 33, 0.22);
+  stroke: rgba(var(--eva-p), 0.22);
   stroke-width: 3;
 }
 
 [data-theme="eva"] .eva-bus-flow {
-  stroke: rgba(255, 170, 40, 0.85);
+  stroke: rgba(var(--eva-p), 0.85);
   stroke-width: 3;
   stroke-dasharray: 5 15;
   stroke-linecap: round;
@@ -2499,12 +3089,12 @@ textarea.text-input {
 [data-theme="eva"] .eva-core.state-ok .eva-core-led { fill: #35EF7E; }
 
 [data-theme="eva"] .eva-core.state-warn .eva-core-shape {
-  stroke: #FFA51E;
-  fill: rgba(255, 165, 30, 0.06);
-  filter: drop-shadow(0 0 5px rgba(255, 165, 30, 0.35));
+  stroke: var(--eva-p-soft);
+  fill: rgba(var(--eva-p2), 0.06);
+  filter: drop-shadow(0 0 5px rgba(var(--eva-p2), 0.35));
 }
-[data-theme="eva"] .eva-core.state-warn .eva-core-stat { fill: #FFA51E; }
-[data-theme="eva"] .eva-core.state-warn .eva-core-led { fill: #FFA51E; }
+[data-theme="eva"] .eva-core.state-warn .eva-core-stat { fill: var(--eva-p-soft); }
+[data-theme="eva"] .eva-core.state-warn .eva-core-led { fill: var(--eva-p-soft); }
 
 [data-theme="eva"] .eva-core.state-err .eva-core-shape {
   stroke: #FF4A57;
@@ -2525,17 +3115,17 @@ textarea.text-input {
 [data-theme="eva"] .eva-core.state-off .eva-core-stat { fill: #616C7E; }
 
 [data-theme="eva"] .eva-hex-shape {
-  fill: rgba(255, 148, 33, 0.05);
-  stroke: #FFA51E;
+  fill: rgba(var(--eva-p), 0.05);
+  stroke: var(--eva-p-soft);
   stroke-width: 2;
-  filter: drop-shadow(0 0 8px rgba(255, 148, 33, 0.35));
+  filter: drop-shadow(0 0 8px rgba(var(--eva-p), 0.35));
 }
 
 [data-theme="eva"] .eva-hex-label-jp {
   font-family: var(--font-eva-display);
   font-size: 13px;
   letter-spacing: 0.3em;
-  fill: rgba(255, 165, 30, 0.8);
+  fill: rgba(var(--eva-p2), 0.8);
 }
 
 [data-theme="eva"] .eva-hex-sync {
@@ -2563,7 +3153,7 @@ textarea.text-input {
   inset: 0;
   z-index: 100000;
   background:
-    repeating-linear-gradient(0deg, rgba(255, 148, 33, 0.02) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(0deg, rgba(var(--eva-p), 0.02) 0 1px, transparent 1px 3px),
     #04050A;
   align-items: center;
   justify-content: center;
@@ -2582,8 +3172,8 @@ textarea.text-input {
   font-size: clamp(2.1rem, 8vw, 3.4rem);
   font-weight: 800;
   letter-spacing: 0.32em;
-  color: #FFA51E;
-  text-shadow: 0 0 26px rgba(255, 165, 30, 0.6);
+  color: var(--eva-p-soft);
+  text-shadow: 0 0 26px rgba(var(--eva-p2), 0.6);
   animation: eva-boot-pop 0.5s ease;
 }
 
@@ -2617,7 +3207,7 @@ textarea.text-input {
 .eva-boot-bar {
   width: min(340px, 80vw);
   height: 8px;
-  border: 1px solid rgba(255, 148, 33, 0.5);
+  border: 1px solid rgba(var(--eva-p), 0.5);
   margin: 1.2rem auto 0.9rem;
   padding: 1px;
 }
@@ -2625,15 +3215,15 @@ textarea.text-input {
 .eva-boot-bar-fill {
   height: 100%;
   width: 0;
-  background: linear-gradient(90deg, #FF9421, #FFA51E);
-  box-shadow: 0 0 12px rgba(255, 148, 33, 0.6);
+  background: linear-gradient(90deg, var(--eva-p-strong), var(--eva-p-soft));
+  box-shadow: 0 0 12px rgba(var(--eva-p), 0.6);
   animation: eva-boot-fill 1.5s 0.45s steps(24) forwards;
 }
 
 .eva-boot-status {
   font-size: 0.68rem;
   letter-spacing: 0.3em;
-  color: rgba(255, 165, 30, 0.75);
+  color: rgba(var(--eva-p2), 0.75);
 }
 
 @keyframes eva-boot-pop {

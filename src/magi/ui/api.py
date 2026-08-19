@@ -6,6 +6,7 @@ import asyncio
 import datetime as dt
 import importlib.resources
 import json
+import mimetypes
 import os
 import re
 import sqlite3
@@ -22,8 +23,13 @@ from pydantic import BaseModel, Field
 
 import magi
 from magi.core.workspace import find_hub_root, find_workspace_root
+
+# Windows' registry-driven mimetypes table often lacks .webp, so the bundled
+# background art would be served as application/octet-stream.
+mimetypes.add_type("image/webp", ".webp")
 from magi.kb.detect_uncompiled import find_uncompiled
 from magi.kb_registry import (
+    _config_home,
     _set_enabled,
     load_registry,
     load_settings,
@@ -95,6 +101,21 @@ def _get_static_dir() -> Path:
         pass
     fallback = Path(__file__).parent / "static"
     return fallback
+
+
+class RevalidatingStatic(StaticFiles):
+    """Serve assets with must-revalidate.
+
+    StaticFiles only sends etag/last-modified, so browsers apply
+    heuristic freshness and can hold a stale styles.css/app.js across
+    an upgrade — the UI then looks unchanged after a version bump.
+    The ETag still makes every revalidation a cheap 304.
+    """
+
+    def file_response(self, *args, **kwargs):  # type: ignore[override]
+        resp = super().file_response(*args, **kwargs)
+        resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return resp
 
 
 # --------------------------------------------------------------------------
@@ -521,6 +542,76 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                 except Exception:
                     pass
 
+    @app.get("/api/workspace/graph/browse")
+    def browse_graph(
+        view: str = Query("overview"),
+        type: Optional[str] = Query(None),
+        q: Optional[str] = Query(None),
+        node: Optional[str] = Query(None),
+        status: Optional[str] = Query(None),
+        limit: Optional[int] = Query(None),
+        tags: bool = Query(False),
+        workspace: Optional[str] = Query(None),
+    ) -> dict:
+        from magi.kb import graph_browse
+
+        if view not in ("overview", "nodes", "links", "claims", "tags", "broken", "map"):
+            raise HTTPException(status_code=400, detail=f"Unknown view: {view}")
+        ws = _resolve_workspace(workspace)
+        graph_db = ws / "output" / "graph.db"
+        if not graph_db.is_file():
+            raise HTTPException(
+                status_code=404,
+                detail=f"Knowledge graph database not found at {graph_db}. Run 'magi graph build' first.",
+            )
+        # The map view returns the whole graph, so it gets a wider clamp.
+        if view == "map":
+            limit = max(1, min(limit if limit is not None else 800, 2000))
+        else:
+            limit = max(1, min(limit if limit is not None else 50, 500))
+
+        conn = None
+        try:
+            conn = graph_browse.open_ro(graph_db)
+            if view == "overview":
+                results: Any = graph_browse.browse_overview(conn)
+            elif view == "nodes":
+                results = graph_browse.browse_nodes(conn, node_type=type, q=q, limit=limit)
+            elif view == "links":
+                if node:
+                    results = graph_browse.browse_links(conn, node)
+                else:
+                    # Without a node to inspect, show the busiest ones instead.
+                    results = graph_browse.browse_hubs(conn, limit=limit)
+            elif view == "claims":
+                results = graph_browse.browse_claims(conn, status=status, q=q, limit=limit)
+            elif view == "tags":
+                results = graph_browse.browse_tags(conn, q=q, limit=limit)
+            elif view == "map":
+                results = graph_browse.browse_map(conn, include_tags=tags, limit=limit)
+            else:
+                results = graph_browse.browse_broken(conn, limit=limit)
+        except sqlite3.Error as exc:
+            raise HTTPException(status_code=400, detail=f"Graph browse error: {exc}")
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+        if view == "map":
+            count = len(results["nodes"])
+        elif isinstance(results, list):
+            count = len(results)
+        else:
+            count = 1
+        return {
+            "view": view,
+            "results": results,
+            "count": count,
+        }
+
     @app.get("/api/workspace/pm")
     def get_workspace_pm(workspace: Optional[str] = Query(None)) -> dict:
         ws = _resolve_workspace(workspace)
@@ -828,6 +919,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     @app.get("/api/docs/commands")
     def get_commands_docs() -> dict:
         from magi.cli import _COMMANDS, _GROUP_HELP
+        from magi.core.cli_i18n import GROUP_HELP_ZH, command_help_zh, group_help_zh
 
         cmd_list = []
         for key, (module_name, prepend, help_text) in sorted(_COMMANDS.items()):
@@ -838,17 +930,80 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                 "command": full_cmd,
                 "group": group,
                 "group_help": _GROUP_HELP.get(group, "") if group else "",
+                "group_help_zh": group_help_zh(group),
                 "module": module_name,
                 "help": help_text,
+                "help_zh": command_help_zh(key),
             })
-        return {"commands": cmd_list, "groups": _GROUP_HELP}
+        return {"commands": cmd_list, "groups": _GROUP_HELP, "groups_zh": GROUP_HELP_ZH}
+
+    # ----------------------------------------------------------------------
+    # 4b. UI backgrounds (user override dir beats packaged manifest)
+    # ----------------------------------------------------------------------
+
+    _BG_VARIANTS = ("blue", "red")
+    _BG_EXTS = (".webp", ".jpg", ".jpeg", ".png")
+
+    def _load_manifest(path: Path) -> Optional[dict]:
+        if not path.is_file():
+            return None
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            # ValueError covers JSONDecodeError and UnicodeDecodeError alike —
+            # any unreadable manifest falls back instead of 500ing.
+            return None
+        return data if isinstance(data, dict) else None
+
+    @app.get("/api/ui/backgrounds")
+    def get_ui_backgrounds() -> dict:
+        override = _config_home() / "ui-backgrounds"
+
+        data = _load_manifest(override / "manifest.json")
+        if data is not None:
+            return {**data, "source": "user", "base_url": "/ui-bg/"}
+
+        # No manifest: bare image files in blue/ or red/ still count as a
+        # user override, with dimensions unknown.
+        variants: Dict[str, list] = {}
+        for variant in _BG_VARIANTS:
+            vdir = override / variant
+            if not vdir.is_dir():
+                continue
+            names = sorted(p.name for p in vdir.iterdir()
+                           if p.is_file() and p.suffix.lower() in _BG_EXTS)
+            if names:
+                variants[variant] = [
+                    {"file": f"{variant}/{name}", "w": None, "h": None, "aspect": None}
+                    for name in names
+                ]
+        if variants:
+            return {"variants": variants, "source": "user", "base_url": "/ui-bg/"}
+
+        data = _load_manifest(_get_static_dir() / "backgrounds" / "manifest.json")
+        if data is not None:
+            return {**data, "source": "bundled", "base_url": "/backgrounds/"}
+
+        return {"variants": {}, "source": "none", "base_url": ""}
 
     # ----------------------------------------------------------------------
     # 5. Static Files Mounting
     # ----------------------------------------------------------------------
 
+    # Mounted unconditionally with check_dir=False: /api/ui/backgrounds
+    # resolves the override dir per request, so the mount must serve files
+    # dropped in AFTER server start too. A missing dir just 404s.
+    ui_bg_dir = _config_home() / "ui-backgrounds"
+    app.mount(
+        "/ui-bg",
+        RevalidatingStatic(directory=str(ui_bg_dir), check_dir=False),
+        name="ui-bg",
+    )
+
     static_dir = _get_static_dir()
     if static_dir.is_dir():
-        app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
+        app.mount(
+            "/", RevalidatingStatic(directory=str(static_dir), html=True), name="static"
+        )
 
     return app

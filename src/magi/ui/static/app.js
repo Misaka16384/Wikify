@@ -46,6 +46,24 @@
       dash_task_label: "科研任务状态",
       dash_task_subtitle: "待办及进行中任务",
 
+      // Three-core status band
+      core_role_mel: "认知状态",
+      core_role_bal: "任务追踪",
+      core_role_cas: "混合检索",
+      core_sync_label: "三核同步率",
+      core_state_ok: "正常",
+      core_state_attention: "待处理",
+      core_state_fault: "故障",
+      core_state_offline: "未接入",
+      core_detail_nolink: "尚未选择工作区",
+      core_detail_mel: "{c} 概念 · {r} 文献 · 命题 {v}/{n} 已核验",
+      core_detail_bal: "就绪 {r} · 进行中 {p} · 阻塞 {b}",
+      core_detail_bal_kbonly: "纯知识库模式，未启用任务追踪",
+      core_detail_bal_noengine: "未安装 beads，请运行 magi setup",
+      core_detail_bal_uninit: "任务库尚未初始化",
+      core_detail_cas: "{c} 分块 · {v} 向量",
+      core_detail_cas_noindex: "尚未建立检索索引",
+
       // Dashboard KB Table
       dash_kb_table_title: "已注册知识库",
       dash_kb_table_subtitle: "全局注册表位于 ~/.config/magi/registry.json",
@@ -328,6 +346,52 @@
       danger_confirm_ph: "在此输入操作 ID 以确认",
       danger_type_to_confirm: "为防误触，请在下方输入框输入 {op} 后点击确认。",
       danger_confirm_mismatch: "确认文本不匹配：需要输入 {op}",
+
+      // Knowledge graph browser
+      graph_card_title: "知识图谱",
+      graph_card_subtitle: "词条、链接、命题与标签的结构化视图",
+      graph_view_overview: "总览",
+      graph_view_nodes: "词条",
+      graph_view_links: "链接",
+      graph_view_claims: "命题",
+      graph_view_tags: "标签",
+      graph_view_broken: "断链",
+      graph_q_ph: "按标题或编号筛选…",
+      graph_type_all: "全部类型",
+      graph_type_concept: "概念",
+      graph_type_reference: "文献",
+      graph_type_topic: "课题",
+      graph_type_thesis: "论点",
+      graph_type_claim: "命题",
+      graph_type_tag: "标签",
+      graph_loading: "正在加载图谱视图…",
+      graph_empty: "没有匹配的记录。",
+      graph_back: "返回词条列表",
+      graph_out: "出链",
+      graph_in: "入链",
+      graph_hubs_hint: "连接最多的词条，点击查看其链接",
+      graph_broken_empty: "没有断链，链接网络完整。",
+      graph_view_map: "图谱",
+      graph_map_tags: "显示标签节点",
+      graph_map_hint: "拖拽节点 · 滚轮缩放 · 点击节点查看链接",
+      graph_map_empty: "图谱为空——先运行 magi graph build 构建知识图谱。",
+      graph_map_truncated: "节点较多，已按连接度显示前 {n} 个",
+      graph_map_no_d3: "图谱物理引擎未加载——请检查 /vendor/d3-*.min.js 是否可访问",
+      graph_th_title: "标题",
+      graph_th_type: "类型",
+      graph_th_degree: "连接度",
+      graph_th_updated: "更新",
+      graph_th_text: "内容",
+      graph_th_doc: "所在文档",
+      graph_th_tag: "标签",
+      graph_th_count: "引用数",
+      graph_th_source: "来源",
+      graph_th_target_missing: "指向（不存在）",
+      adv_sql_title: "高级：只读 SQL 控制台",
+
+      // Radar digest filter
+      radar_filter_ph: "按作者或标题筛选候选…",
+      radar_filter_count: "显示 {shown} / {total} 条",
     },
 
     en: {
@@ -367,6 +431,24 @@
       dash_radar_subtitle: "Literature radar",
       dash_task_label: "Active Task State",
       dash_task_subtitle: "Actionable tasks",
+
+      // Three-core status band
+      core_role_mel: "Cognitive state",
+      core_role_bal: "Task state",
+      core_role_cas: "Retrieval",
+      core_sync_label: "Three-core sync",
+      core_state_ok: "Nominal",
+      core_state_attention: "Needs attention",
+      core_state_fault: "Fault",
+      core_state_offline: "Not linked",
+      core_detail_nolink: "No workspace selected",
+      core_detail_mel: "{c} concepts · {r} references · {v}/{n} claims verified",
+      core_detail_bal: "{r} ready · {p} in progress · {b} blocked",
+      core_detail_bal_kbonly: "Knowledge-base only, task tracking off",
+      core_detail_bal_noengine: "beads not installed — run magi setup",
+      core_detail_bal_uninit: "Task store not initialized",
+      core_detail_cas: "{c} chunks · {v} vectors",
+      core_detail_cas_noindex: "No retrieval index built",
 
       // Dashboard KB Table
       dash_kb_table_title: "Registered Knowledge Bases",
@@ -650,6 +732,52 @@
       danger_confirm_ph: "type the operation id to confirm",
       danger_type_to_confirm: "To prevent accidents, type {op} below and press Confirm.",
       danger_confirm_mismatch: "Confirmation text mismatch: type {op}",
+
+      // Knowledge graph browser
+      graph_card_title: "Knowledge Graph",
+      graph_card_subtitle: "Structured views over entries, links, claims and tags",
+      graph_view_overview: "Overview",
+      graph_view_nodes: "Entries",
+      graph_view_links: "Links",
+      graph_view_claims: "Claims",
+      graph_view_tags: "Tags",
+      graph_view_broken: "Broken links",
+      graph_q_ph: "Filter by title or id…",
+      graph_type_all: "All types",
+      graph_type_concept: "Concept",
+      graph_type_reference: "Reference",
+      graph_type_topic: "Topic",
+      graph_type_thesis: "Thesis",
+      graph_type_claim: "Claim",
+      graph_type_tag: "Tag",
+      graph_loading: "Loading graph view…",
+      graph_empty: "No matching records.",
+      graph_back: "Back to entries",
+      graph_out: "Outgoing",
+      graph_in: "Incoming",
+      graph_hubs_hint: "Most-connected entries — click one to inspect its links",
+      graph_broken_empty: "No broken links — the link network is intact.",
+      graph_view_map: "Graph",
+      graph_map_tags: "Show tag nodes",
+      graph_map_hint: "Drag nodes · scroll to zoom · click a node to inspect its links",
+      graph_map_empty: "The graph is empty — run magi graph build first.",
+      graph_map_truncated: "Large graph — showing the top {n} nodes by degree",
+      graph_map_no_d3: "Graph physics library failed to load — check /vendor/d3-*.min.js",
+      graph_th_title: "Title",
+      graph_th_type: "Type",
+      graph_th_degree: "Degree",
+      graph_th_updated: "Updated",
+      graph_th_text: "Text",
+      graph_th_doc: "Document",
+      graph_th_tag: "Tag",
+      graph_th_count: "Count",
+      graph_th_source: "Source",
+      graph_th_target_missing: "Target (missing)",
+      adv_sql_title: "Advanced: read-only SQL console",
+
+      // Radar digest filter
+      radar_filter_ph: "Filter candidates by author or title…",
+      radar_filter_count: "Showing {shown} of {total}",
     },
   };
 
@@ -735,6 +863,8 @@
     kbs: [],
     activeTab: "dashboard",
     activeDoc: "readme",
+    graphView: "map",
+    graphNode: null,
     activeJobId: null,
     activeJobName: "",
     eventSource: null,
@@ -792,6 +922,17 @@
     runSqlBtn: document.getElementById("run-sql-btn"),
     sqlResultContainer: document.getElementById("sql-result-container"),
     presetSqlBtns: document.querySelectorAll(".preset-sql-btn"),
+
+    // Knowledge graph browser
+    graphViewBtns: document.querySelectorAll(".graph-view-btn"),
+    graphFilterRow: document.getElementById("graph-filter-row"),
+    graphMapWrap: document.getElementById("graph-map-wrap"),
+    graphMapCanvas: document.getElementById("graph-map-canvas"),
+    graphMapTags: document.getElementById("graph-map-tags"),
+    graphMapNote: document.getElementById("graph-map-note"),
+    graphQ: document.getElementById("graph-q"),
+    graphType: document.getElementById("graph-type"),
+    graphBrowseContainer: document.getElementById("graph-browse-container"),
 
     // Balthasar (Tasks)
     taskStatusBanner: document.getElementById("task-status-banner"),
@@ -925,12 +1066,17 @@
       if (els.magiModeBtn) {
         els.magiModeBtn.classList.add("active");
       }
+      // MAGI MODE reads the base theme as its alert state — light base means
+      // the blue quiet-watch variant, dark base the red combat variant — so
+      // the theme toggle keeps working inside the mode instead of exiting it.
       const base = safeStorageGet("magi-base-theme") || "dark";
+      document.documentElement.setAttribute("data-eva", base === "light" ? "blue" : "red");
       if (els.themeToggleBtn) {
         els.themeToggleBtn.textContent = base === "dark" ? "☀︎" : "☽";
       }
       startEvaClock();
     } else {
+      document.documentElement.removeAttribute("data-eva");
       safeStorageSet("magi-mode", "false");
       safeStorageSet("magi-base-theme", theme);
       if (els.magiModeBtn) {
@@ -948,7 +1094,112 @@
         els.evaBoot.classList.remove("active");
       }
     }
+    applyBackground("state");
+    // A settled graph map never re-ticks on its own, so a theme flip must
+    // trigger one repaint to resample the token colours.
+    scheduleGraphMapDraw();
   }
+
+  // ------------------------------------------------------------------------
+  // EVA artwork backdrop engine
+  //
+  // Two stacked .app-bg-photo layers crossfade between images from the
+  // bundled (or user-overridden) background sets: the blue set under the
+  // quiet-watch variant, the red set under combat. Selection matches the
+  // viewport's aspect ratio; near-ties rotate randomly on tab switches.
+  // ------------------------------------------------------------------------
+
+  const bgEngine = { manifest: null, baseUrl: "", front: null, shown: null, variant: null, req: 0 };
+
+  function currentEvaVariant() {
+    if (state.theme !== "eva") return null;
+    return (safeStorageGet("magi-base-theme") || "dark") === "light" ? "blue" : "red";
+  }
+
+  async function initBackgrounds() {
+    try {
+      const res = await fetch("/api/ui/backgrounds");
+      if (!res.ok) return;
+      const data = await res.json();
+      bgEngine.manifest = data.variants || {};
+      bgEngine.baseUrl = data.base_url || "";
+    } catch (_) {
+      bgEngine.manifest = {};
+    }
+    applyBackground("state");
+  }
+
+  // |log(image aspect / viewport aspect)| — 0 is a perfect fit. Anything
+  // within 0.28 of the best fit competes, so similarly-cropped images
+  // rotate instead of one image monopolising a viewport shape. Entries
+  // without dimensions (user-supplied, no manifest) are always eligible.
+  function bgEligible(variant) {
+    const entries = (bgEngine.manifest && bgEngine.manifest[variant]) || [];
+    if (!entries.length) return [];
+    const winAspect = window.innerWidth / Math.max(1, window.innerHeight);
+    const scored = entries.map((e) => ({
+      e,
+      d: e.aspect ? Math.abs(Math.log(e.aspect / winAspect)) : 0,
+    }));
+    scored.sort((a, b) => a.d - b.d);
+    const best = scored[0].d;
+    return scored.filter((s) => s.d <= best + 0.28).map((s) => s.e);
+  }
+
+  // reason: "state" = theme/variant changed, "rotate" = tab switch,
+  // "fit" = viewport resized (only swaps when the current image no longer
+  // belongs to the eligible pool).
+  function applyBackground(reason) {
+    const layerA = document.getElementById("bg-photo-a");
+    const layerB = document.getElementById("bg-photo-b");
+    if (!layerA || !layerB) return;
+    const layers = [layerA, layerB];
+    const variant = currentEvaVariant();
+    const pool = variant ? bgEligible(variant) : [];
+    document.body.classList.toggle("has-bg-photo", pool.length > 0);
+    if (!variant || !pool.length) {
+      layers.forEach((l) => l.classList.remove("visible"));
+      bgEngine.shown = null;
+      bgEngine.variant = null;
+      bgEngine.front = null;
+      return;
+    }
+    const sameVariant = bgEngine.variant === variant;
+    if (reason === "fit" && sameVariant && pool.some((e) => e.file === bgEngine.shown)) {
+      return;
+    }
+    let candidates = pool;
+    if (candidates.length > 1 && bgEngine.shown) {
+      const rest = candidates.filter((e) => e.file !== bgEngine.shown);
+      if (rest.length) candidates = rest;
+    }
+    const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+    if (sameVariant && chosen.file === bgEngine.shown) return;
+    const url = bgEngine.baseUrl + chosen.file;
+    // Decode can outlast rapid theme/tab flips — only the newest request may
+    // paint, or an older image would land on top of a newer one.
+    const req = ++bgEngine.req;
+    const img = new Image();
+    img.onload = () => {
+      if (req !== bgEngine.req || currentEvaVariant() !== variant) return;
+      const nextIdx = bgEngine.front === 0 ? 1 : 0;
+      const next = layers[nextIdx];
+      const cur = bgEngine.front === null ? null : layers[bgEngine.front];
+      next.style.backgroundImage = `url("${url}")`;
+      next.classList.add("visible");
+      if (cur && cur !== next) cur.classList.remove("visible");
+      bgEngine.front = nextIdx;
+      bgEngine.shown = chosen.file;
+      bgEngine.variant = variant;
+    };
+    img.src = url;
+  }
+
+  let bgResizeTimer = null;
+  window.addEventListener("resize", () => {
+    if (bgResizeTimer) clearTimeout(bgResizeTimer);
+    bgResizeTimer = setTimeout(() => applyBackground("fit"), 400);
+  });
 
   // ------------------------------------------------------------------------
   // EVA MAGI MODE: mission clock, boot sequence, tri-monolith HUD
@@ -1056,6 +1307,78 @@
   }
 
   // ------------------------------------------------------------------------
+  // Three-core status band (persistent across tabs)
+  // ------------------------------------------------------------------------
+
+  // Reuses evaCoreState()'s classification so the band and the EVA HUD can
+  // never disagree about a core's health; only the wording differs — the HUD
+  // speaks NERV codes, the band speaks the UI language.
+  const CORE_STATUS_KEYS = {
+    "state-ok": "core_state_ok",
+    "state-warn": "core_state_attention",
+    "state-err": "core_state_fault",
+    "state-off": "core_state_offline",
+  };
+
+  function coreBandVitals(kind, core) {
+    const st = evaCoreState(kind, core);
+    const cls = st.cls;
+    const stat = t(CORE_STATUS_KEYS[cls] || "core_state_offline");
+    if (!core) return { cls, stat, detail: t("core_detail_nolink") };
+    if (kind === "mel") {
+      return {
+        cls,
+        stat,
+        detail: t("core_detail_mel", {
+          c: core.concepts || 0,
+          r: core.references || 0,
+          v: core.claims_verified || 0,
+          n: core.claims || 0,
+        }),
+      };
+    }
+    if (kind === "bal") {
+      if (core.state === "disabled") return { cls, stat, detail: t("core_detail_bal_kbonly") };
+      if (!core.bd_installed) return { cls, stat, detail: t("core_detail_bal_noengine") };
+      if (!core.beads_root) return { cls, stat, detail: t("core_detail_bal_uninit") };
+      return {
+        cls,
+        stat,
+        detail: t("core_detail_bal", {
+          r: core.ready ?? 0,
+          p: core.in_progress ?? 0,
+          b: core.blocked ?? 0,
+        }),
+      };
+    }
+    if (core.state === "missing" || core.state === "offline") {
+      return { cls, stat, detail: t("core_detail_cas_noindex") };
+    }
+    return { cls, stat, detail: t("core_detail_cas", { c: core.chunks || 0, v: core.vectors || 0 }) };
+  }
+
+  function updateCoreBand(rep) {
+    const cores = (rep && rep.cores) || {};
+    const mapping = { mel: "melchior", bal: "balthasar", cas: "casper" };
+    for (const [short, full] of Object.entries(mapping)) {
+      const v = coreBandVitals(short, cores[full] || null);
+      const dot = document.getElementById(`core-dot-${short}`);
+      const statEl = document.getElementById(`core-stat-${short}`);
+      const detEl = document.getElementById(`core-detail-${short}`);
+      if (dot) dot.className = `core-dot ${v.cls}`;
+      if (statEl) statEl.textContent = v.stat;
+      if (detEl) detEl.textContent = v.detail;
+    }
+
+    const ratio = rep && rep.sync_ratio !== null && rep.sync_ratio !== undefined ? rep.sync_ratio : null;
+    const fill = document.getElementById("core-sync-fill");
+    if (fill) {
+      fill.style.width = ratio !== null ? `${Math.max(0, Math.min(100, ratio))}%` : "0%";
+      fill.className = ratio === null ? "" : ratio === 100 ? "is-ok" : ratio < 60 ? "is-low" : "is-mid";
+    }
+  }
+
+  // ------------------------------------------------------------------------
   // Language & i18n Switcher
   // ------------------------------------------------------------------------
 
@@ -1101,6 +1424,10 @@
     // Re-render workspace select dropdown labels
     renderWorkspaceSelect();
 
+    // Core-band text is generated, not data-i18n — repaint it from the last
+    // sync report rather than refetching.
+    updateCoreBand(state.syncReport || null);
+
     // Re-render doctor modal if open
     if (els.doctorModal && els.doctorModal.classList.contains("open")) {
       openDoctorModal();
@@ -1125,6 +1452,11 @@
 
   function switchTab(tabName) {
     state.activeTab = tabName;
+    // Lets CSS react to the active tab (the EVA dashboard suppresses the
+    // core band because the HUD monolith already states the same thing).
+    document.body.dataset.tab = tabName;
+    applyBackground("rotate");
+    if (tabName !== "melchior") stopGraphMap();
     els.tabBtns.forEach((b) => {
       b.classList.toggle("active", b.dataset.tab === tabName);
     });
@@ -1141,6 +1473,7 @@
         break;
       case "melchior":
         loadMelchior();
+        loadGraphBrowse(state.graphView);
         break;
       case "balthasar":
         loadBalthasar();
@@ -1259,11 +1592,16 @@
       } else {
         els.syncRatioBadge.className = "stat-pill info";
       }
+      state.syncReport = rep;
       updateEvaHud(rep);
+      updateCoreBand(rep);
       renderSyncHints(rep.hints_structured, rep.hints);
     } catch (err) {
       els.syncRatioVal.textContent = "--%";
+      state.syncReport = null;
+      if (els.dashSyncRatio) els.dashSyncRatio.textContent = "--%";
       updateEvaHud(null);
+      updateCoreBand(null);
       renderSyncHints([], []);
     }
   }
@@ -1553,6 +1891,631 @@
       els.sqlResultContainer.innerHTML = `<div class="error-box">${escapeHtml(err.message)}</div>`;
     }
   }
+
+  // ------------------------------------------------------------------------
+  // Knowledge graph browser
+  // ------------------------------------------------------------------------
+
+  const GRAPH_TYPE_KEYS = {
+    concept: "graph_type_concept",
+    reference: "graph_type_reference",
+    topic: "graph_type_topic",
+    thesis: "graph_type_thesis",
+    claim: "graph_type_claim",
+    tag: "graph_type_tag",
+  };
+
+  const GRAPH_FILTERED_VIEWS = ["nodes", "claims", "tags"];
+
+  function graphTypeLabel(type) {
+    return GRAPH_TYPE_KEYS[type] ? t(GRAPH_TYPE_KEYS[type]) : (type || "");
+  }
+
+  function graphClaimStatusLabel(status) {
+    if (status === "verified") return t("status_verified");
+    if (status === "web-verified") return t("status_web_verified");
+    if (status === "unverified") return t("status_unverified");
+    return status || "";
+  }
+
+  function updateGraphChips(view) {
+    // "hubs" is the server's answer to "links without a node" — same chip.
+    const chipView = view === "hubs" ? "links" : view;
+    els.graphViewBtns.forEach((b) => b.classList.toggle("active", b.dataset.view === chipView));
+  }
+
+  function updateGraphFilterRow(view) {
+    if (!els.graphFilterRow) return;
+    els.graphFilterRow.style.display = GRAPH_FILTERED_VIEWS.includes(view) ? "" : "none";
+    if (els.graphType) els.graphType.style.display = view === "nodes" ? "" : "none";
+  }
+
+  function openGraphNode(nodeId) {
+    state.graphNode = nodeId;
+    loadGraphBrowse("links");
+  }
+
+  async function loadGraphBrowse(view) {
+    if (!els.graphBrowseContainer || !state.workspace) return;
+    state.graphView = view;
+    updateGraphChips(view);
+    updateGraphFilterRow(view);
+    const isMap = view === "map";
+    if (els.graphMapWrap) els.graphMapWrap.style.display = isMap ? "" : "none";
+    els.graphBrowseContainer.style.display = isMap ? "none" : "";
+    if (isMap) {
+      loadGraphMap();
+      return;
+    }
+    stopGraphMap();
+    els.graphBrowseContainer.innerHTML = `<p class="empty-note">${t("graph_loading")}</p>`;
+    const params = new URLSearchParams({ view, workspace: state.workspace });
+    if (GRAPH_FILTERED_VIEWS.includes(view) && els.graphQ && els.graphQ.value.trim()) {
+      params.set("q", els.graphQ.value.trim());
+    }
+    if (view === "nodes" && els.graphType && els.graphType.value) {
+      params.set("type", els.graphType.value);
+    }
+    if (view === "links" && state.graphNode) {
+      params.set("node", state.graphNode);
+    }
+    // Rapid view/workspace switches race their fetches; only the newest
+    // request may paint the container.
+    const token = ++loadGraphBrowse._req;
+    try {
+      const data = await apiFetch(`/api/workspace/graph/browse?${params.toString()}`);
+      if (token !== loadGraphBrowse._req) return;
+      renderGraphBrowse(data);
+    } catch (err) {
+      if (token !== loadGraphBrowse._req) return;
+      els.graphBrowseContainer.innerHTML = `<div class="error-box">${escapeHtml(err.message)}</div>`;
+    }
+  }
+  loadGraphBrowse._req = 0;
+
+  function renderGraphBrowse(data) {
+    let view = data.view;
+    const results = data.results;
+    // Older servers answer node-less "links" with a hub list under the
+    // requested view name; the payload shape is the reliable signal.
+    if (view === "links" && Array.isArray(results)) view = "hubs";
+    updateGraphChips(view);
+    switch (view) {
+      case "overview":
+        renderGraphOverview(results || {});
+        break;
+      case "nodes":
+        renderGraphNodes(results || []);
+        break;
+      case "links":
+        renderGraphLinks(results || {});
+        break;
+      case "hubs":
+        renderGraphHubs(results || []);
+        break;
+      case "claims":
+        renderGraphClaims(results || []);
+        break;
+      case "tags":
+        renderGraphTags(results || []);
+        break;
+      case "broken":
+        renderGraphBroken(results || []);
+        break;
+    }
+  }
+
+  function renderGraphOverview(ov) {
+    const section = (label) =>
+      `<tr><td colspan="2"><span class="badge badge-muted">${escapeHtml(label)}</span></td></tr>`;
+    let html = `<table class="data-table"><tbody>`;
+    html += section(t("graph_view_nodes"));
+    Object.entries(ov.nodes_by_type || {}).forEach(([type, n]) => {
+      html += `<tr><td>${escapeHtml(graphTypeLabel(type))}</td><td>${escapeHtml(String(n))}</td></tr>`;
+    });
+    html += section(t("graph_view_links"));
+    Object.entries(ov.edges_by_type || {}).forEach(([type, n]) => {
+      html += `<tr><td><code>${escapeHtml(type)}</code></td><td>${escapeHtml(String(n))}</td></tr>`;
+    });
+    html += `<tr><td>${escapeHtml(t("graph_view_tags"))}</td><td>${escapeHtml(String(ov.tags || 0))}</td></tr>`;
+    html += section(t("graph_view_claims"));
+    Object.entries(ov.claims_by_status || {}).forEach(([status, n]) => {
+      html += `<tr><td>${escapeHtml(graphClaimStatusLabel(status))}</td><td>${escapeHtml(String(n))}</td></tr>`;
+    });
+    html += `<tr><td>${escapeHtml(t("graph_view_broken"))}</td>` +
+      `<td><button type="button" class="graph-link-btn" data-goto="broken">${escapeHtml(String(ov.broken_links || 0))}</button></td></tr>`;
+    html += `</tbody></table>`;
+    els.graphBrowseContainer.innerHTML = html;
+    const jump = els.graphBrowseContainer.querySelector('[data-goto="broken"]');
+    if (jump) jump.addEventListener("click", () => loadGraphBrowse("broken"));
+  }
+
+  function attachGraphRowClicks() {
+    els.graphBrowseContainer.querySelectorAll("[data-node-id]").forEach((tr) => {
+      tr.addEventListener("click", () => openGraphNode(tr.dataset.nodeId));
+    });
+  }
+
+  function renderGraphNodes(rows) {
+    if (!rows.length) {
+      els.graphBrowseContainer.innerHTML = `<p class="empty-note">${t("graph_empty")}</p>`;
+      return;
+    }
+    let html = `<table class="data-table"><thead><tr>` +
+      `<th>${t("graph_th_title")}</th><th>${t("graph_th_type")}</th>` +
+      `<th>${t("graph_th_degree")}</th><th>${t("graph_th_updated")}</th></tr></thead><tbody>`;
+    rows.forEach((r) => {
+      html += `<tr class="graph-row-click" data-node-id="${escapeHtml(r.id)}">` +
+        `<td>${escapeHtml(r.title || r.id)}</td>` +
+        `<td><span class="badge badge-muted">${escapeHtml(graphTypeLabel(r.type))}</span></td>` +
+        `<td>${escapeHtml(String(r.degree ?? 0))}</td>` +
+        `<td>${escapeHtml(r.updated || "")}</td></tr>`;
+    });
+    html += `</tbody></table>`;
+    els.graphBrowseContainer.innerHTML = html;
+    attachGraphRowClicks();
+  }
+
+  function renderGraphLinks(res) {
+    const node = res.node;
+    const nodeTitle = node ? (node.title || node.id) : (state.graphNode || "");
+    let html = `<div class="graph-node-head">` +
+      `<strong>${escapeHtml(nodeTitle)}</strong>` +
+      (node ? `<span class="badge badge-muted">${escapeHtml(graphTypeLabel(node.type))}</span>` : "") +
+      `<button type="button" class="btn btn-secondary btn-sm" data-graph-back>${t("graph_back")}</button>` +
+      `</div>`;
+    // "type" here is the edge type (wikilink / supported_by / has_claim),
+    // not a node type — render it raw.
+    const linkTable = (label, rows, direction) => {
+      let s = `<div class="graph-subhead"><span class="badge badge-muted">${escapeHtml(label)}</span></div>`;
+      if (!rows.length) {
+        s += `<p class="empty-note">${t("graph_empty")}</p>`;
+        return s;
+      }
+      s += `<table class="data-table"><tbody>`;
+      rows.forEach((r) => {
+        if (direction === "out" && (r.title === null || r.title === undefined)) {
+          s += `<tr><td><span class="graph-dangling">${escapeHtml(r.target_id)}</span> ` +
+            `<span class="badge badge-terracotta">${t("graph_view_broken")}</span></td>` +
+            `<td><code>${escapeHtml(r.type || "")}</code></td></tr>`;
+          return;
+        }
+        const id = direction === "out" ? r.target_id : r.source_id;
+        s += `<tr class="graph-row-click" data-node-id="${escapeHtml(id)}">` +
+          `<td>${escapeHtml(r.title || id)}</td>` +
+          `<td><code>${escapeHtml(r.type || "")}</code></td></tr>`;
+      });
+      s += `</tbody></table>`;
+      return s;
+    };
+    html += linkTable(t("graph_out"), res.outgoing || [], "out");
+    html += linkTable(t("graph_in"), res.incoming || [], "in");
+    els.graphBrowseContainer.innerHTML = html;
+    const back = els.graphBrowseContainer.querySelector("[data-graph-back]");
+    if (back) {
+      back.addEventListener("click", () => {
+        state.graphNode = null;
+        loadGraphBrowse("nodes");
+      });
+    }
+    attachGraphRowClicks();
+  }
+
+  function renderGraphHubs(rows) {
+    let html = `<p class="empty-note">${t("graph_hubs_hint")}</p>`;
+    if (!rows.length) {
+      els.graphBrowseContainer.innerHTML = html + `<p class="empty-note">${t("graph_empty")}</p>`;
+      return;
+    }
+    html += `<table class="data-table"><thead><tr>` +
+      `<th>${t("graph_th_title")}</th><th>${t("graph_th_type")}</th>` +
+      `<th>${t("graph_th_degree")}</th></tr></thead><tbody>`;
+    rows.forEach((r) => {
+      html += `<tr class="graph-row-click" data-node-id="${escapeHtml(r.id)}">` +
+        `<td>${escapeHtml(r.title || r.id)}</td>` +
+        `<td><span class="badge badge-muted">${escapeHtml(graphTypeLabel(r.type))}</span></td>` +
+        `<td>${escapeHtml(String(r.degree ?? 0))}</td></tr>`;
+    });
+    html += `</tbody></table>`;
+    els.graphBrowseContainer.innerHTML = html;
+    attachGraphRowClicks();
+  }
+
+  function renderGraphClaims(rows) {
+    if (!rows.length) {
+      els.graphBrowseContainer.innerHTML = `<p class="empty-note">${t("graph_empty")}</p>`;
+      return;
+    }
+    let html = `<table class="data-table"><thead><tr>` +
+      `<th>${t("th_claim_status")}</th><th>${t("graph_th_text")}</th>` +
+      `<th>${t("graph_th_doc")}</th></tr></thead><tbody>`;
+    rows.forEach((c) => {
+      const badgeClass = c.status === "verified" ? "badge-sage" : "badge-muted";
+      html += `<tr><td><span class="badge ${badgeClass}">${escapeHtml(graphClaimStatusLabel(c.status))}</span></td>` +
+        `<td>${escapeHtml(c.text || "")}</td>` +
+        `<td><code>${escapeHtml(c.doc_id || "")}</code></td></tr>`;
+    });
+    html += `</tbody></table>`;
+    els.graphBrowseContainer.innerHTML = html;
+  }
+
+  function renderGraphTags(rows) {
+    if (!rows.length) {
+      els.graphBrowseContainer.innerHTML = `<p class="empty-note">${t("graph_empty")}</p>`;
+      return;
+    }
+    let html = `<table class="data-table"><thead><tr>` +
+      `<th>${t("graph_th_tag")}</th><th>${t("graph_th_count")}</th></tr></thead><tbody>`;
+    rows.forEach((r) => {
+      html += `<tr class="graph-row-click" data-tag="${escapeHtml(r.tag)}">` +
+        `<td>${escapeHtml(r.tag)}</td><td>${escapeHtml(String(r.count ?? 0))}</td></tr>`;
+    });
+    html += `</tbody></table>`;
+    els.graphBrowseContainer.innerHTML = html;
+    els.graphBrowseContainer.querySelectorAll("[data-tag]").forEach((tr) => {
+      tr.addEventListener("click", () => {
+        if (els.graphQ) els.graphQ.value = tr.dataset.tag;
+        loadGraphBrowse("nodes");
+      });
+    });
+  }
+
+  function renderGraphBroken(rows) {
+    if (!rows.length) {
+      els.graphBrowseContainer.innerHTML = `<p class="empty-note">${t("graph_broken_empty")}</p>`;
+      return;
+    }
+    let html = `<table class="data-table"><thead><tr>` +
+      `<th>${t("graph_th_source")}</th><th>${t("graph_th_target_missing")}</th>` +
+      `<th>${t("graph_th_type")}</th></tr></thead><tbody>`;
+    rows.forEach((r) => {
+      html += `<tr class="graph-row-click" data-node-id="${escapeHtml(r.source_id)}">` +
+        `<td>${escapeHtml(r.source_title || r.source_id)}</td>` +
+        `<td><span class="graph-dangling">${escapeHtml(r.target_text)}</span></td>` +
+        `<td><code>${escapeHtml(r.type || "")}</code></td></tr>`;
+    });
+    html += `</tbody></table>`;
+    els.graphBrowseContainer.innerHTML = html;
+    attachGraphRowClicks();
+  }
+
+  // ------------------------------------------------------------------------
+  // Knowledge-graph map — Obsidian-style force layout on canvas.
+  // Physics comes from the vendored d3-force microlibs; rendering and
+  // interaction are hand-rolled so node colours track the CSS theme tokens.
+  // ------------------------------------------------------------------------
+
+  const graphMap = {
+    key: "",       // workspace|tags of the dataset currently simulated
+    nodes: [],
+    edges: [],
+    adj: null,
+    sim: null,
+    tx: 0,
+    ty: 0,
+    k: 1,
+    hover: null,
+    drag: null,
+    needsDraw: false,
+    colors: null,
+    colorsKey: "",
+  };
+
+  function graphMapColors() {
+    // Colours are sampled from the live theme so the map repaints correctly
+    // across light/dark/EVA-blue/EVA-red without any per-theme JS.
+    const themeKey = `${document.documentElement.dataset.theme || ""}/${document.documentElement.dataset.eva || ""}`;
+    if (graphMap.colors && graphMap.colorsKey === themeKey) return graphMap.colors;
+    const cs = getComputedStyle(document.documentElement);
+    const v = (name, fb) => cs.getPropertyValue(name).trim() || fb;
+    graphMap.colorsKey = themeKey;
+    graphMap.colors = {
+      concept: v("--accent-primary", "#34597E"),
+      reference: v("--accent-blue", "#3E7CB1"),
+      topic: v("--accent-sage", "#6A8E5A"),
+      thesis: v("--accent-sage", "#6A8E5A"),
+      claim: v("--accent-amber", "#B98A2F"),
+      tag: v("--text-subtle", "#9A968C"),
+      ghost: v("--text-subtle", "#9A968C"),
+      label: v("--text-secondary", "#4A463E"),
+      edge: v("--text-subtle", "#C8C4B8"),
+      family: getComputedStyle(document.body).fontFamily || "sans-serif",
+    };
+    return graphMap.colors;
+  }
+
+  function graphNodeRadius(n) {
+    const r = Math.min(15, 3.5 + Math.sqrt(n.degree || 0) * 1.6);
+    return n.type === "ghost" || n.type === "tag" ? Math.min(r, 9) * 0.8 : r;
+  }
+
+  function stopGraphMap() {
+    if (graphMap.sim) graphMap.sim.stop();
+  }
+
+  function graphMapDPRSize() {
+    const c = els.graphMapCanvas;
+    const dpr = window.devicePixelRatio || 1;
+    const w = els.graphMapWrap.clientWidth;
+    const h = els.graphMapWrap.clientHeight;
+    if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) {
+      c.width = Math.round(w * dpr);
+      c.height = Math.round(h * dpr);
+    }
+    return { w, h, dpr };
+  }
+
+  function scheduleGraphMapDraw() {
+    if (graphMap.needsDraw) return;
+    graphMap.needsDraw = true;
+    requestAnimationFrame(drawGraphMap);
+  }
+
+  function drawGraphMap() {
+    graphMap.needsDraw = false;
+    const c = els.graphMapCanvas;
+    if (!c || !els.graphMapWrap || els.graphMapWrap.style.display === "none") return;
+    const { w, h, dpr } = graphMapDPRSize();
+    const ctx = c.getContext("2d");
+    const col = graphMapColors();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.setTransform(dpr * graphMap.k, 0, 0, dpr * graphMap.k,
+      dpr * (w / 2 + graphMap.tx), dpr * (h / 2 + graphMap.ty));
+    const hover = graphMap.hover;
+    const neigh = hover && graphMap.adj ? graphMap.adj.get(hover.id) : null;
+
+    ctx.lineWidth = 1 / graphMap.k;
+    for (const e of graphMap.edges) {
+      const active = hover && (e.source.id === hover.id || e.target.id === hover.id);
+      ctx.globalAlpha = hover ? (active ? 0.75 : 0.06) : e.type === "has_tag" ? 0.22 : 0.4;
+      ctx.strokeStyle = col.edge;
+      ctx.beginPath();
+      ctx.moveTo(e.source.x, e.source.y);
+      ctx.lineTo(e.target.x, e.target.y);
+      ctx.stroke();
+    }
+
+    for (const n of graphMap.nodes) {
+      const r = graphNodeRadius(n);
+      const isHover = hover && n.id === hover.id;
+      const isNeigh = neigh && neigh.has(n.id);
+      ctx.globalAlpha = hover ? (isHover || isNeigh ? 1 : 0.14) : n.type === "ghost" ? 0.55 : 0.92;
+      ctx.fillStyle = col[n.type] || col.concept;
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+      if (n.type === "ghost") {
+        ctx.setLineDash([3 / graphMap.k, 3 / graphMap.k]);
+        ctx.strokeStyle = col.ghost;
+        ctx.stroke();
+        ctx.setLineDash([]);
+      } else {
+        ctx.fill();
+      }
+      if (isHover) {
+        ctx.lineWidth = 2 / graphMap.k;
+        ctx.strokeStyle = col[n.type] || col.concept;
+        ctx.beginPath();
+        ctx.arc(n.x, n.y, r + 3 / graphMap.k, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.lineWidth = 1 / graphMap.k;
+      }
+    }
+
+    // Labels: the hovered neighbourhood always; otherwise only what stays
+    // legible — well-connected nodes, or everything once zoomed in.
+    ctx.font = `${11 / graphMap.k}px ${col.family}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    for (const n of graphMap.nodes) {
+      const isHover = hover && n.id === hover.id;
+      const isNeigh = neigh && neigh.has(n.id);
+      const show = isHover || isNeigh || (!hover && (graphMap.k >= 1.25 || (n.degree || 0) >= 4));
+      if (!show) continue;
+      const label = n.title || n.id;
+      ctx.globalAlpha = isHover ? 1 : 0.72;
+      ctx.fillStyle = col.label;
+      ctx.fillText(label.length > 30 ? label.slice(0, 29) + "…" : label,
+        n.x, n.y + graphNodeRadius(n) + 3 / graphMap.k);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  async function loadGraphMap() {
+    if (!els.graphMapCanvas) return;
+    if (!window.d3 || !window.d3.forceSimulation) {
+      if (els.graphMapNote) {
+        els.graphMapNote.textContent = t("graph_map_no_d3");
+        els.graphMapNote.style.display = "";
+      }
+      return;
+    }
+    const tags = !!(els.graphMapTags && els.graphMapTags.checked);
+    const key = `${state.workspace}|${tags ? 1 : 0}`;
+    if (graphMap.key === key && graphMap.nodes.length) {
+      scheduleGraphMapDraw();
+      return;
+    }
+    const params = new URLSearchParams({ view: "map", workspace: state.workspace });
+    if (tags) params.set("tags", "true");
+    try {
+      const data = await apiFetch(`/api/workspace/graph/browse?${params.toString()}`);
+      // The workspace selector may have moved on while this fetch ran —
+      // a stale response must not overwrite the newer dataset.
+      const nowKey = `${state.workspace}|${els.graphMapTags && els.graphMapTags.checked ? 1 : 0}`;
+      if (nowKey !== key) return;
+      buildGraphMap(data.results || {}, key);
+    } catch (err) {
+      if (els.graphMapNote) {
+        els.graphMapNote.textContent = err.message;
+        els.graphMapNote.style.display = "";
+      }
+    }
+  }
+
+  function buildGraphMap(res, key) {
+    stopGraphMap();
+    graphMap.key = key;
+    graphMap.nodes = (res.nodes || []).map((n) => ({ ...n }));
+    const byId = new Map(graphMap.nodes.map((n) => [n.id, n]));
+    graphMap.edges = (res.edges || [])
+      .filter((e) => byId.has(e.source) && byId.has(e.target))
+      .map((e) => ({ ...e }));
+    graphMap.adj = new Map(graphMap.nodes.map((n) => [n.id, new Set()]));
+    for (const e of graphMap.edges) {
+      graphMap.adj.get(e.source).add(e.target);
+      graphMap.adj.get(e.target).add(e.source);
+    }
+    graphMap.tx = 0;
+    graphMap.ty = 0;
+    graphMap.k = 1;
+    graphMap.hover = null;
+    if (els.graphMapNote) {
+      if (!graphMap.nodes.length) {
+        els.graphMapNote.textContent = t("graph_map_empty");
+        els.graphMapNote.style.display = "";
+      } else if (res.truncated) {
+        els.graphMapNote.textContent = t("graph_map_truncated", { n: graphMap.nodes.length });
+        els.graphMapNote.style.display = "";
+      } else {
+        els.graphMapNote.style.display = "none";
+      }
+    }
+    if (!graphMap.nodes.length) {
+      scheduleGraphMapDraw();
+      return;
+    }
+    // Deterministic golden-angle spiral seed keeps the first frames calm
+    // instead of the default random burst.
+    graphMap.nodes.forEach((n, i) => {
+      const a = i * 2.399963;
+      const r = 14 * Math.sqrt(i);
+      n.x = Math.cos(a) * r;
+      n.y = Math.sin(a) * r;
+    });
+    graphMap.sim = d3.forceSimulation(graphMap.nodes)
+      .force("link", d3.forceLink(graphMap.edges).id((d) => d.id)
+        .distance((e) => 40 + 6 * Math.sqrt((e.source.degree || 1) + (e.target.degree || 1)))
+        .strength(0.5))
+      .force("charge", d3.forceManyBody().strength(-130).distanceMax(400))
+      .force("center", d3.forceCenter(0, 0))
+      .force("collide", d3.forceCollide().radius((d) => graphNodeRadius(d) + 2.5))
+      .alphaDecay(0.028)
+      .on("tick", scheduleGraphMapDraw);
+  }
+
+  function graphMapPoint(ev) {
+    const rect = els.graphMapCanvas.getBoundingClientRect();
+    const sx = ev.clientX - rect.left;
+    const sy = ev.clientY - rect.top;
+    return {
+      sx,
+      sy,
+      w: rect.width,
+      h: rect.height,
+      x: (sx - rect.width / 2 - graphMap.tx) / graphMap.k,
+      y: (sy - rect.height / 2 - graphMap.ty) / graphMap.k,
+    };
+  }
+
+  function graphMapHit(p) {
+    let best = null;
+    let bestD = Infinity;
+    for (const n of graphMap.nodes) {
+      const d = Math.hypot(n.x - p.x, n.y - p.y);
+      if (d <= graphNodeRadius(n) + 4 / graphMap.k && d < bestD) {
+        best = n;
+        bestD = d;
+      }
+    }
+    return best;
+  }
+
+  function bindGraphMapEvents() {
+    const c = els.graphMapCanvas;
+    if (!c) return;
+    c.addEventListener("mousedown", (ev) => {
+      if (!graphMap.nodes.length) return;
+      const p = graphMapPoint(ev);
+      const n = graphMapHit(p);
+      if (n) {
+        graphMap.drag = { node: n, moved: false };
+        n.fx = n.x;
+        n.fy = n.y;
+        if (graphMap.sim) graphMap.sim.alphaTarget(0.25).restart();
+      } else {
+        graphMap.drag = { pan: true, sx: ev.clientX, sy: ev.clientY };
+        c.style.cursor = "grabbing";
+      }
+      ev.preventDefault();
+    });
+    window.addEventListener("mousemove", (ev) => {
+      if (graphMap.drag) {
+        if (graphMap.drag.node) {
+          const p = graphMapPoint(ev);
+          graphMap.drag.node.fx = p.x;
+          graphMap.drag.node.fy = p.y;
+          graphMap.drag.moved = true;
+        } else {
+          graphMap.tx += ev.clientX - graphMap.drag.sx;
+          graphMap.ty += ev.clientY - graphMap.drag.sy;
+          graphMap.drag.sx = ev.clientX;
+          graphMap.drag.sy = ev.clientY;
+          scheduleGraphMapDraw();
+        }
+        return;
+      }
+      if (ev.target !== c || !graphMap.nodes.length) return;
+      const n = graphMapHit(graphMapPoint(ev));
+      if (n !== graphMap.hover) {
+        graphMap.hover = n;
+        c.style.cursor = n ? "pointer" : "grab";
+        scheduleGraphMapDraw();
+      }
+    });
+    window.addEventListener("mouseup", () => {
+      if (!graphMap.drag) return;
+      const d = graphMap.drag;
+      graphMap.drag = null;
+      c.style.cursor = "grab";
+      if (d.node) {
+        if (graphMap.sim) graphMap.sim.alphaTarget(0);
+        d.node.fx = null;
+        d.node.fy = null;
+        // A press that never moved is a click: drill into that node's links.
+        if (!d.moved && d.node.type !== "ghost") openGraphNode(d.node.id);
+      }
+    });
+    c.addEventListener("mouseleave", () => {
+      if (graphMap.hover && !graphMap.drag) {
+        graphMap.hover = null;
+        c.style.cursor = "grab";
+        scheduleGraphMapDraw();
+      }
+    });
+    c.addEventListener("wheel", (ev) => {
+      if (!graphMap.nodes.length) return;
+      ev.preventDefault();
+      const p = graphMapPoint(ev);
+      const k2 = Math.min(6, Math.max(0.2, graphMap.k * Math.exp(-ev.deltaY * 0.0016)));
+      // Keep the world point under the cursor fixed while zooming.
+      graphMap.tx = p.sx - p.w / 2 - p.x * k2;
+      graphMap.ty = p.sy - p.h / 2 - p.y * k2;
+      graphMap.k = k2;
+      scheduleGraphMapDraw();
+    }, { passive: false });
+    if (els.graphMapTags) {
+      els.graphMapTags.addEventListener("change", () => {
+        graphMap.key = "";
+        loadGraphMap();
+      });
+    }
+    if (window.ResizeObserver && els.graphMapWrap) {
+      new ResizeObserver(() => scheduleGraphMapDraw()).observe(els.graphMapWrap);
+    }
+  }
+
+  bindGraphMapEvents();
 
   // ------------------------------------------------------------------------
   // References & citations (magi bib), drafts, workspace config
@@ -1926,15 +2889,43 @@
       title.className = "digest-actions-title";
       title.textContent = t("radar_actions_title");
       box.appendChild(title);
+
+      const filterRow = document.createElement("div");
+      filterRow.className = "digest-filter-row";
+      const filterInput = document.createElement("input");
+      filterInput.type = "text";
+      filterInput.id = "radar-author-filter";
+      filterInput.className = "text-input";
+      filterInput.placeholder = t("radar_filter_ph");
+      filterInput.setAttribute("data-i18n-placeholder", "radar_filter_ph");
+      const filterCount = document.createElement("span");
+      filterCount.id = "radar-filter-count";
+      filterCount.className = "empty-note";
+      filterRow.appendChild(filterInput);
+      filterRow.appendChild(filterCount);
+      box.appendChild(filterRow);
+
       cands.forEach((c) => {
         const row = document.createElement("div");
         row.className = "action-row";
+        const authors = Array.isArray(c.authors) ? c.authors : [];
+        row.dataset.search = `${c.title || ""} ${authors.join(" ")}`.toLowerCase();
+        const left = document.createElement("div");
+        left.className = "row-main";
         const label = document.createElement("div");
         label.className = "row-title trunc";
         const rel = (c.relevance !== null && c.relevance !== undefined) ? `[${c.relevance}] ` : "";
         label.textContent = rel + c.title;
         label.title = c.title;
-        row.appendChild(label);
+        left.appendChild(label);
+        if (authors.length) {
+          const authorLine = document.createElement("div");
+          authorLine.className = "row-authors";
+          authorLine.textContent = authors.join(", ");
+          authorLine.title = authors.join(", ");
+          left.appendChild(authorLine);
+        }
+        row.appendChild(left);
         const btns = document.createElement("div");
         btns.className = "row-btns";
         [["accept-to-inbox", "btn_accept_inbox"], ["create-issue", "btn_create_issue"]].forEach(([action, key]) => {
@@ -1947,6 +2938,21 @@
         row.appendChild(btns);
         box.appendChild(row);
       });
+
+      const applyCandidateFilter = () => {
+        const q = filterInput.value.trim().toLowerCase();
+        const rows = box.querySelectorAll(".action-row");
+        let shown = 0;
+        rows.forEach((r) => {
+          const hit = !q || (r.dataset.search || "").includes(q);
+          r.style.display = hit ? "" : "none";
+          if (hit) shown++;
+        });
+        filterCount.textContent = t("radar_filter_count", { shown, total: rows.length });
+      };
+      filterInput.addEventListener("input", applyCandidateFilter);
+      applyCandidateFilter();
+
       viewer.appendChild(box);
     }
 
@@ -2156,7 +3162,10 @@
         html += `<p>${t("docs_cmd_sub")}</p>`;
         html += `<table class="data-table"><thead><tr><th>${t("th_cmd_command")}</th><th>${t("th_cmd_group")}</th><th>${t("th_cmd_desc")}</th></tr></thead><tbody>`;
         cmds.forEach((c) => {
-          html += `<tr><td><code>${escapeHtml(c.command)}</code></td><td><span class="badge badge-muted">${escapeHtml(c.group || "core")}</span></td><td>${escapeHtml(c.help)}</td></tr>`;
+          const desc = state.lang === "zh" ? (c.help_zh || c.help) : c.help;
+          const groupTitle = (state.lang === "zh" && c.group_help_zh)
+            ? ` title="${escapeHtml(c.group_help_zh)}"` : "";
+          html += `<tr><td><code>${escapeHtml(c.command)}</code></td><td><span class="badge badge-muted"${groupTitle}>${escapeHtml(c.group || "core")}</span></td><td>${escapeHtml(desc)}</td></tr>`;
         });
         html += `</tbody></table>`;
         els.docsContent.innerHTML = html;
@@ -2235,9 +3244,11 @@
   if (els.themeToggleBtn) {
     els.themeToggleBtn.addEventListener("click", () => {
       if (state.theme === "eva") {
+        // Inside MAGI MODE the toggle switches the alert state (blue/red)
+        // by flipping the remembered base theme — it does not exit the mode.
         const currentBase = safeStorageGet("magi-base-theme") || "dark";
-        const nextTheme = currentBase === "dark" ? "light" : "dark";
-        applyTheme(nextTheme);
+        safeStorageSet("magi-base-theme", currentBase === "dark" ? "light" : "dark");
+        applyTheme("eva");
       } else {
         applyTheme(state.theme === "dark" ? "light" : "dark");
       }
@@ -2328,6 +3339,28 @@
     });
   });
 
+  // Knowledge graph browser
+  els.graphViewBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      // Chip navigation always starts fresh; node drill-down keeps its own path.
+      state.graphNode = null;
+      loadGraphBrowse(btn.dataset.view);
+    });
+  });
+  let graphFilterTimer = null;
+  if (els.graphQ) {
+    els.graphQ.addEventListener("input", () => {
+      if (!GRAPH_FILTERED_VIEWS.includes(state.graphView)) return;
+      if (graphFilterTimer) clearTimeout(graphFilterTimer);
+      graphFilterTimer = setTimeout(() => loadGraphBrowse(state.graphView), 300);
+    });
+  }
+  if (els.graphType) {
+    els.graphType.addEventListener("change", () => {
+      if (state.graphView === "nodes") loadGraphBrowse(state.graphView);
+    });
+  }
+
   // Casper Search
   els.searchForm.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -2403,6 +3436,7 @@
   setLanguage(state.lang);
   loadInitialStatus();
   loadOpsCatalog();
+  initBackgrounds();
 
   // Deep-link override: ?tab=melchior|operations|...
   try {

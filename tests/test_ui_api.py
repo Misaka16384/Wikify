@@ -1007,6 +1007,141 @@ def test_host_allowlist_blocks_dns_rebinding(client):
         assert res.status_code == 200, f"Host {good_host} should be allowed"
 
 
+def test_docs_commands_zh(client):
+    data = client.get("/api/docs/commands").json()
+    assert len(data["commands"]) > 10
+    for row in data["commands"]:
+        assert row["help_zh"], f"missing help_zh for {row['command']}"
+        if row["group"]:
+            assert row["group_help_zh"], f"missing group_help_zh for {row['command']}"
+    groups = {row["group"] for row in data["commands"] if row["group"]}
+    assert groups <= set(data["groups_zh"])
+    assert all(v for v in data["groups_zh"].values())
+
+
+def test_graph_browse_endpoint(client):
+    ws = client.test_workspace
+    conn = sqlite3.connect(ws / "output" / "graph.db")
+    conn.executescript(
+        """
+        CREATE TABLE tags(node_id TEXT, tag TEXT);
+        CREATE TABLE aliases(node_id TEXT, alias TEXT);
+        INSERT INTO nodes VALUES('wiki/references/second-card', 'wiki/references/second-card.md', 'Second Card', 'reference', NULL, 'S', '2026-08-18', '2026-08-18');
+        INSERT INTO edges VALUES('wiki/concepts/test-concept', 'wiki/references/second-card', 'wikilink');
+        INSERT INTO edges VALUES('wiki/concepts/test-concept', 'Ghost Page', 'wikilink');
+        INSERT INTO tags VALUES('wiki/concepts/test-concept', 'physics');
+        """
+    )
+    conn.close()
+
+    data = client.get(f"/api/workspace/graph/browse?workspace={ws}").json()
+    assert data["view"] == "overview"
+    ov = data["results"]
+    assert ov["nodes_by_type"]["concept"] == 1
+    assert ov["nodes_by_type"]["reference"] == 1
+    assert ov["edges_by_type"]["wikilink"] == 2
+    assert ov["broken_links"] >= 1
+
+    data = client.get(f"/api/workspace/graph/browse?view=nodes&q=second&workspace={ws}").json()
+    assert data["count"] == 1
+    assert data["results"][0]["id"] == "wiki/references/second-card"
+
+    data = client.get(
+        f"/api/workspace/graph/browse?view=links&node=wiki/concepts/test-concept&workspace={ws}"
+    ).json()
+    assert data["results"]["node"]["title"] == "Test Concept"
+    ghost = [e for e in data["results"]["outgoing"] if e["target_id"] == "Ghost Page"]
+    assert ghost and ghost[0]["title"] is None
+
+    data = client.get(f"/api/workspace/graph/browse?view=broken&workspace={ws}").json()
+    assert any(r["target_text"] == "Ghost Page" for r in data["results"])
+
+    assert client.get(f"/api/workspace/graph/browse?view=bogus&workspace={ws}").status_code == 400
+
+    res = client.get("/api/workspace/graph/browse?workspace=/nonexistent/path")
+    assert res.status_code == 404
+    assert "Knowledge graph database not found" in res.json()["detail"]
+
+
+def test_graph_browse_map_view(client):
+    ws = client.test_workspace
+    # Seed edges locally: the client fixture is function-scoped, so nothing
+    # from other tests' seeding carries over.
+    conn = sqlite3.connect(ws / "output" / "graph.db")
+    conn.executescript(
+        """
+        INSERT INTO nodes VALUES('wiki/references/map-card', 'wiki/references/map-card.md', 'Map Card', 'reference', NULL, 'M', '2026-08-18', '2026-08-18');
+        INSERT INTO nodes VALUES('tag:physics', NULL, 'physics', 'tag', NULL, NULL, '2026-08-18', '2026-08-18');
+        INSERT INTO edges VALUES('wiki/concepts/test-concept', 'wiki/references/map-card', 'wikilink');
+        INSERT INTO edges VALUES('wiki/concepts/test-concept', 'Ghost Page', 'wikilink');
+        INSERT INTO edges VALUES('wiki/concepts/test-concept', 'tag:physics', 'has_tag');
+        """
+    )
+    conn.close()
+
+    data = client.get(f"/api/workspace/graph/browse?view=map&workspace={ws}").json()
+    assert data["view"] == "map"
+    results = data["results"]
+    assert results["truncated"] is False
+    assert data["count"] == len(results["nodes"])
+    by_id = {n["id"]: n for n in results["nodes"]}
+    assert set(by_id) == {"wiki/concepts/test-concept", "wiki/references/map-card",
+                          "Ghost Page"}
+    assert by_id["Ghost Page"]["type"] == "ghost"
+    assert by_id["wiki/concepts/test-concept"]["degree"] == 2
+    edges = {(e["source"], e["target"], e["type"]) for e in results["edges"]}
+    assert ("wiki/concepts/test-concept", "Ghost Page", "wikilink") in edges
+    assert ("wiki/concepts/test-concept", "wiki/references/map-card", "wikilink") in edges
+
+    data = client.get(f"/api/workspace/graph/browse?view=map&tags=true&workspace={ws}").json()
+    by_id = {n["id"]: n for n in data["results"]["nodes"]}
+    assert by_id["tag:physics"]["type"] == "tag"
+    assert by_id["tag:physics"]["degree"] == 1
+
+
+def test_radar_digest_authors(client):
+    ws = client.test_workspace
+    f = ws / "inbox" / "radar" / "2026-08-20-digest.md"
+    f.write_text(
+        "---\ndate: 2026-08-20\nstatus: pending-review\n---\n\n"
+        "# Literature Radar — 2026-08-20\n\n"
+        "## Paper With Authors\n\n"
+        "- id: `2508.09999` · 2026 · source: arxiv-new:cs.CL\n"
+        "- authors: Alice One, Bob Two\n"
+        "- https://arxiv.org/abs/2508.09999\n\n"
+        "## Paper Without Authors\n\n"
+        "- id: `DOI:10/abc` · 2025 · source: s2-recommendation\n",
+        encoding="utf-8",
+    )
+
+    data = client.get(f"/api/workspace/radar/digest?file={f.name}&workspace={ws}").json()
+    cands = data["candidates"]
+    assert len(cands) == 2
+    assert cands[0]["authors"] == ["Alice One", "Bob Two"]
+    assert cands[1]["authors"] == []
+
+
+def test_ui_backgrounds_endpoint(client):
+    data = client.get("/api/ui/backgrounds").json()
+    assert data["source"] == "bundled"
+    assert data["base_url"] == "/backgrounds/"
+    for variant in ("blue", "red"):
+        entries = data["variants"][variant]
+        assert entries
+        for e in entries:
+            assert e["file"] and e["w"] and e["h"] and e["aspect"]
+
+    override = Path(os.environ["MAGI_CONFIG_HOME"]) / "ui-backgrounds" / "blue"
+    override.mkdir(parents=True)
+    (override / "x.webp").write_bytes(b"RIFFfake")
+    data = client.get("/api/ui/backgrounds").json()
+    assert data["source"] == "user"
+    assert data["base_url"] == "/ui-bg/"
+    assert data["variants"]["blue"] == [
+        {"file": "blue/x.webp", "w": None, "h": None, "aspect": None}
+    ]
+
+
 def test_no_cors_headers_emitted(client):
     # Design mandate: no CORS headers at all. JSON-body mutations then force a
     # preflight that always fails cross-origin, making the API CSRF-free.

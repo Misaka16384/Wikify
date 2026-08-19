@@ -1,0 +1,86 @@
+{
+  "variants": {
+    "blue": [
+      {
+        "file": "blue/blue-01.webp",
+        "w": 1920,
+        "h": 2560,
+        "aspect": 0.75
+      },
+      {
+        "file": "blue/blue-02.webp",
+        "w": 1608,
+        "h": 2560,
+        "aspect": 0.6281
+      },
+      {
+        "file": "blue/blue-03.webp",
+        "w": 2560,
+        "h": 1440,
+        "aspect": 1.7778
+      },
+      {
+        "file": "blue/blue-04.webp",
+        "w": 2560,
+        "h": 1080,
+        "aspect": 2.3704
+      },
+      {
+        "file": "blue/blue-05.webp",
+        "w": 2560,
+        "h": 1790,
+        "aspect": 1.4302
+      }
+    ],
+    "red": [
+      {
+        "file": "red/red-01.webp",
+        "w": 2560,
+        "h": 1308,
+        "aspect": 1.9572
+      },
+      {
+        "file": "red/red-02.webp",
+        "w": 2541,
+        "h": 2560,
+        "aspect": 0.9926
+      },
+      {
+        "file": "red/red-03.webp",
+        "w": 1695,
+        "h": 2560,
+        "aspect": 0.6621
+      },
+      {
+        "file": "red/red-04.webp",
+        "w": 1631,
+        "h": 2560,
+        "aspect": 0.6371
+      },
+      {
+        "file": "red/red-05.webp",
+        "w": 2560,
+        "h": 1810,
+        "aspect": 1.4144
+      },
+      {
+        "file": "red/red-06.webp",
+        "w": 2560,
+        "h": 1280,
+        "aspect": 2.0
+      },
+      {
+        "file": "red/red-07.webp",
+        "w": 2560,
+        "h": 1379,
+        "aspect": 1.8564
+      },
+      {
+        "file": "red/red-08.webp",
+        "w": 2560,
+        "h": 1440,
+        "aspect": 1.7778
+      }
+    ]
+  }
+}
