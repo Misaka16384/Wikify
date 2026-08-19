@@ -162,7 +162,7 @@
 
   --text-primary: #E9EEF5;
   --text-secondary: #A7B2C4;
-  --text-muted: #616C7E;
+  --text-muted: #97A1B3;
   --text-subtle: #3B4353;
 
   /* MAGI terminal amber */
@@ -228,6 +228,8 @@
   --glass-alpha: 1;
   --glass-brightness: 0.8;
   --glass-saturate: 1.8;
+  --crt-opacity: 0.3;
+  --glass-floor: 0;
 
   --font-eva-display: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", "Noto Serif JP",
     "Songti SC", "SimSun", "MS PMincho", serif;
@@ -250,22 +252,22 @@
 
   --text-primary: #17222F;
   --text-secondary: #3C4B60;
-  --text-muted: #67788D;
+  --text-muted: #54657A;
   --text-subtle: #93A2B5;
 
-  --accent-primary: #0A7295;
+  --accent-primary: #086080;
   --accent-primary-hover: #06546E;
   --accent-primary-wash: rgba(10, 114, 149, 0.1);
   --accent-primary-border: rgba(10, 114, 149, 0.36);
 
   /* Monolith identities re-inked for light ground — same hues, ink depth. */
-  --accent-blue: #0B7C9E;
+  --accent-blue: #086080;
   --accent-blue-wash: rgba(11, 124, 158, 0.12);
-  --accent-sage: #148A4E;
+  --accent-sage: #0E6E3E;
   --accent-sage-wash: rgba(20, 138, 78, 0.12);
-  --accent-danger: #C22834;
+  --accent-danger: #A81F2A;
   --accent-danger-wash: rgba(194, 40, 52, 0.12);
-  --accent-amber: #A96A00;
+  --accent-amber: #8A5600;
   --accent-amber-wash: rgba(169, 106, 0, 0.14);
 
   --border-default: #B7C7DB;
@@ -278,22 +280,22 @@
   --term-header: #E2EAF4;
   --term-border: rgba(10, 114, 149, 0.3);
   --term-text: #0A7A4A;
-  --term-dim: #62748A;
+  --term-dim: #55677D;
 
   --focus-ring: #0A7295;
 
-  --eva-melchior: #0B7C9E;
+  --eva-melchior: #086080;
   --eva-melchior-glow: rgba(11, 124, 158, 0.3);
-  --eva-balthasar: #148A4E;
+  --eva-balthasar: #0E6E3E;
   --eva-balthasar-glow: rgba(20, 138, 78, 0.3);
-  --eva-casper: #C22834;
+  --eva-casper: #A81F2A;
   --eva-casper-glow: rgba(194, 40, 52, 0.3);
   --eva-amber-glow: rgba(10, 114, 149, 0.3);
 
   --eva-p: 10, 114, 149;
   --eva-p2: 12, 124, 162;
   --eva-p-strong: #0A7295;
-  --eva-p-soft: #0C7CA2;
+  --eva-p-soft: #075F7D;
   --eva-p-bright: #0E86AE;
   --eva-p-hi: #1094C0;
   --eva-p-deep: #06546E;
@@ -302,6 +304,8 @@
   --eva-bg-rgb: 244, 248, 252;
   --glass-brightness: 1.08;
   --glass-saturate: 1.25;
+  --crt-opacity: 0.08;
+  --glass-floor: 0.5;
 }
 
 /* --------------------------------------------------------------------------
@@ -1922,6 +1926,7 @@ details.advanced-sql > summary {
    -------------------------------------------------------------------------- */
 
 .toast-container {
+  pointer-events: none;
   position: fixed;
   bottom: 1.25rem;
   right: 1.25rem;
@@ -1997,30 +2002,31 @@ details.advanced-sql > summary {
   background-attachment: fixed;
 }
 
-/* --- CRT scanline + vignette overlay (above everything, non-interactive) --- */
-[data-theme="eva"] body::before {
+/* --- CRT scanline + vignette overlay (above everything, non-interactive).
+   Opt-in via the glass tuner: html carries .crt-on alongside data-theme. --- */
+[data-theme="eva"].crt-on body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: 99990;
   pointer-events: none;
   background:
-    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.13) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.1) 0 1px, transparent 1px 4px),
     radial-gradient(ellipse at center, transparent 74%, rgba(0, 0, 0, 0.15) 100%);
-  opacity: 0.5;
+  opacity: var(--crt-opacity);
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  [data-theme="eva"] body::before {
+  [data-theme="eva"].crt-on body::before {
     animation: eva-flicker 7s steps(70) infinite;
   }
 }
 
 @keyframes eva-flicker {
-  0%, 91%, 95%, 100% { opacity: 0.5; }
-  92% { opacity: 0.38; }
-  93% { opacity: 0.55; }
-  94% { opacity: 0.44; }
+  0%, 91%, 95%, 100% { opacity: var(--crt-opacity); }
+  92% { opacity: calc(var(--crt-opacity) * 0.76); }
+  93% { opacity: calc(var(--crt-opacity) * 1.1); }
+  94% { opacity: calc(var(--crt-opacity) * 0.88); }
 }
 
 @keyframes eva-blink {
@@ -2196,7 +2202,7 @@ details.advanced-sql > summary {
    -------------------------------------------------------------------------- */
 
 [data-theme="eva"] .topbar {
-  background-color: rgba(var(--eva-bg-rgb), calc(0.42 * var(--glass-alpha)));
+  background-color: rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.42 * var(--glass-alpha))));
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.2)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(calc(var(--glass-blur) * 1.2)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border-bottom: 1px solid rgba(var(--eva-p), 0.3);
@@ -2210,7 +2216,7 @@ details.advanced-sql > summary {
 
 /* Same band, NERV dialect: per-core channel colours, mono type, a glowing rail. */
 [data-theme="eva"] .core-band {
-  background-color: rgba(var(--eva-bg-rgb), calc(0.35 * var(--glass-alpha)));
+  background-color: rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.35 * var(--glass-alpha))));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border-bottom: 1px solid rgba(var(--eva-p), 0.28);
@@ -2228,9 +2234,9 @@ details.advanced-sql > summary {
   text-transform: uppercase;
 }
 
-[data-theme="eva"] .core-cell[data-core="melchior"] .core-name { color: #45D5EA; }
-[data-theme="eva"] .core-cell[data-core="balthasar"] .core-name { color: #35EF7E; }
-[data-theme="eva"] .core-cell[data-core="casper"] .core-name { color: #FF4A57; }
+[data-theme="eva"] .core-cell[data-core="melchior"] .core-name { color: var(--eva-melchior); }
+[data-theme="eva"] .core-cell[data-core="balthasar"] .core-name { color: var(--eva-balthasar); }
+[data-theme="eva"] .core-cell[data-core="casper"] .core-name { color: var(--eva-casper); }
 
 [data-theme="eva"] .core-stat {
   font-family: var(--font-mono);
@@ -2240,12 +2246,12 @@ details.advanced-sql > summary {
 
 [data-theme="eva"] .core-role,
 [data-theme="eva"] .core-detail,
-[data-theme="eva"] .core-sync-label { color: rgba(167, 178, 196, 0.9); }
+[data-theme="eva"] .core-sync-label { color: var(--text-secondary); }
 
 [data-theme="eva"] .core-dot { border-radius: 0; }
-[data-theme="eva"] .core-dot.state-ok { background-color: #35EF7E; box-shadow: 0 0 7px rgba(53, 239, 126, 0.7); }
+[data-theme="eva"] .core-dot.state-ok { background-color: var(--eva-balthasar); box-shadow: 0 0 7px var(--eva-balthasar-glow); }
 [data-theme="eva"] .core-dot.state-warn { background-color: var(--eva-p-bright); box-shadow: 0 0 7px rgba(var(--eva-p), 0.7); }
-[data-theme="eva"] .core-dot.state-err { background-color: #FF4A57; box-shadow: 0 0 7px rgba(255, 74, 87, 0.7); }
+[data-theme="eva"] .core-dot.state-err { background-color: var(--eva-casper); box-shadow: 0 0 7px var(--eva-casper-glow); }
 
 [data-theme="eva"] .core-sync {
   border-top: 1px solid rgba(var(--eva-p), 0.2);
@@ -2263,13 +2269,13 @@ details.advanced-sql > summary {
 
 /* State colours must survive the equal-specificity override above. */
 [data-theme="eva"] .core-sync-rail > i.is-ok {
-  background-color: #35EF7E;
-  box-shadow: 0 0 9px rgba(53, 239, 126, 0.6);
+  background-color: var(--eva-balthasar);
+  box-shadow: 0 0 9px var(--eva-balthasar-glow);
 }
 
 [data-theme="eva"] .core-sync-rail > i.is-low {
-  background-color: #FF4A57;
-  box-shadow: 0 0 9px rgba(255, 74, 87, 0.6);
+  background-color: var(--eva-casper);
+  box-shadow: 0 0 9px var(--eva-casper-glow);
 }
 
 [data-theme="eva"] .core-sync-val {
@@ -2331,7 +2337,7 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .tabs-nav {
-  background-color: rgba(var(--eva-bg-rgb), calc(0.3 * var(--glass-alpha)));
+  background-color: rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.3 * var(--glass-alpha))));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border-bottom: 1px solid rgba(var(--eva-p), 0.25);
@@ -2399,7 +2405,7 @@ details.advanced-sql > summary {
    --eva-bg-rgb so the blue variant's glass runs cold. */
 [data-theme="eva"] .card {
   position: relative;
-  background: linear-gradient(150deg, rgba(var(--eva-bg-rgb), calc(0.3 * var(--glass-alpha))), rgba(var(--eva-bg-rgb), calc(0.44 * var(--glass-alpha))));
+  background: linear-gradient(150deg, rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.3 * var(--glass-alpha)))), rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.44 * var(--glass-alpha)))));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border: 1px solid rgba(var(--eva-p), 0.2);
@@ -2457,7 +2463,7 @@ details.advanced-sql > summary {
   font-family: var(--font-mono);
   letter-spacing: 0.14em;
   font-size: 0.66rem;
-  color: #8B96A8;
+  color: var(--text-muted);
 }
 
 [data-theme="eva"] .metric-value {
@@ -2511,7 +2517,7 @@ details.advanced-sql > summary {
 [data-theme="eva"] #tab-casper .card::before,
 [data-theme="eva"] #tab-casper .card::after { border-color: var(--eva-casper); }
 [data-theme="eva"] #tab-casper .card-title {
-  color: #FF6E79;
+  color: var(--eva-casper);
   text-shadow: 0 0 8px var(--eva-casper-glow);
 }
 [data-theme="eva"] #tab-casper .card-title::before { color: var(--eva-casper); }
@@ -2524,51 +2530,51 @@ details.advanced-sql > summary {
 
 /* topbar badges */
 [data-theme="eva"] #sync-ratio-badge {
-  background: rgba(53, 239, 126, 0.1);
-  border: 1px solid rgba(53, 239, 126, 0.4);
-  color: #35EF7E;
-  box-shadow: 0 0 10px rgba(53, 239, 126, 0.22);
+  background: var(--accent-sage-wash);
+  border: 1px solid var(--accent-sage);
+  color: var(--accent-sage);
+  box-shadow: 0 0 10px var(--eva-balthasar-glow);
   font-family: var(--font-mono);
   border-radius: 2px;
 }
 
 [data-theme="eva"] #active-jobs-badge {
-  background: rgba(69, 213, 234, 0.12);
-  border: 1px solid rgba(69, 213, 234, 0.45);
-  color: #45D5EA;
-  box-shadow: 0 0 10px rgba(69, 213, 234, 0.28);
+  background: var(--accent-blue-wash);
+  border: 1px solid var(--accent-blue);
+  color: var(--accent-blue);
+  box-shadow: 0 0 10px var(--eva-melchior-glow);
   font-family: var(--font-mono);
   border-radius: 2px;
 }
 
 [data-theme="eva"] #dash-sync-ratio {
-  color: #35EF7E;
-  text-shadow: 0 0 12px rgba(53, 239, 126, 0.55);
+  color: var(--accent-sage);
+  text-shadow: 0 0 12px var(--eva-balthasar-glow);
 }
 
 [data-theme="eva"] .status-dot {
-  background-color: #35EF7E;
-  box-shadow: 0 0 8px rgba(53, 239, 126, 0.55);
+  background-color: var(--accent-sage);
+  box-shadow: 0 0 8px var(--eva-balthasar-glow);
 }
 [data-theme="eva"] .status-dot.running {
   background-color: var(--eva-p-soft);
   box-shadow: 0 0 10px rgba(var(--eva-p2), 0.75);
 }
 [data-theme="eva"] .status-dot.error {
-  background-color: #FF4A57;
-  box-shadow: 0 0 8px rgba(255, 74, 87, 0.75);
+  background-color: var(--eva-casper);
+  box-shadow: 0 0 8px var(--eva-casper-glow);
 }
 
 /* panes, rows, tables */
 [data-theme="eva"] .graph-map-wrap {
-  background-color: rgba(var(--eva-bg-rgb), calc(0.3 * var(--glass-alpha)));
+  background-color: rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.3 * var(--glass-alpha))));
   border-color: rgba(var(--eva-p), 0.2);
 }
 
 [data-theme="eva"] .graph-map-toggle,
 [data-theme="eva"] .graph-map-note,
 [data-theme="eva"] .graph-map-hint {
-  background-color: rgba(var(--eva-bg-rgb), calc(0.55 * var(--glass-alpha)));
+  background-color: rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.55 * var(--glass-alpha))));
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(calc(var(--glass-saturate) * 0.9));
   backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(calc(var(--glass-saturate) * 0.9));
   border-color: rgba(var(--eva-p), 0.25);
@@ -2578,7 +2584,7 @@ details.advanced-sql > summary {
 
 [data-theme="eva"] .pane-list,
 [data-theme="eva"] .pane-view {
-  background-color: rgba(var(--eva-bg-rgb), calc(0.32 * var(--glass-alpha)));
+  background-color: rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.32 * var(--glass-alpha))));
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.9)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(calc(var(--glass-blur) * 0.9)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border-color: rgba(var(--eva-p), 0.2);
@@ -2586,7 +2592,7 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .pane-list-header {
-  background-color: rgba(var(--eva-bg-rgb), calc(0.5 * var(--glass-alpha)));
+  background-color: rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.5 * var(--glass-alpha))));
   font-family: var(--font-mono);
   color: var(--eva-p-soft);
   letter-spacing: 0.04em;
@@ -2740,13 +2746,13 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .terminal-body {
-  background-color: rgba(var(--eva-bg-rgb), calc(0.42 * var(--glass-alpha)));
+  background-color: rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.42 * var(--glass-alpha))));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
 }
 
 [data-theme="eva"] .terminal-header {
-  background-color: rgba(var(--eva-bg-rgb), calc(0.5 * var(--glass-alpha)));
+  background-color: rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.5 * var(--glass-alpha))));
 }
 
 [data-theme="eva"] .terminal-header {
@@ -2755,8 +2761,8 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .terminal-body {
-  color: #35EF7E;
-  text-shadow: 0 0 4px rgba(53, 239, 126, 0.32);
+  color: var(--term-text);
+  text-shadow: 0 0 4px var(--eva-balthasar-glow);
 }
 
 [data-theme="eva"] .terminal-btn {
@@ -2766,25 +2772,25 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .terminal-btn:hover:not(:disabled) {
-  border-color: #35EF7E;
-  color: #35EF7E;
-  box-shadow: 0 0 8px rgba(53, 239, 126, 0.3);
+  border-color: var(--term-text);
+  color: var(--term-text);
+  box-shadow: 0 0 8px var(--eva-balthasar-glow);
 }
 
 [data-theme="eva"] .terminal-cancel-btn {
-  color: #FF4A57;
+  color: var(--eva-casper);
   border-color: rgba(255, 74, 87, 0.35);
 }
 
 [data-theme="eva"] .terminal-cancel-btn:hover:not(:disabled) {
-  border-color: #FF4A57;
-  color: #FF4A57;
-  box-shadow: 0 0 8px rgba(255, 74, 87, 0.4);
+  border-color: var(--eva-casper);
+  color: var(--eva-casper);
+  box-shadow: 0 0 8px var(--eva-casper-glow);
 }
 
 [data-theme="eva"] .terminal-container.is-running .terminal-body::after {
   content: "▮";
-  color: #35EF7E;
+  color: var(--term-text);
   margin-left: 2px;
 }
 
@@ -2845,7 +2851,7 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .modal-window {
-  background-color: rgba(var(--eva-bg-rgb), calc(0.6 * var(--glass-alpha)));
+  background-color: rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.6 * var(--glass-alpha))));
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border: 1px solid rgba(var(--eva-p), 0.4);
@@ -2956,7 +2962,7 @@ details.advanced-sql > summary {
 [data-theme="eva"] .eva-hud-frame {
   position: relative;
   border: 1px solid rgba(var(--eva-p), 0.35);
-  background: linear-gradient(180deg, rgba(var(--eva-bg-rgb), calc(0.32 * var(--glass-alpha))), rgba(var(--eva-bg-rgb), calc(0.48 * var(--glass-alpha))));
+  background: linear-gradient(180deg, rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.32 * var(--glass-alpha)))), rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.48 * var(--glass-alpha)))));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   padding: 0.9rem 1.1rem 0.6rem;
@@ -3091,16 +3097,16 @@ details.advanced-sql > summary {
   font-size: 15px;
   font-weight: 700;
   letter-spacing: 0.3em;
-  fill: #A7B2C4;
+  fill: var(--text-secondary);
 }
 
 [data-theme="eva"] .eva-core-detail {
   font-size: 11.5px;
   letter-spacing: 0.1em;
-  fill: #616C7E;
+  fill: var(--text-muted);
 }
 
-[data-theme="eva"] .eva-core-led { fill: #3B4353; }
+[data-theme="eva"] .eva-core-led { fill: var(--text-subtle); }
 
 [data-theme="eva"] .core-mel .eva-core-name { fill: var(--eva-melchior); }
 [data-theme="eva"] .core-bal .eva-core-name { fill: var(--eva-balthasar); }
@@ -3121,8 +3127,8 @@ details.advanced-sql > summary {
   fill: rgba(255, 74, 87, 0.07);
   filter: drop-shadow(0 0 6px var(--eva-casper-glow));
 }
-[data-theme="eva"] .eva-core.state-ok .eva-core-stat { fill: #35EF7E; }
-[data-theme="eva"] .eva-core.state-ok .eva-core-led { fill: #35EF7E; }
+[data-theme="eva"] .eva-core.state-ok .eva-core-stat { fill: var(--eva-balthasar); }
+[data-theme="eva"] .eva-core.state-ok .eva-core-led { fill: var(--eva-balthasar); }
 
 [data-theme="eva"] .eva-core.state-warn .eva-core-shape {
   stroke: var(--eva-p-soft);
@@ -3133,12 +3139,12 @@ details.advanced-sql > summary {
 [data-theme="eva"] .eva-core.state-warn .eva-core-led { fill: var(--eva-p-soft); }
 
 [data-theme="eva"] .eva-core.state-err .eva-core-shape {
-  stroke: #FF4A57;
+  stroke: var(--eva-casper);
   fill: rgba(255, 74, 87, 0.08);
-  filter: drop-shadow(0 0 7px rgba(255, 74, 87, 0.5));
+  filter: drop-shadow(0 0 7px var(--eva-casper-glow));
 }
-[data-theme="eva"] .eva-core.state-err .eva-core-stat { fill: #FF4A57; }
-[data-theme="eva"] .eva-core.state-err .eva-core-led { fill: #FF4A57; }
+[data-theme="eva"] .eva-core.state-err .eva-core-stat { fill: var(--eva-casper); }
+[data-theme="eva"] .eva-core.state-err .eva-core-led { fill: var(--eva-casper); }
 
 @media (prefers-reduced-motion: no-preference) {
   [data-theme="eva"] .eva-core.state-err .eva-core-led,
@@ -3148,7 +3154,7 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .eva-core.state-off .eva-core-shape { stroke-dasharray: 6 6; }
-[data-theme="eva"] .eva-core.state-off .eva-core-stat { fill: #616C7E; }
+[data-theme="eva"] .eva-core.state-off .eva-core-stat { fill: var(--text-muted); }
 
 [data-theme="eva"] .eva-hex-shape {
   fill: rgba(var(--eva-p), 0.05);
@@ -3167,14 +3173,14 @@ details.advanced-sql > summary {
 [data-theme="eva"] .eva-hex-sync {
   font-size: 32px;
   font-weight: 700;
-  fill: #35EF7E;
-  filter: drop-shadow(0 0 8px rgba(53, 239, 126, 0.5));
+  fill: var(--eva-balthasar);
+  filter: drop-shadow(0 0 8px var(--eva-balthasar-glow));
 }
 
 [data-theme="eva"] .eva-hex-label {
   font-size: 10px;
   letter-spacing: 0.32em;
-  fill: #616C7E;
+  fill: var(--text-muted);
 }
 
 /* --------------------------------------------------------------------------
@@ -3189,7 +3195,7 @@ details.advanced-sql > summary {
   inset: 0;
   z-index: 100000;
   background:
-    repeating-linear-gradient(0deg, rgba(var(--eva-p), 0.02) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(0deg, rgba(255, 148, 33, 0.02) 0 1px, transparent 1px 3px),
     #04050A;
   align-items: center;
   justify-content: center;
@@ -3243,7 +3249,7 @@ details.advanced-sql > summary {
 .eva-boot-bar {
   width: min(340px, 80vw);
   height: 8px;
-  border: 1px solid rgba(var(--eva-p), 0.5);
+  border: 1px solid rgba(255, 148, 33, 0.5);
   margin: 1.2rem auto 0.9rem;
   padding: 1px;
 }
@@ -3251,15 +3257,15 @@ details.advanced-sql > summary {
 .eva-boot-bar-fill {
   height: 100%;
   width: 0;
-  background: linear-gradient(90deg, var(--eva-p-strong), var(--eva-p-soft));
-  box-shadow: 0 0 12px rgba(var(--eva-p), 0.6);
+  background: linear-gradient(90deg, #FF9421, #FFA51E);
+  box-shadow: 0 0 12px rgba(255, 148, 33, 0.6);
   animation: eva-boot-fill 1.5s 0.45s steps(24) forwards;
 }
 
 .eva-boot-status {
   font-size: 0.68rem;
   letter-spacing: 0.3em;
-  color: rgba(var(--eva-p2), 0.75);
+  color: rgba(255, 165, 30, 0.75);
 }
 
 @keyframes eva-boot-pop {
@@ -3358,6 +3364,16 @@ details.advanced-sql > summary {
   accent-color: var(--eva-p-strong);
 }
 
+/* The toggle row's label is a sentence, not a column header — let it take
+   the row and push the checkbox flush right. */
+.glass-tuner-row-toggle label {
+  width: auto;
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
+
+.glass-tuner-row-toggle input[type="checkbox"] { margin-left: auto; }
+
 .glass-tuner-val {
   flex: none;
   width: 3.4em;
@@ -3376,6 +3392,10 @@ details.advanced-sql > summary {
    artwork instead of sinking it.
    -------------------------------------------------------------------------- */
 
+/* the luminous pools are tuned for a black deck — the white gauze does
+   their job in light mode */
+[data-theme="eva"][data-eva="blue"] .app-bg { background: none; }
+
 [data-theme="eva"][data-eva="blue"] .app-bg-shade {
   background: linear-gradient(180deg,
     rgba(var(--eva-bg-rgb), 0.7) 0%,
@@ -3386,8 +3406,6 @@ details.advanced-sql > summary {
 
 [data-theme="eva"][data-eva="blue"] .app-bg-photo { filter: brightness(1.02) saturate(1.02); }
 
-/* dark CRT scanlines read heavier on paper — pull the overlay back */
-[data-theme="eva"][data-eva="blue"] body::before { opacity: 0.22; }
 
 [data-theme="eva"][data-eva="blue"] .brand-icon { color: #F4FAFF; }
 

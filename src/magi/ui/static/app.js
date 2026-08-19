@@ -382,6 +382,7 @@
       glass_btn_title: "玻璃材质调节（模糊 / 不透明度）",
       glass_blur_label: "模糊",
       glass_alpha_label: "不透明",
+      glass_crt_label: "CRT 扫描线",
       glass_reset: "重置",
       graph_th_title: "标题",
       graph_th_type: "类型",
@@ -774,6 +775,7 @@
       glass_btn_title: "Glass material tuning (blur / opacity)",
       glass_blur_label: "Blur",
       glass_alpha_label: "Opacity",
+      glass_crt_label: "CRT scanlines",
       glass_reset: "Reset",
       graph_th_title: "Title",
       graph_th_type: "Type",
@@ -949,6 +951,7 @@
     glassAlphaRange: document.getElementById("glass-alpha-range"),
     glassBlurVal: document.getElementById("glass-blur-val"),
     glassAlphaVal: document.getElementById("glass-alpha-val"),
+    glassCrtToggle: document.getElementById("glass-crt-toggle"),
     glassResetBtn: document.getElementById("glass-reset-btn"),
     graphQ: document.getElementById("graph-q"),
     graphType: document.getElementById("graph-type"),
@@ -1212,6 +1215,35 @@
       bgEngine.shown = chosen.file;
       bgEngine.variant = variant;
     };
+    img.onerror = () => {
+      if (req !== bgEngine.req || currentEvaVariant() !== variant) return;
+      // Failed decode: retry once with another candidate, else degrade to the
+      // flat canvas instead of stranding the previous variant's artwork.
+      const rest = pool.filter((e) => e.file !== chosen.file);
+      if (!rest.length) {
+        layers.forEach((l) => l.classList.remove("visible"));
+        document.body.classList.remove("has-bg-photo");
+        bgEngine.shown = null;
+        bgEngine.variant = null;
+        bgEngine.front = null;
+        return;
+      }
+      const next = rest[Math.floor(Math.random() * rest.length)];
+      const retry = new Image();
+      retry.onload = () => {
+        if (req !== bgEngine.req || currentEvaVariant() !== variant) return;
+        const nextIdx = bgEngine.front === 0 ? 1 : 0;
+        const layer = layers[nextIdx];
+        const cur = bgEngine.front === null ? null : layers[bgEngine.front];
+        layer.style.backgroundImage = `url("${bgEngine.baseUrl + next.file}")`;
+        layer.classList.add("visible");
+        if (cur && cur !== layer) cur.classList.remove("visible");
+        bgEngine.front = nextIdx;
+        bgEngine.shown = next.file;
+        bgEngine.variant = variant;
+      };
+      retry.src = bgEngine.baseUrl + next.file;
+    };
     img.src = url;
   }
 
@@ -1232,23 +1264,29 @@
 
   const GLASS_DEFAULTS = { blur: 10, alpha: 100 };
 
-  function glassSetting(key, fallback) {
+  function glassSetting(key, fallback, min, max) {
+    // Clamped to the slider bounds: a stale or hand-edited localStorage value
+    // must never drive the CSS outside what the UI can express.
     const v = parseInt(safeStorageGet(key), 10);
-    return Number.isFinite(v) ? v : fallback;
+    if (!Number.isFinite(v)) return fallback;
+    return Math.min(max, Math.max(min, v));
   }
 
   function applyGlassSettings() {
-    const blur = glassSetting("magi-glass-blur", GLASS_DEFAULTS.blur);
-    const alpha = glassSetting("magi-glass-alpha", GLASS_DEFAULTS.alpha);
+    const blur = glassSetting("magi-glass-blur", GLASS_DEFAULTS.blur, 0, 30);
+    const alpha = glassSetting("magi-glass-alpha", GLASS_DEFAULTS.alpha, 40, 170);
+    const crt = safeStorageGet("magi-crt") === "on";
     const root = document.documentElement.style;
     if (blur === GLASS_DEFAULTS.blur) root.removeProperty("--glass-blur");
     else root.setProperty("--glass-blur", `${blur}px`);
     if (alpha === GLASS_DEFAULTS.alpha) root.removeProperty("--glass-alpha");
     else root.setProperty("--glass-alpha", String(alpha / 100));
+    document.documentElement.classList.toggle("crt-on", crt);
     if (els.glassBlurRange) els.glassBlurRange.value = blur;
     if (els.glassAlphaRange) els.glassAlphaRange.value = alpha;
     if (els.glassBlurVal) els.glassBlurVal.textContent = `${blur}px`;
     if (els.glassAlphaVal) els.glassAlphaVal.textContent = `${alpha}%`;
+    if (els.glassCrtToggle) els.glassCrtToggle.checked = crt;
   }
 
   if (els.glassTunerBtn) {
@@ -1268,10 +1306,17 @@
       applyGlassSettings();
     });
   }
+  if (els.glassCrtToggle) {
+    els.glassCrtToggle.addEventListener("change", () => {
+      safeStorageSet("magi-crt", els.glassCrtToggle.checked ? "on" : "off");
+      applyGlassSettings();
+    });
+  }
   if (els.glassResetBtn) {
     els.glassResetBtn.addEventListener("click", () => {
       safeStorageSet("magi-glass-blur", String(GLASS_DEFAULTS.blur));
       safeStorageSet("magi-glass-alpha", String(GLASS_DEFAULTS.alpha));
+      safeStorageSet("magi-crt", "off");
       applyGlassSettings();
     });
   }
@@ -2408,6 +2453,12 @@
     const tags = !!(els.graphMapTags && els.graphMapTags.checked);
     const key = `${state.workspace}|${tags ? 1 : 0}`;
     if (graphMap.key === key && graphMap.nodes.length) {
+      // stopGraphMap may have frozen a mid-settle layout on tab leave —
+      // resume unless the simulation had already cooled down.
+      if (graphMap.sim && graphMap.sim.alpha() > graphMap.sim.alphaMin()) {
+        graphMap.sim.restart();
+      }
+      renderGraphMapNote();
       scheduleGraphMapDraw();
       return;
     }
@@ -2428,6 +2479,23 @@
     }
   }
 
+  // Derives the corner note from graphMap state, so a language switch on a
+  // cached dataset re-renders it in the new language instead of keeping the
+  // old string.
+  function renderGraphMapNote() {
+    if (!els.graphMapNote) return;
+    if (!graphMap.key) return;
+    if (!graphMap.nodes.length) {
+      els.graphMapNote.textContent = t("graph_map_empty");
+      els.graphMapNote.style.display = "";
+    } else if (graphMap.truncated) {
+      els.graphMapNote.textContent = t("graph_map_truncated", { n: graphMap.nodes.length });
+      els.graphMapNote.style.display = "";
+    } else {
+      els.graphMapNote.style.display = "none";
+    }
+  }
+
   function buildGraphMap(res, key) {
     stopGraphMap();
     graphMap.key = key;
@@ -2445,17 +2513,8 @@
     graphMap.ty = 0;
     graphMap.k = 1;
     graphMap.hover = null;
-    if (els.graphMapNote) {
-      if (!graphMap.nodes.length) {
-        els.graphMapNote.textContent = t("graph_map_empty");
-        els.graphMapNote.style.display = "";
-      } else if (res.truncated) {
-        els.graphMapNote.textContent = t("graph_map_truncated", { n: graphMap.nodes.length });
-        els.graphMapNote.style.display = "";
-      } else {
-        els.graphMapNote.style.display = "none";
-      }
-    }
+    graphMap.truncated = !!res.truncated;
+    renderGraphMapNote();
     if (!graphMap.nodes.length) {
       scheduleGraphMapDraw();
       return;

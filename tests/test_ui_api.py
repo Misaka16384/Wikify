@@ -789,8 +789,8 @@ def test_i18n_dictionary_symmetry_and_html_coverage(client):
 def test_eva_completion_layer_hud_boot_and_tactical_css(client):
     css = client.get("/styles.css").text
 
-    # CRT scanline overlay + honeycomb field watermark
-    assert '[data-theme="eva"] body::before' in css
+    # CRT scanline overlay (opt-in via the glass tuner) + honeycomb watermark
+    assert '[data-theme="eva"].crt-on body::before' in css
     assert "data:image/svg+xml" in css
 
     # Chamfered tactical controls and hazard striping on danger surfaces
