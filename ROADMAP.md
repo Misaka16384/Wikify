@@ -2,7 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-19 · 当前阶段：**v1.4.4 已发布**（tag `v1.4.4`；版本号同步 ×5）。此前：M0–M9 全部完成。
+> 最后更新：2026-08-19 · 当前阶段：**v1.4.5 已发布**（tag `v1.4.5`；版本号同步 ×5）。此前：M0–M9 全部完成。
+>
+> 2026-08-19 品牌 + 排印 + 文案 (v1.4.5)：**三贤者徽记**——顶栏原创 SVG mark（六边形壳 + 红/绿/青三核节点 + 总线），颜色走 per-core token 四主题态自动换装，EVA 下三核序列脉冲（bm-pulse，reduced-motion 门控）；**字号层级**——卡片标题 1.04→1.18rem、metric 数值 clamp 上限 2.5rem、副标题 0.75/标签 0.66 加字距、品牌 1.32rem；**去术语化**——BM25/向量/RRF 等引擎词从界面清除（cas_title/subtitle、opt_* 三项、search_summary、vec_unavailable_hint、cfg 嵌入模型、tab_casper、core_role_cas、HUD 明细行），中英同步。README 双语新增 MAGI MODE 展示区（docs/webui-*.jpg ×4）。
 >
 > 2026-08-19 视口边缘内发光 (v1.4.4)：MAGI 模式专属 `body::after` inset 光晕（`--eva-glow-rgb`：红琥珀 255,148,33 / 蓝青 10,158,215），5.5s opacity 呼吸（合成器友好、reduced-motion 门控），z-index 与 CRT 层同级、pointer-events:none。
 >
