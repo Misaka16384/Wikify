@@ -2,7 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-19 · 当前阶段：**v1.4.3 已发布**（tag `v1.4.3`；版本号同步 ×5）。此前：M0–M9 全部完成。
+> 最后更新：2026-08-19 · 当前阶段：**v1.4.4 已发布**（tag `v1.4.4`；版本号同步 ×5）。此前：M0–M9 全部完成。
+>
+> 2026-08-19 视口边缘内发光 (v1.4.4)：MAGI 模式专属 `body::after` inset 光晕（`--eva-glow-rgb`：红琥珀 255,148,33 / 蓝青 10,158,215），5.5s opacity 呼吸（合成器友好、reduced-motion 门控），z-index 与 CRT 层同级、pointer-events:none。
 >
 > 2026-08-19 CRT 可选 + 对抗式加固 (v1.4.3)：CRT 扫描线改为校准面板开关（`html.crt-on` 门控、默认关、localStorage `magi-crt`、闪烁关键帧随 `--crt-opacity` token 缩放）。30-agent 对抗审查确认 26 缺陷全修：蓝态残余霓虹 literal 全部路由到变体 token（核心带/徽章/状态点/HUD SVG/终端控件/metric 标签）；程序化 WCAG 驱动的双态对比度调优（蓝 muted #54657A、accent/贤者墨加深；红 muted 提亮 #97A1B3）；玻璃透明度 `max(var(--glass-floor),…)` 地板（蓝 0.5）；boot 动画与变体解耦（固定琥珀）；浅色去紫色光池；校准器数值钳制 + CRT 行独立布局 + toast `pointer-events:none`；图谱缓存回访 sim 恢复、注记语言重渲染、背景 onerror 重试/降级。测试 94 全绿（CRT 设计锁更新为 opt-in 契约）。
 >
