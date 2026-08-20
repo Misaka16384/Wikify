@@ -14,6 +14,7 @@ Priority (high → low):
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Any, Optional
 
@@ -115,14 +116,27 @@ def _find_config_yaml(start: Optional[str] = None) -> Optional[Path]:
 # Public API
 # ---------------------------------------------------------------------------
 
-def load_config(config_path: Optional[str] = None) -> dict[str, Any]:
+def load_config(config_path: Optional[str] = None,
+                start: Optional[str | os.PathLike] = None) -> dict[str, Any]:
     """Load the unified configuration.
 
     Parameters
     ----------
     config_path : str, optional
-        Explicit path to a YAML config file.  When *None*, the loader
-        auto-discovers ``config.yaml`` by walking up from ``bin/``.
+        Explicit path to a YAML config file.
+    start : path-like, optional
+        Where to begin the upward search for ``config.yaml``. Defaults to the
+        process cwd.
+
+        **Pass the workspace whenever you have one.** Commands that take
+        ``--topic-dir`` used to resolve the workspace for their *output* but
+        leave config discovery on cwd, so pointing a command at one workspace
+        from inside another silently applied the wrong settings. The worst
+        case was the scheduler: `radar install-schedule` registers
+        ``magi radar harvest --topic-dir <ws>`` with no working directory, so
+        the nightly run discovered no config at all and harvested with an
+        empty category list — producing a plausible-looking digest that had
+        silently lost half its sources.
 
     Returns
     -------
@@ -147,15 +161,23 @@ def load_config(config_path: Optional[str] = None) -> dict[str, Any]:
                 raise ValueError(f"Config file must be a YAML mapping, got {type(user_cfg).__name__}")
             config = _deep_merge(config, user_cfg)
     else:
-        yaml_path = _find_config_yaml()
+        yaml_path = _find_config_yaml(start)
         if yaml_path is not None and yaml is not None:
             try:
                 with open(yaml_path, "r", encoding="utf-8") as fh:
                     user_cfg = yaml.safe_load(fh)
-                if isinstance(user_cfg, dict):
-                    config = _deep_merge(config, user_cfg)
-            except Exception:
-                pass  # Fall through to defaults on any parse error
+            except Exception as exc:
+                # Silently falling back to defaults here is how a one-character
+                # YAML typo turns into "radar found nothing today" with an exit
+                # code of 0. The defaults still apply — but say so.
+                print(f"warning: could not read {yaml_path} ({exc}); using defaults",
+                      file=sys.stderr)
+                user_cfg = None
+            if user_cfg is not None and not isinstance(user_cfg, dict):
+                print(f"warning: {yaml_path} is not a YAML mapping "
+                      f"({type(user_cfg).__name__}); using defaults", file=sys.stderr)
+            elif isinstance(user_cfg, dict):
+                config = _deep_merge(config, user_cfg)
 
     # --- Layer 2: Environment variable overrides ---
     for env_var, dotted_key in _ENV_OVERRIDES:

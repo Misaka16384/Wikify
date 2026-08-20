@@ -265,9 +265,19 @@ def build_report(cwd: Path | None = None) -> dict:
         elif c["state"] == "stale":
             _hint("index-stale", "magi index   # refresh the retrieval index")
         try:
-            from magi.radar import pending_names, scan_reports
+            from magi.core.config_loader import get as cfg_get, load_config
+            from magi.radar import harvest_age_days, pending_names, scan_reports
 
             reports = scan_reports(topic)
+            # Only nag about staleness once radar is actually in use — a
+            # workspace that has never harvested is not overdue, it is unused.
+            age = harvest_age_days(topic)
+            window = int(cfg_get(load_config(start=topic), "radar.days", 7) or 7)
+            if age is not None and age > max(window, 1) * 2:
+                _hint("radar-harvest-overdue",
+                      f"radar: last harvest was {age}d ago (window is {window}d) — "
+                      f"run 'magi radar harvest', or check the scheduled task",
+                      days=age, window=window)
         except Exception:
             reports = []
             pending_names = None

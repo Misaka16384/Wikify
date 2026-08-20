@@ -902,7 +902,7 @@ radar:
   seed_arxiv_ids: ["2301.01234"]                # 种子论文（推荐算法的正样本）
   days: 7                    # arXiv 回溯窗口
   max_candidates: 40         # 每次最多留几条
-  min_relevance: 0.35        # 相关度阈值（可选；不写=不过滤）
+  min_relevance: 0.50        # 相关度下限（可选；不写=不过滤——见下方说明）
   own_arxiv_ids: ["2402.05678"]     # 「我方论文」，citation-gap 用
   citation_gap:
     min_shared_refs: 2       # 共引门槛
@@ -912,6 +912,11 @@ radar:
 `min_relevance`、`own_arxiv_ids`、`citation_gap.*` 这三组**不在 `magi init` 生成的模板里**，需要时自己加。
 
 相关度是「候选摘要与本库嵌入质心的余弦相似度」，所以它依赖 `magi index` 建好的向量索引 + 可用的 Ollama；没有的话候选按来源顺序排列，不打分。
+
+> [!NOTE]
+> **这个分数要当排名看，不要当概率看。** 能进简报的候选，本来就来自你配的 arXiv 分类、或者以你自己论文为种子的推荐——打分之前它们就已经是「像样的」了，所以分数会挤在量程的高端。在一个真实的 67 篇论文的库上实测：40 个候选全部落在 **0.55–0.70** 之间；而真正无关的文本分数低得多——一篇普通凝聚态论文 0.45、一篇机器学习论文 0.37、随机字符 0.31。
+> 
+> 也就是说 `min_relevance` 是用来兜**分类层面**的错的（比如 arXiv 分类填错了，把另一个领域的东西拉了进来），不是精度旋钮。取 0.50 左右能兜住这种情况，除此之外什么也不会拦；调到 0.60 以上就开始误杀了。排序在列表顶端是可信的、在中位数附近基本是噪声——界面里因此把它显示成每批内部的 **高相关 / 中等 / 偏低**，原始余弦值放在悬停提示里。
 
 ### 收割与审阅 {#radar-run}
 
@@ -946,7 +951,7 @@ magi radar install-schedule --uninstall      # 卸载
 
 - **Windows**：注册进任务计划程序，任务名形如 `magi-radar-<目录名>-<哈希>`，可用 `schtasks /Query /TN <名字>` 核对。
 - **macOS**：写入 `~/Library/LaunchAgents/com.magi.radar.*.plist`，用 `launchctl list | grep com.magi.radar` 核对。
-- **Linux**：**什么都不会装**——只打印一行建议的 crontab，而且那行**忽略你传的 `--time`，永远写 3 点**。自己 `crontab -e` 加进去。
+- **Linux**：**什么都不会装**——只打印一行建议的 crontab（会按你传的 `--time` 来），自己 `crontab -e` 加进去。
 
 > [!WARN]
 > 任务名里含工作区路径的哈希。**移动或改名工作区之后，`--uninstall` 就找不到旧任务了**，得手动删（`schtasks /Delete /TN <名字> /F` 或删 plist）。
@@ -956,12 +961,14 @@ magi radar install-schedule --uninstall      # 卸载
 | 症状 | 处理 |
 |---|---|
 | `harvest: no new candidates` | 种子和分区是不是空的？窗口太窄？`--days 30` 试试。也可能真的都收过了——账本在 `output/radar/seen.jsonl`，**没有命令能重置它**，要重刷得手动删行 |
-| 候选太多太杂 | 调高 `min_relevance`、调低 `max_candidates`、精简 `arxiv_categories` |
+| 候选太多太杂 | 先精简 `arxiv_categories`——噪声是从那儿进来的；再调低 `max_candidates`。`min_relevance` 在这件事上很钝（见上方说明） |
+| 想暂停雷达但不想卸掉定时任务 | 把 `max_candidates` 设成 0；harvest 会直接退出，不会去调 arXiv 或 S2 |
 | 相关度全是空的 | 提示 `relevance scoring unavailable`——先 `magi index` 建向量索引。停着的 Ollama 会自己起来；还是空的就是没装、或者模型没拉 |
 | `warning: S2 recommendations failed` | Semantic Scholar 限流或网络问题；调用是匿名的，没有 API key 可配，过一会儿重跑 |
 | `arXiv query failed for <分区>` | 简报 frontmatter 会记 `sources_failed`，`magi radar status` 也会提示；重跑补齐 |
 | `citation-gap: no candidates survived` | 漏斗太严：降 `min_shared_refs`、升 `years` |
 | `has no reference data on S2 yet` | 论文太新，S2 还没索引它的参考文献，等几天 |
+| `Semantic Scholar did not answer (rate limit or outage)` | 这是另一回事：S2 拒绝了请求，所以这篇到底有没有参考文献数据是**未知**，不是没有。过会儿重试 |
 | 简报越积越多 | 只有审阅动作会把 `status: pending-review` 改成 `reviewed`；同一天重复收割会生成 `-2`、`-3` 的副本，越积越乱。定期审 |
 
 ---

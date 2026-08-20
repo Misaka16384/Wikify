@@ -42,6 +42,11 @@ from magi.core.workspace import find_workspace_root
 ARXIV_ID_RE = re.compile(r"\b(\d{4}\.\d{4,5})(?:v\d+)?\b")
 USER_AGENT = "magi-radar/0.1 (research workspace tool)"
 
+# Per own-paper cap on citation-gap neighbour lookups. Each one is a separate
+# Semantic Scholar request behind ~1.1s of enforced politeness, so this bounds
+# both a run's wall time and its share of an anonymous rate limit.
+NEIGHBOR_BUDGET = 20
+
 
 def _http_json(url: str, payload: dict | None = None, timeout: int = 60) -> dict:
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
@@ -140,9 +145,12 @@ def harvest_s2(seeds: list[str], limit: int) -> list[dict]:
             "id": ext.get("ArXiv") or ext.get("DOI") or p.get("paperId"),
             "arxiv_id": ext.get("ArXiv"),
             "doi": ext.get("DOI"),
-            "title": title,
+            "title": re.sub(r"\s+", " ", title),
             "year": p.get("year"),
-            "abstract": (p.get("abstract") or "")[:1500],
+            # arXiv abstracts already get collapsed in harvest_arxiv; S2's did
+            # not, and a newline inside one is enough to make the digest
+            # re-parse as an extra candidate.
+            "abstract": re.sub(r"\s+", " ", (p.get("abstract") or "")).strip()[:1500],
             "url": p.get("url"),
             "source": "s2-recommendation",
             "authors": [a.get("name") for a in (p.get("authors") or []) if a.get("name")],
@@ -237,7 +245,7 @@ def scan_reports(topic: Path) -> list[dict]:
             st = p.stat()
         except OSError:
             continue
-        status = "pending-review" if "status: pending-review" in text else "reviewed"
+        status = report_status(text)
         out.append({"name": p.name, "kind": kind, "status": status,
                     "path": str(p), "mtime": st.st_mtime, "size": st.st_size})
     return out
@@ -255,8 +263,15 @@ def _candidate_lines(c: dict) -> list[str]:
     """
     arxiv_link = f"https://arxiv.org/abs/{c['arxiv_id']}" if c.get("arxiv_id") else ""
     link = c.get("url") or arxiv_link
-    lines = [f"## {c['title']}", ""]
-    meta = f"- id: `{c['id']}` · {c.get('year', '?')} · source: {c['source']}"
+    # Every field below is re-parsed out of this markdown later, so anything
+    # that could impersonate the format has to be neutralised on the way in:
+    # a newline turns one candidate into two, and a backtick closes the id span
+    # early (S2 falls back to a DOI when there is no arXiv id, and DOIs are
+    # free-form). A blank title would produce a `## ` heading the parser skips.
+    title = re.sub(r"\s+", " ", str(c.get("title") or "")).strip() or "(untitled)"
+    cid = re.sub(r"\s+", " ", str(c.get("id") or "")).replace("`", "'").strip()
+    lines = [f"## {title}", ""]
+    meta = f"- id: `{cid}` · {c.get('year', '?')} · source: {c['source']}"
     if c.get("score") is not None:
         meta += f" · relevance: {c['score']}"
     lines.append(meta)
@@ -273,7 +288,8 @@ def _candidate_lines(c: dict) -> list[str]:
     if arxiv_link and arxiv_link != link:
         lines.append(f"- {arxiv_link}")
     if c.get("abstract"):
-        lines.append(f"- abstract: {_ellipsize(c['abstract'], 500)}")
+        flat = re.sub(r"\s+", " ", str(c["abstract"])).strip()
+        lines.append(f"- abstract: {_ellipsize(flat, 500)}")
     return lines
 
 
@@ -295,7 +311,7 @@ def parse_digest_candidates(text: str) -> list[dict]:
                 out.append(cur)
             cur = {"index": len(out), "title": m.group(1), "id": None,
                    "arxiv_id": None, "url": None, "relevance": None,
-                   "authors": []}
+                   "authors": [], "abstract": None}
             continue
         if cur is None:
             continue
@@ -315,6 +331,19 @@ def parse_digest_candidates(text: str) -> list[dict]:
             if names and names[-1] == "et al.":
                 names = names[:-1]
             cur["authors"] = names
+            continue
+        # Citation-gap reports written before they carried an `- id:` line.
+        # Their arXiv id lives in the `- candidate:` line instead; without this
+        # an old report parses to a title with nothing to act on.
+        mcand = re.match(r"^- candidate: .*?arXiv:([\w.\-]+)", line)
+        if mcand and cur["id"] is None and mcand.group(1) != "?":
+            cur["id"] = cur["arxiv_id"] = re.sub(r"v\d+$", "", mcand.group(1))
+            continue
+        mabs = re.match(r"^- abstract: (.+)$", line)
+        if mabs:
+            # The abstract is what a reviewer actually judges on, so it has to
+            # survive back out of the digest and into the triage row.
+            cur["abstract"] = mabs.group(1).strip()
             continue
         murl = re.match(r"^- (https?://\S+)\s*$", line)
         if murl:
@@ -336,11 +365,32 @@ def mark_report_reviewed(path: Path) -> bool:
     format) — callers surface that as a conflict rather than rewriting blindly.
     """
     text = path.read_text(encoding="utf-8", errors="replace")
-    if "status: pending-review" not in text:
+    head, body = _split_frontmatter(text)
+    if head is None or "status: pending-review" not in head:
         return False
-    path.write_text(text.replace("status: pending-review", "status: reviewed", 1),
+    # Scoped to the frontmatter: a digest body is full of paper abstracts, and
+    # one quoting "status: pending-review" would otherwise be the line that got
+    # rewritten while the real frontmatter stayed pending forever.
+    path.write_text(head.replace("status: pending-review", "status: reviewed", 1) + body,
                     encoding="utf-8")
     return True
+
+
+def _split_frontmatter(text: str) -> tuple[str | None, str]:
+    """(frontmatter-including-fences, rest). (None, text) when absent.
+
+    Tolerates CRLF — these files are edited by hand on Windows.
+    """
+    m = re.match(r"^---\r?\n.*?\r?\n---\r?\n", text, re.DOTALL)
+    if not m:
+        return None, text
+    return m.group(0), text[m.end():]
+
+
+def report_status(text: str) -> str:
+    """`pending-review` or `reviewed`, read from the frontmatter only."""
+    head, _ = _split_frontmatter(text)
+    return "pending-review" if head and "status: pending-review" in head else "reviewed"
 
 
 # --------------------------------------------------------------------------
@@ -367,16 +417,25 @@ def _score_candidates(topic: Path, cands: list[dict]) -> bool:
         try:
             if not vec_loaded:
                 return False
+            # One vector per PAPER, not per chunk. Averaging raw chunks lets a
+            # long paper outvote a short one purely by length — and the old
+            # `LIMIT 400` with no ORDER BY made it worse: past 400 chunks the
+            # rows kept were whatever SQLite's physical storage order handed
+            # back, which on a reindexed library silently dropped entire papers
+            # out of the fingerprint with nothing in the log.
             rows = conn.execute(
-                "SELECT v.embedding FROM chunks_vec v JOIN chunks c ON c.id = v.rowid "
+                "SELECT c.path, v.embedding FROM chunks_vec v JOIN chunks c ON c.id = v.rowid "
                 "WHERE c.collection IN ('concepts', 'references', 'topics', 'theses') "
-                "LIMIT 400"
+                "ORDER BY c.path, c.id"
             ).fetchall()
         finally:
             conn.close()
         if not rows:
             return False
-        mat = np.array([np.frombuffer(r[0], dtype=np.float32) for r in rows])
+        per_paper: dict[str, list] = {}
+        for path, blob in rows:
+            per_paper.setdefault(path, []).append(np.frombuffer(blob, dtype=np.float32))
+        mat = np.array([np.mean(vs, axis=0) for vs in per_paper.values()])
         centroid = mat.mean(axis=0)
         norm = float(np.linalg.norm(centroid))
         if norm == 0:
@@ -409,6 +468,135 @@ def _score_candidates(topic: Path, cands: list[dict]) -> bool:
 # harvest command
 # --------------------------------------------------------------------------
 
+def _apply_budget(cands: list[dict], max_c: int) -> list[dict]:
+    """Cut to the candidate cap while guaranteeing arXiv recency a share.
+
+    The intent was always that Semantic Scholar recommendations must not crowd
+    out new arXiv listings — but reserving the budget at *fetch* time did
+    nothing, because the relevance sort that follows re-merges both pools and
+    the cap then falls wherever the scores land. On a real run that put 9 of
+    the top 10 on the S2 side, which is exactly backwards for a tool whose job
+    is to tell you what appeared this week.
+
+    So the split is enforced here, after scoring: each source keeps its own
+    best up to half the budget, and whichever source has spare capacity gives
+    it to the other. Order within the result is still by score.
+    """
+    if len(cands) <= max_c:
+        return cands
+    recency = [c for c in cands if str(c.get("source", "")).startswith("arxiv-new")]
+    rec_share = min(len(recency), max_c // 2)
+    keep_ids = {id(c) for c in recency[:rec_share]}
+    for c in cands:                       # fill the rest in score order
+        if len(keep_ids) >= max_c:
+            break
+        keep_ids.add(id(c))
+    return [c for c in cands if id(c) in keep_ids]
+
+
+def _resolve_topic(args: argparse.Namespace) -> Path | None:
+    """The workspace a radar command acts on, validated.
+
+    An unchecked `--topic-dir` used to fail in two unhelpful ways: a path that
+    does not exist got an `output/radar/` tree fabricated inside it and the
+    command reported success, and a path that is a *file* crashed with a raw
+    traceback out of `Path.mkdir`.
+    """
+    if not getattr(args, "topic_dir", None):
+        topic = find_workspace_root()
+        if topic is None:
+            print("no workspace found (run from a topic directory or pass --topic-dir)",
+                  file=sys.stderr)
+        return topic
+    topic = Path(args.topic_dir).expanduser().resolve()
+    if not topic.exists():
+        print(f"--topic-dir does not exist: {topic}", file=sys.stderr)
+        return None
+    if not topic.is_dir():
+        print(f"--topic-dir is not a directory: {topic}", file=sys.stderr)
+        return None
+    return topic
+
+
+def _triage_path(topic: Path) -> Path:
+    return topic / "output" / "radar" / "triage.jsonl"
+
+
+def load_triage(topic: Path, report: str) -> dict[str, str]:
+    """`{candidate id: decision}` recorded so far for one report.
+
+    Triage is the weekly job and it does not finish in one sitting. Without
+    somewhere to put "no", a reviewer could only record the handful of papers
+    they kept — the other thirty-five decisions lived in their head until the
+    tab was closed.
+    """
+    out: dict[str, str] = {}
+    path = _triage_path(topic)
+    if not path.is_file():
+        return out
+    try:
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if rec.get("report") != report or not rec.get("id"):
+                continue
+            decision = rec.get("decision")
+            if decision in (None, "reset"):
+                out.pop(rec["id"], None)          # last write wins, including undo
+            else:
+                out[rec["id"]] = decision
+    except OSError:
+        pass
+    return out
+
+
+def record_triage(topic: Path, report: str, cand_id: str, decision: str) -> None:
+    """Append one triage decision. `reset` clears a previous one."""
+    path = _triage_path(topic)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps({"report": report, "id": cand_id, "decision": decision,
+                            "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")},
+                           ensure_ascii=False) + "\n")
+
+
+def last_harvest_date(topic: Path) -> str | None:
+    """ISO date of the most recent harvest, or None if it never ran.
+
+    Read from the ledger's own `first_seen` stamps — no new state to keep in
+    sync. Nothing anywhere used to record this, so a radar whose scheduled task
+    had quietly stopped firing looked exactly like one that ran an hour ago.
+    """
+    path = topic / "output" / "radar" / "seen.jsonl"
+    if not path.is_file():
+        return None
+    newest: str | None = None
+    try:
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                seen = json.loads(line).get("first_seen")
+            except (json.JSONDecodeError, AttributeError):
+                continue
+            if isinstance(seen, str) and (newest is None or seen > newest):
+                newest = seen
+    except OSError:
+        return None
+    return newest
+
+
+def harvest_age_days(topic: Path) -> int | None:
+    """Days since the last harvest, or None when it has never run."""
+    last = last_harvest_date(topic)
+    if not last:
+        return None
+    try:
+        return (dt.date.today() - dt.date.fromisoformat(last)).days
+    except ValueError:
+        return None
+
+
 def _load_ledger(path: Path) -> set[str]:
     seen: set[str] = set()
     if path.is_file():
@@ -421,23 +609,40 @@ def _load_ledger(path: Path) -> set[str]:
 
 
 def cmd_harvest(args: argparse.Namespace) -> int:
-    topic = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
+    topic = _resolve_topic(args)
     if topic is None:
-        print("no workspace found", file=sys.stderr)
         return 1
-    cfg = load_config()
+    # Config comes from the workspace being harvested, not from wherever the
+    # process happens to be standing. See load_config's `start` docstring.
+    cfg = load_config(start=topic)
     categories = [str(c) for c in (cfg_get(cfg, "radar.arxiv_categories", None) or [])]
-    days = int(args.days or cfg_get(cfg, "radar.days", 7))
+    # `args.days or …` treated an explicit --days 0 as "unset". 0 is a
+    # meaningful request ("only today's listings"), so test for None.
+    days = int(args.days if args.days is not None else cfg_get(cfg, "radar.days", 7))
+    if days < 0:
+        print("--days must be >= 0", file=sys.stderr)
+        return 1
     max_c = int(cfg_get(cfg, "radar.max_candidates", 40))
+    if max_c <= 0:
+        # Every result would be discarded by the cap anyway. Say so before
+        # spending a live S2 request and one arXiv round trip per category.
+        print("radar.max_candidates is 0 — nothing to harvest "
+              "(raise it in config.yaml to re-enable)", file=sys.stderr)
+        return 0
+
+    if not categories:
+        print("note: radar.arxiv_categories is empty — new arXiv listings will "
+              "not be scanned; only Semantic Scholar recommendations are used",
+              file=sys.stderr)
 
     seeds = seed_ids(topic, cfg)
     lib_ids = library_arxiv_ids(topic)
-    print(f"fingerprint: {len(seeds)} seeds ({len(lib_ids)} from library)")
+    from_library = sum(1 for s in seeds if s in lib_ids)
+    print(f"fingerprint: {len(seeds)} seeds ({from_library} of them from the library's "
+          f"{len(lib_ids)} arXiv references)")
 
-    # Reserve roughly half the candidate budget for arXiv recency so S2
-    # recommendations cannot crowd new listings out of the cap entirely.
     print("[radar] harvesting S2 recommendations...", file=sys.stderr)
-    s2_cands = harvest_s2(seeds, limit=max(max_c // 2, 10))
+    s2_cands = harvest_s2(seeds, limit=min(max(max_c // 2, 10), max_c))
     print(f"[radar] harvesting arXiv listings ({len(categories)} categories)...", file=sys.stderr)
     arxiv_cands, failed_sources = harvest_arxiv(categories, days)
     candidates = s2_cands + arxiv_cands
@@ -475,18 +680,24 @@ def cmd_harvest(args: argparse.Namespace) -> int:
     else:
         print("[radar] relevance scoring unavailable (needs vectorized index + Ollama) — "
               "digest keeps source order", file=sys.stderr)
-    fresh = fresh[:max_c]
+    fresh = _apply_budget(fresh, max_c)
 
     today = dt.date.today().isoformat()
+    # Ledger first, then the cumulative log. The ledger is what stops a paper
+    # being re-surfaced forever; the log is a convenience. Writing the log
+    # first meant a failure in between (unwritable ledger, full disk) left
+    # candidates recorded as harvested but never marked seen — so every later
+    # run re-offered them, and the digest that would have carried them was
+    # never written either.
+    with open(ledger_path, "a", encoding="utf-8") as f:
+        for c in fresh:
+            f.write(json.dumps({"id": c["id"], "first_seen": today, "source": c["source"]},
+                               ensure_ascii=False) + "\n")
     # candidates.jsonl is a cumulative log of harvested candidates — append,
     # never truncate (the per-digest list lives in the digest itself).
     with open(radar_dir / "candidates.jsonl", "a", encoding="utf-8") as f:
         for c in fresh:
             f.write(json.dumps(c, ensure_ascii=False) + "\n")
-    with open(ledger_path, "a", encoding="utf-8") as f:
-        for c in fresh:
-            f.write(json.dumps({"id": c["id"], "first_seen": today, "source": c["source"]},
-                               ensure_ascii=False) + "\n")
 
     if failed_sources:
         print(f"warning: some sources failed this harvest: {', '.join(failed_sources)}",
@@ -566,13 +777,20 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
          with P (they cite what we cite, but not us)
     Survivors go to inbox/radar/<date>-citation-gaps.md for LLM+human triage.
     """
-    topic = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
+    topic = _resolve_topic(args)
     if topic is None:
-        print("no workspace found", file=sys.stderr)
         return 1
-    cfg = load_config()
-    own_ids = [str(s) for s in (cfg_get(cfg, "radar.own_arxiv_ids", None)
-                                or cfg_get(cfg, "radar.seed_arxiv_ids", None) or [])]
+    cfg = load_config(start=topic)
+    own_ids = [str(s) for s in (cfg_get(cfg, "radar.own_arxiv_ids", None) or [])]
+    if not own_ids:
+        own_ids = [str(s) for s in (cfg_get(cfg, "radar.seed_arxiv_ids", None) or [])]
+        if own_ids:
+            # Seeds are "papers that describe what we care about" — often other
+            # people's. This report calls them "our paper" and asks who failed
+            # to cite them, so say out loud that the fallback happened.
+            print("note: radar.own_arxiv_ids is unset — falling back to "
+                  "radar.seed_arxiv_ids, which may include papers you did not "
+                  "write. Set radar.own_arxiv_ids in config.yaml.", file=sys.stderr)
     if args.paper:
         own_ids = [args.paper]
     if not own_ids:
@@ -587,12 +805,14 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
     own_meta: dict[str, dict] = {}
     for own in own_ids:
         pid = f"ArXiv:{own}"
+        meta_failed = False
         try:
             meta = _s2_get(f"{base}/{pid}?fields=title,abstract")
             time.sleep(1.1)
         except Exception as exc:
             print(f"warning: S2 metadata lookup failed for {own}: {exc}", file=sys.stderr)
             meta = {}
+            meta_failed = True
         own_meta[own] = {"title": (meta.get("title") or "").strip(),
                         "abstract": meta.get("abstract") or ""}
         try:
@@ -611,7 +831,16 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
         my_refs = set(ref_titles)
         citers = _s2_paper_ids(cits.get("data", []) or [], "citingPaper")
         if not my_refs:
-            print(f"note: {own} has no reference data on S2 yet — skipping", file=sys.stderr)
+            # "No references on S2" and "S2 refused to talk to us" are different
+            # facts. Reporting a rate limit as the former told the user to wait
+            # for indexing that had already happened.
+            if meta_failed:
+                print(f"warning: skipping {own} — Semantic Scholar did not answer "
+                      f"(rate limit or outage), so we cannot tell whether it has "
+                      f"reference data. Retry later.", file=sys.stderr)
+            else:
+                print(f"note: {own} has no reference data on S2 yet — skipping",
+                      file=sys.stderr)
             continue
 
         url = (f"https://api.semanticscholar.org/recommendations/v1/papers"
@@ -624,19 +853,24 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
             continue
 
         neighbors = recs.get("recommendedPapers", []) or []
+        # Only neighbours that survive the cheap filters cost a request, so
+        # count those. Announcing the raw neighbour count and then stopping at
+        # an unmentioned internal cap read as "it gave up early" — and left the
+        # user with no idea that ten papers were never examined at all.
+        eligible = [c for c in neighbors
+                    if c.get("paperId") and c["paperId"] not in citers
+                    and (c.get("year") or 0) >= year_cut]
+        budget = min(len(eligible), NEIGHBOR_BUDGET)
+        skipped = len(eligible) - budget
         print(f"[radar] anchor {own}: refs={len(my_refs)} citers={len(citers)}, "
-              f"scanning {len(neighbors)} neighbors...", file=sys.stderr)
+              f"{len(neighbors)} neighbors -> {len(eligible)} eligible, checking {budget}"
+              + (f" (request budget; {skipped} not examined)" if skipped else ""),
+              file=sys.stderr)
         checked = 0
-        for cand in neighbors:
-            cand_pid = cand.get("paperId")
-            if not cand_pid or cand_pid in citers:
-                continue  # layer 2: already cites us
-            if (cand.get("year") or 0) < year_cut:
-                continue  # layer 3: too old to act on
-            if checked >= 20:
-                break  # request-budget cap per own paper
+        for cand in eligible[:budget]:
+            cand_pid = cand["paperId"]
             checked += 1
-            print(f"[radar]   neighbor {checked}/20: {(cand.get('title') or '')[:60]}",
+            print(f"[radar]   neighbor {checked}/{budget}: {(cand.get('title') or '')[:60]}",
                   file=sys.stderr)
             try:
                 cand_refs = _s2_get(f"{base}/{cand_pid}/references?fields=paperId&limit=200")
@@ -660,8 +894,15 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
 
     radar_dir = topic / "output" / "radar"
     radar_dir.mkdir(parents=True, exist_ok=True)
-    (radar_dir / "citation-gaps.jsonl").write_text(
-        "".join(json.dumps(f, ensure_ascii=False) + "\n" for f in findings), encoding="utf-8")
+    # Only rewrite the machine-readable side when there is something to say.
+    # It used to be truncated unconditionally while the markdown report was
+    # written only `if findings`, so a run that found nothing (or hit a rate
+    # limit) erased the previous run's results and left the report file behind
+    # describing findings that no longer existed anywhere else.
+    if findings:
+        (radar_dir / "citation-gaps.jsonl").write_text(
+            "".join(json.dumps(f, ensure_ascii=False) + "\n" for f in findings),
+            encoding="utf-8")
 
     today = dt.date.today().isoformat()
     if findings:
@@ -697,18 +938,26 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
                 lines.append(_ellipsize(meta["abstract"], 400))
             lines.append("")
         for f_ in findings:
-            lines.append(f"## {f_['candidate_title']}")
+            title = re.sub(r"\s+", " ", str(f_.get("candidate_title") or "")).strip() or "(untitled)"
+            cid = str(f_.get("candidate_arxiv") or f_.get("candidate_s2") or "").replace("`", "'")
+            lines.append(f"## {title}")
             lines.append("")
+            # Same `- id:` shape the harvest digest uses, so one parser reads
+            # both and the WebUI can offer the same per-candidate actions here.
+            lines.append(f"- id: `{cid}` · {f_.get('year', '?')} · source: citation-gap")
             lines.append(f"- should arguably cite: our arXiv:{f_['own_paper']}")
             lines.append(f"- candidate: {f_['year']} · arXiv:{f_['candidate_arxiv'] or '?'} · "
                          f"shared refs: {f_['shared_refs']}")
             titles = f_.get("shared_ref_titles") or []
             if titles:
                 lines.append("- shared references include: " + "; ".join(titles))
+            if f_.get("candidate_arxiv"):
+                lines.append(f"- https://arxiv.org/abs/{f_['candidate_arxiv']}")
             if f_.get("url"):
                 lines.append(f"- {f_['url']}")
             if f_.get("abstract"):
-                lines.append(f"- abstract: {_ellipsize(f_['abstract'], 400)}")
+                flat = re.sub(r"\s+", " ", str(f_["abstract"])).strip()
+                lines.append(f"- abstract: {_ellipsize(flat, 400)}")
             lines.append("")
         out.write_text("\n".join(lines), encoding="utf-8")
         print(f"citation-gap: {len(findings)} candidates -> {out}")
@@ -718,9 +967,8 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    topic = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
+    topic = _resolve_topic(args)
     if topic is None:
-        print("no workspace found", file=sys.stderr)
         return 1
     radar_dir = topic / "output" / "radar"
     ledger = _load_ledger(radar_dir / "seen.jsonl")
@@ -740,13 +988,20 @@ def cmd_status(args: argparse.Namespace) -> int:
                     failed_sources = m.group(1).strip()
             except OSError:
                 pass
+    age = harvest_age_days(topic)
     payload = {"seen_total": len(ledger), "pending_digests": pending,
                "pending_citation_gaps": gap_pending,
+               "last_harvest": last_harvest_date(topic),
+               "harvest_age_days": age,
                "last_digest_failed_sources": failed_sources}
     if args.json:
         print(json.dumps(payload, ensure_ascii=False))
     else:
-        print(f"radar: {len(ledger)} papers seen · {len(pending)} digest(s) pending review"
+        when = ("never harvested" if age is None
+                else "harvested today" if age == 0
+                else f"last harvest {age}d ago")
+        print(f"radar: {when} · {len(ledger)} papers seen · "
+              f"{len(pending)} digest(s) pending review"
               + (f" · {len(gap_pending)} citation-gap report(s) pending" if gap_pending else ""))
         for name in pending + gap_pending:
             print(f"  -> inbox/radar/{name}")
@@ -764,9 +1019,8 @@ def _schedule_names(topic: Path) -> tuple[str, str]:
 
 
 def cmd_install_schedule(args: argparse.Namespace) -> int:
-    topic = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
+    topic = _resolve_topic(args)
     if topic is None:
-        print("no workspace found", file=sys.stderr)
         return 1
     import shutil
     import subprocess
@@ -799,10 +1053,18 @@ def cmd_install_schedule(args: argparse.Namespace) -> int:
     if not magi_exe:
         print("magi not found on PATH — install with 'uv tool install .' first", file=sys.stderr)
         return 1
+    # Belt and braces on the working directory. `--topic-dir` now steers config
+    # discovery on its own, but a scheduled task that also *starts* in the
+    # workspace behaves identically to a hand-run command, which is the only
+    # way this stays debuggable — Task Scheduler otherwise runs from
+    # %SystemRoot%\System32, launchd from /, and cron from $HOME.
     if sys.platform == "win32":
+        # schtasks has no start-in flag; `cmd /c cd /d <ws> && magi ...` is the
+        # documented way to get one.
         cmd = ["schtasks", "/Create", "/F", "/SC", "DAILY", "/ST", args.time,
                "/TN", task_name,
-               "/TR", f'"{magi_exe}" radar harvest --topic-dir "{topic}"']
+               "/TR", f'cmd /c cd /d "{topic}" && "{magi_exe}" radar harvest '
+                      f'--topic-dir "{topic}"']
         proc = subprocess.run(cmd, capture_output=True, text=True)
         if proc.returncode == 0:
             print(f"Registered task {task_name} (daily {args.time}). "
@@ -820,6 +1082,7 @@ def cmd_install_schedule(args: argparse.Namespace) -> int:
     <string>{magi_exe}</string><string>radar</string><string>harvest</string>
     <string>--topic-dir</string><string>{topic}</string>
   </array>
+  <key>WorkingDirectory</key><string>{topic}</string>
   <key>StartCalendarInterval</key><dict>
     <key>Hour</key><integer>{int(hh)}</integer><key>Minute</key><integer>{int(mm)}</integer>
   </dict>
@@ -833,7 +1096,9 @@ def cmd_install_schedule(args: argparse.Namespace) -> int:
               f"Remove with: magi radar install-schedule --uninstall")
         return 0
     else:
-        print(f"add to crontab: 0 3 * * * {magi_exe} radar harvest --topic-dir {topic}")
+        hh, mm = (args.time.split(":") + ["0"])[:2]
+        print(f"add to crontab: {int(mm)} {int(hh)} * * * "
+              f"cd {topic} && {magi_exe} radar harvest --topic-dir {topic}")
         return 0
 
 

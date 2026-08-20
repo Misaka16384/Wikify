@@ -54,7 +54,12 @@ OPS: dict[str, dict] = {
                 "label_i18n": "btn_danger_pm_init", "desc_i18n": "danger_pm_init_desc"},
     "setup-remove-legacy": {"argv": ["setup", "--remove-legacy"], "scope": "global", "danger": True,
                             "label_i18n": "btn_danger_legacy", "desc_i18n": "danger_remove_legacy_desc"},
-    "radar-install-schedule": {"argv": ["radar", "install-schedule"], "scope": "kb", "danger": True,
+    # Not a danger-zone operation. It registers or removes a daily scheduled
+    # harvest: reversible, idempotent, and it touches no workspace data. It sat
+    # behind the same type-the-exact-name modal as `migrate` and
+    # `setup --remove-legacy`, on a different tab from the feature it turns on,
+    # which is a good way to make sure nobody ever schedules anything.
+    "radar-install-schedule": {"argv": ["radar", "install-schedule"], "scope": "kb", "danger": False,
                                "label_i18n": "btn_danger_install_schedule",
                                "desc_i18n": "danger_install_schedule_desc",
                                "params": {"uninstall": "--uninstall"}},

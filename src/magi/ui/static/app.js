@@ -170,6 +170,28 @@
 
       // Literature Radar
       radar_seen_label: "已跟踪文献记录",
+      radar_waiting_label: "待分流文献",
+      radar_last_label: "上次扫描",
+      radar_never: "从未",
+      radar_today: "今天",
+      radar_days_ago: "{days} 天前",
+      radar_seen_sub_n: "累计已跟踪 {n} 篇",
+      radar_pending_sub_n: "分布在 {files} 份简报中",
+      radar_pending_sub_clear: "没有待审阅的简报",
+      radar_hide_decided: "隐藏已处理",
+      radar_triage_progress: "已处理 {done} / {total}",
+      radar_rel_top: "高相关",
+      radar_rel_mid: "中等",
+      radar_rel_low: "偏低",
+      radar_rel_tooltip: "与本库中心向量的余弦相似度 {score}（同批候选内的相对排名）",
+      radar_settings_title: "雷达设置",
+      btn_radar_settings: "设置…",
+      btn_dismiss: "跳过",
+      btn_undo: "撤销",
+      digest_source_title: "查看原始简报（{file}）",
+      btn_radar_schedule: "定时扫描…",
+      radar_schedule_on: "每日 {time} 自动扫描",
+      radar_schedule_off: "未设置定时扫描",
       radar_seen_sub: "文献雷达跟踪记录",
       radar_pending_label: "待审阅简报",
       radar_pending_sub: "等待 Agent 审阅分流",
@@ -599,6 +621,28 @@
 
       // Literature Radar
       radar_seen_label: "Seen Papers Ledger",
+      radar_waiting_label: "Papers Awaiting Triage",
+      radar_last_label: "Last Harvest",
+      radar_never: "never",
+      radar_today: "today",
+      radar_days_ago: "{days}d ago",
+      radar_seen_sub_n: "{n} papers seen in total",
+      radar_pending_sub_n: "across {files} report(s)",
+      radar_pending_sub_clear: "nothing pending review",
+      radar_hide_decided: "Hide decided",
+      radar_triage_progress: "{done} of {total} triaged",
+      radar_rel_top: "strong",
+      radar_rel_mid: "related",
+      radar_rel_low: "weak",
+      radar_rel_tooltip: "cosine {score} against this library's centroid (ranked within this harvest)",
+      radar_settings_title: "Radar settings",
+      btn_radar_settings: "Settings…",
+      btn_dismiss: "Skip",
+      btn_undo: "Undo",
+      digest_source_title: "View digest source ({file})",
+      btn_radar_schedule: "Schedule…",
+      radar_schedule_on: "Daily at {time}",
+      radar_schedule_off: "No daily harvest scheduled",
       radar_seen_sub: "Literature tracking ledger",
       radar_pending_label: "Pending Digests",
       radar_pending_sub: "Awaiting agent triage",
@@ -1055,8 +1099,14 @@
     searchResultsList: document.getElementById("search-results-list"),
 
     // Radar
-    radarSeenCount: document.getElementById("radar-seen-count"),
     radarPendingCount: document.getElementById("radar-pending-count"),
+    radarPendingSub: document.getElementById("radar-pending-sub"),
+    radarLastHarvest: document.getElementById("radar-last-harvest"),
+    radarSeenCountSub: document.getElementById("radar-seen-count-sub"),
+    radarSettings: document.getElementById("radar-settings"),
+    radarSettingsBody: document.getElementById("radar-settings-body"),
+    btnRadarSettings: document.getElementById("btn-radar-settings"),
+    digestTriage: document.getElementById("digest-triage"),
     btnRadarHarvest: document.getElementById("btn-radar-harvest"),
     btnRadarCitationGap: document.getElementById("btn-radar-citation-gap"),
     digestFilesList: document.getElementById("digest-files-list"),
@@ -2049,7 +2099,7 @@
         }
       } catch (_) {}
 
-      loadConfigCard();
+      loadConfigCard(null, "general");
     }
   }
 
@@ -2985,13 +3035,24 @@
     "models.embedding": "cfg_f_models_embedding",
   };
 
-  async function loadConfigCard() {
-    const box = document.getElementById("config-fields");
+  // `only` picks which keys a card shows: the Dashboard keeps the general
+  // settings, and the radar keys render on the Literature Radar tab instead —
+  // next to the numbers that make you want to change them. Noticing that the
+  // relevance threshold is wrong and then hunting for it on another tab is
+  // how a knob stays untouched forever.
+  async function loadConfigCard(box, only) {
+    box = box || document.getElementById("config-fields");
     if (!box || !state.workspace) return;
     try {
       const data = await apiFetch(`/api/workspace/config?workspace=${encodeURIComponent(state.workspace)}`);
       box.innerHTML = "";
-      (data.fields || []).forEach((f) => {
+      let fields = data.fields || [];
+      if (only === "radar") fields = fields.filter((f) => f.key.startsWith("radar."));
+      else if (only === "general") fields = fields.filter((f) => !f.key.startsWith("radar."));
+      // Remember the lookback window so the radar tab can say "overdue".
+      const daysField = (data.fields || []).find((f) => f.key === "radar.days");
+      if (daysField && daysField.value) state.radarDays = daysField.value;
+      fields.forEach((f) => {
         const row = document.createElement("div");
         row.className = "cfg-row";
         const label = document.createElement("div");
@@ -3890,12 +3951,36 @@
   async function loadRadar() {
     if (!state.workspace) return;
     try {
+      if (els.radarSettingsBody) loadConfigCard(els.radarSettingsBody, "radar");
       const radar = await apiFetch(`/api/workspace/radar?workspace=${encodeURIComponent(state.workspace)}`);
-      els.radarSeenCount.textContent = radar.seen_total || 0;
-      const radarPendingN = (radar.pending_digests ? radar.pending_digests.length : 0)
+      const files = (radar.pending_digests ? radar.pending_digests.length : 0)
         + (radar.pending_citation_gaps ? radar.pending_citation_gaps.length : 0);
-      els.radarPendingCount.textContent = radarPendingN;
-      els.radarPendingCount.classList.toggle("eva-alert", radarPendingN > 0);
+      // Papers, not files: "2 pending" told you how many documents existed,
+      // never how much work was in them.
+      const waiting = radar.pending_candidates || 0;
+      els.radarPendingCount.textContent = waiting || files;
+      els.radarPendingCount.classList.toggle("eva-alert", files > 0);
+      if (els.radarPendingSub) {
+        els.radarPendingSub.textContent = files
+          ? t("radar_pending_sub_n", { files })
+          : t("radar_pending_sub_clear");
+      }
+
+      const age = radar.harvest_age_days;
+      if (els.radarLastHarvest) {
+        els.radarLastHarvest.textContent =
+          age === null || age === undefined ? t("radar_never")
+            : age === 0 ? t("radar_today")
+              : t("radar_days_ago", { days: age });
+        // Overdue is judged against the configured window, the same way a
+        // stale index is — a radar that quietly stopped should look wrong.
+        const window = Number(state.radarDays || 7);
+        els.radarLastHarvest.classList.toggle(
+          "tone-amber", age !== null && age !== undefined && age > Math.max(window, 1) * 2);
+      }
+      if (els.radarSeenCountSub) {
+        els.radarSeenCountSub.textContent = t("radar_seen_sub_n", { n: radar.seen_total || 0 });
+      }
 
       const digests = radar.digests || [];
       if (!digests.length) {
@@ -3951,6 +4036,18 @@
       const data = await apiFetch(
         `/api/workspace/radar/digest?file=${encodeURIComponent(filename)}&workspace=${encodeURIComponent(state.workspace)}`
       );
+      // Triage list first — that is the job. The rendered digest below is the
+      // same 40 papers again in prose; it used to be the only thing on screen
+      // for the first fourteen screens of scrolling, with the controls after.
+      renderDigestTriage(data);
+
+      const src = document.createElement("details");
+      src.className = "digest-source";
+      const cap = document.createElement("summary");
+      cap.textContent = t("digest_source_title", { file: data.file });
+      src.appendChild(cap);
+      const body = document.createElement("div");
+      body.className = "markdown-body";
       if (window.marked) {
         // Digests carry external data (paper titles/abstracts from S2/arXiv).
         // Escape raw HTML before markdown parsing so embedded tags render as
@@ -3961,118 +4058,216 @@
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;");
-        els.digestViewer.innerHTML = window.marked.parse(safeMd);
+        body.innerHTML = window.marked.parse(safeMd);
       } else {
-        els.digestViewer.textContent = data.content;
+        body.textContent = data.content;
       }
-      renderDigestActions(data);
+      src.appendChild(body);
+      els.digestViewer.innerHTML = "";
+      els.digestViewer.appendChild(src);
+      renderDigestFooter(data);
     } catch (err) {
       els.digestViewer.innerHTML = `<p style="color: var(--accent-danger);">${escapeHtml(err.message)}</p>`;
     }
   }
 
   // Review actions: mark-reviewed footer + per-candidate accept/task buttons
-  function renderDigestActions(data) {
-    const viewer = els.digestViewer;
-    if (!viewer) return;
-
+  // The weekly job, as one list. Every candidate carries what you need to
+  // decide (score, authors, abstract) and the controls to act, in the same
+  // row — they used to be two separate lists fourteen screens apart.
+  function renderDigestTriage(data) {
+    const host = els.digestTriage;
+    if (!host) return;
+    host.innerHTML = "";
     const cands = data.candidates || [];
-    if (cands.length && data.kind === "digest") {
-      const box = document.createElement("div");
-      box.className = "digest-actions";
-      const title = document.createElement("div");
-      title.className = "digest-actions-title";
-      title.textContent = t("radar_actions_title");
-      box.appendChild(title);
+    if (!cands.length) return;
 
-      const filterRow = document.createElement("div");
-      filterRow.className = "digest-filter-row";
-      const filterInput = document.createElement("input");
-      filterInput.type = "text";
-      filterInput.id = "radar-author-filter";
-      filterInput.className = "text-input";
-      filterInput.placeholder = t("radar_filter_ph");
-      filterInput.setAttribute("data-i18n-placeholder", "radar_filter_ph");
-      const filterCount = document.createElement("span");
-      filterCount.id = "radar-filter-count";
-      filterCount.className = "empty-note";
-      filterRow.appendChild(filterInput);
-      filterRow.appendChild(filterCount);
-      box.appendChild(filterRow);
+    const box = document.createElement("div");
+    box.className = "digest-actions";
 
-      cands.forEach((c) => {
-        const row = document.createElement("div");
-        row.className = "action-row";
-        const authors = Array.isArray(c.authors) ? c.authors : [];
-        row.dataset.search = `${c.title || ""} ${authors.join(" ")}`.toLowerCase();
-        const left = document.createElement("div");
-        left.className = "row-main";
-        const label = document.createElement("div");
-        label.className = "row-title trunc";
-        const rel = (c.relevance !== null && c.relevance !== undefined) ? `[${c.relevance}] ` : "";
-        label.textContent = rel + c.title;
-        label.title = c.title;
-        left.appendChild(label);
-        if (authors.length) {
-          const authorLine = document.createElement("div");
-          authorLine.className = "row-authors";
-          authorLine.textContent = authors.join(", ");
-          authorLine.title = authors.join(", ");
-          left.appendChild(authorLine);
-        }
-        row.appendChild(left);
-        const btns = document.createElement("div");
-        btns.className = "row-btns";
-        [["accept-to-inbox", "btn_accept_inbox"], ["create-issue", "btn_create_issue"]].forEach(([action, key]) => {
-          const b = document.createElement("button");
-          b.className = "btn btn-secondary btn-sm";
-          b.textContent = t(key);
-          b.addEventListener("click", () => radarCandidateAction(data.file, c.index, action, b));
-          btns.appendChild(b);
-        });
-        row.appendChild(btns);
-        box.appendChild(row);
+    const head = document.createElement("div");
+    head.className = "digest-actions-head";
+    const title = document.createElement("div");
+    title.className = "digest-actions-title";
+    title.textContent = t("radar_actions_title");
+    const progress = document.createElement("span");
+    progress.className = "digest-progress";
+    head.appendChild(title);
+    head.appendChild(progress);
+    box.appendChild(head);
+
+    const filterRow = document.createElement("div");
+    filterRow.className = "digest-filter-row";
+    const filterInput = document.createElement("input");
+    filterInput.type = "text";
+    filterInput.id = "radar-author-filter";
+    filterInput.className = "text-input";
+    filterInput.placeholder = t("radar_filter_ph");
+    filterInput.setAttribute("data-i18n-placeholder", "radar_filter_ph");
+    const hideDone = document.createElement("label");
+    hideDone.className = "digest-hide-done";
+    const hideBox = document.createElement("input");
+    hideBox.type = "checkbox";
+    hideBox.id = "radar-hide-decided";
+    hideDone.appendChild(hideBox);
+    hideDone.appendChild(document.createTextNode(" " + t("radar_hide_decided")));
+    const filterCount = document.createElement("span");
+    filterCount.id = "radar-filter-count";
+    filterCount.className = "empty-note";
+    filterRow.appendChild(filterInput);
+    filterRow.appendChild(hideDone);
+    filterRow.appendChild(filterCount);
+    box.appendChild(filterRow);
+
+    const applyFilter = () => {
+      const q = filterInput.value.trim().toLowerCase();
+      const rows = box.querySelectorAll(".action-row");
+      let shown = 0;
+      let decided = 0;
+      rows.forEach((r) => {
+        if (r.dataset.decision) decided++;
+        const matches = !q || (r.dataset.search || "").includes(q);
+        const hit = matches && !(hideBox.checked && r.dataset.decision);
+        r.style.display = hit ? "" : "none";
+        if (hit) shown++;
       });
+      filterCount.textContent = t("radar_filter_count", { shown, total: rows.length });
+      progress.textContent = t("radar_triage_progress", { done: decided, total: rows.length });
+      progress.classList.toggle("is-complete", decided === rows.length && rows.length > 0);
+    };
 
-      const applyCandidateFilter = () => {
-        const q = filterInput.value.trim().toLowerCase();
-        const rows = box.querySelectorAll(".action-row");
-        let shown = 0;
-        rows.forEach((r) => {
-          const hit = !q || (r.dataset.search || "").includes(q);
-          r.style.display = hit ? "" : "none";
-          if (hit) shown++;
-        });
-        filterCount.textContent = t("radar_filter_count", { shown, total: rows.length });
-      };
-      filterInput.addEventListener("input", applyCandidateFilter);
-      applyCandidateFilter();
+    cands.forEach((c) => {
+      box.appendChild(buildCandidateRow(data, c, applyFilter));
+    });
 
-      viewer.appendChild(box);
-    }
-
-    if (data.status === "pending-review") {
-      const foot = document.createElement("div");
-      foot.className = "digest-foot";
-      const btn = document.createElement("button");
-      btn.className = "btn btn-primary";
-      btn.textContent = t("btn_mark_reviewed");
-      btn.addEventListener("click", async () => {
-        try {
-          await apiFetch("/api/workspace/radar/review", {
-            method: "POST",
-            body: JSON.stringify({ file: data.file, action: "mark-reviewed", workspace: state.workspace }),
-          });
-          showToast(t("toast_marked_reviewed", { file: data.file }), "success");
-          loadRadar();
-        } catch (_) {}
-      });
-      foot.appendChild(btn);
-      viewer.appendChild(foot);
-    }
+    filterInput.addEventListener("input", applyFilter);
+    hideBox.addEventListener("change", applyFilter);
+    applyFilter();
+    host.appendChild(box);
   }
 
-  async function radarCandidateAction(file, index, action, btn) {
+  // Relevance is a cosine against the library centroid. The raw number means
+  // nothing without calibration — on a real harvest every candidate scores
+  // between 0.55 and 0.70 because they all arrived pre-filtered as physics —
+  // so rank it within this harvest instead of showing the float bare.
+  function relevanceChip(c, all) {
+    if (c.relevance === null || c.relevance === undefined) return null;
+    const scores = all.map((x) => x.relevance).filter((v) => v !== null && v !== undefined);
+    const chip = document.createElement("span");
+    chip.className = "rel-chip";
+    chip.title = t("radar_rel_tooltip", { score: c.relevance });
+    if (scores.length >= 4) {
+      const sorted = [...scores].sort((a, b) => a - b);
+      const rank = sorted.filter((v) => v < c.relevance).length / sorted.length;
+      const tier = rank >= 0.75 ? "top" : rank >= 0.4 ? "mid" : "low";
+      chip.classList.add(`rel-${tier}`);
+      chip.textContent = t(`radar_rel_${tier}`);
+    } else {
+      chip.textContent = String(c.relevance);
+    }
+    return chip;
+  }
+
+  function buildCandidateRow(data, c, applyFilter) {
+    const cands = data.candidates || [];
+    const row = document.createElement("div");
+    row.className = "action-row";
+    const authors = Array.isArray(c.authors) ? c.authors : [];
+    row.dataset.search = `${c.title || ""} ${authors.join(" ")}`.toLowerCase();
+    if (c.decision) row.dataset.decision = c.decision;
+
+    const left = document.createElement("div");
+    left.className = "row-main";
+
+    const label = document.createElement("div");
+    label.className = "row-title";
+    const chip = relevanceChip(c, cands);
+    if (chip) label.appendChild(chip);
+    const link = c.arxiv_id ? `https://arxiv.org/abs/${c.arxiv_id}` : c.url;
+    if (link) {
+      const a = document.createElement("a");
+      a.href = link;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = c.title;
+      label.appendChild(a);
+    } else {
+      label.appendChild(document.createTextNode(c.title));
+    }
+    left.appendChild(label);
+
+    if (authors.length) {
+      const authorLine = document.createElement("div");
+      authorLine.className = "row-authors";
+      authorLine.textContent = authors.join(", ");
+      authorLine.title = authors.join(", ");
+      left.appendChild(authorLine);
+    }
+    // The abstract is the thing you actually judge on, so it belongs in the
+    // row — clamped to two lines, expanded by clicking.
+    if (c.abstract) {
+      const abs = document.createElement("div");
+      abs.className = "row-abstract";
+      abs.textContent = c.abstract;
+      abs.addEventListener("click", () => abs.classList.toggle("expanded"));
+      left.appendChild(abs);
+    }
+    row.appendChild(left);
+
+    const btns = document.createElement("div");
+    btns.className = "row-btns";
+    const actions = [
+      ["dismiss", "btn_dismiss", "btn-quiet"],
+      ["accept-to-inbox", "btn_accept_inbox", "btn-secondary"],
+      ["create-issue", "btn_create_issue", "btn-secondary"],
+    ];
+    actions.forEach(([action, key, cls]) => {
+      const b = document.createElement("button");
+      b.className = `btn ${cls} btn-sm`;
+      b.textContent = t(key);
+      b.dataset.action = action;
+      // A decision restored from the server disables its row's actions the
+      // same way a fresh one does — otherwise reloading mid-triage makes every
+      // decided row look actionable again.
+      b.disabled = !!c.decision;
+      b.addEventListener("click", () =>
+        radarCandidateAction(data.file, c.index, action, b, row, applyFilter));
+      btns.appendChild(b);
+    });
+    // Undo, so a mis-click is not permanent.
+    const undo = document.createElement("button");
+    undo.className = "btn btn-quiet btn-sm row-undo";
+    undo.textContent = t("btn_undo");
+    undo.addEventListener("click", () =>
+      radarCandidateAction(data.file, c.index, "reset", undo, row, applyFilter));
+    btns.appendChild(undo);
+    row.appendChild(btns);
+    return row;
+  }
+
+  function renderDigestFooter(data) {
+    if (data.status !== "pending-review") return;
+    const foot = document.createElement("div");
+    foot.className = "digest-foot";
+    const btn = document.createElement("button");
+    btn.className = "btn btn-primary";
+    btn.textContent = t("btn_mark_reviewed");
+    btn.addEventListener("click", async () => {
+      try {
+        await apiFetch("/api/workspace/radar/review", {
+          method: "POST",
+          body: JSON.stringify({ file: data.file, action: "mark-reviewed", workspace: state.workspace }),
+        });
+        showToast(t("toast_marked_reviewed", { file: data.file }), "success");
+        invalidateCoalesced();
+        loadRadar();
+      } catch (_) {}
+    });
+    foot.appendChild(btn);
+    els.digestViewer.appendChild(foot);
+  }
+
+  async function radarCandidateAction(file, index, action, btn, row, applyFilter) {
     btn.disabled = true;
     try {
       const res = await apiFetch("/api/workspace/radar/candidate", {
@@ -4081,10 +4276,26 @@
       });
       if (action === "accept-to-inbox") {
         showToast(t("toast_accepted", { path: res.created }), "success");
-      } else {
+      } else if (action === "create-issue") {
         showToast(t("toast_issue_created"), "success");
       }
+      // The decision is server state now, so the row shows it and the
+      // progress counter moves — triage you can put down and pick up again.
+      if (row) {
+        if (res.decision) row.dataset.decision = res.decision;
+        else delete row.dataset.decision;
+        // Including the button that was just clicked — leaving it live is how
+        // you get a second "Already accepted" 409 from a double tap.
+        row.querySelectorAll("button[data-action]").forEach((b) => {
+          b.disabled = !!res.decision;
+        });
+      } else {
+        btn.disabled = false;
+      }
+      if (applyFilter) applyFilter();
     } catch (_) {
+      // Leave the row alone on failure — the server said no, so the decision
+      // did not happen and pretending otherwise would lose it.
       btn.disabled = false;
     }
   }
@@ -4095,11 +4306,12 @@
 
   // Launch a whitelisted operation (see GET /api/ops). Raw argv is not a
   // thing anymore — the server rejects anything outside the catalog.
-  async function launchJob(opId, displayName, confirmToken) {
+  async function launchJob(opId, displayName, confirmToken, opts) {
     if (!state.workspace) {
       showToast(t("toast_select_ws_first"), "error");
       return;
     }
+    const stay = !!(opts && opts.stay);
 
     try {
       const res = await apiFetch("/api/jobs", {
@@ -4112,7 +4324,7 @@
       });
 
       showToast(t("toast_job_started", { name: displayName || opId }), "info");
-      switchTab("operations");
+      if (!stay) switchTab("operations");
       startLogStream(res.job_id, displayName || opId);
     } catch (err) {
       showToast(t("toast_job_fail", { error: err.message }), "error");
@@ -4256,6 +4468,9 @@
             els.termJobName.textContent = t("term_idle");
             invalidateCoalesced();
             loadSyncRatio();
+            // A job that ran without leaving its own panel should leave that
+            // panel showing what it produced.
+            if (state.activeTab === "radar") loadRadar();
           } else if (payload.status === "failed" || payload.status === "cancelled") {
             els.termStatusDot.className = "status-dot error";
             if (termContainer) termContainer.classList.remove("is-running");
@@ -4744,12 +4959,22 @@
   });
 
   // Radar actions
+  // stay:true — a panel's own primary action should not navigate away from
+  // the panel. Harvest used to switch you to Operations to watch the log and
+  // leave you there, so the digest it had just produced was two clicks away.
   els.btnRadarHarvest.addEventListener("click", () => {
-    launchJob("radar-harvest", t("btn_radar_harvest"));
+    launchJob("radar-harvest", t("btn_radar_harvest"), null, { stay: true });
   });
   els.btnRadarCitationGap.addEventListener("click", () => {
-    launchJob("radar-citation-gap", t("btn_radar_citation_gap"));
+    launchJob("radar-citation-gap", t("btn_radar_citation_gap"), null, { stay: true });
   });
+  if (els.btnRadarSettings) {
+    els.btnRadarSettings.addEventListener("click", () => {
+      if (!els.radarSettings) return;
+      els.radarSettings.open = !els.radarSettings.open;
+      if (els.radarSettings.open) els.radarSettings.scrollIntoView({ block: "nearest" });
+    });
+  }
 
   // Operations & danger buttons are rendered by renderOpsPanels() from the
   // server's ops catalog — only the modal chrome is wired here.

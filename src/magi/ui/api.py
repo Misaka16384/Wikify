@@ -445,17 +445,37 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             except Exception:
                 pass
 
-        from magi.radar import pending_names, scan_reports
+        from magi.radar import (harvest_age_days, last_harvest_date,
+                                 load_triage, pending_names, scan_reports)
 
         digests = []
+        pending_candidates = 0
         for r in scan_reports(ws):
             entry = dict(r)
             entry["path"] = str(Path(r["path"]).relative_to(ws)).replace("\\", "/")
+            if entry["status"] == "pending-review":
+                # "2 files pending" is not the number anyone acts on — papers are.
+                try:
+                    from magi.radar import parse_digest_candidates
+
+                    text = Path(r["path"]).read_text(encoding="utf-8", errors="replace")
+                    cands = parse_digest_candidates(text)
+                    decided = load_triage(ws, entry["name"])
+                    entry["candidates"] = len(cands)
+                    entry["untriaged"] = sum(1 for c in cands
+                                             if not decided.get(c.get("id") or ""))
+                    pending_candidates += entry["untriaged"]
+                except Exception:
+                    entry["candidates"] = None
+                    entry["untriaged"] = None
             digests.append(entry)
 
         return {
             "workspace": str(ws),
             "seen_total": seen_count,
+            "last_harvest": last_harvest_date(ws),
+            "harvest_age_days": harvest_age_days(ws),
+            "pending_candidates": pending_candidates,
             "pending_digests": pending_names(digests, "digest"),
             "pending_citation_gaps": pending_names(digests, "citation-gap"),
             "digests": digests,
@@ -476,7 +496,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
 
     @app.get("/api/workspace/radar/digest")
     def get_radar_digest(file: str = Query(...), workspace: Optional[str] = Query(None)) -> dict:
-        from magi.radar import parse_digest_candidates
+        from magi.radar import load_triage, parse_digest_candidates, report_status
 
         ws = _resolve_workspace(workspace)
         target_path = _radar_report_path(ws, file)
@@ -484,12 +504,17 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             content = target_path.read_text(encoding="utf-8", errors="replace")
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"Cannot read digest: {exc}")
+        cands = parse_digest_candidates(content)
+        decisions = load_triage(ws, file)
+        for c in cands:
+            c["decision"] = decisions.get(c.get("id") or "")
         return {
             "file": file,
             "content": content,
-            "status": "pending-review" if "status: pending-review" in content else "reviewed",
+            "status": report_status(content),
             "kind": "citation-gap" if file.endswith("-citation-gaps.md") else "digest",
-            "candidates": parse_digest_candidates(content),
+            "candidates": cands,
+            "triaged": sum(1 for c in cands if c["decision"]),
         }
 
     @app.post("/api/workspace/radar/review")
@@ -515,6 +540,16 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"No candidate #{req.index} in {req.file}")
         cand = cands[req.index]
 
+        from magi.radar import record_triage
+
+        if req.action in ("dismiss", "reset"):
+            cid = cand.get("id")
+            if not cid:
+                raise HTTPException(status_code=409,
+                                    detail="This candidate has no id to record a decision against")
+            record_triage(ws, req.file, cid, req.action)
+            return {"candidate": cand, "decision": None if req.action == "reset" else "dismiss"}
+
         if req.action == "accept-to-inbox":
             import yaml
 
@@ -522,7 +557,10 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             dest = ws / "inbox" / f"radar-accept-{slug}.md"
             if dest.exists():
                 raise HTTPException(status_code=409, detail=f"Already accepted: {dest.name}")
-            url = cand["url"] or (f"https://arxiv.org/abs/{cand['arxiv_id']}" if cand["arxiv_id"] else None)
+            # arXiv first, S2 second: the card tells the reader to go download
+            # the PDF, and a Semantic Scholar landing page is not where that is.
+            url = (f"https://arxiv.org/abs/{cand['arxiv_id']}"
+                   if cand["arxiv_id"] else cand["url"])
             fm = {"title": cand["title"], "type": "papers", "source": "radar",
                   "id": cand["id"], "arxiv_id": cand["arxiv_id"], "url": url,
                   "status": "to-ingest"}
@@ -534,7 +572,9 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                       "download the PDF/source into inbox/ and run the wiki_ingest skill.\n")
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(body, encoding="utf-8")
-            return {"created": f"inbox/{dest.name}", "candidate": cand}
+            if cand.get("id"):
+                record_triage(ws, req.file, cand["id"], "accept")
+            return {"created": f"inbox/{dest.name}", "candidate": cand, "decision": "accept"}
 
         if req.action == "create-issue":
             from magi.pm import _run_bd, bd_available, find_beads_root
@@ -545,14 +585,17 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             if beads_root is None:
                 raise HTTPException(status_code=409, detail="No beads workspace found — run 'magi pm init' first")
             title = f"[{ws.name}] Survey: {cand['title']}"[:200]
-            url = cand["url"] or (f"https://arxiv.org/abs/{cand['arxiv_id']}" if cand["arxiv_id"] else "")
+            url = (f"https://arxiv.org/abs/{cand['arxiv_id']}"
+                   if cand["arxiv_id"] else (cand["url"] or ""))
             desc = (url + (f" (id {cand['id']})" if cand["id"] else "")).strip() or "radar candidate"
             proc = _run_bd(["create", "-t", "survey", title,
                             "--label", "radar", "--label", f"topic:{ws.name}",
                             "-d", desc], cwd=beads_root)
             if proc.returncode != 0:
                 raise HTTPException(status_code=502, detail=f"bd create failed: {proc.stderr[-200:]}")
-            return {"issue_created": True, "candidate": cand,
+            if cand.get("id"):
+                record_triage(ws, req.file, cand["id"], "task")
+            return {"issue_created": True, "candidate": cand, "decision": "task",
                     "output": proc.stdout.strip()[-200:]}
 
         raise HTTPException(status_code=400, detail=f"Unknown action: {req.action}")

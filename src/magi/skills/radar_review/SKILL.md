@@ -19,7 +19,11 @@ The deterministic radar (`magi radar harvest`, usually run nightly by the schedu
 
 1. **Locate pending work**: `magi radar status --json`. If `pending_digests` is empty, report "radar clean" and stop.
 2. **Load context**: read the pending digest file(s) with your file-read tool. For workspace grounding, note the top concepts: `magi graph query "SELECT title FROM nodes WHERE type='concept' ORDER BY id LIMIT 30"` (or `magi stats <TOPIC_DIR> wiki-summary`).
-3. **Score each candidate** (work from the digest; consult `output/radar/candidates.jsonl` for full abstracts). When the digest is marked *"Sorted by relevance"*, each candidate carries a `relevance:` cosine score against the library's own embedding centroid — use it as a prior (top of the file = most likely relevant; scores below ~0.3 are usually noise) but still apply judgment:
+3. **Score each candidate** (work from the digest; consult `output/radar/candidates.jsonl` for full abstracts). When the digest is marked *"Sorted by relevance"*, each candidate carries a `relevance:` cosine score against the library's own embedding centroid. **Read it as a rank, not as a probability.** Every candidate reaching a digest already came from your configured arXiv categories or from recommendations seeded on your own papers, so they are all plausible to begin with and the scores bunch near the top of the scale — measured on a real 67-paper library, all forty candidates fell between 0.55 and 0.70, while genuinely unrelated text scores far lower (a generic condensed-matter paper 0.45, a machine-learning paper 0.37, random characters 0.31). So:
+
+   - The **order** is informative at the extremes and unreliable in the middle. Trust the top of the file; do not treat a 0.02 difference around the median as meaning anything.
+   - There is **no absolute cutoff worth applying** — a threshold low enough to be "safe" filters nothing, and one high enough to filter cuts real hits.
+   - Judge the middle of the list yourself, from the abstract, against the workspace scope.
    - Run `magi search "<candidate title + key abstract phrases>" -k 5 --json` to see how strongly the candidate overlaps existing knowledge.
    - Classify: **read-now** (directly advances an active question — check `bd ready`), **relevant** (extends the wiki's core topics), **skip** (out of scope).
    - Judge from the abstract against the workspace scope (`config.md`); do NOT fetch full PDFs during triage.

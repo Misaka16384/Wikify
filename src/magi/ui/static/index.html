@@ -47,7 +47,7 @@
       </div>
       <div>
         <span class="brand-title">MAGI</span>
-        <span class="brand-badge" id="app-version">v1.9.3</span>
+        <span class="brand-badge" id="app-version">v1.10.0</span>
       </div>
       <span class="eva-clock" id="eva-clock" aria-hidden="true"></span>
     </div>
@@ -542,21 +542,34 @@
     <!-- Tab 5: Literature Radar -->
     <section id="tab-radar" class="tab-panel">
       <div class="grid-3">
+        <!-- Papers waiting, not files waiting: the count you act on. -->
         <div class="card metric-box">
-          <span class="metric-label" data-i18n="radar_seen_label">Seen Papers Ledger</span>
-          <span class="metric-value" id="radar-seen-count">0</span>
-          <span class="card-subtitle" data-i18n="radar_seen_sub">Literature tracking ledger</span>
-        </div>
-        <div class="card metric-box">
-          <span class="metric-label" data-i18n="radar_pending_label">Pending Digests</span>
+          <span class="metric-label" data-i18n="radar_waiting_label">Papers Awaiting Triage</span>
           <span class="metric-value tone-amber" id="radar-pending-count">0</span>
-          <span class="card-subtitle" data-i18n="radar_pending_sub">Awaiting agent triage</span>
+          <span class="card-subtitle" id="radar-pending-sub" data-i18n="radar_pending_sub">Awaiting agent triage</span>
+        </div>
+        <!-- A radar whose scheduled task quietly stopped used to look
+             identical to one that ran an hour ago. -->
+        <div class="card metric-box">
+          <span class="metric-label" data-i18n="radar_last_label">Last Harvest</span>
+          <span class="metric-value" id="radar-last-harvest">—</span>
+          <span class="card-subtitle" id="radar-seen-count-sub" data-i18n="radar_seen_sub">Literature tracking ledger</span>
         </div>
         <div class="card radar-actions">
           <button class="btn btn-primary" id="btn-radar-harvest" data-i18n="btn_radar_harvest">Run Radar Harvest</button>
-          <button class="btn btn-secondary" id="btn-radar-citation-gap" data-i18n="btn_radar_citation_gap">Scout Citation Gaps</button>
+          <div class="radar-actions-row">
+            <button class="btn btn-secondary btn-sm" id="btn-radar-citation-gap" data-i18n="btn_radar_citation_gap">Scout Citation Gaps</button>
+            <button class="btn btn-secondary btn-sm" id="btn-radar-settings" data-i18n="btn_radar_settings">Settings…</button>
+          </div>
         </div>
       </div>
+
+      <!-- Radar settings live here, next to the numbers that make you want to
+           change them — not on the Dashboard tab three panels down. -->
+      <details class="card radar-settings" id="radar-settings">
+        <summary data-i18n="radar_settings_title">Radar settings</summary>
+        <div class="radar-settings-body" id="radar-settings-body"></div>
+      </details>
 
       <div class="split-pane">
         <div class="pane-list">
@@ -568,6 +581,9 @@
           </div>
         </div>
         <div class="pane-view">
+          <!-- Triage first. The rendered digest is reference material and
+               lives below, collapsed — reading it is not the job. -->
+          <div id="digest-triage"></div>
           <div id="digest-viewer" class="markdown-body">
             <p class="empty-note center mt-3" data-i18n="digest_viewer_prompt">Select a digest file on the left to read and review.</p>
           </div>

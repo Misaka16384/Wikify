@@ -910,7 +910,7 @@ radar:
   seed_arxiv_ids: ["2301.01234"]                # seed papers (positive examples for the recommender)
   days: 7                    # arXiv lookback window
   max_candidates: 40         # max candidates to keep per run
-  min_relevance: 0.35        # relevance threshold (optional; omit = no filtering)
+  min_relevance: 0.50        # relevance floor (optional; omit = no filtering — see below)
   own_arxiv_ids: ["2402.05678"]     # "our papers", used by citation-gap
   citation_gap:
     min_shared_refs: 2       # co-citation threshold
@@ -920,6 +920,11 @@ radar:
 `min_relevance`, `own_arxiv_ids`, and `citation_gap.*` are **not in the template `magi init` generates** — add them yourself when you need them.
 
 Relevance is "the cosine similarity between a candidate's abstract and your library's embedding centroid," so it depends on the vector index `magi index` builds plus a working Ollama; without those, candidates are just listed in source order, unscored.
+
+> [!NOTE]
+> **Read the score as a rank, not as a probability.** Everything that reaches a digest already came from your arXiv categories or from recommendations seeded on your own papers, so the candidates are all plausible before they are scored and the numbers bunch near the top of the scale. Measured on a real 67-paper library: all forty candidates landed between **0.55 and 0.70**, while genuinely unrelated text scores far lower — a generic condensed-matter paper 0.45, a machine-learning paper 0.37, random characters 0.31.
+>
+> That means `min_relevance` is a floor against *category-level* mistakes (a mis-typed arXiv category pulling in another field), not a precision dial. Around 0.50 it will catch that and nothing else; pushed up to 0.60+ it starts cutting real hits. The ordering is informative at the top of the list and close to noise around the median — the UI shows it as **strong / related / weak** within each harvest for exactly that reason, with the raw cosine on hover.
 
 ### Harvesting and review {#radar-run}
 
@@ -954,7 +959,7 @@ magi radar install-schedule --uninstall      # uninstall it
 
 - **Windows**: registers into Task Scheduler, with a task name like `magi-radar-<dir-name>-<hash>`; check it with `schtasks /Query /TN <name>`.
 - **macOS**: writes to `~/Library/LaunchAgents/com.magi.radar.*.plist`; check it with `launchctl list | grep com.magi.radar`.
-- **Linux**: **installs nothing at all** — it just prints one suggested crontab line, and that line **ignores whatever `--time` you passed and always says 3 AM**. Add it yourself with `crontab -e`.
+- **Linux**: **installs nothing at all** — it prints one suggested crontab line (honouring `--time`) for you to add with `crontab -e`.
 
 > [!WARN]
 > The task name includes a hash of the workspace path. **After you move or rename the workspace, `--uninstall` can no longer find the old task** — you have to delete it by hand (`schtasks /Delete /TN <name> /F`, or delete the plist).
@@ -964,12 +969,14 @@ magi radar install-schedule --uninstall      # uninstall it
 | Symptom | Fix |
 |---|---|
 | `harvest: no new candidates` | Are your seeds and categories empty? Is the window too narrow? Try `--days 30`. It's also possible you really have harvested everything already — the ledger is `output/radar/seen.jsonl`, and **no command resets it**; to re-harvest, delete lines from it by hand |
-| Too many, too noisy candidates | Raise `min_relevance`, lower `max_candidates`, trim down `arxiv_categories` |
+| Too many, too noisy candidates | Trim `arxiv_categories` first — that is where noise enters. Then lower `max_candidates`. `min_relevance` is a blunt instrument here (see the note above) |
+| Pause the radar without uninstalling the schedule | Set `max_candidates: 0`; the harvest exits immediately without calling arXiv or S2 |
 | Relevance scores are all blank | You'll see `relevance scoring unavailable` — run `magi index` to build the vector index first. A stopped Ollama starts itself; if the scores stay blank, it isn't installed or the model isn't pulled |
 | `warning: S2 recommendations failed` | Semantic Scholar is rate-limiting you or there's a network issue; the calls are anonymous, there's no API key to configure — just retry later |
 | `arXiv query failed for <category>` | The digest's frontmatter records `sources_failed`, and `magi radar status` flags it too; rerun to fill in the gap |
 | `citation-gap: no candidates survived` | The funnel is too strict: lower `min_shared_refs`, raise `years` |
 | `has no reference data on S2 yet` | The paper is too new — S2 hasn't indexed its references yet. Wait a few days |
+| `Semantic Scholar did not answer (rate limit or outage)` | Different thing: S2 refused the request, so whether the paper has references is simply unknown. Retry later |
 | Digests keep piling up | Only a review action flips `status: pending-review` to `reviewed`; re-harvesting on the same day generates `-2`, `-3` copies, and it piles up fast. Review regularly |
 
 ---
