@@ -2,7 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-20 · 当前阶段：**v1.7.1 已发布**（tag `v1.6.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+> 最后更新：2026-08-20 · 当前阶段：**v1.7.2 已发布**（tag `v1.6.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+>
+> 2026-08-20 迁移无损化 (v1.7.2)：在用户的真实 Wikify 仓库（`D:\文档\MindPalace`，hub + 3 课题）上验收迁移后暴露的两个缺口。**旧配置现在默认搬过来**（用户："设计上各种旧的token当然默认要迁移啊，追求的是迁移之后无损体验"）——`magi migrate` 会在 `<课题>/.agents/`、`<hub>/.agents/`、`~/.claude`、`~/.gemini` 找旧 config.yaml，把 token/模型/dpi/阈值填进新配置，只填仍是默认值的项（迁移后的手动修改绝不覆盖），打印搬运的键名但不回显 token。此前那个 402 字符的 MinerU token 就这样丢在旧文件里，`magi ingest mineru` 直接报未配置。**项目内旧 skills 会被检测**——`.agents/skills/` 正是 Codex/agy/opencode 都读的目录，而 `setup --remove-legacy` 只扫 `~/.claude`、`~/.gemini`，够不着；migrate 现在检测 `<BIN>`/`llm-wiki.py` 特征并给出改名命令。**检索质量**——`magi link` 自己生成的「语义关联 (Semantic Links)」小节全是概念名，BM25 下压过真正的定义段（在真实库上复现），已加入 boilerplate 抑制表。手册迁移章同步。测试 127 → 128。
 >
 > 2026-08-20 文档对齐代码 (v1.7.1)：v1.5.0→v1.7.0 四连发之后对 README ×2 与内置手册 ×2 做了一次逐条核对（4 个 agent 分头把每条安装/命令声明对着实现验证）。**改正**：一键脚本装的是 PyPI 的 `magi-research` 而非「从 GitHub 装 CLI」（脚本自己的 echo 也写错了）；**`git` 不再是硬前置**——从 PyPI 装根本不需要它，两个安装脚本此前会直接 abort，现降级为提示（git 只在注册 Claude Code 插件和 `magi pm init` 时才用得上）；手册链接指向搬家前的 `ui/static/docs/`；`.agents/skills/` 被说成 Codex/agy/opencode 共读（opencode 实际走自己的 `.opencode/{commands,skills}/`）；「技能装在各宿主插件目录」是工作区化之前的说法；lint 两条不可修复项被说成都标了 fixable（只有 `_index.md` 标了）；ch1 的 `magi sync` 样例输出是手写的、与真实输出不符（现按实跑结果替换）；`magi setup reported issues` 的解释错误——setup 永远返回 0，组件失败只体现在结果表里。**补全**：`magi guide` 作为手册的终端入口、skills 表里的 `magi_guide`、`--no-skills` 开关与「setup 只报告不安装技能」、展示区的背景选择器、opencode 的双触发机制、快速上手里的 `magi skills install`、宿主列表里的 opencode、以及「十二章」却只列了十一章。
 >

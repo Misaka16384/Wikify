@@ -34,7 +34,7 @@ def _migrate_hub(hub: Path) -> int:
     print(f"Hub detected at {hub} — migrating {len(topics)} topic(s):\n")
     failures = 0
     for t in topics:
-        rc = _migrate_topic(t)
+        rc = _migrate_topic(t, hub=hub)
         failures += 1 if rc else 0
         print()
     print(f"Hub migration complete: {len(topics) - failures}/{len(topics)} topics migrated.")
@@ -63,7 +63,9 @@ def main(argv: list[str] | None = None) -> int:
                   file=sys.stderr)
             return 1
 
-    rc = _migrate_topic(root)
+    from magi.core.workspace import find_hub_root
+
+    rc = _migrate_topic(root, hub=find_hub_root(root))
     if rc == 0:
         print("\nRecommended next steps:")
         print("  magi pm init        # provision beads at the hub root (work-state tracking)")
@@ -74,7 +76,101 @@ def main(argv: list[str] | None = None) -> int:
     return rc
 
 
-def _migrate_topic(root: Path) -> int:
+# Wikify kept one config.yaml next to its copied scripts. Migration is only
+# lossless if those values land in the new per-workspace config — a token the
+# user pasted a year ago should not have to be found and pasted again.
+_LEGACY_CONFIG_DIRS = (".agents", ".claude", ".gemini")
+
+
+def find_legacy_config(topic: Path, hub: Path | None = None) -> Path | None:
+    """The old config.yaml, looked for beside the topic and at the hub."""
+    roots = [topic]
+    if hub is not None:
+        roots.append(hub)
+    roots.append(Path.home())
+    for base in roots:
+        for d in _LEGACY_CONFIG_DIRS:
+            for cfg in (base / d / "config.yaml", base / d / "bin" / "config.yaml"):
+                if cfg.is_file():
+                    return cfg
+    return None
+
+
+def _stale_skill_dirs(topic: Path, hub: Path | None = None) -> list[Path]:
+    """Project-local Wikify skill copies, which `magi setup --remove-legacy`
+    does not look for — it only scans the agent CLIs' own home directories."""
+    found = []
+    for base in ([topic, hub] if hub is not None else [topic]):
+        skills = base / ".agents" / "skills"
+        if not skills.is_dir():
+            continue
+        for skill_md in skills.glob("*/SKILL.md"):
+            try:
+                text = skill_md.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if "<BIN>" in text or "llm-wiki.py" in text:
+                found.append(skills)
+                break
+    return found
+
+
+def carry_legacy_config(topic: Path, legacy: Path) -> list[str]:
+    """Copy still-default settings across. Returns the keys that changed.
+
+    Only fills values the new config has not been given: an edit the user
+    made after migrating always wins, and re-running is a no-op.
+    """
+    try:
+        import yaml
+
+        from magi.core.config_edit import ConfigEditError, set_config_value
+    except Exception:
+        return []
+
+    target = topic / "config.yaml"
+    if not target.is_file():
+        return []
+    try:
+        old = yaml.safe_load(legacy.read_text(encoding="utf-8", errors="replace")) or {}
+        new = yaml.safe_load(target.read_text(encoding="utf-8", errors="replace")) or {}
+    except Exception:
+        return []
+    if not isinstance(old, dict) or not isinstance(new, dict):
+        return []
+
+    # Values a freshly scaffolded config carries; anything still equal to one
+    # of these is untouched and safe to overwrite.
+    defaults = {
+        "ollama": {"base_url": "http://127.0.0.1:11434"},
+        "models": {"ocr": "glm-ocr", "embedding": "qwen3-embedding:0.6b"},
+        "ocr": {"mineru_api_token": "", "use_mineru": False, "timeout": 180, "dpi": 130},
+        "semantic_link": {"threshold": 0.75, "merge_threshold": 0.85,
+                          "auto_merge_threshold": 0.95},
+    }
+
+    carried: list[str] = []
+    for section, values in old.items():
+        if not isinstance(values, dict):
+            continue
+        for key, value in values.items():
+            if value is None or value == "" or isinstance(value, (dict, list)):
+                continue
+            current = (new.get(section) or {}).get(key)
+            if current == value:
+                continue
+            # Never clobber a deliberate post-migration edit.
+            if current is not None and current != defaults.get(section, {}).get(key):
+                continue
+            try:
+                set_config_value(target, f"{section}.{key}", value)
+            except ConfigEditError:
+                continue
+            carried.append(f"{section}.{key}")
+    return carried
+
+
+def _migrate_topic(root: Path, hub: Path | None = None) -> int:
     # Carry the legacy identity into the new scaffolding.
     name, scope = root.name, "A topic wiki."
     config_md = root / "config.md"
@@ -97,6 +193,22 @@ def _migrate_topic(root: Path) -> int:
     rc = init_main(["--topic-dir", str(root), "--name", name, "--scope", scope])
     if rc not in (0, None):
         print("warning: scaffolding step reported an error; continuing", file=sys.stderr)
+
+    for stale in _stale_skill_dirs(root, hub):
+        print(f"  WARNING: legacy Wikify skills still at {stale}", file=sys.stderr)
+        print("           Codex, agy and opencode all read .agents/skills — they "
+              "would follow the old instructions.", file=sys.stderr)
+        print(f"           Rename it: mv {stale.parent} {stale.parent}.wikify-backup",
+              file=sys.stderr)
+
+    legacy_cfg = find_legacy_config(root, hub)
+    if legacy_cfg is not None:
+        carried = carry_legacy_config(root, legacy_cfg)
+        if carried:
+            # Key names only — one of these is usually an API token.
+            print(f"  config carried from {legacy_cfg}: {', '.join(carried)}")
+        else:
+            print(f"  config: nothing to carry from {legacy_cfg}")
 
     for step in (["graph", "build", str(root)], ["wiki", "reindex", str(root)]):
         proc = subprocess.run([sys.executable, "-m", "magi", *step],

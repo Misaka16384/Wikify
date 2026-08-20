@@ -282,6 +282,8 @@ magi migrate
 
 **它只做加法**：补齐缺失的 `CLAUDE.md` / `AGENTS.md` / `config.yaml` / `scratch/` 和各级 `_index.md`，然后重建 `output/graph.db`（新增 claims/evidence 表）和 `wiki/{concepts,references}/_index.md`。已存在的文件一律跳过——`raw/`、`wiki/` 内容、`config.md`、`log.md` 一个字都不会改。
 
+**旧配置会自动搬过来**：它会在 `<课题>/.agents/`、`<hub>/.agents/`、`~/.claude`、`~/.gemini` 里找旧的 `config.yaml`，把 MinerU token、模型名、dpi、语义连边阈值等填进新配置（只填还是默认值的项，你后来手动改过的绝不覆盖），并打印搬了哪些键——token 只报键名不回显。
+
 > [!NOTE]
 > `magi migrate` **没有** `--dry-run`，也**没有** `--force`。非破坏性是写死在实现里的，不靠开关保证：它调用脚手架时从不传 `--force`，所以只可能新建缺失文件。重复跑是安全的，第二次会走「刷新索引」分支。
 
@@ -302,6 +304,9 @@ magi sync         # 验收
 > - **迁移后 agent 还在提旧命令**：`magi setup --remove-legacy` 没跑，或宿主技能缓存没刷新——重启 agent 会话。
 > - **某个主题没被迁移**：hub 模式跳过 `topics/.archive/` 和既没有 `wiki/` 也没有 `raw/` 的目录。进那个目录单独跑 `magi migrate`，再 `magi hub register <slug>`。
 > - **直接抛 Python 异常**：脚手架步骤没有异常保护，常见原因是文件被占用/权限不足（Windows 上编辑器锁了 `CLAUDE.md`）。关掉占用程序重跑即可，不会有半成品。
+
+> [!WARN]
+> **项目内的旧 skills 要单独处理。** 如果你的 hub 或课题目录里有 `.agents/skills/`（Wikify 时代复制进去的），`magi setup --remove-legacy` **管不到**——它只扫 `~/.claude` 和 `~/.gemini`。而 `.agents/skills/` 恰恰是 Codex、agy、opencode 都会读的目录，里面的旧 SKILL.md 会让 agent 去调已经不存在的脚本。`magi migrate` 现在会检测并提示，改名备份即可：`mv .agents .agents.wikify-backup`。
 
 > [!WARN]
 > `magi setup --remove-legacy` 删的不只是那个 `llm-wiki.py`：一旦在 `~/.claude/bin`（或 `~/.gemini/bin`）里发现它，**整个 bin 目录会被递归删除**，没有二次确认。跑之前先看一眼那个目录里有没有你自己放的东西。

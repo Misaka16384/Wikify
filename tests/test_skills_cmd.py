@@ -226,3 +226,38 @@ def test_setup_reports_hosts_without_installing(tmp_path, monkeypatch):
     out = setup_cmd.report_agent_skills()
     assert isinstance(out, str)
     assert not any(tmp_path.iterdir()), "reporting must not create files"
+
+
+def test_migration_carries_the_old_config(tmp_path):
+    """A migration that loses your MinerU token is not lossless."""
+    import yaml
+
+    from magi.migrate import carry_legacy_config, find_legacy_config
+
+    hub = tmp_path / "hub"
+    topic = hub / "topics" / "demo"
+    (topic / "wiki").mkdir(parents=True)
+    (hub / ".agents").mkdir(parents=True)
+
+    (hub / ".agents" / "config.yaml").write_text(
+        "ocr:\n  mineru_api_token: \"secret-token\"\n  dpi: 111\n"
+        "models:\n  embedding: \"my-model\"\n", encoding="utf-8")
+    (topic / "config.yaml").write_text(
+        "ocr:\n  mineru_api_token: \"\"\n  dpi: 130\n"
+        "models:\n  embedding: \"qwen3-embedding:0.6b\"\n", encoding="utf-8")
+
+    found = find_legacy_config(topic, hub)
+    assert found == hub / ".agents" / "config.yaml"
+
+    carried = carry_legacy_config(topic, found)
+    assert set(carried) == {"ocr.mineru_api_token", "ocr.dpi", "models.embedding"}
+    data = yaml.safe_load((topic / "config.yaml").read_text(encoding="utf-8"))
+    assert data["ocr"]["mineru_api_token"] == "secret-token"
+    assert data["ocr"]["dpi"] == 111
+
+    # Re-running changes nothing, and a deliberate edit is never clobbered.
+    assert carry_legacy_config(topic, found) == []
+    from magi.core.config_edit import set_config_value
+    set_config_value(topic / "config.yaml", "ocr.dpi", 150)
+    assert "ocr.dpi" not in carry_legacy_config(topic, found)
+    assert yaml.safe_load((topic / "config.yaml").read_text(encoding="utf-8"))["ocr"]["dpi"] == 150

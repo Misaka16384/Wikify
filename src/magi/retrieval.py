@@ -215,6 +215,10 @@ def _serialize(vec: list[float]) -> bytes:
 _BOILERPLATE_HEADINGS = {
     "see also", "sources", "references", "related", "further reading",
     "参考文献", "相关条目", "另见", "来源",
+    # `magi link` writes this section into every concept card, and it is
+    # nothing but concept names — left indexed, it outranks the actual
+    # definitions for any concept-name query.
+    "语义关联 (semantic links)", "语义关联", "semantic links",
 }
 
 

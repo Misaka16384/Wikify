@@ -282,6 +282,8 @@ magi migrate
 
 **It only ever adds.** It fills in whatever's missing — `CLAUDE.md` / `AGENTS.md` / `config.yaml` / `scratch/` and the `_index.md` files at every level — then rebuilds `output/graph.db` (adding the claims/evidence tables) and `wiki/{concepts,references}/_index.md`. Any file that already exists is skipped outright — not a single character of `raw/`, `wiki/` content, `config.md`, or `log.md` gets touched.
 
+**Your old settings come with you.** It looks for the previous `config.yaml` in `<topic>/.agents/`, `<hub>/.agents/`, `~/.claude` and `~/.gemini`, and copies values — MinerU token, model names, dpi, semantic-link thresholds — into the new config. Only settings still at their default are filled, so an edit you made after migrating is never overwritten, and it prints which keys it carried (key names only, never the token itself).
+
 > [!NOTE]
 > `magi migrate` has **no** `--dry-run` and **no** `--force`. Non-destructiveness isn't guaranteed by a flag — it's hard-coded into the implementation: when it calls the scaffolding, it never passes `--force`, so all it can ever do is create missing files. Running it again is safe; the second run just takes the "refresh index" branch.
 
@@ -302,6 +304,9 @@ magi sync         # Verify everything
 > - **The agent still mentions the old commands after migrating**: either `magi setup --remove-legacy` hasn't run, or the agent host's skill cache hasn't refreshed — restart the agent session.
 > - **A topic didn't get migrated**: hub mode skips `topics/.archive/` and any directory that has neither `wiki/` nor `raw/`. Go into that directory and run `magi migrate` on its own, then `magi hub register <slug>`.
 > - **It throws a raw Python exception**: the scaffolding step has no exception guard for this; the usual cause is a locked file or insufficient permissions (on Windows, an editor holding `CLAUDE.md` open). Close whatever's holding the file and rerun — you won't be left with a half-finished result.
+
+> [!WARN]
+> **Project-local old skills need separate handling.** If your hub or topic directory has a `.agents/skills/` (copied there in the Wikify days), `magi setup --remove-legacy` **will not find it** — that only scans `~/.claude` and `~/.gemini`. And `.agents/skills/` is exactly what Codex, agy and opencode all read, so those stale SKILL.md files will send your agent after scripts that no longer exist. `magi migrate` now detects this and warns; rename it to keep a backup: `mv .agents .agents.wikify-backup`.
 
 > [!WARN]
 > `magi setup --remove-legacy` doesn't just delete that one `llm-wiki.py` file: the moment it finds it under `~/.claude/bin` (or `~/.gemini/bin`), **it recursively deletes the entire bin directory** — no confirmation prompt. Take a look inside that directory before you run it, in case you've stashed anything of your own there.
