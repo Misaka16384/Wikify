@@ -22,16 +22,16 @@
 
 `magi ui` 打开本地网页控制台（默认 `http://127.0.0.1:8737`），自带三套主题：Institute 浅色 / 深色，以及压轴的 **EVA「MAGI MODE」**——一整套 NERV 驾驶舱视觉系统，分**红·战斗配置**与**蓝·静默值守**两个警戒态：
 
-![MAGI MODE · 红·战斗配置](./docs/webui-magi-red.jpg)
+![MAGI MODE · 红·战斗配置](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-magi-red.jpg)
 *红·战斗配置：三贤者 HUD、全屏 EVA 背景画、液态玻璃面板、视口边缘琥珀呼吸光。*
 
-![MAGI MODE · 蓝·静默值守](./docs/webui-magi-blue.jpg)
+![MAGI MODE · 蓝·静默值守](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-magi-blue.jpg)
 *蓝·静默值守：同一套 HUD 的真·浅色模式——白霜玻璃、深青墨水、青色边缘光。*
 
-![液态玻璃](./docs/webui-glass.jpg)
+![液态玻璃](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-glass.jpg)
 *iOS 材质液态玻璃：背景画透过每一块面板仍保持文字可读；右下角 ◐ 校准器实时调节模糊 / 不透明度 / CRT 扫描线。*
 
-![知识图谱视图](./docs/webui-graph.jpg)
+![知识图谱视图](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-graph.jpg)
 *Obsidian 式力导向知识图谱：拖拽布局、滚轮缩放、悬停邻域聚焦、点击钻取链接，未解析的 wikilink 渲染为幽灵节点。*
 
 - 深浅切换与 MAGI MODE **独立作用**：浅色基底 → 蓝态，深色基底 → 红态，模式内 ☀︎/☽ 直接切换警戒态
@@ -40,13 +40,13 @@
 
 ### 知识库成品
 
-![知识图谱可视化](./graph.png)
+![知识图谱可视化](https://raw.githubusercontent.com/Misaka16384/magi/main/graph.png)
 *自动生成的密集语义图谱，展示物理与数学概念。*
 
-![编译出的文献卡片](./note1.png)
+![编译出的文献卡片](https://raw.githubusercontent.com/Misaka16384/magi/main/note1.png)
 *从排版混乱的 PDF 编译出的整洁文献卡片。*
 
-![数学与概念提取](./note2.png)
+![数学与概念提取](https://raw.githubusercontent.com/Misaka16384/magi/main/note2.png)
 *从 LaTeX 源码提取并格式化的数学证明与引理。*
 
 ---

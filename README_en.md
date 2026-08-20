@@ -22,16 +22,16 @@ Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 
 `magi ui` opens a local web console (default `http://127.0.0.1:8737`) with three themes: Institute light / dark, and the headline **EVA "MAGI MODE"** — a full NERV command-deck visual system with two alert states, **red combat** and **blue quiet-watch**:
 
-![MAGI MODE, red combat state](./docs/webui-magi-red.jpg)
+![MAGI MODE, red combat state](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-magi-red.jpg)
 *Red combat: the tri-sage HUD, full-bleed EVA artwork, liquid-glass panels, and an amber breathing glow hugging the viewport edges.*
 
-![MAGI MODE, blue quiet-watch state](./docs/webui-magi-blue.jpg)
+![MAGI MODE, blue quiet-watch state](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-magi-blue.jpg)
 *Blue quiet-watch: the same HUD as a true light mode — white-frosted glass, dark cyan ink, a cyan edge glow.*
 
-![Liquid glass](./docs/webui-glass.jpg)
+![Liquid glass](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-glass.jpg)
 *iOS-material liquid glass: the artwork reads through every panel while text stays legible; the ◐ tuner (bottom-right) adjusts blur / opacity / CRT scanlines live.*
 
-![Knowledge graph view](./docs/webui-graph.jpg)
+![Knowledge graph view](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-graph.jpg)
 *An Obsidian-style force-directed graph: drag to arrange, scroll to zoom, hover to focus a neighbourhood, click to drill into links — unresolved wikilinks render as ghost nodes.*
 
 - Light/dark and MAGI MODE act **independently**: light base → blue state, dark base → red state; ☀︎/☽ switches the alert state inside the mode
@@ -40,13 +40,13 @@ Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 
 ### The knowledge base itself
 
-![Knowledge Graph Visualization](./graph.png)
+![Knowledge Graph Visualization](https://raw.githubusercontent.com/Misaka16384/magi/main/graph.png)
 *An automatically generated dense semantic graph of physics and math concepts.*
 
-![Compiled Literature Card](./note1.png)
+![Compiled Literature Card](https://raw.githubusercontent.com/Misaka16384/magi/main/note1.png)
 *A clean reference card compiled from a messy PDF.*
 
-![Math & Concept Extraction](./note2.png)
+![Math & Concept Extraction](https://raw.githubusercontent.com/Misaka16384/magi/main/note2.png)
 *Proofs and lemmas extracted and formatted from LaTeX sources.*
 
 ---

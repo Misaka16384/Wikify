@@ -1,0 +1,59 @@
+name: Release
+
+# Publishes magi-research to PyPI when a v* tag is pushed.
+#
+# Auth is PyPI Trusted Publishing (OIDC) — no token is stored anywhere. One
+# time, register a publisher at https://pypi.org/manage/account/publishing/:
+#   PyPI project name : magi-research
+#   Repository        : Misaka16384/magi
+#   Workflow filename : release.yml      <- must match this file's name
+#   Environment       : pypi
+#
+# workflow_dispatch is here so the very first release can be published without
+# minting another tag.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv venv
+      - run: uv pip install -e . pytest
+      - run: uv run pytest tests -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+      - run: uv build
+      # Catches an unrenderable README before it reaches PyPI, where a bad
+      # long_description is a hard 400.
+      - run: uvx twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/magi-research
+    permissions:
+      id-token: write      # the OIDC token trusted publishing exchanges
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
