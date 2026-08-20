@@ -5,31 +5,36 @@
         "file": "blue/blue-01.webp",
         "w": 1920,
         "h": 2560,
-        "aspect": 0.75
+        "aspect": 0.75,
+        "thumb": "thumbs/blue/blue-01.webp"
       },
       {
         "file": "blue/blue-02.webp",
         "w": 1608,
         "h": 2560,
-        "aspect": 0.6281
+        "aspect": 0.6281,
+        "thumb": "thumbs/blue/blue-02.webp"
       },
       {
         "file": "blue/blue-03.webp",
         "w": 2560,
         "h": 1440,
-        "aspect": 1.7778
+        "aspect": 1.7778,
+        "thumb": "thumbs/blue/blue-03.webp"
       },
       {
         "file": "blue/blue-04.webp",
         "w": 2560,
         "h": 1080,
-        "aspect": 2.3704
+        "aspect": 2.3704,
+        "thumb": "thumbs/blue/blue-04.webp"
       },
       {
         "file": "blue/blue-05.webp",
         "w": 2560,
         "h": 1790,
-        "aspect": 1.4302
+        "aspect": 1.4302,
+        "thumb": "thumbs/blue/blue-05.webp"
       }
     ],
     "red": [
@@ -37,49 +42,57 @@
         "file": "red/red-01.webp",
         "w": 2560,
         "h": 1308,
-        "aspect": 1.9572
+        "aspect": 1.9572,
+        "thumb": "thumbs/red/red-01.webp"
       },
       {
         "file": "red/red-02.webp",
         "w": 2541,
         "h": 2560,
-        "aspect": 0.9926
+        "aspect": 0.9926,
+        "thumb": "thumbs/red/red-02.webp"
       },
       {
         "file": "red/red-03.webp",
         "w": 1695,
         "h": 2560,
-        "aspect": 0.6621
+        "aspect": 0.6621,
+        "thumb": "thumbs/red/red-03.webp"
       },
       {
         "file": "red/red-04.webp",
         "w": 1631,
         "h": 2560,
-        "aspect": 0.6371
+        "aspect": 0.6371,
+        "thumb": "thumbs/red/red-04.webp"
       },
       {
         "file": "red/red-05.webp",
         "w": 2560,
         "h": 1810,
-        "aspect": 1.4144
+        "aspect": 1.4144,
+        "thumb": "thumbs/red/red-05.webp"
       },
       {
         "file": "red/red-06.webp",
         "w": 2560,
         "h": 1280,
-        "aspect": 2.0
+        "aspect": 2.0,
+        "thumb": "thumbs/red/red-06.webp"
       },
       {
         "file": "red/red-07.webp",
         "w": 2560,
         "h": 1379,
-        "aspect": 1.8564
+        "aspect": 1.8564,
+        "thumb": "thumbs/red/red-07.webp"
       },
       {
         "file": "red/red-08.webp",
         "w": 2560,
         "h": 1440,
-        "aspect": 1.7778
+        "aspect": 1.7778,
+        "thumb": "thumbs/red/red-08.webp"
       }
     ]
   }

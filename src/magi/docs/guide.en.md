@@ -918,7 +918,9 @@ Seven panels:
 > [!NOTE]
 > **Ingestion isn't among them** — the entire `magi ingest *` family can only be run from the terminal or through an agent. Likewise, `magi init`, `hub *`, `sync`, `validate`, `verify`, `tags *`, and `math *` have no buttons either.
 
-The **⚡ MAGI MODE** toggle in the top bar switches the tactical theme: red is combat state (dark), blue is silent watch (light), and ☀︎/☽ switches between the two. The ◐ in the bottom-right corner adjusts glass blur, opacity, and CRT scanlines.
+The **⚡ MAGI MODE** toggle in the top bar switches the tactical theme: red is combat state (dark), blue is silent watch (light), and ☀︎/☽ switches between the two.
+
+The ◐ in the bottom-right corner is the material and backdrop panel: glass blur, opacity, CRT scanlines, and **which artwork to use** — click one thumbnail to pin it, several to rotate only among those, none to let it rotate by window shape (red and blue remember separately). To use your own images, drop them in `~/.config/magi/ui-backgrounds/blue|red/`.
 
 > [!FIX]
 > - **Port already in use**: switch `--port`, or shut down the previous instance first.

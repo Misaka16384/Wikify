@@ -243,6 +243,13 @@
       cal_warn: "注意",
       cal_note: "说明",
       cal_tip: "提示",
+      bg_pick_label: "背景",
+      bg_shuffle: "换一张",
+      bg_shuffle_title: "在当前可选范围内换一张",
+      bg_pick_auto: "未选 — 按窗口比例自动轮换",
+      bg_pick_one: "已固定这一张",
+      bg_pick_many: "只在选中的 {n} 张里轮换",
+      bg_pick_none: "这个模式没有可用图片。把图片放进 ~/.config/magi/ui-backgrounds/ 即可自定义。",
       loading_docs: "正在加载文档...",
       no_docs_found: "未找到相关文档。",
       docs_cmd_title: "MAGI CLI 命令速查手册",
@@ -646,6 +653,13 @@
       cal_warn: "Careful",
       cal_note: "Note",
       cal_tip: "Tip",
+      bg_pick_label: "Backdrop",
+      bg_shuffle: "Shuffle",
+      bg_shuffle_title: "Swap to another image from the current pool",
+      bg_pick_auto: "Nothing picked — rotating by window shape",
+      bg_pick_one: "Pinned to this one",
+      bg_pick_many: "Rotating among the {n} picked",
+      bg_pick_none: "No artwork for this mode. Drop images in ~/.config/magi/ui-backgrounds/ to use your own.",
       loading_docs: "Loading documentation...",
       no_docs_found: "No documentation found.",
       docs_cmd_title: "MAGI CLI Commands Reference",
@@ -829,6 +843,14 @@
     try {
       if (typeof window !== "undefined" && window.localStorage) {
         window.localStorage.setItem(key, value);
+      }
+    } catch (_) {}
+  }
+
+  function safeStorageRemove(key) {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.removeItem(key);
       }
     } catch (_) {}
   }
@@ -1162,6 +1184,46 @@
     return (safeStorageGet("magi-base-theme") || "dark") === "light" ? "blue" : "red";
   }
 
+  function renderBgPicker() {
+    const wrap = document.getElementById("bg-thumbs");
+    const note = document.getElementById("bg-picker-note");
+    if (!wrap || !note) return;
+
+    const variant = currentEvaVariant();
+    const entries = (variant && bgEngine.manifest && bgEngine.manifest[variant]) || [];
+    wrap.innerHTML = "";
+    if (!entries.length) {
+      note.textContent = t("bg_pick_none");
+      return;
+    }
+
+    const picks = bgPicks(variant) || [];
+    entries.forEach((entry) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "bg-thumb";
+      if (entry.file === bgEngine.shown) btn.classList.add("is-showing");
+      btn.setAttribute("aria-pressed", picks.indexOf(entry.file) !== -1 ? "true" : "false");
+      btn.title = entry.file;
+      btn.style.backgroundImage = `url("${bgEngine.baseUrl}${entry.thumb || entry.file}")`;
+      btn.addEventListener("click", () => {
+        const cur = bgPicks(variant) || [];
+        const idx = cur.indexOf(entry.file);
+        if (idx === -1) cur.push(entry.file);
+        else cur.splice(idx, 1);
+        setBgPicks(variant, cur);
+        applyBackground("state");
+        renderBgPicker();
+      });
+      wrap.appendChild(btn);
+    });
+
+    const n = (bgPicks(variant) || []).length;
+    note.textContent = n === 0 ? t("bg_pick_auto")
+      : n === 1 ? t("bg_pick_one")
+      : t("bg_pick_many", { n: n });
+  }
+
   async function initBackgrounds() {
     try {
       const res = await fetch("/api/ui/backgrounds");
@@ -1175,6 +1237,24 @@
     applyBackground("state");
   }
 
+  // Which artwork the user pinned for a variant, or null for "decide for me".
+  // An explicit pick beats aspect matching: they asked for this image.
+  function bgPicks(variant) {
+    const raw = safeStorageGet("magi-bg-pick-" + variant);
+    if (!raw) return null;
+    try {
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) && arr.length ? arr : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function setBgPicks(variant, files) {
+    if (!files || !files.length) safeStorageRemove("magi-bg-pick-" + variant);
+    else safeStorageSet("magi-bg-pick-" + variant, JSON.stringify(files));
+  }
+
   // |log(image aspect / viewport aspect)| — 0 is a perfect fit. Anything
   // within 0.28 of the best fit competes, so similarly-cropped images
   // rotate instead of one image monopolising a viewport shape. Entries
@@ -1182,6 +1262,13 @@
   function bgEligible(variant) {
     const entries = (bgEngine.manifest && bgEngine.manifest[variant]) || [];
     if (!entries.length) return [];
+    const picks = bgPicks(variant);
+    if (picks) {
+      // Stale picks (artwork removed from the manifest) fall through to auto
+      // rather than leaving the deck blank.
+      const chosen = entries.filter((e) => picks.indexOf(e.file) !== -1);
+      if (chosen.length) return chosen;
+    }
     const winAspect = window.innerWidth / Math.max(1, window.innerHeight);
     const scored = entries.map((e) => ({
       e,
@@ -1237,6 +1324,7 @@
       bgEngine.front = nextIdx;
       bgEngine.shown = chosen.file;
       bgEngine.variant = variant;
+      renderBgPicker();
     };
     img.onerror = () => {
       if (req !== bgEngine.req || currentEvaVariant() !== variant) return;
@@ -1314,7 +1402,15 @@
 
   if (els.glassTunerBtn) {
     els.glassTunerBtn.addEventListener("click", () => {
-      els.glassTunerPanel.classList.toggle("open");
+      const opened = els.glassTunerPanel.classList.toggle("open");
+      if (opened) renderBgPicker();
+    });
+  }
+  const bgShuffleBtn = document.getElementById("bg-shuffle-btn");
+  if (bgShuffleBtn) {
+    bgShuffleBtn.addEventListener("click", () => {
+      applyBackground("rotate");
+      renderBgPicker();
     });
   }
   if (els.glassBlurRange) {
@@ -1341,6 +1437,9 @@
       safeStorageSet("magi-glass-alpha", String(GLASS_DEFAULTS.alpha));
       safeStorageSet("magi-crt", "off");
       applyGlassSettings();
+      ["blue", "red"].forEach((v) => setBgPicks(v, null));
+      applyBackground("state");
+      renderBgPicker();
     });
   }
 

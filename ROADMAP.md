@@ -2,7 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-20 · 当前阶段：**v1.6.2 已发布**（首个 PyPI 版本）（tag `v1.6.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+> 最后更新：2026-08-20 · 当前阶段：**v1.7.0 已发布**（PyPI 发布流程首次实战）（tag `v1.6.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+>
+> 2026-08-20 三项界面修复 (v1.7.0)：**标签条不再藏页签**——原来是单行 `overflow-x:auto` 且隐藏滚动条，822px 下有 3 个页签在视口外、桌面滚轮又推不动（用户："横向容易超宽，但是又不能横向滑动"）；改成 `flex-wrap: wrap`，窄窗口折成两三行，任何宽度下都是零个页签越界。实测：全 7 个页签 × 两套主题 × 560/822/1280 三种宽度，越界元素只剩 `<pre>` 内部的代码行（本身就可横滑），其余布局（顶栏/核心带/ops 网格）v1.3.1 起就已自适应。**危险区补玻璃**——EVA 下 `.danger-card` 此前只有一层 `rgba(255,74,87,0.07)` 平涂、没有 backdrop-filter，是唯一漏掉液态玻璃的面板；现改为「红色身份层 + 与 `.card` 同款玻璃配方」双层背景，跟随 `--glass-*` 校准。**背景可选**——◐ 面板新增缩略图选择器：点一张=固定，点多张=只在这几张轮换，不选=按窗口比例自动（红/蓝各存各的 `magi-bg-pick-*`）；显式选择优先于宽高比匹配，失效条目自动回落自动模式；SHUFFLE 手动换一张，Reset 一并清空。为此新增 13 张 200px 缩略图（共 69KB，`thumbs/<variant>/`，manifest 加 `thumb` 字段），避免选择器解码 3.4MB 原图。中英手册同步。测试 123 → 127（四条设计锁：标签折行、危险区玻璃配方、选择器接线、每张背景都有小图且总量受限）。
 >
 > 2026-08-20 上架 PyPI (v1.6.2)：`pip install magi-research` / `pipx install magi-research` / `uv tool install magi-research` 三条路径打通（pipx 不是仓库，它从 PyPI 装，所以只要发一次就都成立）。补齐发布前缺口：**仓库此前没有 LICENSE 文件**（元数据声称 MIT 却没有许可证正文）——补 MIT 全文并列明捆绑三方许可（d3-force ISC / marked MIT / Archivo OFL）；`license` 字段从已弃用的 `{ text = "MIT" }` 换成 PEP 639 的 SPDX 表达式 + `license-files`；补 keywords / 11 条 classifiers / Homepage·Issues·Changelog；README 的 7 张相对路径图改绝对 raw URL（相对路径在 PyPI 上是碎图）；两个 plugin.json 的描述停止宣称当时并不存在的 `pip install magi-research`。CI：`.github/workflows/release.yml` 打 `v*` tag 触发 → 跑测试 → `uv build` → `twine check` → **Trusted Publishing (OIDC)** 发布，全程无 token 落盘；action 版本按各仓库最新 release 对齐（checkout v7 / setup-uv v10 / upload v7 / download v8 / gh-action-pypi-publish release/v1）。`docs/RELEASING.md` 记录两条路线与 TestPyPI 演练。发布前验证：wheel 3.9MB 含 18 个 skill + 中英双份手册 + WebUI 资源，`twine check` 双产物 PASSED，装进干净 venv 后 `magi --version`/`guide`/`skills` 全部正常。
 >

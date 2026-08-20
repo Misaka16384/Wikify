@@ -1275,3 +1275,57 @@ def test_guide_reader_wiring(client):
     # The callout contract itself, and the anchor syntax the rail depends on.
     assert 'EXPECT: { cls: "expect"' in js
     assert "{#" in js
+
+
+def test_tab_strip_wraps_instead_of_hiding_tabs(client):
+    """A hidden horizontal scroller put tabs out of reach on narrow windows."""
+    css = client.get("/styles.css").text
+    nav = css[css.index(".tabs-nav {"):]
+    nav = nav[:nav.index("}")]
+    assert "flex-wrap: wrap" in nav, "the tab strip must wrap, not scroll out of view"
+    assert "overflow-x: auto" not in nav, "wrapping removes the need for a hidden scroller"
+
+
+def test_danger_zone_uses_the_shared_glass_recipe(client):
+    css = client.get("/styles.css").text
+    block = css[css.index('[data-theme="eva"] .danger-card {'):]
+    block = block[:block.index("\n}")]
+    assert "backdrop-filter: blur(var(--glass-blur))" in block, (
+        "the danger card was the one panel that missed the liquid-glass pass"
+    )
+    assert "var(--glass-alpha)" in block, "it must follow the tuner like every other panel"
+    assert "255, 74, 87" in block, "and keep its red identity"
+
+
+def test_backdrop_picker_is_wired(client):
+    html = client.get("/").text
+    for hook in ('id="bg-thumbs"', 'id="bg-shuffle-btn"', 'id="bg-picker-note"'):
+        assert hook in html, f"missing backdrop picker hook: {hook}"
+
+    js = client.get("/app.js").text
+    for fn in ("bgPicks", "setBgPicks", "renderBgPicker"):
+        assert fn in js, f"missing backdrop picker function: {fn}"
+    # An explicit pick has to win over aspect matching, or pinning does nothing.
+    pool = js[js.index("function bgEligible("):]
+    pool = pool[:pool.index("\n  }")]
+    assert "bgPicks(variant)" in pool
+
+
+def test_every_bundled_backdrop_has_a_thumbnail(client):
+    import json
+
+    from magi.ui.api import _get_static_dir
+
+    root = _get_static_dir() / "backgrounds"
+    manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+    total = 0
+    for variant, entries in manifest["variants"].items():
+        assert entries, f"{variant}: no artwork"
+        for e in entries:
+            assert e.get("thumb"), f"{variant}/{e['file']}: no thumbnail for the picker"
+            thumb = root / e["thumb"]
+            assert thumb.is_file(), f"missing thumbnail file: {e['thumb']}"
+            size = thumb.stat().st_size
+            assert size < 40_000, f"{e['thumb']} is {size}B — thumbnails must stay small"
+            total += size
+    assert total < 400_000, "the whole thumbnail set should cost less than one full image"

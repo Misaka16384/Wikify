@@ -2,7 +2,7 @@
   "name": "magi",
   "displayName": "MAGI Research Workspace",
   "description": "Agent-native research workspace: paper ingestion, concept wiki, knowledge graph, claim verification. Skills drive the `magi` CLI (install: uv tool install magi-research / pipx install magi-research).",
-  "version": "1.6.2",
+  "version": "1.7.0",
   "homepage": "https://github.com/Misaka16384/magi",
   "repository": "https://github.com/Misaka16384/magi",
   "license": "MIT",
