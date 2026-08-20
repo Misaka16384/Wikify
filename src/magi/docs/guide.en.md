@@ -75,8 +75,10 @@ magi guide --symptoms               # The whole symptom -> cause -> fix index
 MAGI SYSTEM ONLINE — sync ratio 33.3%
 |- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 0
 |- BALTHASAR (intent)     beads offline
-`- CASPER    (retrieval)  no index yet
+`- CASPER    (retrieval)  index missing · 0 chunks · vectors 0/0
+  -> drop sources in inbox/ and run the wiki_ingest skill to start building the library
   -> magi pm init   # initialize beads at the hub root
+  -> magi index   # build the retrieval index
 ```
 
 The three cores are knowledge, work state, and retrieval. **The last line, the one starting with `->`, is what to do next** — just do it.
@@ -125,7 +127,8 @@ The script does three things in order:
 > [!FIX]
 > - **`magi` not found**: `uv tool update-shell` only edits config files — your current window's PATH is still the old one. **Open a new terminal** (both install scripts remind you of this at the end). If it still doesn't work, manually add `~/.local/bin` (Windows: `%USERPROFILE%\.local\bin`) to PATH.
 > - **`note: git not found`**: just a warning — the install continues. Install git when you want the Claude Code plugin or the task store.
-> - **`magi setup reported issues`**: the core install succeeded, but one of the companion components failed at some step. Run `magi setup` on its own to see which one, or `magi setup --check` to just see the current state.
+> - **`magi setup reported issues`**: `magi setup` crashed outright (not a single component failing). The CLI itself is installed — rerun `magi setup` to see the real error, or `magi setup --check` for just the current state.
+> - **Whether a component installed is in the table, not the exit code**: `magi setup` always exits 0. A failed Beads / Ollama / plugin step shows up only in the `=== setup results ===` rows.
 > - **Corporate network blocks GitHub**: use the manual install below, or set up a proxy first and rerun.
 
 ### Manual install, upgrade, uninstall {#install-manual}

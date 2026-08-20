@@ -75,8 +75,10 @@ magi guide --symptoms               # 全书的「症状 → 原因 → 怎么�
 MAGI SYSTEM ONLINE — sync ratio 33.3%
 |- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 0
 |- BALTHASAR (intent)     beads offline
-`- CASPER    (retrieval)  no index yet
+`- CASPER    (retrieval)  index missing · 0 chunks · vectors 0/0
+  -> drop sources in inbox/ and run the wiki_ingest skill to start building the library
   -> magi pm init   # initialize beads at the hub root
+  -> magi index   # build the retrieval index
 ```
 
 三核分别是知识、任务、检索。**最后一行 `->` 就是下一步该干什么**，照做即可。
@@ -125,7 +127,8 @@ curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | 
 > [!FIX]
 > - **`magi` 找不到**：`uv tool update-shell` 只改了配置文件，当前窗口的 PATH 还是旧的。**开一个新终端**（两个安装脚本最后都会提醒这句）。仍然不行就手动把 `~/.local/bin`（Windows：`%USERPROFILE%\.local\bin`）加进 PATH。
 > - **提示 `note: git not found`**：只是提醒，安装照常继续。等你要用 Claude Code 插件或任务系统时再装 git。
-> - **提示 `magi setup reported issues`**：安装本体成功了，只是配套组件某一步失败。单独跑 `magi setup` 看具体是哪一项，或 `magi setup --check` 只看现状。
+> - **提示 `magi setup reported issues`**：`magi setup` 整个崩了（不是某个组件失败）。CLI 本身已经装好，重跑 `magi setup` 看真实报错；只想看现状用 `magi setup --check`。
+> - **组件装没装成，看体检表**：`magi setup` 永远返回成功，Beads / Ollama / 插件哪一步失败只体现在 `=== setup results ===` 那几行里，不会让命令报错。
 > - **公司网络拦 GitHub**：走下面的手动安装，或先配好代理再跑。
 
 ### 手动安装、升级、卸载 {#install-manual}
