@@ -97,7 +97,7 @@ MAGI SYSTEM ONLINE — sync ratio 33.3%
 
 ### 一键安装（推荐）{#install-oneline}
 
-**先决条件：`git` 必须在 PATH 上**（安装脚本要用它拉仓库）。没有的话 Windows 用 `winget install Git.Git`，其他平台用包管理器。
+不需要预装 Python，也**不需要 git**（包从 PyPI 装）。`git` 只在后面两处用得上：注册 Claude Code 插件，以及 `magi pm init`（Beads 会 git-init 任务库）。没有的话 Windows 用 `winget install Git.Git`，其他平台用包管理器。
 
 **Windows（PowerShell）**
 
@@ -115,7 +115,7 @@ curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | 
 
 1. 缺 [uv](https://docs.astral.sh/uv/) 就先装 uv；
 2. `uv tool install --force --python 3.12 magi-research`——从 PyPI 装，uv 自带 Python 3.12，**你不需要预装 Python**；
-3. 执行 `magi setup`：装 Beads（`bd`）、拉 Ollama 嵌入模型、注册 Claude Code 插件、检测旧版 Wikify 残留，最后打印体检表。
+3. 执行 `magi setup`：装 Beads（`bd`）、拉 Ollama 嵌入模型、注册 Claude Code 插件、报告检测到的 agent CLI、检测旧版 Wikify 残留，最后打印体检表。
 
 **幂等**：重跑同一条命令就是升级。
 
@@ -124,7 +124,7 @@ curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | 
 
 > [!FIX]
 > - **`magi` 找不到**：`uv tool update-shell` 只改了配置文件，当前窗口的 PATH 还是旧的。**开一个新终端**（两个安装脚本最后都会提醒这句）。仍然不行就手动把 `~/.local/bin`（Windows：`%USERPROFILE%\.local\bin`）加进 PATH。
-> - **提示 `git is required`**：装 git 后重跑。
+> - **提示 `note: git not found`**：只是提醒，安装照常继续。等你要用 Claude Code 插件或任务系统时再装 git。
 > - **提示 `magi setup reported issues`**：安装本体成功了，只是配套组件某一步失败。单独跑 `magi setup` 看具体是哪一项，或 `magi setup --check` 只看现状。
 > - **公司网络拦 GitHub**：走下面的手动安装，或先配好代理再跑。
 
@@ -154,6 +154,7 @@ magi setup --check
 | `--no-beads` | 跳过 Beads 安装 |
 | `--no-models` | 跳过 Ollama 模型拉取 |
 | `--no-plugin` | 跳过 Claude Code 插件注册 |
+| `--no-skills` | 不在体检里报告 agent CLI（`magi setup` 从不代你安装技能） |
 | `--remove-legacy` | 删除检测到的旧版 Wikify 拷贝（唯一的破坏性开关） |
 | `--kb-only` / `--full` | 切换「纯知识库」与「完整」档位 |
 
@@ -167,11 +168,11 @@ magi setup --check
 | 东西 | 装在哪 | 数量 |
 |---|---|---|
 | `magi` CLI | 用户级（`uv tool install`），在 PATH 上 | 全机一份 |
-| skills | 每个 agent 宿主各自的插件目录 | 每个宿主一份 |
+| skills | **每个工作区**里，按宿主分目录（`magi skills install`） | 每个课题一份 |
 | 工作区 | 你的课题目录 | 每个课题一个 |
 | 全局配置与注册表 | `~/.config/magi/`（Windows 是 `C:\Users\<你>\.config\magi\`，**不是** AppData） | 全机一份 |
 
-装一次 CLI，之后每开一个新课题只需要 `magi init`。
+装一次 CLI，之后每开一个新课题只需要 `magi init` + `magi skills install`。
 
 > [!WARN]
 > 真·项目内安装（`uv venv && uv pip install -e .`）只推荐给要改 MAGI 源码的人。这样装出来的 `magi` **不在 PATH 上**，只能用 `.venv\Scripts\python.exe -m magi.cli ...` 调用；而 skills、Claude Code 的 SessionStart 钩子、雷达定时任务全都是按裸命令名 `magi` 去 PATH 里找的，它们会找不到。日常使用请用 `uv tool install`。
@@ -205,7 +206,7 @@ magi skills uninstall            # 撤掉
 
 > [!NOTE]
 > **不是每个 CLI 都有斜杠命令。** Claude Code 和 opencode 有；Codex 用 `$技能名`；agy 只按描述自动触发（`/skills` 只是个浏览面板）。所以最稳的用法在哪都一样：**把你要做的事说出来**——「摄入 inbox 里的论文」「查一下这个报错」——描述匹配上就会自动加载对应技能。
-> `.agents/skills/` 是跨 agent 的公共约定：Codex、agy、opencode 都会读它，所以项目级安装一份就能同时喂饱三个。
+> `.agents/skills/` 是跨 agent 的公共约定：Codex 和 agy 共用它，装一份两家都认。opencode 也会扫这个目录，但斜杠命令来自它自己的 `.opencode/commands/`，所以安装器会另外给它写一份。
 
 **Claude Code 还可以走插件**（一键脚本已自动执行）：技能带 `magi:` 命名空间出现，还附带一个 SessionStart 钩子每次自动跑 `magi sync`：
 
@@ -565,7 +566,7 @@ magi wiki placeholders wiki/concepts/x.md # 找出没写完的占位段落
 > - `File is in the wrong directory` → `magi lint --fix` 自动归位；若目标已存在同名文件它会拒绝移动，需手工处理。
 > - `Wikily [[...]] contains Windows-illegal filename character(s)`：双链里出现了 `\ / : * ? " < > |`，改名。
 > - `Wikilink appears to contain a raw mathematical equation`：双链里塞了 LaTeX，换成干净的概念名，公式另起一行写。
-> - `Master _index.md is missing` / `config.md is missing`：这两条 **`--fix` 修不了**（尽管它标着 fixable），手工建。
+> - `Master _index.md is missing`：标着 fixable，但 **`--fix` 并没有实现这一条**；`config.md is missing` 压根没标 fixable。两个都得手工建。
 > - **在 hub 根跑 lint 几乎什么都不查**：hub 根只做最外层结构检查。真正的质量闸门要进主题目录跑。
 
 > [!WARN]

@@ -97,7 +97,7 @@ Sync ratio is a weighted average of the three cores' readiness (only cores that 
 
 ### One-line install (recommended) {#install-oneline}
 
-**Prerequisite: `git` must be on PATH** (the install script uses it to clone the repo). If you don't have it, run `winget install Git.Git` on Windows, or use your platform's package manager elsewhere.
+No Python needed, and **no git either** — the package comes from PyPI. `git` only matters later: registering the Claude Code plugin, and `magi pm init` (Beads git-inits the task store). If you want those, run `winget install Git.Git` on Windows, or use your platform's package manager elsewhere.
 
 **Windows (PowerShell)**
 
@@ -115,7 +115,7 @@ The script does three things in order:
 
 1. Install [uv](https://docs.astral.sh/uv/) first, if it's missing;
 2. `uv tool install --force --python 3.12 magi-research` — from PyPI; uv brings its own Python 3.12, so **you don't need Python pre-installed**;
-3. Run `magi setup`: install Beads (`bd`), pull the Ollama embedding model, register the Claude Code plugin, check for leftover legacy Wikify installs, and print a health-check table at the end.
+3. Run `magi setup`: install Beads (`bd`), pull the Ollama embedding model, register the Claude Code plugin, report which agent CLIs it found, check for leftover legacy Wikify installs, and print a health-check table at the end.
 
 **Idempotent**: rerunning the same command is how you upgrade.
 
@@ -124,7 +124,7 @@ The script does three things in order:
 
 > [!FIX]
 > - **`magi` not found**: `uv tool update-shell` only edits config files — your current window's PATH is still the old one. **Open a new terminal** (both install scripts remind you of this at the end). If it still doesn't work, manually add `~/.local/bin` (Windows: `%USERPROFILE%\.local\bin`) to PATH.
-> - **`git is required`**: install git, then rerun.
+> - **`note: git not found`**: just a warning — the install continues. Install git when you want the Claude Code plugin or the task store.
 > - **`magi setup reported issues`**: the core install succeeded, but one of the companion components failed at some step. Run `magi setup` on its own to see which one, or `magi setup --check` to just see the current state.
 > - **Corporate network blocks GitHub**: use the manual install below, or set up a proxy first and rerun.
 
@@ -154,6 +154,7 @@ magi setup --check
 | `--no-beads` | Skip Beads install |
 | `--no-models` | Skip pulling Ollama models |
 | `--no-plugin` | Skip Claude Code plugin registration |
+| `--no-skills` | Skip the agent-CLI report (`magi setup` never installs skills for you) |
 | `--remove-legacy` | Delete any legacy Wikify copies it finds (the only destructive flag) |
 | `--kb-only` / `--full` | Switch between "knowledge-base-only" and "full" mode |
 
@@ -167,11 +168,11 @@ This is the one people most often get backwards. **You only need one global CLI 
 | Thing | Where it lives | How many |
 |---|---|---|
 | `magi` CLI | User-level (`uv tool install`), on PATH | One per machine |
-| skills | Each agent host's own plugin directory | One per host |
+| skills | **Inside each workspace**, one directory per host (`magi skills install`) | One set per topic |
 | workspace | Your topic directory | One per topic |
 | Global config & registry | `~/.config/magi/` (on Windows: `C:\Users\<you>\.config\magi\`, **not** AppData) | One per machine |
 
-Install the CLI once; after that, starting a new topic only takes `magi init`.
+Install the CLI once; after that, starting a new topic only takes `magi init` + `magi skills install`.
 
 > [!WARN]
 > A true in-project install (`uv venv && uv pip install -e .`) is only for people modifying MAGI's source. A `magi` installed that way **is not on PATH** — you can only invoke it as `.venv\Scripts\python.exe -m magi.cli ...`. Skills, Claude Code's SessionStart hook, and the radar's scheduled job all look for the bare command name `magi` on PATH, and won't find it there. For everyday use, install with `uv tool install`.
@@ -205,7 +206,7 @@ The skill files ship with the CLI — **no repo clone, no network**.
 
 > [!NOTE]
 > **Not every CLI has slash commands.** Claude Code and opencode do; Codex uses `$skill-name`; agy only fires on description matching (`/skills` is just a browser). So the one habit that works everywhere is simply to **say what you want** — "ingest the papers in inbox", "look up this error" — and let the matching skill load itself.
-> `.agents/skills/` is the cross-agent convention: Codex, agy and opencode all read it, so one project-scope install feeds all three.
+> `.agents/skills/` is the cross-agent convention Codex and agy share, so one copy serves both. opencode scans it too, but its slash commands come from its own `.opencode/commands/`, so the installer writes there as well.
 
 **Claude Code can also use the plugin** (the one-line installer does this for you): skills arrive namespaced, and the plugin adds a SessionStart hook that runs `magi sync` at the start of every session:
 
@@ -565,7 +566,7 @@ magi wiki placeholders wiki/concepts/x.md # Find unfinished placeholder sections
 > - `File is in the wrong directory` → `magi lint --fix` relocates it automatically; if a file with the same name already exists at the destination, it refuses to move and you'll need to handle it by hand.
 > - `Wikily [[...]] contains Windows-illegal filename character(s)`: the wikilink contains `\ / : * ? " < > |` — rename it.
 > - `Wikilink appears to contain a raw mathematical equation`: the wikilink has LaTeX stuffed into it — swap in a clean concept name and put the formula on its own line.
-> - `Master _index.md is missing` / `config.md is missing`: **`--fix` can't repair these two** (even though they're flagged as fixable) — create them by hand.
+> - `Master _index.md is missing` is flagged fixable but **`--fix` never actually repairs it**; `config.md is missing` isn't flagged fixable at all. Create both by hand.
 > - **Running lint at the hub root checks almost nothing**: the hub root only does the outermost structural check. The real quality gate runs inside a topic directory.
 
 > [!WARN]

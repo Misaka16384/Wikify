@@ -1,7 +1,7 @@
 # MAGI one-line installer (Windows)
 #   powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Misaka16384/magi/main/install.ps1 | iex"
 #
-# Bootstraps uv, installs the magi CLI from GitHub, then hands over to
+# Bootstraps uv, installs magi-research from PyPI, then hands over to
 # `magi setup` (Beads, Ollama models, Claude Code plugin, doctor).
 # Idempotent — re-run any time to upgrade. For setup flags
 # (--no-beads / --no-models / --no-plugin / --remove-legacy), run
@@ -11,8 +11,8 @@ $ErrorActionPreference = "Stop"
 Write-Host "== MAGI installer ==" -ForegroundColor Cyan
 
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    Write-Host "git is required (winget install Git.Git). Aborting." -ForegroundColor Red
-    exit 1
+    Write-Host "note: git not found. MAGI installs fine without it, but the Claude Code" -ForegroundColor Yellow
+    Write-Host "      plugin and 'magi pm init' need it later (winget install Git.Git)." -ForegroundColor Yellow
 }
 
 if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
@@ -23,7 +23,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     Write-Host "[1/3] uv already installed"
 }
 
-Write-Host "[2/3] Installing the magi CLI from GitHub..."
+Write-Host "[2/3] Installing magi-research from PyPI..."
 uv tool install --force --python 3.12 magi-research
 try { uv tool update-shell | Out-Null } catch {}
 $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"

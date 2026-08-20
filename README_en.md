@@ -10,7 +10,7 @@
 | **BALTHASAR** | Intent (work) | [Beads](https://github.com/gastownhall/beads) (`bd`) research task graph | What are we doing, and what's next? |
 | **CASPER** | Retrieval | local hybrid search (FTS5 BM25 + sqlite-vec vectors + RRF) | What should I read right now? |
 
-Enter any workspace and run **`magi sync`** — it reports the **sync ratio**, three-core status, and concrete restore hints. `magi radar` is the literature radar: scheduled discovery of relevant new papers, plus scouting for recent papers that arguably should cite yours but don't. One shared skills tree serves Claude Code / Codex / Antigravity and other CLI agent hosts.
+Enter any workspace and run **`magi sync`** — it reports the **sync ratio**, three-core status, and concrete restore hints. `magi radar` is the literature radar: scheduled discovery of relevant new papers, plus scouting for recent papers that arguably should cite yours but don't. One shared skills tree serves Claude Code / Codex / Antigravity / opencode and other CLI agent hosts — `magi skills install` puts it where each of them looks.
 
 Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 
@@ -35,7 +35,7 @@ Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 *An Obsidian-style force-directed graph: drag to arrange, scroll to zoom, hover to focus a neighbourhood, click to drill into links — unresolved wikilinks render as ghost nodes.*
 
 - Light/dark and MAGI MODE act **independently**: light base → blue state, dark base → red state; ☀︎/☽ switches the alert state inside the mode
-- Backdrops are aspect-matched to your screen, rotate on tab switches with a smooth crossfade, and are fully replaceable via `~/.config/magi/ui-backgrounds/{blue,red}/`
+- Backdrops are aspect-matched to your screen and rotate on tab switches with a smooth crossfade — or pin one (or a few) from the thumbnail picker in the ◐ tuner. Fully replaceable via `~/.config/magi/ui-backgrounds/{blue,red}/`
 - Every animation respects `prefers-reduced-motion`; the UI is bilingual (中 / EN) with one click
 
 ### The knowledge base itself
@@ -55,7 +55,7 @@ Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 
 ```text
 You (the pilot)
-  └─ Claude Code / Codex / Antigravity  (the mecha: reasoning, writing, judgment)
+  └─ Claude Code / Codex / Antigravity / opencode  (the mecha: reasoning, writing, judgment)
        ├─ skills (ship with the CLI) — teach the agent WHEN and WHY to run each pipeline
        └─ magi CLI (restraint armor) — every deterministic operation:
             ingestion, graph, retrieval, validation, tasks, radar
@@ -84,7 +84,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Mis
 curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | sh
 ```
 
-The script does everything: installs [uv](https://docs.astral.sh/uv/) if missing, installs the `magi` CLI from GitHub (Python included — no preinstall needed), then runs **`magi setup`**: installs [Beads](https://github.com/gastownhall/beads) (`bd`), pulls the Ollama embedding model (when Ollama is present), registers the Claude Code plugin (when `claude` is present), detects legacy Wikify leftovers, and prints an environment doctor table. **Idempotent — re-run to upgrade.**
+The script does everything: installs [uv](https://docs.astral.sh/uv/) if missing, installs `magi-research` from PyPI (Python included — no preinstall needed), then runs **`magi setup`**: installs [Beads](https://github.com/gastownhall/beads) (`bd`), pulls the Ollama embedding model (when Ollama is present), registers the Claude Code plugin (when `claude` is present), reports which agent CLIs it found, detects legacy Wikify leftovers, and prints an environment doctor table. **Idempotent — re-run to upgrade.**
 
 Check your environment any time:
 
@@ -92,7 +92,9 @@ Check your environment any time:
 magi setup --check
 ```
 
-`magi setup` flags: `--no-beads` / `--no-models` / `--no-plugin` / `--remove-legacy` (delete detected legacy copies).
+`magi setup` flags: `--no-beads` / `--no-models` / `--no-plugin` / `--no-skills` (skip the agent-CLI report) / `--remove-legacy` (delete detected legacy copies).
+
+The last four doctor rows are the agent CLIs on your machine (claude / codex / agy / opencode): whether each is installed, and how many skills the current workspace has for it. **`magi setup` does not install skills for you** — they go in per workspace, see §2.4.
 
 **Want the classic Wikify experience (knowledge base only, no task management)?** Use `magi setup --kb-only`: skips the Beads install and `magi sync` stops suggesting task tracking (the BALTHASAR core shows disabled and is excluded from the sync ratio). Restore any time with `magi setup --full`. Everything else (radar etc.) is invoke-only — unused features stay invisible.
 
@@ -144,9 +146,9 @@ magi skills install --scope global    # machine-wide (rarely useful — these ar
 | **Claude Code** | `~/.claude/skills/` | `.claude/skills/` | `/skill-name` (`/magi:skill-name` via the plugin), and auto by description |
 | **Codex** | `~/.agents/skills/` (plus `~/.codex/skills/`) | `<repo root>/.agents/skills/` | `$skill-name`, or auto by description |
 | **Antigravity (agy)** | `~/.gemini/config/skills/` | `<repo root>/.agents/skills/` | auto by description; `/skills` browses |
-| **opencode** | `~/.config/opencode/{commands,skills}/` | `.opencode/{commands,skills}/` | `/skill-name` |
+| **opencode** | `~/.config/opencode/{commands,skills}/` | `.opencode/{commands,skills}/` | `/skill-name` (commands) + auto by description (skills); both are installed |
 
-> Not every CLI has slash commands (Codex uses `$`, agy fires on description only). The habit that works everywhere: just say what you want — "ingest the papers in inbox". `.agents/skills/` is the cross-agent convention Codex, agy and opencode all read.
+> Not every CLI has slash commands (Codex uses `$`, agy fires on description only). The habit that works everywhere: just say what you want — "ingest the papers in inbox". `.agents/skills/` is the cross-agent convention Codex and agy share, so one project install covers both; opencode reads it too but gets its own `.opencode/` copies, which is where the slash commands come from.
 
 **Claude Code plugin route** (run by the one-line installer; coexists with the above):
 
@@ -183,7 +185,16 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 
 Then drop PDFs / LaTeX / notes into `inbox/` and tell your agent to ingest them (or invoke `/magi:wiki_ingest`).
 
-> 📖 **The full user guide ships inside the dashboard**: `magi ui` → **Docs & Help** → **User Guide**. Twelve scenario chapters (install / migrate / build a library / ingest / compile / graph tuning / search / writing / radar / dashboard / troubleshooting), each stating what you should see and what to do when you don't. Also readable as [`guide.en.md`](./src/magi/ui/static/docs/guide.en.md).
+> 📖 **The full user guide ships with the CLI** — three entrances, one text:
+>
+> ```powershell
+> magi guide                                # list the twelve chapters
+> magi guide ingest                         # read one
+> magi guide --search "no workspace found"  # paste an error verbatim
+> magi guide --symptoms                     # the symptom -> cause -> fix index
+> ```
+>
+> Or `magi ui` → **Docs & Help** → **User Guide** (with chapter navigation), or read [`guide.en.md`](./src/magi/docs/guide.en.md) directly. Twelve scenario chapters (get it running / install / migrate / build a library / ingest / compile / graph tuning / search / writing / radar / dashboard / troubleshooting), each stating what you should see and what to do when you don't. Stuck? Ask your agent to use the `magi_guide` skill and it will look it up for you.
 
 ---
 
@@ -208,6 +219,7 @@ Trigger via slash commands in your agent (namespaced `magi:` under the Claude Co
 | Radar | `radar_review` | triage radar digests: score → bd survey issues → mark reviewed |
 | Write | `wiki_draft` | paper drafts in `drafts/`: evidence-backed writing → `magi bib` citation export → pandoc LaTeX export |
 | Maintain | `wiki_hub_manager` | archive / restore topics (`magi hub archive/restore`) |
+| Troubleshooting | `magi_guide` | search the built-in manual by symptom, read the chapter, hand back the exact command (`magi guide`) |
 
 ### The global KB registry (cross-workspace search)
 
@@ -297,7 +309,7 @@ magi migrate
 
 | Old (Wikify) | New (MAGI) |
 |---|---|
-| `install.ps1` / `install.sh` **copying** `skills/`+`bin/` into agent dirs | same filenames are now the **one-line bootstrap installer** (uv + CLI + `magi setup`, §2.1); skills ship via host plugins |
+| `install.ps1` / `install.sh` **copying** `skills/`+`bin/` into agent dirs | same filenames are now the **one-line bootstrap installer** (uv + CLI + `magi setup`, §2.1); skills ship inside the package and install per workspace with `magi skills install` (§2.4) |
 | `python <BIN>/llm-wiki.py lint --fix <dir>` | `magi lint --fix <dir>` |
 | `python <BIN>/llm-wiki.py graph <dir>` | `magi graph build <dir>` |
 | `python <BIN>/query-graph.py "<SQL>"` | `magi graph query "<SQL>"` |

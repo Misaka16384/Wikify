@@ -10,7 +10,7 @@
 | **BALTHASAR** | 意图状态（工作） | [Beads](https://github.com/gastownhall/beads)（`bd`）科研任务图 | 我们在做什么？下一步是什么？ |
 | **CASPER** | 检索状态 | 本地混合检索（FTS5 BM25 + sqlite-vec 向量 + RRF） | 此刻该读什么？ |
 
-进入任意工作区先跑 **`magi sync`**——它输出**同步率**、三核状态和逐条可执行的修复提示。`magi radar` 是文献雷达：定时发现相关新论文，并侦察"知识上应引用我方论文却未引用"的候选。同一份 skills 通吃 Claude Code / Codex / Antigravity 等 CLI agent 宿主。
+进入任意工作区先跑 **`magi sync`**——它输出**同步率**、三核状态和逐条可执行的修复提示。`magi radar` 是文献雷达：定时发现相关新论文，并侦察"知识上应引用我方论文却未引用"的候选。同一份 skills 通吃 Claude Code / Codex / Antigravity / opencode 等 CLI agent 宿主——`magi skills install` 会把它们放到各家各自找的地方。
 
 任何命令的完整语法：`magi <command> --help`；全景：`magi --help`。
 
@@ -35,7 +35,7 @@
 *Obsidian 式力导向知识图谱：拖拽布局、滚轮缩放、悬停邻域聚焦、点击钻取链接，未解析的 wikilink 渲染为幽灵节点。*
 
 - 深浅切换与 MAGI MODE **独立作用**：浅色基底 → 蓝态，深色基底 → 红态，模式内 ☀︎/☽ 直接切换警戒态
-- 背景画按屏幕宽高比选图、切页随机轮换、平滑交叉淡入；把自己的图放进 `~/.config/magi/ui-backgrounds/{blue,red}/` 即可替换整套艺术
+- 背景画默认按屏幕宽高比选图、切页随机轮换、平滑交叉淡入；也可以在 ◐ 面板的缩略图里**钉住某一张或几张**；把自己的图放进 `~/.config/magi/ui-backgrounds/{blue,red}/` 即可替换整套艺术
 - 全部动画尊重 `prefers-reduced-motion`；界面中英双语一键切换
 
 ### 知识库成品
@@ -55,7 +55,7 @@
 
 ```text
 你（驾驶员）
-  └─ Claude Code / Codex / Antigravity（机体：负责推理、写作、判断）
+  └─ Claude Code / Codex / Antigravity / opencode（机体：负责推理、写作、判断）
        ├─ skills（随 CLI 分发）—— 教 agent「何时、为何」执行各条流水线
        └─ magi CLI（拘束具）  —— 所有确定性操作：摄入、图谱、检索、校验、任务、雷达
             └─ 持久状态在文件与数据库里：raw/ wiki/ output/ .beads/
@@ -83,7 +83,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Mis
 curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | sh
 ```
 
-脚本会自动完成：装 [uv](https://docs.astral.sh/uv/)（如缺）→ 从 GitHub 安装 `magi` CLI（含 Python，无需预装）→ 执行 **`magi setup`**：安装 [Beads](https://github.com/gastownhall/beads)（`bd`）、拉取 Ollama 嵌入模型（如 Ollama 在场）、注册 Claude Code plugin（如 `claude` 在场）、检测旧版 Wikify 残留 → 输出环境体检表。**幂等，重跑即升级。**
+脚本会自动完成：装 [uv](https://docs.astral.sh/uv/)（如缺）→ 从 PyPI 安装 `magi-research`（自带 Python，无需预装）→ 执行 **`magi setup`**：安装 [Beads](https://github.com/gastownhall/beads)（`bd`）、拉取 Ollama 嵌入模型（如 Ollama 在场）、注册 Claude Code plugin（如 `claude` 在场）、报告检测到的 agent CLI、检测旧版 Wikify 残留 → 输出环境体检表。**幂等，重跑即升级。**
 
 随时体检环境：
 
@@ -91,7 +91,9 @@ curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | 
 magi setup --check
 ```
 
-`magi setup` 的可选开关：`--no-beads` / `--no-models` / `--no-plugin` / `--remove-legacy`（删除检测到的旧版拷贝）。
+`magi setup` 的可选开关：`--no-beads` / `--no-models` / `--no-plugin` / `--no-skills`（不报告 agent CLI）/ `--remove-legacy`（删除检测到的旧版拷贝）。
+
+体检表最后四行是你机器上的 agent CLI（claude / codex / agy / opencode）：装没装、当前工作区各装了几个技能。**`magi setup` 不会替你安装技能**——技能是按工作区装的，见 §2.4。
 
 **只想要经典 Wikify 体验（纯知识库，不要任务管理）？** 用 `magi setup --kb-only`：跳过 Beads 安装，`magi sync` 不再提示任务相关内容（BALTHASAR 核显示 disabled 且不计入同步率）。随时 `magi setup --full` 恢复完整体验。雷达等其余功能均为按需调用，不用即无感。
 
@@ -143,9 +145,9 @@ magi skills install --scope global    # 全机可用（技能只在工作区里�
 | **Claude Code** | `~/.claude/skills/` | `.claude/skills/` | `/技能名`（插件方式为 `/magi:技能名`），也按描述自动触发 |
 | **Codex** | `~/.agents/skills/`（外加 `~/.codex/skills/`） | `<仓库根>/.agents/skills/` | `$技能名`，或按描述自选 |
 | **Antigravity（agy）** | `~/.gemini/config/skills/` | `<仓库根>/.agents/skills/` | 按描述自动触发；`/skills` 浏览 |
-| **opencode** | `~/.config/opencode/{commands,skills}/` | `.opencode/{commands,skills}/` | `/技能名` |
+| **opencode** | `~/.config/opencode/{commands,skills}/` | `.opencode/{commands,skills}/` | `/技能名`（commands）+ 按描述自动触发（skills），两者都装 |
 
-> 不是每个 CLI 都有斜杠命令（Codex 用 `$`，agy 只按描述触发）。到哪都好使的用法是直接说需求：「摄入 inbox 里的论文」。`.agents/skills/` 是 Codex/agy/opencode 共读的跨 agent 约定。
+> 不是每个 CLI 都有斜杠命令（Codex 用 `$`，agy 只按描述触发）。到哪都好使的用法是直接说需求：「摄入 inbox 里的论文」。`.agents/skills/` 是 Codex 和 agy 共读的跨 agent 约定，装一份两家都认；opencode 走自己的 `.opencode/{commands,skills}/`，安装器会另外给它写。
 
 **Claude Code 插件路线**（一键脚本已自动执行，与上面的安装可共存）：
 
@@ -165,6 +167,7 @@ magi pm init                 # beads + 六种科研 issue 类型（会 git-init 
 mkdir topics\quantum-toys ; cd topics\quantum-toys
 magi init --name "Quantum Toys" --scope "玩具模型中的量子现象"
 # ↑ 自动注册进 hub；生成 CLAUDE.md / AGENTS.md（agent 入场协议）、config.yaml、scratch/
+magi skills install          # 把技能装进这个工作区（Claude Code / Codex / agy / opencode 全覆盖）
 
 magi sync                    # 同步率 + 三核状态 + 下一步提示
 ```
@@ -181,7 +184,16 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 
 然后把 PDF / LaTeX / 笔记丢进 `inbox/`，在你的 agent 里说一句"摄入 inbox 里的论文"（或直接 `/magi:wiki_ingest`），流水线就开始了。
 
-> 📖 **完整使用指南就在看板里**：`magi ui` → **文档与指引** → **使用指南**。按使用场景分十二章（安装 / 迁移 / 建库 / 摄入 / 编译 / 图谱调优 / 检索 / 写作 / 雷达 / 看板 / 疑难速查），每一步都写清了**预期效果**和**不达预期怎么办**。也可直接阅读 [`guide.zh.md`](./src/magi/ui/static/docs/guide.zh.md)。
+> 📖 **完整使用指南随 CLI 分发**，三个入口读同一份内容：
+>
+> ```powershell
+> magi guide                                # 列出十二章
+> magi guide ingest                         # 读某一章
+> magi guide --search "no workspace found"  # 把报错原文贴进去
+> magi guide --symptoms                     # 全书「症状 → 原因 → 修法」索引
+> ```
+>
+> 或 `magi ui` → **文档与指引** → **使用指南**（带章节导航），也可直接读 [`guide.zh.md`](./src/magi/docs/guide.zh.md)。按使用场景分十二章（先跑通 / 安装 / 迁移 / 建库 / 摄入 / 编译 / 图谱调优 / 检索 / 写作 / 雷达 / 看板 / 疑难速查），每一步都写清了**预期效果**和**不达预期怎么办**。卡住时也可以直接让 agent 用 `magi_guide` 技能替你查。
 
 ---
 
@@ -206,6 +218,7 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 | 雷达 | `radar_review` | 对 radar 摘要做 triage：评分 → bd survey issues → 标记已审 |
 | 写作 | `wiki_draft` | 在 `drafts/` 里写论文草稿：检索取证 → `magi bib` 导出引用 → pandoc 导出 LaTeX |
 | 维护 | `wiki_hub_manager` | 主题归档 / 恢复（`magi hub archive/restore`） |
+| 排查 | `magi_guide` | 按症状检索内置手册、读相关章节、给出手册里的确切命令（`magi guide`） |
 
 ### 全局知识库注册表（跨库检索）
 
@@ -292,7 +305,7 @@ magi migrate
 
 | 旧（Wikify） | 新（MAGI） |
 |---|---|
-| `install.ps1` / `install.sh` **复制** `skills/`+`bin/` 到 agent 目录 | 同名脚本已改为**一键引导安装**（uv + CLI + `magi setup`，§2.1）；skills 走宿主 plugin |
+| `install.ps1` / `install.sh` **复制** `skills/`+`bin/` 到 agent 目录 | 同名脚本已改为**一键引导安装**（uv + CLI + `magi setup`，§2.1）；skills 随包分发，用 `magi skills install` 按工作区安装（§2.4） |
 | `python <BIN>/llm-wiki.py lint --fix <dir>` | `magi lint --fix <dir>` |
 | `python <BIN>/llm-wiki.py graph <dir>` | `magi graph build <dir>` |
 | `python <BIN>/query-graph.py "<SQL>"` | `magi graph query "<SQL>"` |

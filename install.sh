@@ -2,7 +2,7 @@
 # MAGI one-line installer (macOS / Linux)
 #   curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | sh
 #
-# Bootstraps uv, installs the magi CLI from GitHub, then hands over to
+# Bootstraps uv, installs magi-research from PyPI, then hands over to
 # `magi setup` (Beads, Ollama models, Claude Code plugin, doctor).
 # Idempotent — re-run any time to upgrade. For setup flags
 # (--no-beads / --no-models / --no-plugin / --remove-legacy), run
@@ -12,8 +12,8 @@ set -e
 echo "== MAGI installer =="
 
 if ! command -v git >/dev/null 2>&1; then
-    echo "git is required (install it via your package manager). Aborting." >&2
-    exit 1
+    echo "note: git not found. MAGI installs fine without it, but the Claude Code" >&2
+    echo "      plugin and 'magi pm init' need it later." >&2
 fi
 
 if ! command -v uv >/dev/null 2>&1; then
@@ -24,7 +24,7 @@ else
     echo "[1/3] uv already installed"
 fi
 
-echo "[2/3] Installing the magi CLI from GitHub..."
+echo "[2/3] Installing magi-research from PyPI..."
 uv tool install --force --python 3.12 magi-research
 uv tool update-shell >/dev/null 2>&1 || true
 export PATH="$HOME/.local/bin:$PATH"
