@@ -10,12 +10,16 @@ and the badge in `src/magi/ui/static/index.html`. All five must match before tag
 ```powershell
 .venv\Scripts\python.exe -m pytest tests/ -q     # must be green
 git commit -am "..."
-git tag -a vX.Y.Z -m "vX.Y.Z — one line
-
-Whatever the release notes should say."
+git tag -a vX.Y.Z --cleanup=verbatim --file=notes.md
 git push origin main
 git push origin vX.Y.Z
 ```
+
+> **`--cleanup=verbatim` is not optional.** Tag messages default to
+> `--cleanup=strip`, which deletes every line beginning with `#` as a comment —
+> so `### Section` headings vanish out of your release notes without a word.
+> v1.9.2 shipped with its three headings eaten before anyone noticed.
+> First line of `notes.md` is the release title; the rest is the body.
 
 Pushing the tag is the whole release. `.github/workflows/release.yml` tests,
 builds, `twine check`s, publishes to PyPI, **and creates the GitHub Release**

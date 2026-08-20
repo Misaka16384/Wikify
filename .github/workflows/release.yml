@@ -96,6 +96,14 @@ jobs:
           fi
           SUBJECT="$(git tag -l --format='%(contents:subject)' "$TAG")"
           [ -z "${SUBJECT// }" ] && SUBJECT="$TAG"
+          # Tag messages default to --cleanup=strip, which eats every line
+          # starting with '#'. Markdown headings disappear silently, so say so
+          # in the log rather than shipping notes with holes in them.
+          if printf '%s' "$BODY" | grep -q '^[A-Za-z].*$' && \
+             ! printf '%s' "$BODY" | grep -q '^#'; then
+            echo "::notice::No '#' headings in the tag body. If you wrote any," \
+                 "re-tag with --cleanup=verbatim; git strips them otherwise."
+          fi
           printf '%s\n\n```bash\nuv tool install --force magi-research\n```\n' \
             "$BODY" > notes.md
           gh release create "$TAG" \
