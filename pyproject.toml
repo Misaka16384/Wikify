@@ -41,6 +41,12 @@ dependencies = [
     "uvicorn>=0.22.0",
 ]
 
+[project.optional-dependencies]
+# `starlette.testclient` now requires httpx2; a fresh environment has neither
+# it nor pytest, so the test job installs this extra rather than a hand-kept
+# list in the workflow.
+test = ["pytest>=8.0", "httpx2>=2.0"]
+
 [project.urls]
 Homepage = "https://github.com/Misaka16384/magi"
 Repository = "https://github.com/Misaka16384/magi"
