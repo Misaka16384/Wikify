@@ -2,7 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-20 · 当前阶段：**v1.8.0 已发布**（tag `v1.6.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+> 最后更新：2026-08-20 · 当前阶段：**v1.8.1 已发布**（tag `v1.6.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+>
+> 2026-08-20 首屏空仪表盘 (v1.8.1)：在 hub 根目录起 `magi ui`（用户就是这么用的）时，`/api/status` 的 `active_workspace` 是 null，而下拉框照样显示着一个已注册的库——两边不一致，`state.workspace` 为空导致 `loadSyncRatio()` 直接 return，HUD 一直停在 `--%` / NO LINK，非得手动把下拉框里已经显示着的那一项再选一次才活。现在初始化时若仍无工作区，就采用下拉框实际显示的那一项并存进 `magi-view-workspace`。在真实 hub（3 课题、6 个注册库）上验证：冷启动直接出 90% 与三核 NOMINAL。测试 150 → 151。
 >
 > 2026-08-20 命令合并 + 统一切角 (v1.8.0)：用户在真实迁移之后提的"命令有点太多了"。**四条合并全部落地**：`magi migrate` 不再只搬文件——迁完自动搬旧配置、检测项目内旧技能、在 hub 根 `magi pm init`、每个课题 `magi sync --fix`（`--minimal` 退回旧行为）；**`magi sync --fix`** 把报告里确定性的那几步直接跑掉（graph build / index / backlog-sync / pm init，`--dry-run` 先看计划），需要判断的（装 Beads、摄入、审雷达）仍然只列出来；**`magi each <命令>`** 在 hub 根对每个未归档课题跑同一条命令（`--stop-on-error`/`--json`）；**`magi ingest auto`** 按文件类型选路线（源码包→tex、PDF→有 token 走 mineru 否则本地 ocr、文本→add）并自动 finalize，整个 `inbox/` 也能一把梭。**`magi skills install` 加宿主选择**（用户："不要默认全部都装"）：检测到多个 CLI 时 TTY 下交互勾选，非交互直接报错并列出 `--host <名字>`；`--host auto` 才是全装。AI 侧同步：`wiki_ingest`/`wiki_ingest_ocr`/`magi_guide` 三个 SKILL.md 与工作区入场协议（CLAUDE.md/AGENTS.md）都改指新命令。**界面**：HUD 六边形里的 `SYNC RATIO` 此前比图形还宽、直接穿框而出（用户截图），字号/字距收紧并上移到六边形最宽处；**MAGI 模式统一为一套切角语言**——此前只有按钮是切角矩形、面板/输入框/徽章/时钟/终端全是直角甚至 2–3px 圆角（用户："要统一一下视觉风格"），现按面板 14px / 控件 8px / 徽章 5px 三档统一切掉左上与右下角，卡片角标移到剩下的两个直角上，被 clip-path 吃掉的外阴影改用 `drop-shadow` 滤镜补回（缩略图选中环改 inset）。README 四张截图按新界面重拍，并补上 ◐ 校准器特写。测试 128 → 150（`test_consolidation.py` 19 项 + 形状语言三项设计锁）。
 >

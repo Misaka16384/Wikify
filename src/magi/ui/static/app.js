@@ -1794,6 +1794,14 @@
         state.workspace = savedView;
         renderWorkspaceSelect();
       }
+      // Started at a hub root, the server reports no active workspace — but the
+      // dropdown still displays a registered one. Adopt what it shows, or the
+      // dashboard sits at --% / NO LINK until you re-pick the entry already on
+      // screen.
+      if (!state.workspace && els.workspaceSelect && els.workspaceSelect.value) {
+        state.workspace = els.workspaceSelect.value;
+        safeStorageSet("magi-view-workspace", state.workspace);
+      }
       updateBrowsingBadge();
       if (status.active_jobs_count > 0) {
         els.activeJobsBadge.style.display = "flex";

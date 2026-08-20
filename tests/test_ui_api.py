@@ -1372,3 +1372,16 @@ def test_clipped_panels_keep_their_lift(client):
                    if ln.strip().startswith("box-shadow") and "inset" not in ln
                    and "none" not in ln]
         assert not shadows, f"{sel} still paints a shadow the clip would eat: {shadows}"
+
+
+def test_dashboard_adopts_the_workspace_the_dropdown_shows(client):
+    """Launched at a hub root the server has no active workspace, but the
+    selector still displays a registered one — the HUD used to sit at --%
+    until you re-picked the entry already on screen."""
+    js = client.get("/app.js").text
+    init = js[js.index("async function loadInitialStatus("):]
+    init = init[:init.index("\n  async function")]
+    assert "if (!state.workspace && els.workspaceSelect && els.workspaceSelect.value)" in init
+    assert init.index("els.workspaceSelect.value") < init.index("loadSyncRatio()"), (
+        "adopting the shown workspace has to happen before the first sync fetch"
+    )
