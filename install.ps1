@@ -24,7 +24,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 }
 
 Write-Host "[2/3] Installing the magi CLI from GitHub..."
-uv tool install --force --python 3.12 git+https://github.com/Misaka16384/magi
+uv tool install --force --python 3.12 magi-research
 try { uv tool update-shell | Out-Null } catch {}
 $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
 

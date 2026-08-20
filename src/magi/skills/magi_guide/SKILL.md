@@ -75,7 +75,7 @@ Ask before running any of these, and say exactly what they will change:
 
 ## Error handling
 
-- `magi: unknown command 'guide'` → this installation predates the manual. Tell the user to upgrade: `uv tool install --force git+https://github.com/Misaka16384/magi`, then retry.
+- `magi: unknown command 'guide'` → this installation predates the manual. Tell the user to upgrade: `uv tool install --force magi-research`, then retry.
 - `guide not found in this installation` → the package data is missing; same upgrade command repairs it.
 - `magi guide --search` exits 1 when nothing matched — that is a clean "no hits", not a crash. Widen the query.
 - If `magi` itself is not on PATH, stop and point at chapter 2: the manual's install section is also readable on GitHub at `src/magi/docs/guide.zh.md`.

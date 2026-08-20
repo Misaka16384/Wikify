@@ -478,7 +478,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     skills = load_skills()
     if not skills:
         msg = {"error": "no skills found in this installation",
-               "hint": "reinstall: uv tool install --force git+https://github.com/Misaka16384/magi"}
+               "hint": "reinstall: uv tool install --force magi-research"}
         print(json.dumps(msg, ensure_ascii=False) if getattr(args, "json", False)
               else f"error: {msg['error']} — {msg['hint']}")
         return 1

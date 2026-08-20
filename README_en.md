@@ -104,9 +104,10 @@ magi setup --check
 **CLI** (Python 3.10+, uv or pipx):
 
 ```powershell
-uv tool install --python 3.12 git+https://github.com/Misaka16384/magi
+uv tool install magi-research        # or: pipx install magi-research / pip install magi-research
+uv tool install --force magi-research   # upgrade
+# unreleased changes: uv tool install --force git+https://github.com/Misaka16384/magi
 # or local dev: git clone ... && cd magi && uv tool install .
-# upgrade: re-run with --force
 ```
 
 **Beads**: Windows `irm https://raw.githubusercontent.com/gastownhall/beads/main/install.ps1 | iex`; macOS/Linux see the [official docs](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md). MAGI degrades gracefully without `bd`.

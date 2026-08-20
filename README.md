@@ -103,9 +103,10 @@ magi setup --check
 **CLI**（Python 3.10+，uv 或 pipx）：
 
 ```powershell
-uv tool install --python 3.12 git+https://github.com/Misaka16384/magi
-# 或本地开发: git clone … && cd magi && uv tool install .
-# 升级: 重跑上面命令加 --force
+uv tool install magi-research        # 或 pipx install magi-research / pip install magi-research
+uv tool install --force magi-research   # 升级
+# 尝鲜未发布的改动: uv tool install --force git+https://github.com/Misaka16384/magi
+# 本地开发: git clone … && cd magi && uv tool install .
 ```
 
 **Beads**：Windows 用 `irm https://raw.githubusercontent.com/gastownhall/beads/main/install.ps1 | iex`，macOS/Linux 见[官方文档](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md)。没有 `bd` 时 MAGI 优雅降级。

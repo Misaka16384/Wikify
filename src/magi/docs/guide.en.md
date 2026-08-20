@@ -114,7 +114,7 @@ curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | 
 The script does three things in order:
 
 1. Install [uv](https://docs.astral.sh/uv/) first, if it's missing;
-2. `uv tool install --force --python 3.12 git+https://github.com/Misaka16384/magi` — uv brings its own Python 3.12, so **you don't need Python pre-installed**;
+2. `uv tool install --force --python 3.12 magi-research` — from PyPI; uv brings its own Python 3.12, so **you don't need Python pre-installed**;
 3. Run `magi setup`: install Beads (`bd`), pull the Ollama embedding model, register the Claude Code plugin, check for leftover legacy Wikify installs, and print a health-check table at the end.
 
 **Idempotent**: rerunning the same command is how you upgrade.
@@ -131,10 +131,13 @@ The script does three things in order:
 ### Manual install, upgrade, uninstall {#install-manual}
 
 ```powershell
-uv tool install --python 3.12 git+https://github.com/Misaka16384/magi   # install
-uv tool install --force git+https://github.com/Misaka16384/magi         # upgrade
-uv tool uninstall magi-research                                          # uninstall
-uv tool list                                                             # see what version is installed
+uv tool install magi-research           # install (pipx install magi-research works too)
+uv tool install --force magi-research   # upgrade
+uv tool uninstall magi-research         # uninstall
+uv tool list                            # see what version is installed
+
+# To try changes that are not released yet:
+uv tool install --force git+https://github.com/Misaka16384/magi
 ```
 
 Health-check anytime after installing:

@@ -21,9 +21,12 @@ Prepend a dated entry to `ROADMAP.md` — it is the living handoff document.
 
 ## PyPI (`pip install magi-research`)
 
-Publishing is wired to **Trusted Publishing** — no API token is stored anywhere.
+Live since **v1.6.2** (2026-08-20). Publishing runs on **Trusted Publishing** —
+no API token is stored anywhere. Push a `v*` tag and
+`.github/workflows/release.yml` tests, builds, checks and publishes.
 
-**One-time setup** (needs the PyPI account owner):
+<details>
+<summary>One-time setup, already done — kept for reference</summary>
 
 1. Sign in at <https://pypi.org> → *Your account* → *Publishing* → *Add a new
    pending publisher* → **GitHub**.
@@ -37,6 +40,8 @@ Publishing is wired to **Trusted Publishing** — no API token is stored anywher
 
 A pending publisher does **not** reserve the name — it is claimed by the first
 successful upload.
+
+</details>
 
 **Every release after that:** push a `v*` tag. `.github/workflows/release.yml`
 runs the tests, builds sdist + wheel with `uv build`, checks the rendered README
@@ -63,7 +68,9 @@ uv publish --token pypi-<your-token>
 - A version number can never be reused on PyPI, even after deleting the file.
 - 100 MB per file; the wheel is ~3.9 MB (mostly MAGI MODE artwork).
 - README images must be absolute URLs — relative paths 404 on PyPI.
-- After the first successful publish, switch the install instructions in
-  `README.md`, `README_en.md`, `src/magi/docs/guide.*.md`, `install.ps1`,
-  `install.sh` and both `plugin.json` descriptions from the `git+https://…`
-  form to `uv tool install magi-research` / `pipx install magi-research`.
+- The install instructions in `README.md`, `README_en.md`,
+  `src/magi/docs/guide.*.md`, `install.ps1`, `install.sh` and both
+  `plugin.json` descriptions now name `magi-research`; the `git+https://…`
+  form is kept only as the "try unreleased changes" line.
+- The test job installs the `[test]` extra: `starlette.testclient` needs
+  `httpx2`, which a fresh environment does not have.

@@ -114,7 +114,7 @@ curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | 
 脚本按顺序做三件事：
 
 1. 缺 [uv](https://docs.astral.sh/uv/) 就先装 uv；
-2. `uv tool install --force --python 3.12 git+https://github.com/Misaka16384/magi`——uv 自带 Python 3.12，**你不需要预装 Python**；
+2. `uv tool install --force --python 3.12 magi-research`——从 PyPI 装，uv 自带 Python 3.12，**你不需要预装 Python**；
 3. 执行 `magi setup`：装 Beads（`bd`）、拉 Ollama 嵌入模型、注册 Claude Code 插件、检测旧版 Wikify 残留，最后打印体检表。
 
 **幂等**：重跑同一条命令就是升级。
@@ -131,10 +131,13 @@ curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | 
 ### 手动安装、升级、卸载 {#install-manual}
 
 ```powershell
-uv tool install --python 3.12 git+https://github.com/Misaka16384/magi   # 安装
-uv tool install --force git+https://github.com/Misaka16384/magi         # 升级
-uv tool uninstall magi-research                                          # 卸载
-uv tool list                                                             # 看装了什么版本
+uv tool install magi-research           # 安装（pipx install magi-research 也行）
+uv tool install --force magi-research   # 升级
+uv tool uninstall magi-research         # 卸载
+uv tool list                            # 看装了什么版本
+
+# 想试还没发版的改动：
+uv tool install --force git+https://github.com/Misaka16384/magi
 ```
 
 装完随时体检：

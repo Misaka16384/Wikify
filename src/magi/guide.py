@@ -429,7 +429,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     text, lang = load_guide(args.lang)
     if not text:
         payload = {"error": "guide not found in this installation",
-                   "hint": "reinstall magi: uv tool install --force git+https://github.com/Misaka16384/magi"}
+                   "hint": "reinstall magi: uv tool install --force magi-research"}
         print(json.dumps(payload, ensure_ascii=False) if args.json
               else f"error: {payload['error']} — {payload['hint']}", file=sys.stderr if not args.json else sys.stdout)
         return 1

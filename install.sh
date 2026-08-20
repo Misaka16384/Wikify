@@ -25,7 +25,7 @@ else
 fi
 
 echo "[2/3] Installing the magi CLI from GitHub..."
-uv tool install --force --python 3.12 git+https://github.com/Misaka16384/magi
+uv tool install --force --python 3.12 magi-research
 uv tool update-shell >/dev/null 2>&1 || true
 export PATH="$HOME/.local/bin:$PATH"
 
