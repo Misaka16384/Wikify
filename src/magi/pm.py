@@ -15,6 +15,9 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
+import time
+from functools import lru_cache
 from pathlib import Path
 
 from magi.core.workspace import find_hub_root, find_workspace_root
@@ -27,7 +30,15 @@ _TYPES_BLOCK = (
 )
 
 
+@lru_cache(maxsize=1)
 def bd_available() -> bool:
+    """Is the `bd` executable on PATH?
+
+    Cached for the life of the process: `shutil.which` is a PATH walk (~7ms
+    on Windows) and this is called on every status read, several times per
+    HTTP request in the WebUI. Installing bd mid-session is rare enough to
+    be worth a restart; `bd_cache_clear()` exists for the tests.
+    """
     return shutil.which("bd") is not None
 
 
@@ -68,20 +79,79 @@ def find_beads_root(start: Path | None = None) -> Path | None:
     return None
 
 
+# `bd status --json` is a subprocess spawn — ~330ms on Windows, where process
+# creation is expensive. That is fine once. It is not fine in a fan-out: the
+# WebUI's /api/kb builds a sync report per registered knowledge base, and every
+# topic under one hub resolves to the SAME beads root, so six KBs meant six
+# identical spawns and a 2.5s request that froze the dashboard.
+#
+# The window is deliberately short. This cache exists to collapse duplicate
+# calls inside one logical operation, not to serve stale counts across user
+# actions: refresh a second later and you get fresh numbers.
+_STATUS_TTL_SECONDS = 2.0
+_status_cache: dict[str, tuple[float, dict | None]] = {}
+_status_locks: dict[str, threading.Lock] = {}
+_status_guard = threading.Lock()
+
+
+def bd_cache_clear() -> None:
+    """Drop the memoized bd lookups. For tests, and for code that has just
+    changed the work graph and needs to read its own write."""
+    bd_available.cache_clear()
+    with _status_guard:
+        _status_cache.clear()
+
+
+def _fresh(key: str) -> tuple[bool, dict | None]:
+    with _status_guard:
+        hit = _status_cache.get(key)
+    if hit is not None and (time.monotonic() - hit[0]) < _STATUS_TTL_SECONDS:
+        return True, hit[1]
+    return False, None
+
+
 def bd_status_summary(cwd: Path) -> dict | None:
-    """Parse `bd status --json` summary; None when bd/db unavailable."""
+    """Parse `bd status --json` summary; None when bd/db unavailable.
+
+    Memoized per beads root for `_STATUS_TTL_SECONDS`; see the note above.
+    """
     if not bd_available():
         return None
-    try:
-        proc = _run_bd(["status", "--json"], cwd=cwd)
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if proc.returncode != 0:
-        return None
-    try:
-        return json.loads(proc.stdout).get("summary")
-    except json.JSONDecodeError:
-        return None
+
+    # Key on the beads root, not the directory asked about: `bd` walks up to
+    # find its database, so every topic under one hub gets the same answer.
+    # Keyed by directory, the dashboard's per-KB reports and the PM panel each
+    # spawned their own `bd status` for one shared database.
+    root = find_beads_root(Path(cwd))
+    key = str((root or Path(cwd)).resolve())
+    ok, cached = _fresh(key)
+    if ok:
+        return cached
+
+    # One spawn per root, not one per caller. The WebUI fans out over KBs
+    # concurrently, so without this the six callers would all miss the cache
+    # together and spawn six times anyway — the exact cost being avoided.
+    with _status_guard:
+        gate = _status_locks.setdefault(key, threading.Lock())
+    with gate:
+        ok, cached = _fresh(key)      # someone may have filled it while we waited
+        if ok:
+            return cached
+
+        summary: dict | None = None
+        try:
+            proc = _run_bd(["status", "--json"], cwd=cwd)
+        except (OSError, subprocess.TimeoutExpired):
+            proc = None
+        if proc is not None and proc.returncode == 0:
+            try:
+                summary = json.loads(proc.stdout).get("summary")
+            except json.JSONDecodeError:
+                summary = None
+
+        with _status_guard:
+            _status_cache[key] = (time.monotonic(), summary)
+        return summary
 
 
 def cmd_init(args: argparse.Namespace) -> int:

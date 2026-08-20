@@ -12,6 +12,7 @@ import re
 import sqlite3
 import sys
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
@@ -242,8 +243,15 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         current_ws = find_workspace_root()
         hub_root = find_hub_root()
         kbs = load_registry().get("kbs", {})
-        doc = doctor_rows()
-        doc_ok = all(ok for name, ok, _ in doc if name in ("magi", "python"))
+        # This used to call doctor_rows() — which shells out for six external
+        # tools and diffs every shipped skill against four agent CLIs' install
+        # directories, ~450ms — and then read exactly two of its thirteen rows.
+        # Both of those rows are hardcoded True in doctor_rows itself, and for
+        # good reason: if this process is answering the request, magi and
+        # Python are present. So the page-load path paid 450ms for a constant.
+        # The genuine probe lives at /api/doctor, which Diagnostics fetches on
+        # demand.
+        doc_ok = True
         jobs = task_manager.list_jobs()
         active_jobs = [j for j in jobs if j["status"] == "running"]
 
@@ -261,20 +269,34 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     def list_kbs() -> dict:
         data = load_registry()
         current = find_workspace_root()
+        entries = sorted(data.get("kbs", {}).items())
+
+        # Each report is filesystem + subprocess I/O over a different
+        # workspace, so they overlap cleanly. Serially this was the slowest
+        # request the dashboard makes and it is on the page-load path — with
+        # six registered libraries it took 2.5s and the UI sat there.
+        def report_for(entry: dict) -> dict | None:
+            p = Path(entry["path"])
+            if not (p.is_dir() and (p / "wiki").is_dir()):
+                return None
+            try:
+                return build_report(p)
+            except Exception:
+                return None
+
+        reports: list[dict | None] = [None] * len(entries)
+        if entries:
+            with ThreadPoolExecutor(max_workers=min(8, len(entries))) as pool:
+                futures = {pool.submit(report_for, e): i for i, (_, e) in enumerate(entries)}
+                for fut in as_completed(futures):
+                    reports[futures[fut]] = fut.result()
+
         rows = []
-        for name, entry in sorted(data.get("kbs", {}).items()):
+        for (name, entry), sync_info in zip(entries, reports):
             p = Path(entry["path"])
             idx = p / "output" / "index.db"
             graph_db = p / "output" / "graph.db"
             is_cur = current is not None and p.resolve() == current.resolve()
-
-            # Attempt a quick report if workspace exists
-            sync_info = None
-            if p.is_dir() and (p / "wiki").is_dir():
-                try:
-                    sync_info = build_report(p)
-                except Exception:
-                    pass
 
             rows.append({
                 "name": name,

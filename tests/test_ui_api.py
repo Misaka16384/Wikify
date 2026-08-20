@@ -620,6 +620,38 @@ def test_task_manager_pruning_and_ring_buffer(tmp_path, monkeypatch):
     assert len(j_ring.logs) == 2000
     assert j_ring.logs[-1] == "log line 2499"
 
+    # Drain before the fixture restores MAGI_CONFIG_HOME. A job archives
+    # itself from its own thread when it finishes, so leaving one in flight
+    # used to write the record into the developer's real job history.
+    _drain(tm)
+
+
+def test_a_job_archives_where_it_started_not_where_it_finished(tmp_path, monkeypatch):
+    """A job's archive destination is fixed when it is created.
+
+    Otherwise a job that outlives a config-home change — a test fixture
+    tearing down, a caller reconfiguring — persists itself somewhere nobody
+    asked for. That is not hypothetical: it put 83 test records into a real
+    user's ui-jobs.jsonl.
+    """
+    from magi.ui.jobs import TaskManager
+
+    started_home = tmp_path / "cfg-start"
+    monkeypatch.setenv("MAGI_CONFIG_HOME", str(started_home))
+    tm = TaskManager(max_history=3)
+    job = tm.create_job(command=["--version"], workspace=str(tmp_path / "ws"), name="Late Job")
+    assert job.archive_path == started_home / "ui-jobs.jsonl"
+
+    # The environment moves while the job is still in flight.
+    monkeypatch.setenv("MAGI_CONFIG_HOME", str(tmp_path / "cfg-elsewhere"))
+    for _ in range(80):
+        if job.status not in ("pending", "running"):
+            break
+        time.sleep(0.25)
+
+    assert (started_home / "ui-jobs.jsonl").is_file()
+    assert not (tmp_path / "cfg-elsewhere" / "ui-jobs.jsonl").exists()
+
 
 def test_language_detection_and_js_mechanics(client):
     res_js = client.get("/app.js")

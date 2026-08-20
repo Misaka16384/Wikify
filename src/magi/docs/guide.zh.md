@@ -744,13 +744,22 @@ MAGI 的双链就是 Obsidian 的双链，两边可以同时用：Obsidian 负�
 ```powershell
 magi index                # 建/刷新 output/index.db
 magi index --no-vectors   # 只建关键词索引（没有 Ollama 时）
+magi index --quiet        # 不打进度行（末尾汇总照常输出）
 ```
 
 索引覆盖 `wiki/`、`raw/`、`drafts/` 下所有 `.md`，按一到三级标题切块，单块上限 250 行。**增量更新**：内容哈希没变的文件跳过，删掉的文件自动清理。
 
+慢的是嵌入这一半；如果这个库当初是在没有 Ollama 的情况下建的索引，那要补的就是整个语料。过程中会持续报进度，并且**每批各自提交**——中途打断也不会丢掉已经算完的部分，下次接着补。
+
 > [!EXPECT]
-> `index: 42 chunks (5 files updated, 37 unchanged, 0 pruned) · vectors 42/42`
+> ```
+> index: backfilling vectors for 1371 chunks
+> index: backfill: 320/1371 chunks
+> index: 1371 chunks (0 files updated, 141 unchanged, 0 pruned) · vectors 1371/1371
+> ```
 > 结尾若是 `· BM25-only (Ollama unavailable)`，说明向量那一半没建起来。
+
+每次送 16 块给 Ollama。要改就在 `config.yaml` 里设 `ollama.embed_batch`——调大更快，但 Ollama 那边内存占用也更高；嵌入服务跑到一半被杀掉，代价远大于省下的那点时间。
 
 `magi index` 还会把当前工作区**自动注册**进全局知识库表（`~/.config/magi/registry.json`），这样别的工作区也能搜到它。
 
@@ -783,6 +792,8 @@ magi kb unregister <名字>      # 只删注册项，不动文件
 > - `no workspace here and no searchable registered KBs` → 你不在工作区里，且没有可搜的注册库。`cd` 进去，或 `magi kb register` + `enable`。
 > - **搜不到刚写的内容** → 索引是按哈希增量的，但**不会自动触发**。编辑后重跑 `magi index`。
 > - **结果全是关键词命中，没有语义** → 结尾会提示 `BM25-only`。MAGI 已经试过拉起本机 Ollama 了；还是 BM25-only 就说明它没装、或者嵌入模型没拉。用 `magi setup --check` 看一眼，再重跑 `magi index` 补向量。
+> - **索引任务在跑的时候，搜索提示降级成了关键词** → Ollama 一次只处理一个请求，索引任务会一直占着它。搜索等 8 秒还拿不到向量就先把关键词那一半结果返回来，而不是干等着；等任务跑完再搜一次即可。
+> - **`magi index` 中途停了，报 `Ollama stopped responding mid-run`** → 嵌入服务挂了（最常见是内存不够）。挂之前算完的都已经提交，重跑 `magi index` 补剩下的。要是反复出现，把 `ollama.embed_batch` 调小。
 > - **中文搜不出东西** → 提示 `this index predates CJK-aware tokenization` 时，重跑 `magi index` 即可（会自动重建分词层）。
 > - `index dims mismatch current embedding model` → 换过嵌入模型。改回去，或重跑 `magi index` 全量重嵌。
 > - `sqlite-vec unavailable` → 向量扩展加载失败（macOS 上常见于系统 Python 不支持加载扩展）。用 uv/Homebrew 的 Python，或接受关键词检索。

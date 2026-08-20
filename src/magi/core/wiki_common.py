@@ -21,6 +21,16 @@ try:  # pyyaml is a declared dependency, but degrade gracefully if absent.
 except ImportError:  # pragma: no cover
     yaml = None  # type: ignore[assignment]
 
+# PyYAML ships two loaders: a pure-Python one and a libyaml-backed C one that
+# is roughly an order of magnitude faster. `yaml.safe_load` always picks the
+# slow one. Frontmatter is parsed once per card on every backlog scan, which
+# runs on `magi sync`, on the dashboard, and on the Melchior panel — so the
+# slow loader was a measurable share of those. Same safe subset either way.
+if yaml is not None:
+    _SafeLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+else:  # pragma: no cover - pyyaml missing
+    _SafeLoader = None
+
 
 def normalize_newlines(text: str) -> str:
     """Normalize CRLF / CR to LF for cross-platform frontmatter parsing."""
@@ -52,7 +62,7 @@ def parse_frontmatter_text(fm_text: str) -> dict[str, Any]:
     if yaml is None:
         return {}
     try:
-        data = yaml.safe_load(fm_text)
+        data = yaml.load(fm_text, Loader=_SafeLoader)
     except yaml.YAMLError:
         return {}
     return data if isinstance(data, dict) else {}

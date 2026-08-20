@@ -301,6 +301,7 @@
 
       // Search guidance
       vec_unavailable_hint: "语义检索未启用：需要本机 Ollama 语义模型，且在运行 magi index 建立索引时可用。当前仅按关键词匹配。",
+      vec_degraded_hint: "语义检索暂时降级：Ollama 正忙（通常是索引任务在占用），本次只按关键词匹配。等任务结束后重搜即可。",
       search_no_results_hint: "建议：改用 2-3 个关键词（而非整句）、切换检索模式，或确认当前工作区已运行过「重建检索索引」。",
 
       // Radar kinds
@@ -729,6 +730,7 @@
 
       // Search guidance
       vec_unavailable_hint: "Semantic search is off: it needs a local Ollama model available when 'magi index' builds the index. Keyword matching only for now.",
+      vec_degraded_hint: "Semantic search fell back to keywords: Ollama did not answer in time, usually because an indexing job is holding it. Search again once that finishes.",
       search_no_results_hint: "Try 2-3 keywords instead of a full sentence, switch the search mode, or make sure this workspace has a built index (Rebuild Index).",
 
       // Radar kinds
@@ -960,6 +962,7 @@
     activeJobId: null,
     activeJobName: "",
     eventSource: null,
+    logSink: null,
     theme: detectInitialTheme(),
     lang: detectInitialLanguage(),
   };
@@ -1151,6 +1154,45 @@
       showToast(err.message, "error");
       throw err;
     }
+  }
+
+  // Two callers legitimately want the same panel data at startup — the initial
+  // status read and the panel's own loader — and they fire microseconds apart,
+  // so both used to issue the same request. Page load paid for /api/kb three
+  // times and /api/workspace/sync twice, and /api/kb is the most expensive
+  // request the dashboard makes.
+  //
+  // This coalesces only calls that overlap in flight; it is deliberately not a
+  // cache. A call made after this one settles still hits the network, so
+  // switching back to a tab later shows fresh data and no invalidation rule
+  // has to be maintained.
+  // The window is sized to cover one page-load sequence, not to cache: the
+  // two callers run one after the other, not at the same time, so merging
+  // only concurrent calls still left the second request to fire. Anything a
+  // person could do — click refresh, switch tabs and come back — takes far
+  // longer than this and refetches normally.
+  const SETTLE_MS = 1500;
+  const inFlight = new Map();
+  const settledAt = new Map();
+
+  function coalesce(key, run) {
+    const running = inFlight.get(key);
+    if (running) return running;
+    const done = settledAt.get(key);
+    if (done && performance.now() - done < SETTLE_MS) return Promise.resolve();
+    const p = Promise.resolve()
+      .then(run)
+      .finally(() => {
+        if (inFlight.get(key) === p) inFlight.delete(key);
+        settledAt.set(key, performance.now());
+      });
+    inFlight.set(key, p);
+    return p;
+  }
+
+  // Any mutation invalidates it outright — no waiting out the window.
+  function invalidateCoalesced() {
+    settledAt.clear();
   }
 
   function showToast(msg, type = "info") {
@@ -1863,21 +1905,27 @@
     }
   }
 
-  async function loadKBRegistry() {
-    try {
-      const data = await apiFetch("/api/kb");
-      state.kbs = data.kbs || [];
-      els.dashKbCount.textContent = state.kbs.length;
+  function loadKBRegistry() {
+    return coalesce("kb", async () => {
+      try {
+        const data = await apiFetch("/api/kb");
+        state.kbs = data.kbs || [];
+        els.dashKbCount.textContent = state.kbs.length;
 
-      renderWorkspaceSelect();
-      renderKBTable(state.kbs);
-    } catch (err) {
-      console.error("Load KBs failed:", err);
-    }
+        renderWorkspaceSelect();
+        renderKBTable(state.kbs);
+      } catch (err) {
+        console.error("Load KBs failed:", err);
+      }
+    });
   }
 
-  async function loadSyncRatio() {
-    if (!state.workspace) return;
+  function loadSyncRatio() {
+    if (!state.workspace) return Promise.resolve();
+    return coalesce(`sync:${state.workspace}`, () => loadSyncRatioNow());
+  }
+
+  async function loadSyncRatioNow() {
     try {
       const rep = await apiFetch(`/api/workspace/sync?workspace=${encodeURIComponent(state.workspace)}`);
       const ratio = rep.sync_ratio !== null ? `${rep.sync_ratio}%` : "--%";
@@ -2083,6 +2131,7 @@
         try {
           await apiFetch(`/api/kb/${encodeURIComponent(name)}`, { method: "DELETE" });
           showToast(t("toast_kb_unregistered", { name }), "info");
+          invalidateCoalesced();
           loadKBRegistry();
         } catch (_) {}
       });
@@ -3770,7 +3819,12 @@
       if (!data.vector_available) {
         const note = document.createElement("div");
         note.className = "hint-note";
-        note.textContent = t("vec_unavailable_hint");
+        // "Ollama isn't set up" and "Ollama is busy indexing right now" both
+        // arrive here as vectors-off, and they need opposite responses from
+        // the reader: one is a setup task, the other is a wait.
+        note.textContent = data.vector_degraded
+          ? t("vec_degraded_hint")
+          : t("vec_unavailable_hint");
         els.searchInfoBar.appendChild(note);
       }
 
@@ -4122,6 +4176,49 @@
     if (input) input.focus();
   }
 
+  // The server keeps the last 2000 log lines; the terminal used to keep every
+  // line it had ever been sent, in one text node, rebuilt from scratch on each
+  // arrival — `textContent +=` reads the whole string, allocates a new one, and
+  // replaces the node, so the cost of line n grows with n. Reading
+  // scrollHeight immediately after forced a synchronous layout on top of that,
+  // once per line, with autoscroll on by default.
+  //
+  // Lines are queued and flushed once per animation frame instead: one DOM
+  // write and one layout per frame no matter how fast the job talks, and the
+  // buffer is trimmed to the same bound the server uses.
+  const TERM_MAX_LINES = 2000;
+
+  function makeLogSink(el, autoscrollEl) {
+    let lines = [];
+    let queued = [];
+    let frame = 0;
+
+    function flush() {
+      frame = 0;
+      if (!queued.length) return;
+      lines = lines.concat(queued);
+      queued = [];
+      if (lines.length > TERM_MAX_LINES) lines = lines.slice(-TERM_MAX_LINES);
+      el.textContent = lines.join("\n") + "\n";
+      if (autoscrollEl && autoscrollEl.checked) el.scrollTop = el.scrollHeight;
+    }
+
+    return {
+      reset(text) {
+        lines = text ? [text] : [];
+        queued = [];
+        if (frame) { cancelAnimationFrame(frame); frame = 0; }
+        el.textContent = text ? text + "\n" : "";
+      },
+      push(line) {
+        queued.push(line);
+        if (!frame) frame = requestAnimationFrame(flush);
+      },
+      // A job that ends between frames must not lose its last lines.
+      settle() { if (frame) cancelAnimationFrame(frame); flush(); },
+    };
+  }
+
   function startLogStream(jobId, jobName) {
     if (state.eventSource) {
       state.eventSource.close();
@@ -4135,7 +4232,9 @@
     const termContainer = els.terminalOutput ? els.terminalOutput.closest(".terminal-container") : null;
     if (termContainer) termContainer.classList.add("is-running");
     els.termCancelBtn.style.display = "inline-flex";
-    els.terminalOutput.textContent = t("term_connecting", { id: jobId });
+    const sink = makeLogSink(els.terminalOutput, els.termAutoscroll);
+    sink.reset(t("term_connecting", { id: jobId }));
+    state.logSink = sink;
 
     const source = new EventSource(`/api/jobs/${encodeURIComponent(jobId)}/stream`);
     state.eventSource = source;
@@ -4144,8 +4243,9 @@
       try {
         const payload = JSON.parse(event.data);
         if (payload.type === "log") {
-          els.terminalOutput.textContent += payload.line + "\n";
+          sink.push(payload.line);
         } else if (payload.type === "status") {
+          sink.settle();
           if (payload.status === "completed") {
             els.termStatusDot.className = "status-dot";
             if (termContainer) termContainer.classList.remove("is-running");
@@ -4154,6 +4254,7 @@
             source.close();
             state.activeJobId = null;
             els.termJobName.textContent = t("term_idle");
+            invalidateCoalesced();
             loadSyncRatio();
           } else if (payload.status === "failed" || payload.status === "cancelled") {
             els.termStatusDot.className = "status-dot error";
@@ -4165,14 +4266,11 @@
             els.termJobName.textContent = t("term_idle");
           }
         }
-
-        if (els.termAutoscroll.checked) {
-          els.terminalOutput.scrollTop = els.terminalOutput.scrollHeight;
-        }
       } catch (_) {}
     };
 
     source.onerror = () => {
+      sink.settle();
       source.close();
       els.termStatusDot.className = "status-dot";
       if (termContainer) termContainer.classList.remove("is-running");
@@ -4557,7 +4655,10 @@
   });
 
   // Refresh KB button
-  els.refreshKbBtn.addEventListener("click", () => loadKBRegistry());
+  els.refreshKbBtn.addEventListener("click", () => {
+    invalidateCoalesced();
+    loadKBRegistry();
+  });
 
   // Register KB form
   els.registerKbForm.addEventListener("submit", async (e) => {
@@ -4575,6 +4676,7 @@
       showToast(t("toast_kb_registered"), "success");
       els.regKbPath.value = "";
       els.regKbName.value = "";
+      invalidateCoalesced();
       loadKBRegistry();
     } catch (_) {}
   });
@@ -4672,7 +4774,11 @@
 
   // Terminal buttons
   els.termClearBtn.addEventListener("click", () => {
-    els.terminalOutput.textContent = "";
+    // Through the sink, not straight at the element: the sink owns the line
+    // buffer, and clearing only the DOM would let the next frame paint every
+    // cleared line straight back.
+    if (state.logSink) state.logSink.reset("");
+    else els.terminalOutput.textContent = "";
   });
 
   els.termCancelBtn.addEventListener("click", async () => {

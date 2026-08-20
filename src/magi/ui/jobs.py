@@ -61,6 +61,32 @@ OPS: dict[str, dict] = {
 }
 
 # Archive limits (decision: persist job history, but hard-cap total size)
+# One SSE client's backlog. Mirrors the server-side log buffer: a browser that
+# has stopped draining — a backgrounded tab, a stalled connection, a laptop
+# that slept — must not be able to grow this without bound.
+LISTENER_QUEUE_MAX = 2000
+
+
+def _offer(q: "asyncio.Queue", payload: dict) -> None:
+    """Hand a message to one listener without ever blocking the producer.
+
+    Drops the OLDEST message to make room, not the newest. Two reasons: a log
+    tail is more useful with a gap in the middle than cut off at the moment the
+    reader stalled, and the terminal status message — the one `stream_logs`
+    waits for before closing the connection — is always the newest. Dropping
+    that would leave the stream open forever.
+    """
+    while True:
+        try:
+            q.put_nowait(payload)
+            return
+        except asyncio.QueueFull:
+            try:
+                q.get_nowait()
+            except asyncio.QueueEmpty:      # pragma: no cover - full and empty
+                return
+
+
 MAX_ARCHIVE_BYTES = 262_144
 ARCHIVE_KEEP_RECORDS = 40
 ARCHIVE_LOAD_RECORDS = 20
@@ -92,6 +118,13 @@ class Job:
         self.process: subprocess.Popen | None = None
         self.listeners: Set[asyncio.Queue] = set()
         self._lock = threading.Lock()
+        # Where this job's record will be archived, decided now rather than
+        # when it finishes. A job runs on a background thread and persists
+        # itself minutes later; resolving the config home at that point meant
+        # the destination could move underneath it. The test suite hit this for
+        # real — its jobs outlived the fixture that redirected MAGI_CONFIG_HOME
+        # and wrote 83 records into the developer's live job history.
+        self.archive_path: Path | None = None
 
     def to_dict(self) -> dict:
         with self._lock:
@@ -110,20 +143,23 @@ class Job:
                 "archived": False,
             }
 
+    def _fan_out(self, payload: dict, loop: asyncio.AbstractEventLoop | None) -> None:
+        with self._lock:
+            active_listeners = list(self.listeners)
+        for q in active_listeners:
+            try:
+                if loop and not loop.is_closed():
+                    loop.call_soon_threadsafe(_offer, q, payload)
+                else:
+                    _offer(q, payload)
+            except Exception:
+                pass
+
     def append_log(self, line: str, loop: asyncio.AbstractEventLoop | None = None) -> None:
         line_clean = line.rstrip("\r\n")
         with self._lock:
             self.logs.append(line_clean)
-            active_listeners = list(self.listeners)
-
-        for q in active_listeners:
-            try:
-                if loop and not loop.is_closed():
-                    loop.call_soon_threadsafe(q.put_nowait, {"type": "log", "line": line_clean})
-                else:
-                    q.put_nowait({"type": "log", "line": line_clean})
-            except Exception:
-                pass
+        self._fan_out({"type": "log", "line": line_clean}, loop)
 
     def notify_status_change(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
         with self._lock:
@@ -133,16 +169,7 @@ class Job:
                 "exit_code": self.exit_code,
                 "finished_at": self.finished_at,
             }
-            active_listeners = list(self.listeners)
-
-        for q in active_listeners:
-            try:
-                if loop and not loop.is_closed():
-                    loop.call_soon_threadsafe(q.put_nowait, payload)
-                else:
-                    q.put_nowait(payload)
-            except Exception:
-                pass
+        self._fan_out(payload, loop)
 
 
 class TaskManager:
@@ -153,6 +180,10 @@ class TaskManager:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._archive: list[dict] = []
         self._archive_home: str | None = None  # config home the archive was loaded from
+        # Separate from _lock on purpose: the archive write does file I/O, and
+        # _lock is also what the SSE log fan-out takes. Holding one lock for
+        # both would let a slow disk stall every streaming client.
+        self._archive_write_lock = threading.Lock()
 
     # -- persistence (jsonl in the magi config home, size-capped) ------------
 
@@ -192,12 +223,22 @@ class TaskManager:
             with job._lock:
                 rec["log_tail"] = list(job.logs)[-ARCHIVE_LOG_TAIL:]
             rec["archived"] = True
-            path = self._persist_file()
-            with open(path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-            if path.stat().st_size > MAX_ARCHIVE_BYTES:
-                lines = path.read_text(encoding="utf-8").splitlines()[-ARCHIVE_KEEP_RECORDS:]
-                path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            path = job.archive_path or self._persist_file()
+            # Append-then-maybe-compact is a read-modify-write, and two jobs
+            # finishing at once used to interleave inside it: both append, both
+            # read, both rewrite — and the second rewrite drops whatever the
+            # first added. Under load that emptied the file. One writer at a
+            # time, and the rewrite lands atomically so a reader (or another
+            # magi ui process on the same config home) sees the whole old file
+            # or the whole new one, never a half-written one.
+            with self._archive_write_lock:
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                if path.stat().st_size > MAX_ARCHIVE_BYTES:
+                    lines = path.read_text(encoding="utf-8").splitlines()[-ARCHIVE_KEEP_RECORDS:]
+                    tmp = path.with_name(path.name + ".compact")
+                    tmp.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                    os.replace(tmp, path)
             with self._lock:
                 self._archive.insert(0, rec)
                 del self._archive[ARCHIVE_LOAD_RECORDS:]
@@ -236,6 +277,10 @@ class TaskManager:
         target_ws = str(Path(workspace).resolve()) if workspace else str(Path.cwd().resolve())
         job = Job(job_id=job_id, command=clean_command, workspace=target_ws,
                   name=name, op_id=op_id, scope=scope)
+        try:
+            job.archive_path = self._persist_file()
+        except Exception:
+            job.archive_path = None
 
         self._ensure_loop()
 
@@ -371,7 +416,7 @@ class TaskManager:
             yield f"data: {json.dumps({'type': 'error', 'message': 'Job not found'})}\n\n"
             return
 
-        queue: asyncio.Queue = asyncio.Queue()
+        queue: asyncio.Queue = asyncio.Queue(maxsize=LISTENER_QUEUE_MAX)
 
         # Safely snapshot buffered logs and register listener without holding lock across yield
         with job._lock:

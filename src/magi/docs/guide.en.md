@@ -752,13 +752,22 @@ MAGI's wikilinks are Obsidian's wikilinks — you can use both at once: Obsidian
 ```powershell
 magi index                # Build/refresh output/index.db
 magi index --no-vectors   # Build a keyword-only index (when Ollama isn't available)
+magi index --quiet        # Suppress the progress lines (the summary still prints)
 ```
 
 The index covers every `.md` file under `wiki/`, `raw/`, and `drafts/`, chunked by level-1 through level-3 headings, with a 250-line cap per chunk. **It updates incrementally**: files whose content hash hasn't changed are skipped, and deleted files are cleaned up automatically.
 
+Embedding is the slow half, and on a library first indexed without Ollama it has the whole corpus to catch up on. It reports as it goes and commits each batch, so a run you interrupt keeps everything it had already embedded and the next run picks up from there.
+
 > [!EXPECT]
-> `index: 42 chunks (5 files updated, 37 unchanged, 0 pruned) · vectors 42/42`
+> ```
+> index: backfilling vectors for 1371 chunks
+> index: backfill: 320/1371 chunks
+> index: 1371 chunks (0 files updated, 141 unchanged, 0 pruned) · vectors 1371/1371
+> ```
 > If it ends with `· BM25-only (Ollama unavailable)`, the vector half didn't get built.
+
+Chunks go to Ollama 16 at a time. Set `ollama.embed_batch` in `config.yaml` to change that — higher is faster but uses more memory on the Ollama side, and an embedding server that gets killed halfway through costs more than the throughput is worth.
 
 `magi index` also **automatically registers** the current workspace in the global knowledge-base table (`~/.config/magi/registry.json`), so other workspaces can search it too.
 
@@ -791,6 +800,8 @@ magi kb unregister <name>      # Remove only the registry entry, files untouched
 > - `no workspace here and no searchable registered KBs` → You're not inside a workspace, and there's no searchable registered KB. `cd` into one, or `magi kb register` + `enable`.
 > - **Can't find something you just wrote** → The index updates incrementally by hash, but it **doesn't trigger automatically**. Rerun `magi index` after editing.
 > - **Results are all keyword hits, no semantic ones** → It ends with a `BM25-only` notice. MAGI already tried to wake a local Ollama; if it's still BM25-only, Ollama isn't installed or the embedding model isn't pulled. Check with `magi setup --check`, then rerun `magi index` to fill in the vectors.
+> - **Search says it fell back to keywords while an index job runs** → Ollama answers one request at a time, so an indexing run holds it. The search gives up on vectors after 8 seconds and returns its keyword half rather than hanging; search again once the job finishes.
+> - **`magi index` stopped early with `Ollama stopped responding mid-run`** → The embedding server died (most often out of memory). Everything embedded before that point is committed; rerun `magi index` to backfill the rest. If it keeps happening, lower `ollama.embed_batch`.
 > - **Chinese search turns up nothing** → When you see `this index predates CJK-aware tokenization`, just rerun `magi index` (it rebuilds the tokenization layer automatically).
 > - `index dims mismatch current embedding model` → You switched embedding models. Switch back, or rerun `magi index` for a full re-embed.
 > - `sqlite-vec unavailable` → The vector extension failed to load (common on macOS when the system Python doesn't support loading extensions). Use uv/Homebrew Python, or fall back to keyword search.

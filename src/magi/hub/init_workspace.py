@@ -193,6 +193,7 @@ environment. Scope: {args.scope}
 ollama:
   base_url: "http://127.0.0.1:11434"
   autostart: true      # start a stopped local Ollama on demand
+  embed_batch: 16      # chunks per embedding request; raise on a roomy machine
 models:
   ocr: "glm-ocr"
   embedding: "qwen3-embedding:0.6b"

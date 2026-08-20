@@ -26,6 +26,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import NamedTuple
 
 from magi.core.workspace import find_hub_root, find_workspace_root
 
@@ -34,16 +35,41 @@ def _newest_md_mtime(root: Path) -> float:
     """Newest content mtime under root. Excludes _index.md (regenerated
     AFTER graph build by every standard pipeline — counting it would make
     a just-built graph read as stale) and .backup copies."""
+    return _scan_wiki(root).newest
+
+
+class _WikiScan(NamedTuple):
+    """One walk of a wiki tree, answering every question the report asks of it."""
+    newest: float
+    counts: dict[str, int]      # first path segment under root -> card count
+
+
+def _scan_wiki(root: Path) -> _WikiScan:
+    """Walk a wiki tree once.
+
+    The report used to ask this tree four separate questions — newest mtime,
+    and a card count for each of concepts/references/topics — and walked it
+    once per question. On a large library that is four full rglobs for data a
+    single pass already has in hand.
+    """
     newest = 0.0
-    if root.is_dir():
-        for p in root.rglob("*.md"):
-            if p.name == "_index.md" or ".backup" in p.parts:
-                continue
-            try:
-                newest = max(newest, p.stat().st_mtime)
-            except OSError:
-                continue
-    return newest
+    counts: dict[str, int] = {}
+    if not root.is_dir():
+        return _WikiScan(0.0, counts)
+    for p in root.rglob("*.md"):
+        if p.name == "_index.md" or ".backup" in p.parts:
+            continue
+        try:
+            rel = p.relative_to(root)
+        except ValueError:      # pragma: no cover - rglob results are under root
+            continue
+        if len(rel.parts) > 1:
+            counts[rel.parts[0]] = counts.get(rel.parts[0], 0) + 1
+        try:
+            newest = max(newest, p.stat().st_mtime)
+        except OSError:
+            continue
+    return _WikiScan(newest, counts)
 
 
 def _hub_topics(hub: Path) -> list[str]:
@@ -63,21 +89,17 @@ def _hub_topics(hub: Path) -> list[str]:
     return []
 
 
-def _count_cards(d: Path) -> int:
-    if not d.is_dir():
-        return 0
-    return sum(1 for p in d.rglob("*.md")
-               if p.name != "_index.md" and ".backup" not in p.parts)
-
-
-def melchior_status(topic: Path) -> dict:
+def melchior_status(topic: Path, scan: _WikiScan | None = None) -> dict:
     wiki = topic / "wiki"
     graph_db = topic / "output" / "graph.db"
-    concepts = _count_cards(wiki / "concepts")
-    references = _count_cards(wiki / "references")
-    topics_n = _count_cards(wiki / "topics")
+    # `scan` lets a caller that needs several cores walk the tree once and
+    # hand the result to each; omitted, this behaves exactly as before.
+    scan = scan if scan is not None else _scan_wiki(wiki)
+    concepts = scan.counts.get("concepts", 0)
+    references = scan.counts.get("references", 0)
+    topics_n = scan.counts.get("topics", 0)
 
-    newest = _newest_md_mtime(wiki)
+    newest = scan.newest
     if not graph_db.is_file():
         graph_state = "missing" if newest else "empty-wiki"
         # missing-with-content scores like stale (both mean "run magi graph
@@ -123,16 +145,21 @@ def melchior_status(topic: Path) -> dict:
     }
 
 
-def casper_status(topic: Path) -> dict:
+def casper_status(topic: Path, scan: _WikiScan | None = None) -> dict:
     idx = topic / "output" / "index.db"
     if not idx.is_file():
         return {"state": "missing", "chunks": 0, "vectors": 0, "score": 0.0}
     import sqlite3
 
-    freshness = 1.0 if idx.stat().st_mtime >= _newest_md_mtime(topic / "wiki") else 0.3
+    newest = scan.newest if scan is not None else _newest_md_mtime(topic / "wiki")
+    freshness = 1.0 if idx.stat().st_mtime >= newest else 0.3
     chunks = vectors = 0
     try:
-        conn = sqlite3.connect(idx)
+        # A read must never wait on a writer: `magi index` holds a write lock
+        # for the length of its run, and the dashboard polls this. Without a
+        # timeout SQLite raises immediately; with a long one the UI would hang
+        # instead. Two seconds is long enough to ride out a commit.
+        conn = sqlite3.connect(idx, timeout=2.0)
         chunks = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
         # count via vec0's shadow table — readable without the sqlite-vec
         # extension loaded (the virtual table itself is not)
@@ -184,8 +211,12 @@ def build_report(cwd: Path | None = None) -> dict:
         hints.append(text)
         hints_structured.append({"code": code, "text": text, "params": params})
 
+    # One walk of wiki/, shared by melchior (counts + graph freshness) and
+    # casper (index freshness), instead of four.
+    scan = _scan_wiki(topic / "wiki") if topic else None
+
     if topic:
-        m = melchior_status(topic)
+        m = melchior_status(topic, scan)
         cores["melchior"] = m
         weights["melchior"] = 1.0
         if m["graph"] in ("missing", "stale"):
@@ -226,7 +257,7 @@ def build_report(cwd: Path | None = None) -> dict:
             _hint("bd-ready", "bd ready   # there is actionable work", ready=b["ready"])
 
     if topic:
-        c = casper_status(topic)
+        c = casper_status(topic, scan)
         cores["casper"] = c
         weights["casper"] = 1.0
         if c["state"] == "missing":

@@ -2530,6 +2530,11 @@ def run_graph(args: argparse.Namespace) -> int:
     with sqlite3.connect(str(db_path), timeout=30.0) as conn:
         cursor = conn.cursor()
         cursor.execute("PRAGMA busy_timeout = 30000")
+        # WAL, matching index.db: the dashboard and `magi graph query` read
+        # this file while a build may be writing it, and in the default
+        # rollback-journal mode a writer blocks every reader for the whole
+        # build. The setting is persistent, so this also upgrades existing dbs.
+        cursor.execute("PRAGMA journal_mode = WAL")
         
         # Create tables
         cursor.executescript("""

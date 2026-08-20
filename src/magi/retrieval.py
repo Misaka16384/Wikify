@@ -23,6 +23,7 @@ import json
 import re
 import sqlite3
 import sys
+import time
 from pathlib import Path
 
 from magi.core.config_loader import load_config, get as cfg_get
@@ -47,14 +48,22 @@ def _die(msg: str, hint: str | None = None, as_json: bool = False) -> int:
     return 1
 
 
-def open_db(db_path: Path, create: bool = False) -> tuple[sqlite3.Connection, bool] | None:
-    """Open the index db. Returns (conn, vec_loaded) or None when absent."""
+def open_db(db_path: Path, create: bool = False,
+            want_vectors: bool = True) -> tuple[sqlite3.Connection, bool] | None:
+    """Open the index db. Returns (conn, vec_loaded) or None when absent.
+
+    `want_vectors=False` skips loading sqlite-vec, which drags numpy in behind
+    it — a fifth of a second of import time that a `--mode bm25` search has no
+    use for. Callers that might touch `chunks_vec` must leave it on.
+    """
     if not create and not db_path.is_file():
         return None
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA journal_mode=WAL")
     vec_loaded = False
+    if not want_vectors:
+        return conn, False
     try:
         import sqlite_vec
 
@@ -166,6 +175,72 @@ def _has_vec_table(conn: sqlite3.Connection, vec_loaded: bool) -> bool:
 # embeddings (Ollama)
 # --------------------------------------------------------------------------
 
+# How many chunks to hand Ollama in one request. Measured on a local
+# qwen3-embedding:0.6b: one-at-a-time cost ~7.7s per chunk under load, a batch
+# of 8 ~2.1s each, a batch of 32 ~1.0s each. Nearly all of it is per-request
+# overhead, so batching is the difference between a 20-minute index and a
+# 3-minute one.
+#
+# 16 rather than the fastest measured 32: a batch is a memory multiplier on the
+# server side, and an Ollama that gets OOM-killed halfway through costs far
+# more than the last 20% of throughput. Raise it with `ollama.embed_batch` in
+# config.yaml on a machine with headroom.
+EMBED_BATCH = 16
+
+
+# A person waiting on a search box is not a batch job. The indexing loop may
+# legitimately sit on Ollama for minutes, and Ollama serves requests one at a
+# time, so a query issued during an index run used to queue behind it — 7 to 33
+# seconds of apparent hang with nothing on screen to explain it. Past this
+# ceiling the search gives up on vectors, returns its BM25 half, and says so
+# through `vector_degraded`, which beats an unbounded wait.
+QUERY_EMBED_TIMEOUT = 8.0
+
+# How long a failed embedder stays disabled before it is worth asking again.
+DISABLED_COOLDOWN = 30.0
+
+_shared_query_embedder: "Embedder | None" = None
+
+
+def _query_embedder() -> "Embedder":
+    """One Embedder for the whole process's searches.
+
+    A fresh one per query re-ran the Ollama preflight — a round trip to
+    /api/tags — before every single search, and threw away the pooled
+    connection each time.
+    """
+    global _shared_query_embedder
+    if _shared_query_embedder is None:
+        _shared_query_embedder = Embedder()
+    return _shared_query_embedder
+
+
+class _EmbedGone(Exception):
+    """The embedding server is unreachable — as opposed to it answering with
+    a refusal. Only this kind of failure is worth restarting and retrying."""
+
+
+def _wrap_transport(exc: Exception) -> Exception:
+    """Decide whether a failed request is worth restarting Ollama over.
+
+    A refused connection means the server is gone, and autostart can bring it
+    back. A timeout means the opposite — it is there and busy — and retrying
+    just makes the caller wait the whole ceiling a second time. An interactive
+    search that should have given up after 8 seconds took 17 before this
+    distinction existed.
+    """
+    try:
+        import requests
+
+        if isinstance(exc, requests.exceptions.Timeout):
+            return exc
+        if isinstance(exc, requests.exceptions.ConnectionError):
+            return _EmbedGone("embedding server unreachable")
+    except ImportError:  # pragma: no cover - requests is a dependency
+        pass
+    return exc
+
+
 class Embedder:
     """Lazy Ollama embedding client; flips to disabled on first failure."""
 
@@ -175,6 +250,15 @@ class Embedder:
         self.model = cfg_get(cfg, "models.embedding", "qwen3-embedding:0.6b")
         self.available: bool | None = None  # unknown until first call
         self._preflighted = False
+        self._disabled_at = 0.0
+        self._session = None
+        # /api/embed (batch) arrived in Ollama 0.3.4; /api/embeddings (single)
+        # is the older one. None = not yet established which this server has.
+        self._batch_api: bool | None = None
+        try:
+            self.batch = max(1, int(cfg_get(cfg, "ollama.embed_batch", EMBED_BATCH)))
+        except (TypeError, ValueError):
+            self.batch = EMBED_BATCH
 
     def _preflight(self) -> bool:
         """Wake a stopped Ollama, and speak up only when a human is needed.
@@ -191,34 +275,136 @@ class Embedder:
         state, _ = ollama_svc.ensure_model(self.base_url, self.model)
         if not state.running or not state.has_model(self.model):
             self.available = False
+            # Stamped so the cooldown applies here too: without it a
+            # long-lived process would re-probe (and re-attempt autostart) on
+            # every single search against a machine with no Ollama on it.
+            self._disabled_at = time.monotonic()
             return False
         return True
 
-    def embed(self, text: str) -> list[float] | None:
-        if self.available is False:
-            return None
-        if not self._preflight():
-            return None
-        try:
+    def _http(self):
+        """A pooled session. A fresh TCP connection per chunk is pure overhead
+        on a run that makes thousands of calls to the same local port."""
+        if self._session is None:
             import requests
 
-            resp = requests.post(
-                f"{self.base_url}/api/embeddings",
-                json={"model": self.model, "prompt": text[:8000]},
-                timeout=60,
-            )
+            self._session = requests.Session()
+        return self._session
+
+    def _disable(self, exc: Exception) -> None:
+        # Failing at the start and failing halfway through are different
+        # events for the user: the first means "no vectors today", the second
+        # means "your index is now partially embedded and you should rerun".
+        # Reporting both as one silent flag is how a run stopped at 64 of 1371
+        # chunks and still exited 0 without a word.
+        if self.available is True:
+            print(f"warning: Ollama stopped responding mid-run ({type(exc).__name__}); "
+                  f"remaining chunks are BM25-only — rerun 'magi index' to backfill them",
+                  file=sys.stderr)
+        elif self.available is None:
+            print(f"note: Ollama embeddings unavailable ({type(exc).__name__}); "
+                  f"continuing BM25-only", file=sys.stderr)
+        self.available = False
+        self._disabled_at = time.monotonic()
+
+    def embed(self, text: str, timeout: float | None = None) -> list[float] | None:
+        vecs = self.embed_many([text], timeout=timeout)
+        return vecs[0] if vecs else None
+
+    def embed_many(self, texts: list[str], timeout: float | None = None) -> list[list[float]] | None:
+        """Embed a batch, or return None if embeddings are unavailable.
+
+        All-or-nothing on purpose: a half-embedded batch would leave chunks
+        silently without vectors, and the caller cannot tell which. Returning
+        None means "no vectors this run", which the index already handles by
+        falling back to BM25 and backfilling on the next run.
+        """
+        if not texts:
+            return []
+        if self.available is False:
+            # Disabling is sticky so one long run does not retry a dead server
+            # thousands of times — but a `magi ui` process lives for days, and
+            # an embedder that stayed disabled forever meant a single blip took
+            # vector search out until the server was restarted. Re-arm once the
+            # cooldown passes and let the next call find out.
+            if (time.monotonic() - self._disabled_at) < DISABLED_COOLDOWN:
+                return None
+            self.available = None
+            self._preflighted = False
+        if not self._preflight():
+            return None
+
+        payload = [t[:8000] for t in texts]
+
+        # One retry, and only for a server that went away: an index run is
+        # long enough that Ollama can be OOM-killed or restarted underneath
+        # it, and autostart already knows how to bring it back — it just used
+        # to run once, at startup, and never again. A malformed request or a
+        # missing model is not retried; it would fail identically.
+        for attempt in (0, 1):
+            try:
+                return self._post_batch(payload, timeout)
+            except _EmbedGone as exc:
+                if attempt == 0:
+                    self._preflighted = False
+                    if self._preflight():
+                        print("note: Ollama went away mid-run; restarted it and retrying",
+                              file=sys.stderr)
+                        continue
+                self._disable(exc.__cause__ or exc)
+                return None
+            except Exception as exc:
+                self._disable(exc)
+                return None
+        return None
+
+    def _post_batch(self, payload: list[str],
+                    timeout: float | None = None) -> list[list[float]]:
+        """One round trip for the whole batch. Raises; never returns None."""
+        # Scale the ceiling with the batch: a 16-chunk request legitimately
+        # takes longer than a single one, and a timeout here costs the run.
+        # An interactive caller passes its own, much shorter, ceiling.
+        if timeout is None:
+            timeout = 60 + 10 * len(payload)
+
+        if self._batch_api is not False:
+            try:
+                resp = self._http().post(
+                    f"{self.base_url}/api/embed",
+                    json={"model": self.model, "input": payload},
+                    timeout=timeout,
+                )
+            except Exception as exc:
+                raise _wrap_transport(exc) from exc
+            if resp.status_code != 404:
+                resp.raise_for_status()
+                vecs = resp.json().get("embeddings")
+                if not vecs or len(vecs) != len(payload) or not all(vecs):
+                    raise ValueError("short or empty embedding batch")
+                self._batch_api = True
+                self.available = True
+                return vecs
+            # Ollama predates /api/embed; use the single-prompt route from
+            # here on rather than probing again on every batch.
+            self._batch_api = False
+
+        out: list[list[float]] = []
+        for text in payload:
+            try:
+                resp = self._http().post(
+                    f"{self.base_url}/api/embeddings",
+                    json={"model": self.model, "prompt": text},
+                    timeout=timeout,
+                )
+            except Exception as exc:
+                raise _wrap_transport(exc) from exc
             resp.raise_for_status()
             vec = resp.json().get("embedding")
             if not vec:
                 raise ValueError("empty embedding")
-            self.available = True
-            return vec
-        except Exception as exc:
-            if self.available is None:
-                print(f"note: Ollama embeddings unavailable ({type(exc).__name__}); "
-                      f"continuing BM25-only", file=sys.stderr)
-            self.available = False
-            return None
+            out.append(vec)
+        self.available = True
+        return out
 
 
 def _serialize(vec: list[float]) -> bytes:
@@ -291,6 +477,37 @@ def _chunk(text: str) -> list[tuple[str, int, int, str]]:
     return chunks
 
 
+class _Progress:
+    """Throttled progress lines for a command that can run for minutes.
+
+    Plain lines, not a redrawn carriage-return bar: this output is read as
+    often through the WebUI's job log as through a terminal, and a `\\r` bar
+    turns into one unreadable smear there. One line every few seconds is
+    enough to tell "working" from "wedged", which is the whole job.
+    """
+
+    INTERVAL = 3.0
+
+    def __init__(self, quiet: bool = False) -> None:
+        self.quiet = quiet
+        self._last = 0.0
+
+    def start(self, message: str) -> None:
+        if self.quiet:
+            return
+        print(f"index: {message}", flush=True)
+        self._last = time.monotonic()
+
+    def tick(self, message: str, force: bool = False) -> None:
+        if self.quiet:
+            return
+        now = time.monotonic()
+        if not force and (now - self._last) < self.INTERVAL:
+            return
+        self._last = now
+        print(f"index: {message}", flush=True)
+
+
 def cmd_index(args: argparse.Namespace) -> int:
     root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if root is None:
@@ -310,6 +527,35 @@ def cmd_index(args: argparse.Namespace) -> int:
 
     seen: set[str] = set()
     changed = unchanged = embedded = 0
+
+    # Embedding is the long pole — minutes, sometimes tens of minutes. Saying
+    # nothing for that whole stretch is indistinguishable from being hung, and
+    # that is exactly how it was reported. Throttled so a terminal and a job
+    # log both stay readable.
+    progress = _Progress(quiet=getattr(args, "quiet", False))
+
+    # (chunk rowid, body) waiting for a vector. Flushed at every file boundary:
+    # SQLite can hand a deleted rowid to the next insert, so a pending vector
+    # must never outlive the DELETE of another file's chunks.
+    pending: list[tuple[int, str]] = []
+
+    def flush_vectors(final: bool = False) -> None:
+        nonlocal embedded, vec_on
+        if not pending:
+            return
+        vecs = embedder.embed_many([body for _, body in pending])
+        if vecs is None:
+            vec_on = False          # BM25-only from here; next run backfills
+            pending.clear()
+            return
+        conn.executemany(
+            "INSERT INTO chunks_vec(rowid, embedding) VALUES(?,?)",
+            [(cid, _serialize(vec)) for (cid, _), vec in zip(pending, vecs)],
+        )
+        embedded += len(vecs)
+        pending.clear()
+        progress.tick(f"embedding: {embedded} chunks vectorized", force=final)
+
     for p in _iter_corpus(root):
         rel = p.relative_to(root).as_posix()
         seen.add(rel)
@@ -340,15 +586,10 @@ def cmd_index(args: argparse.Namespace) -> int:
                 (rel, collection, heading, s, e, body, fts_text(body)),
             )
             if vec_on:
-                vec = embedder.embed(body)
-                if vec is not None:
-                    conn.execute(
-                        "INSERT INTO chunks_vec(rowid, embedding) VALUES(?,?)",
-                        (cur.lastrowid, _serialize(vec)),
-                    )
-                    embedded += 1
-                else:
-                    vec_on = False
+                pending.append((cur.lastrowid, body))
+                if len(pending) >= embedder.batch:
+                    flush_vectors()
+        flush_vectors()
         conn.execute(
             "INSERT OR REPLACE INTO files(path, hash, mtime) VALUES(?,?,?)",
             (rel, digest, p.stat().st_mtime),
@@ -365,17 +606,32 @@ def cmd_index(args: argparse.Namespace) -> int:
         conn.execute("DELETE FROM files WHERE path=?", (rel,))
     conn.commit()
 
-    # backfill vectors for chunks missed in earlier BM25-only runs
+    # Backfill vectors for chunks missed in earlier BM25-only runs. On a
+    # library first indexed without Ollama this is the entire corpus, so it is
+    # the longest phase of the command by far — batched, reported, and
+    # committed as it goes, because an interrupted run that threw away twenty
+    # minutes of embedding was worse than one that stops half-done.
     if dims is not None and _has_vec_table(conn, vec_loaded) and not args.no_vectors and embedder.available:
         missing = conn.execute(
             "SELECT id, content FROM chunks WHERE id NOT IN (SELECT rowid FROM chunks_vec)"
         ).fetchall()
-        for cid, body in missing:
-            vec = embedder.embed(body)
-            if vec is None:
+        if missing:
+            progress.start(f"backfilling vectors for {len(missing)} chunks")
+        done = 0
+        for start in range(0, len(missing), embedder.batch):
+            batch = missing[start:start + embedder.batch]
+            vecs = embedder.embed_many([body for _, body in batch])
+            if vecs is None:
                 break
-            conn.execute("INSERT INTO chunks_vec(rowid, embedding) VALUES(?,?)", (cid, _serialize(vec)))
-            embedded += 1
+            conn.executemany(
+                "INSERT INTO chunks_vec(rowid, embedding) VALUES(?,?)",
+                [(cid, _serialize(vec)) for (cid, _), vec in zip(batch, vecs)],
+            )
+            conn.commit()       # survive a Ctrl-C with the work done so far
+            embedded += len(vecs)
+            done += len(vecs)
+            progress.tick(f"backfill: {done}/{len(missing)} chunks",
+                          force=done == len(missing))
         conn.commit()
 
     total = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
@@ -514,7 +770,7 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
     kbs_skipped: list[str] = []
     try:
         for name, dbp in targets:
-            o = open_db(dbp)
+            o = open_db(dbp, want_vectors=mode != "bm25")
             if o is None:
                 if name == "local" and len(targets) == 1:
                     raise SearchError("no index at output/index.db", "run 'magi index' first")
@@ -527,7 +783,11 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
                               "run 'magi index' in the workspace(s)")
 
         n = max(k * 3, 20)
-        qvec = Embedder().embed(query) if mode in ("hybrid", "vector") else None
+        qvec = None
+        vector_degraded = False
+        if mode in ("hybrid", "vector"):
+            qvec = _query_embedder().embed(query, timeout=QUERY_EMBED_TIMEOUT)
+            vector_degraded = qvec is None
         sargs = argparse.Namespace(query=query, mode=mode, k=k,
                                    collection=collection, path=path)
 
@@ -545,6 +805,12 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
                 merged[(name, cid)] = legs
 
         if mode == "vector" and not vector_available:
+            if vector_degraded:
+                raise SearchError(
+                    "vector search unavailable — Ollama did not answer in "
+                    f"{QUERY_EMBED_TIMEOUT:.0f}s",
+                    "an indexing job monopolises the embedding server while it runs; "
+                    "wait for it to finish, or use --mode bm25")
             raise SearchError("vector search unavailable — this index holds no vectors",
                               "run 'magi index' to embed it (MAGI starts Ollama itself; "
                               "if it is not installed, get it from https://ollama.com)")
@@ -578,6 +844,7 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
             "kbs_searched": [name for name, *_ in opened_targets],
             "kbs_skipped": kbs_skipped,
             "vector_available": vector_available,
+            "vector_degraded": vector_degraded,
             "bm25_hits": bm25_hits, "vector_hits": vector_hits,
             "results": results,
         }
@@ -634,6 +901,8 @@ def main(argv: list[str] | None = None) -> int:
     p_index = sub.add_parser("index", help="Build/refresh the hybrid retrieval index")
     p_index.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
     p_index.add_argument("--no-vectors", action="store_true", help="Skip embeddings (BM25 only)")
+    p_index.add_argument("--quiet", action="store_true",
+                         help="Suppress embedding progress lines (final summary still prints)")
     p_index.set_defaults(func=cmd_index)
 
     p_search = sub.add_parser("search", help="Hybrid BM25+vector search with RRF fusion")
