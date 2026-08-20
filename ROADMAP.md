@@ -2,7 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-20 · 当前阶段：**v1.6.1 已发布**（tag `v1.6.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+> 最后更新：2026-08-20 · 当前阶段：**v1.6.2 已发布**（首个 PyPI 版本）（tag `v1.6.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+>
+> 2026-08-20 上架 PyPI (v1.6.2)：`pip install magi-research` / `pipx install magi-research` / `uv tool install magi-research` 三条路径打通（pipx 不是仓库，它从 PyPI 装，所以只要发一次就都成立）。补齐发布前缺口：**仓库此前没有 LICENSE 文件**（元数据声称 MIT 却没有许可证正文）——补 MIT 全文并列明捆绑三方许可（d3-force ISC / marked MIT / Archivo OFL）；`license` 字段从已弃用的 `{ text = "MIT" }` 换成 PEP 639 的 SPDX 表达式 + `license-files`；补 keywords / 11 条 classifiers / Homepage·Issues·Changelog；README 的 7 张相对路径图改绝对 raw URL（相对路径在 PyPI 上是碎图）；两个 plugin.json 的描述停止宣称当时并不存在的 `pip install magi-research`。CI：`.github/workflows/release.yml` 打 `v*` tag 触发 → 跑测试 → `uv build` → `twine check` → **Trusted Publishing (OIDC)** 发布，全程无 token 落盘；action 版本按各仓库最新 release 对齐（checkout v7 / setup-uv v10 / upload v7 / download v8 / gh-action-pypi-publish release/v1）。`docs/RELEASING.md` 记录两条路线与 TestPyPI 演练。发布前验证：wheel 3.9MB 含 18 个 skill + 中英双份手册 + WebUI 资源，`twine check` 双产物 PASSED，装进干净 venv 后 `magi --version`/`guide`/`skills` 全部正常。
 >
 > 2026-08-20 技能改为工作区级安装 (v1.6.1)：用户反馈「随便开个目录点开 agy 都带着这些 skill——不要默认全局安装」。**默认 scope 从 global 翻转为 project**，锚点是 MAGI 工作区根（topic → hub → cwd，从 raw/ 深处跑也落在工作区根，不再用 .git 走查）；`--scope global` 保留但会打印一次提醒；不在工作区里跑 project 安装也会提示「这里不是工作区」。`magi setup` **不再自动装技能**，改为只报告检测到哪些 agent CLI 并给出 `cd <topic> && magi skills install`；体检行随处境切换：在工作区里报该工作区的技能数，否则报「按工作区安装」。`magi init` 结尾提示一键安装。理由写进文档：18 个技能都围着某个研究工作区转（摄入 raw/、编译 wiki/、查该库图谱），装全局等于让每个无关项目白背它们；装工作区还能随仓库分发给同事。已在本机清理掉先前写入四个宿主全局目录的 108 个文件（他人技能 agent-browser/pptx/humanizer 未动）。新增 3 项测试锁住策略（默认 scope、工作区锚点、setup 不写文件），120 → 123。
 >
