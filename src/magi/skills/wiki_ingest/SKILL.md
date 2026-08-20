@@ -71,6 +71,7 @@ When the user asks to ingest documents (or runs the command without a path):
     *   For real errors, read the **original source PDF** at the corresponding location. If you cannot easily infer the formula structure, use the PDF cropping tool:
         `magi ingest crop "<PDF_PATH>" --text "<search_text_near_error>" --out "<TOPIC_DIR>\scratch\crop.png"`
     *   View the generated `crop.png`, correct the Markdown from the ground truth, and re-run `magi math check <FILE>` until only annotated possible-macro entries remain.
+    *   **Ingesting a batch?** Do not do this file by file. `magi math check --json` harvests every broken formula in the workspace at once, and the `wiki_math_fix` skill works that list — including the common case where one unclosed `$$` swallowed a page of prose.
 
 7.  **Global Lint & Index (End of Batch)**:
     *   **CRITICAL:** Once ALL files in the `inbox/` have been processed through steps 1-6, you MUST run the global lint and index operation ONCE outside the loop:

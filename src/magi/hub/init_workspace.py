@@ -166,6 +166,10 @@ environment. Scope: {args.scope}
 - `magi ingest auto <path>` (or bare, for all of `inbox/`) instead of choosing
   between ingest mineru/ocr/tex/add and remembering `ingest finalize`.
 - `magi each <command>` to run one command across every topic of a hub.
+- `magi math check --json` after a batch of ingests, instead of checking each
+  file. Ingestion's signature failure is a `$$` that lost its closing pair and
+  swallowed the paragraph after it — that parses as valid LaTeX, so nothing
+  else catches it. Work the list with the `wiki_math_fix` skill.
 
 ## Ground rules
 

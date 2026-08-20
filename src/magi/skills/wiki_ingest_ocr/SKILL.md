@@ -49,6 +49,7 @@ When the user asks to ingest PDFs using local OCR (or runs the command without a
     *   **CRITICAL TOOL**: If you cannot easily infer the formula structure, you MUST use the provided PDF cropping tool to extract the exact region around the error as an image for your multimodal vision:
         `magi ingest crop "<PDF_PATH>" --text "<search_text_near_error>" --out "<TOPIC_DIR>\scratch\crop.png"`
     *   View the generated `crop.png`, then manually edit the Markdown file to correct the semantic math errors based on the ground truth in the original paper, and re-run `magi math check <FILE>` to confirm all errors are gone.
+    *   **After a batch of OCR runs**, sweep the whole workspace instead: `magi math check --json` lists every damaged formula, and the `wiki_math_fix` skill goes through them — OCR's signature failure is a `$$` that lost its closing pair and swallowed the paragraph after it, which parses as valid LaTeX and so passes every per-file check.
 
 6.  **Global Lint & Index (End of Batch)**:
     *   **CRITICAL:** Once ALL files in the `inbox/` have been processed through steps 1-5, you MUST run the global lint and index operation ONCE outside the loop:

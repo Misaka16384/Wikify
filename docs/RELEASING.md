@@ -5,19 +5,46 @@
 `pyproject.toml`, `src/magi/__init__.py`, `plugin.json`, `.claude-plugin/plugin.json`,
 and the badge in `src/magi/ui/static/index.html`. All five must match before tagging.
 
-## GitHub release (current路线)
+## Cutting a release
 
 ```powershell
 .venv\Scripts\python.exe -m pytest tests/ -q     # must be green
-git commit -am "..." ; git tag -a vX.Y.Z -m "..." ; git push origin main --tags
-gh release create vX.Y.Z --title "..." --notes "..."
-uv tool install --force git+https://github.com/Misaka16384/magi.git
+git commit -am "..."
+git tag -a vX.Y.Z -m "vX.Y.Z — one line
+
+Whatever the release notes should say."
+git push origin main
+git push origin vX.Y.Z
 ```
+
+Pushing the tag is the whole release. `.github/workflows/release.yml` tests,
+builds, `twine check`s, publishes to PyPI, **and creates the GitHub Release**
+with the wheel and sdist attached.
+
+**Write the tag annotation as the release notes.** The workflow takes its title
+from the tag's subject line and its body from the rest, so what you type in
+`git tag -a` is what appears on the Releases page. A one-line tag message falls
+back to the commit body.
+
+> Between v1.8.0 and v1.9.1 five tags shipped to PyPI with no GitHub Release at
+> all — invisible to anyone not watching PyPI, with no changelog and nothing to
+> link to. That is why this is a workflow job now and not a step in this list.
+> The job skips a tag that already has a release, so re-running is safe.
 
 Prepend a dated entry to `ROADMAP.md` — it is the living handoff document.
 
+Then upgrade the local install and restart any dashboards:
+
+```powershell
+uv tool install --force --refresh "magi-research==X.Y.Z"
+```
+
+> Pin the exact version. `--refresh` alone sometimes still resolves the previous
+> release from the index cache right after publishing.
+
 > If `uv tool install --force` fails with `failed to remove directory ... Lib:
-> 拒绝访问`, a `magi ui` process is holding the install. Stop it and retry.
+> 拒绝访问`, a `magi ui` process is holding the install. Stop every one of them
+> first — a half-failed install leaves the CLI broken.
 
 ## PyPI (`pip install magi-research`)
 

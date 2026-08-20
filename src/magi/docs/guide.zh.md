@@ -618,11 +618,32 @@ magi wiki placeholders wiki/concepts/x.md # 找出没写完的占位段落
 ### 公式 {#compile-math}
 
 ```powershell
-magi math format raw/papers/x.md    # 机械修复：$$ 配对、\tag 位置、eqnarray→align、OCR 粘连
-magi math check raw/papers/x.md     # 只报错不改：pylatexenc 结构检查（有 pdflatex 时再深一层）
+magi math format                    # 机械修复：$$ 配对、\tag 位置、eqnarray→align、OCR 粘连
+magi math check                     # 只报错不改：整库扫一遍，按文件列出坏在哪
+magi math check --json              # 同上，但输出一张可逐条处理的工单
 ```
 
-顺序永远是**先 format 再 check**。
+**两条命令默认都作用于整个工作区**（和 `magi lint` 一样），也可以像 `magi math check raw/papers/x.md`
+这样只点一个文件或目录。范围限定在 `wiki/ raw/ drafts/`——`format` 是就地改写且没有 dry-run，
+`scratch/` 里放的正是概念卡备份，不能被它碰。
+
+顺序永远是**先 format 再 check**：能机械修的先修掉，剩下的才值得人去读。
+
+`--fast` 跳过逐文件的 pdflatex 深检（大库能省几分钟），`--wiki-only` 只看编译好的卡片。
+
+`--json` 每条一个公式，带 `id`（`路径:行`，可勾掉）、行范围、原始 TeX、以及 `confidence`：
+
+| `confidence` | 含义 |
+|---|---|
+| `certain` | 结构确实坏了：括号不配对、环境不匹配、`$$` 没闭合 |
+| `likely-macro` | pdflatex 不认得这个宏——**九成是它没加载的宏包，不是错字** |
+
+> [!TIP]
+> **同一文件里连续好几条，通常是同一个缺陷。** `$$` 是顺序配对的，少一个闭合符会让后面每一对
+> 都错位、各报一条。**改第一条再复验那个文件**，一百多条常常塌成十几处真实改动——千万别自底向上改。
+
+**逐条修不用自己扛**：`wiki_math_fix` 技能就是干这个的——先跑 format，再按 `wiki/` 优先的顺序
+读原文、必要时对着源 PDF 核对、改完单文件复验。在 agent 里说「把公式修一下」即可。
 
 > [!NOTE]
 > `Undefined control sequence` 多半是**误报**——校验器不认识某个宏包的宏而已。抽一个对照原 PDF 确认后，其余同类可以忽略。真正要改的是 `Double subscript`、`Missing }`、`Unexpected end of stream` 这类结构错误：用 `magi ingest crop <pdf> --text "<附近文字>" --out scratch/crop.png` 把原文裁出来对着改。

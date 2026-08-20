@@ -617,11 +617,41 @@ magi wiki placeholders wiki/concepts/x.md # Find unfinished placeholder sections
 ### Formulas {#compile-math}
 
 ```powershell
-magi math format raw/papers/x.md    # Mechanical fixes: pairing $$, \tag placement, eqnarray→align, OCR run-ons
-magi math check raw/papers/x.md     # Reports only, doesn't fix: pylatexenc structural check (goes deeper if pdflatex is available)
+magi math format                    # Mechanical fixes: pairing $$, \tag placement, eqnarray→align, OCR run-ons
+magi math check                     # Reports only, doesn't fix: sweeps the library, grouped by file
+magi math check --json              # The same, as a worklist you can go through one entry at a time
 ```
 
-The order is always **format first, then check**.
+**Both default to the whole workspace**, the way `magi lint` does — or name a file
+or directory (`magi math check raw/papers/x.md`) to narrow it. Scoped to
+`wiki/ raw/ drafts/`: `format` edits in place with no dry-run, and `scratch/` is
+where the concept backups live.
+
+The order is always **format first, then check** — clear the mechanical damage,
+and what remains is worth a human reading.
+
+`--fast` skips the per-file pdflatex pass (minutes, on a large library);
+`--wiki-only` narrows to compiled cards.
+
+`--json` gives one entry per formula, with an `id` (`path:line`, so you can tick
+them off), the line range, the offending TeX verbatim, and a `confidence`:
+
+| `confidence` | What it means |
+|---|---|
+| `certain` | Genuinely broken structure: unbalanced braces, mismatched environment, an unclosed `$$` |
+| `likely-macro` | pdflatex doesn't recognize the macro — **nine times in ten a package it doesn't load, not a typo** |
+
+> [!TIP]
+> **Several consecutive entries in one file are usually one defect.** `$$` pairs
+> up in order, so a single missing closer shifts every pair after it and each
+> shifted pair gets reported. Fix the *first* one, re-check that file, and a
+> hundred entries often collapse to a dozen real edits. Never work such a file
+> bottom-up.
+
+**You don't have to work the list by hand**: the `wiki_math_fix` skill exists for
+exactly this — deterministic pass first, then `wiki/` before `raw/`, reading the
+source and cropping the PDF when the intent is unclear. Just ask your agent to
+fix the formulas.
 
 > [!NOTE]
 > `Undefined control sequence` is usually a **false positive** — the checker just doesn't recognize a macro from some package. Spot-check one against the original PDF, and you can ignore the rest of that kind. What you actually need to fix are structural errors like `Double subscript`, `Missing }`, and `Unexpected end of stream`: crop the original text out with `magi ingest crop <pdf> --text "<nearby text>" --out scratch/crop.png` and edit against it.

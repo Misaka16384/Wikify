@@ -57,3 +57,49 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  # A tag with no GitHub Release is invisible to anyone who does not watch
+  # PyPI: no changelog, no notification, nothing to link to. Five releases
+  # went out that way before anyone noticed, so this is no longer manual.
+  #
+  # Notes come from the tag's own annotation when it has a body, and fall
+  # back to the commit subject — write the tag message and the release
+  # writes itself. Never overwrites an existing release.
+  github-release:
+    needs: publish
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # creating a release is a write to the repo
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # tag annotations do not come with a shallow clone
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist/
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; leaving it alone."
+            exit 0
+          fi
+          # `git tag -l --format=%(contents:body)` is empty for a lightweight
+          # tag and for `-m` messages that are a single line.
+          BODY="$(git tag -l --format='%(contents:body)' "$TAG")"
+          if [ -z "${BODY// }" ]; then
+            BODY="$(git log -1 --pretty=%B "$TAG")"
+          fi
+          SUBJECT="$(git tag -l --format='%(contents:subject)' "$TAG")"
+          [ -z "${SUBJECT// }" ] && SUBJECT="$TAG"
+          printf '%s\n\n```bash\nuv tool install --force magi-research\n```\n' \
+            "$BODY" > notes.md
+          gh release create "$TAG" \
+            --title "$SUBJECT" \
+            --notes-file notes.md \
+            --verify-tag \
+            dist/*
