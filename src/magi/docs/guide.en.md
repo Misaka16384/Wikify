@@ -943,6 +943,7 @@ Or paste the error to your agent and let the `magi_guide` skill look it up (see 
 |---|---|
 | No idea what to do next | `magi sync` — check the last line, `->` |
 | Installed, but `magi` isn't found | Open a **new terminal**; if that still doesn't work, add `~/.local/bin` to PATH |
+| Upgrade fails with `failed to remove directory ... Lib` | On Windows a running `magi ui` holds the install directory. Stop the dashboard, then upgrade |
 | A feature complains about a missing dependency | `magi setup --check` |
 | The command says `no workspace found` | `cd` into the topic directory, or add `--topic-dir` |
 | Don't know where a topic lives | `magi hub list` / `magi hub resolve <hub> <slug>` |

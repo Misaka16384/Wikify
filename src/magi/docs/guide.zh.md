@@ -943,6 +943,7 @@ magi guide --symptoms --search "ollama"     # 按关键词过滤
 |---|---|
 | 完全不知道下一步做什么 | `magi sync` —— 看最后一行 `->` |
 | 装完了但 `magi` 找不到 | 开**新终端**；仍不行把 `~/.local/bin` 加进 PATH |
+| 升级时报 `failed to remove directory ... Lib: 拒绝访问` | Windows 上 `magi ui` 正开着，占用安装目录。关掉看板再重装 |
 | 某个功能报缺依赖 | `magi setup --check` |
 | 命令说 `no workspace found` | `cd` 进主题目录，或加 `--topic-dir` |
 | 不知道某个主题在哪 | `magi hub list` / `magi hub resolve <hub> <slug>` |
