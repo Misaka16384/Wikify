@@ -40,6 +40,32 @@ magi sync                    # sanity check: sync ratio + three-core status + ne
 
 **③ Just want to try it** — skip the hub; `magi init` works right away in any empty directory, and you can fold it into a hub later with `magi hub register <slug>`.
 
+### How to read this manual {#howto-read}
+
+The same content has three entrances — take whichever is closest to hand:
+
+| Entrance | Best for | How |
+|---|---|---|
+| **Dashboard** | Reading it through, working alongside it | `magi ui` → Docs & Help → User Guide |
+| **Terminal** | You're stuck on a command right now | `magi guide` lists chapters; `magi guide ingest` reads one |
+| **Ask your agent** | You'd rather not look it up yourself | Paste the error into the chat and let it search |
+
+The three that earn their keep in a terminal:
+
+```powershell
+magi guide                          # List every chapter (number + anchor + one-line summary)
+magi guide graph                    # Read a chapter by number 7, anchor graph, or part of its title
+magi guide --search "no workspace found"   # Full-text search — paste the error verbatim
+magi guide --symptoms               # The whole symptom -> cause -> fix index
+```
+
+`--json` is the machine format for agents; `--lang en` switches language.
+
+**Let the agent do the diagnosing**: the repo ships a `magi_guide` skill, installed with the plugin. Paste the error as-is, or just say "use magi_guide," and it will search the manual by symptom, read the relevant chapter, confirm the current state with `magi sync` / `magi setup --check`, and hand you the exact command the manual prescribes — instead of inventing a flag from memory.
+
+> [!NOTE]
+> Every command in this manual is checked against the real CLI, and a test keeps it from drifting. That makes an agent quoting the manual considerably more reliable than an agent recalling one — for anything MAGI-related, it's worth telling it to look it up first.
+
 ### How to read `magi sync`
 
 `magi sync` is the first command you run every time you sit down, and the first command you run whenever you're stuck:
@@ -148,9 +174,31 @@ Install the CLI once; after that, starting a new topic only takes `magi init`.
 
 ### Teach your CLI agent to use MAGI {#install-hosts}
 
-This step isn't a nice-to-have: **the knowledge base's compile step only runs inside an agent** (see Chapter 6). Every host shares the same `skills/*/SKILL.md` files from the repo — the only difference is how you install them:
+This step isn't a nice-to-have: **the knowledge base's compile step only runs inside an agent** (see Chapter 6).
 
-**Claude Code** — the one-line install script already sets this up (`magi setup` runs it automatically when it detects a `claude` command). Skills show up under a namespace like `/magi:wiki_ingest`, and the plugin also ships a SessionStart hook that runs `magi sync` automatically at the start of every new session. To install manually:
+One command covers every agent CLI on your machine:
+
+```powershell
+magi skills install              # global: every detected CLI, every project
+magi skills install --scope project   # only this directory (travels with the repo)
+magi skills where                # where each CLI reads from, and what is installed
+magi skills install --host codex --dry-run   # see the exact files first, write nothing
+```
+
+The skill files ship with the CLI — **no repo clone, no network**. `magi setup` also installs them into every detected CLI (turn that off with `--no-skills`).
+
+| Host | Global | Project | How it fires |
+|---|---|---|---|
+| **Claude Code** | `~/.claude/skills/` | `.claude/skills/` | `/skill-name`, and auto by description |
+| **Codex** | `~/.agents/skills/` (plus `~/.codex/skills/`) | `<repo root>/.agents/skills/` | `$skill-name`, or Codex picks it by description |
+| **Antigravity (agy)** | `~/.gemini/config/skills/` | `<repo root>/.agents/skills/` | Name it in your prompt, or auto by description; `/skills` browses |
+| **opencode** | `~/.config/opencode/commands/` + `skills/` | `.opencode/commands/` + `skills/` | `/skill-name` |
+
+> [!NOTE]
+> **Not every CLI has slash commands.** Claude Code and opencode do; Codex uses `$skill-name`; agy only fires on description matching (`/skills` is just a browser). So the one habit that works everywhere is simply to **say what you want** — "ingest the papers in inbox", "look up this error" — and let the matching skill load itself.
+> `.agents/skills/` is the cross-agent convention: Codex, agy and opencode all read it, so one project-scope install feeds all three.
+
+**Claude Code can also use the plugin** (the one-line installer does this for you): skills arrive namespaced, and the plugin adds a SessionStart hook that runs `magi sync` at the start of every session:
 
 ```powershell
 claude plugin marketplace add Misaka16384/magi
@@ -158,20 +206,20 @@ claude plugin install magi
 claude plugin install <local-repo-dir>      # local development mode
 ```
 
-**Codex and other Agent Plugins 1.0 hosts** — the repo ships a `plugin.json` at its root; just point your host's own plugin-install flow at this repo.
+The plugin and `magi skills install` coexist — one gives you `/magi:skill-name`, the other `/skill-name`.
 
-**Gemini CLI / Antigravity** — copy or symlink the repo's `skills/` into `<project>/.agents/skills/`. There's no script for this step; do it by hand.
-
-**Any other agent** — the workspace's `CLAUDE.md` and `AGENTS.md` (identical content, two copies) serve as the onboarding protocol: they tell the agent to run `magi sync` first, which commands map to which core, and that it "must never answer research questions from memory — it must cite a `[[wikilink]]` and verify with `magi verify`." As long as the host reads either file, it knows what to call. If it doesn't recognize either one, pasting the output of `magi --help` to it is enough to get it working.
+**Any other agent** — the workspace's `CLAUDE.md` and `AGENTS.md` (identical content, two copies) are the onboarding protocol: run `magi sync` on entry, which commands map to which core, use `magi guide --search` when stuck, and never answer research questions from memory. Any host that reads either file can work here; if it reads neither, pasting `magi --help` is enough.
 
 > [!EXPECT]
-> Type `/magi:` in the agent to see the skill list; or just say something like "ingest the papers in inbox" and it will call `magi ingest` on its own.
+> `magi skills where` shows 18/18 on the matching row. Start a fresh agent session and the skills appear under `/` (Claude Code, opencode), or just say "ingest the papers in inbox" and watch it act.
 
 > [!FIX]
-> - Skill list doesn't include magi: confirm with `claude plugin list`; if it's missing, rerun the two commands above.
-> - The agent calls a script path that doesn't exist (`python bin/llm-wiki.py ...`): the legacy Wikify SKILL.md is still around. Run `magi setup --remove-legacy`.
-> - A skill is missing from the list (e.g. `wiki_draft`): the host's skill index cache is stale. Reinstall the plugin or restart the agent session.
-> - `magi setup`, `magi migrate`, and `magi ui` **have no corresponding skill** — they're CLI-only commands, typed directly in the terminal.
+> - **Installed but not showing**: skills are scanned at startup — **start a new session**.
+> - **Not sure where they went**: `magi skills where` prints the real path and count per CLI.
+> - **It says skipped**: a file of the same name was already there and didn't look like ours, so it wasn't overwritten. Check it, then `magi skills install --force`.
+> - **The agent calls a script that doesn't exist** (`python bin/llm-wiki.py ...`): old Wikify SKILL.md files are still around — run `magi setup --remove-legacy`.
+> - **To remove them**: `magi skills uninstall [--host X] [--scope project]`.
+> - `magi setup`, `magi migrate`, and `magi ui` **have no skill** — they are CLI-only commands.
 
 ### External tools (as needed) {#install-tools}
 
@@ -191,6 +239,8 @@ ollama pull glm-ocr                  # local OCR (optional)
 ```
 
 Windows's `pandoc-crossref.exe` already ships in the repo under `vendor/windows/`: add it to PATH, or point to it in the workspace's `config.yaml` under `tools.pandoc_crossref_path`.
+
+The last four rows of the health check are the agent CLIs on your machine (claude / codex / agy / opencode): whether each is installed, and how many skills it has. If any are missing, it prints the command to fix that.
 
 > [!WARN]
 > `magi setup --check`'s health check only looks at PATH — it **doesn't read** the `tools.*` paths in `config.yaml`. So if the table shows `[-] pdftoppm` but you've already set an absolute path in the config, ingestion will actually still work — trust the real run, not the table.
@@ -871,7 +921,14 @@ The **⚡ MAGI MODE** toggle in the top bar switches the tactical theme: red is 
 
 ## Troubleshooting quick reference {#troubleshoot}
 
-Look things up by symptom — you don't need to remember which command belongs where.
+Look things up by symptom — you don't need to remember which command belongs where. The same table is available in the terminal:
+
+```powershell
+magi guide --symptoms                       # The whole index (~84 entries)
+magi guide --symptoms --search "ollama"     # Filtered by keyword
+```
+
+Or paste the error to your agent and let the `magi_guide` skill look it up (see [1.2](#howto-read)).
 
 | Symptom | Run this first |
 |---|---|

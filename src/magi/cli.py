@@ -30,6 +30,11 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("hub", "register"): ("magi.kb.llmwiki", ["archive", "register"], "Register an existing topic in the hub"),
     ("sync",): ("magi.sync", [], "Workspace onboarding: sync ratio + three-core status"),
     ("ui",): ("magi.ui.server", [], "Launch the local MAGI WebUI dashboard"),
+    ("guide",): ("magi.guide", [], "Read the built-in manual (chapters, --search, --symptoms)"),
+    ("skills", "list"): ("magi.skills_cmd", ["list"], "List the agent skills bundled with magi"),
+    ("skills", "where"): ("magi.skills_cmd", ["where"], "Show where each agent CLI loads skills from"),
+    ("skills", "install"): ("magi.skills_cmd", ["install"], "Install the skills into your agent CLI(s) (--scope global|project)"),
+    ("skills", "uninstall"): ("magi.skills_cmd", ["uninstall"], "Remove magi's skills from an agent CLI"),
     ("setup",): ("magi.setup_cmd", [], "Provision the environment (beads, models, plugin) + doctor"),
     ("migrate",): ("magi.migrate", [], "Migrate a pre-magi (Wikify) workspace (hub or topic)"),
     # work state (Beads bridge)
@@ -97,6 +102,7 @@ _GROUP_HELP = {
     "claims": "Claim/evidence provenance",
     "radar": "Literature radar (scheduled discovery)",
     "tags": "Tag ontology normalization",
+    "skills": "Agent skills, installed per CLI host",
 }
 
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "magi-research"
-version = "1.5.0"
+version = "1.6.0"
 description = "MAGI: agent-native research workspace — knowledge base, retrieval, and literature radar for CLI agents"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -35,6 +35,7 @@ magi = "magi.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
+"magi" = ["docs/*.md", "skills/*/SKILL.md", "skills/*/templates/*.md"]
 "magi.ingest.ocr" = ["Modelfile*", "*.md"]
 "magi.ui" = ["static/*", "static/**/*"]
 

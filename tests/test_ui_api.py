@@ -1161,9 +1161,9 @@ def test_no_cors_headers_emitted(client):
 
 
 def _guide_files():
-    from magi.ui.api import _get_static_dir
+    from magi.guide import docs_dir
 
-    return sorted((_get_static_dir() / "docs").glob("guide.*.md"))
+    return sorted(docs_dir().glob("guide.*.md"))
 
 
 def test_guide_endpoint_and_language_fallback(client):

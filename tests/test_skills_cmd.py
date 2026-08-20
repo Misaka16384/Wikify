@@ -1,0 +1,176 @@
+"""`magi skills` — the same skills, installed into whichever agent CLI you use.
+
+These lock the two things that make it cross-CLI rather than Claude-only:
+the skills ship inside the wheel, and every host's target directory and
+invocation are declared explicitly instead of assumed.
+"""
+
+from __future__ import annotations
+
+import json
+
+import pytest
+
+from magi.skills_cmd import (
+    HOSTS,
+    Skill,
+    files_for,
+    install_host,
+    load_skills,
+    main,
+    render_command,
+    target_dir,
+    uninstall_host,
+)
+
+
+def test_skills_are_packaged_and_well_formed():
+    skills = load_skills()
+    assert len(skills) >= 17, "the whole skill set must ship inside the package"
+    names = {s.name for s in skills}
+    assert {"magi_guide", "wiki_ingest", "wiki_compile", "radar_review"} <= names
+
+    for s in skills:
+        text = s.text
+        assert text.startswith("---"), f"{s.name}: SKILL.md needs YAML frontmatter"
+        assert s.description, f"{s.name}: description is what every host matches on"
+        assert f"name: {s.name}" in text, f"{s.name}: frontmatter name must match its directory"
+        assert "magi " in text, f"{s.name}: a MAGI skill should drive the magi CLI"
+        # Legacy Wikify script paths would send agents to files that no longer exist.
+        assert "llm-wiki.py" not in text, f"{s.name}: stale pre-CLI script reference"
+
+
+def test_skills_are_host_neutral():
+    """No skill may assume one CLI's tool names without offering the generic form."""
+    for s in load_skills():
+        text = s.text
+        if "Read tool" in text or "`Read`" in text:
+            assert "tool-agnostic" in text or "framework-agnostic" in text or "your agent's" in text, (
+                f"{s.name}: names a Claude-specific tool with no generic fallback"
+            )
+
+
+def test_every_host_declares_scopes_and_invocation():
+    assert set(HOSTS) == {"claude", "codex", "antigravity", "opencode"}
+    for host in HOSTS.values():
+        assert host.targets, f"{host.key}: no target directory declared"
+        assert any(t.project_dir is not None for t in host.targets), (
+            f"{host.key}: must support project scope"
+        )
+        for t in host.targets:
+            assert t.kind in {"skill", "command"}
+            assert t.layout in {"dir", "flat"}
+            assert t.invoke, f"{host.key}: every target must say how it is triggered"
+            assert target_dir(t, "global") is not None
+
+
+def test_project_scope_is_under_the_given_root(tmp_path):
+    (tmp_path / ".git").mkdir()          # repo-root anchored hosts look for this
+    for host in HOSTS.values():
+        for t in host.targets:
+            if t.project_dir is None:
+                continue
+            dest = target_dir(t, "project", tmp_path)
+            assert str(dest).startswith(str(tmp_path)), f"{host.key}: project scope escaped the root"
+
+
+def test_layouts_render_what_each_host_expects(tmp_path):
+    skill = next(s for s in load_skills() if s.name == "magi_guide")
+
+    dir_target = HOSTS["claude"].targets[0]
+    (path, text), = files_for(skill, dir_target, tmp_path)
+    assert path.name == "SKILL.md" and path.parent.name == "magi_guide"
+    assert text == skill.text
+
+    cmd_target = next(t for t in HOSTS["opencode"].targets if t.kind == "command")
+    (cpath, ctext), = files_for(skill, cmd_target, tmp_path)
+    assert cpath.name == "magi_guide.md"
+    assert ctext.startswith("---\ndescription: ")
+    assert "$ARGUMENTS" in ctext, "an opencode command must accept the user's arguments"
+    assert "name: magi_guide" not in ctext, "command files take no name key"
+
+
+def test_render_command_keeps_the_body_but_not_the_old_frontmatter():
+    skill = next(s for s in load_skills() if s.name == "wiki_ingest")
+    out = render_command(skill)
+    body = out.split("---\n", 2)[2]
+    assert len(body) > 800, "the whole skill body must be inlined into the command"
+    assert "name: wiki_ingest" not in out, "old frontmatter must not leak through"
+    assert out.rstrip().endswith("$ARGUMENTS")
+
+
+def test_install_is_idempotent_and_reversible(tmp_path):
+    skills = [s for s in load_skills() if s.name in {"magi_guide", "wiki_ask"}]
+    host = HOSTS["claude"]
+
+    first = install_host(host, skills, "global", force=False, dry_run=False, override_dir=tmp_path)
+    assert first["counts"]["created"] == 2
+    assert (tmp_path / "magi_guide" / "SKILL.md").is_file()
+
+    second = install_host(host, skills, "global", force=False, dry_run=False, override_dir=tmp_path)
+    assert second["counts"]["unchanged"] == 2
+    assert second["counts"]["created"] == 0
+
+    removed = uninstall_host(host, skills, "global", dry_run=False, override_dir=tmp_path)
+    assert len(removed["removed"]) == 2
+    assert not (tmp_path / "magi_guide").exists()
+
+
+def test_dry_run_writes_nothing(tmp_path):
+    skills = load_skills()[:2]
+    report = install_host(HOSTS["codex"], skills, "global", force=False, dry_run=True,
+                          override_dir=tmp_path)
+    assert report["counts"]["created"] >= 2
+    assert not any(tmp_path.iterdir())
+
+
+def test_a_foreign_file_is_not_clobbered(tmp_path):
+    skills = [s for s in load_skills() if s.name == "magi_guide"]
+    victim = tmp_path / "magi_guide" / "SKILL.md"
+    victim.parent.mkdir(parents=True)
+    victim.write_text("someone else's skill, unrelated content\n", encoding="utf-8")
+
+    report = install_host(HOSTS["claude"], skills, "global", force=False, dry_run=False,
+                          override_dir=tmp_path)
+    assert report["counts"]["skipped"] == 1
+    assert "someone else" in victim.read_text(encoding="utf-8")
+
+    forced = install_host(HOSTS["claude"], skills, "global", force=True, dry_run=False,
+                          override_dir=tmp_path)
+    assert forced["counts"]["updated"] == 1
+
+
+def test_cli_surface(capsys, tmp_path):
+    assert main(["list", "--json"]) == 0
+    listing = json.loads(capsys.readouterr().out)
+    assert listing["count"] >= 17
+    assert all(s["description"] for s in listing["skills"])
+
+    assert main(["where", "--json"]) == 0
+    where = json.loads(capsys.readouterr().out)
+    assert {r["host"] for r in where["hosts"]} == set(HOSTS)
+    assert all({"scope", "kind", "dir", "invoke", "total"} <= set(r) for r in where["hosts"])
+
+    assert main(["install", "--host", "claude", "--dir", str(tmp_path),
+                 "--only", "magi_guide", "--dry-run", "--json"]) == 0
+    plan = json.loads(capsys.readouterr().out)
+    assert plan["dry_run"] is True
+    assert plan["results"][0]["counts"]["created"] == 1
+    assert not any(tmp_path.iterdir())
+
+
+def test_unknown_host_is_rejected():
+    with pytest.raises(SystemExit):
+        main(["install", "--host", "not-a-real-cli", "--dry-run"])
+
+
+def test_registered_in_the_dispatch_table():
+    from magi.cli import _COMMANDS, _GROUP_HELP
+    from magi.core.cli_i18n import command_help_zh, group_help_zh
+
+    for sub in ("list", "where", "install", "uninstall"):
+        key = ("skills", sub)
+        assert key in _COMMANDS
+        assert _COMMANDS[key][0] == "magi.skills_cmd"
+        assert command_help_zh(key), f"{key}: missing Chinese help"
+    assert _GROUP_HELP.get("skills") and group_help_zh("skills")

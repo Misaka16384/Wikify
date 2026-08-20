@@ -56,7 +56,7 @@
 ```text
 你（驾驶员）
   └─ Claude Code / Codex / Antigravity（机体：负责推理、写作、判断）
-       ├─ skills/*/SKILL.md   —— 教 agent「何时、为何」执行各条流水线
+       ├─ skills（随 CLI 分发）—— 教 agent「何时、为何」执行各条流水线
        └─ magi CLI（拘束具）  —— 所有确定性操作：摄入、图谱、检索、校验、任务、雷达
             └─ 持久状态在文件与数据库里：raw/ wiki/ output/ .beads/
 ```
@@ -126,11 +126,30 @@ uv tool install --python 3.12 git+https://github.com/Misaka16384/magi
 
 ### 2.4 Skills 安装（教 agent 用 MAGI）
 
-所有宿主共享仓库里同一份 `skills/*/SKILL.md`：
+18 个 skill 随 CLI 一起分发（`magi/skills/*/SKILL.md`，在 wheel 里），**一条命令装进你机器上所有 agent CLI**，不需要 clone 仓库：
 
-- **Claude Code**：一键安装脚本已自动注册（`magi setup` 完成 `claude plugin marketplace add Misaka16384/magi` + `claude plugin install magi`）。skills 以 `/magi:wiki_ingest` 这样的命名空间出现，plugin 附带 SessionStart hook 自动跑 `magi sync`；本地开发模式可 `claude plugin install <仓库目录>`。
-- **Codex 及其他 Agent Plugins 1.0 宿主**：仓库根部自带 `plugin.json`，按宿主的插件安装流程指向本仓库。
-- **Gemini / Antigravity**：把 `skills/` 复制（或链接）到 `<project>/.agents/skills/`。
+```powershell
+magi skills install                   # 全局：所有检测到的 CLI
+magi skills install --scope project   # 只装进当前目录（随仓库走）
+magi skills where                     # 每个 CLI 从哪读、装了几个、怎么触发
+```
+
+`magi setup` 也会自动装一遍（`--no-skills` 关闭）。
+
+| 宿主 | 全局位置 | 项目位置 | 怎么触发 |
+|---|---|---|---|
+| **Claude Code** | `~/.claude/skills/` | `.claude/skills/` | `/技能名`（插件方式为 `/magi:技能名`），也按描述自动触发 |
+| **Codex** | `~/.agents/skills/`（外加 `~/.codex/skills/`） | `<仓库根>/.agents/skills/` | `$技能名`，或按描述自选 |
+| **Antigravity（agy）** | `~/.gemini/config/skills/` | `<仓库根>/.agents/skills/` | 按描述自动触发；`/skills` 浏览 |
+| **opencode** | `~/.config/opencode/{commands,skills}/` | `.opencode/{commands,skills}/` | `/技能名` |
+
+> 不是每个 CLI 都有斜杠命令（Codex 用 `$`，agy 只按描述触发）。到哪都好使的用法是直接说需求：「摄入 inbox 里的论文」。`.agents/skills/` 是 Codex/agy/opencode 共读的跨 agent 约定。
+
+**Claude Code 插件路线**（一键脚本已自动执行，与上面的安装可共存）：
+
+```powershell
+claude plugin marketplace add Misaka16384/magi && claude plugin install magi
+```
 
 ---
 

@@ -10,5 +10,6 @@
       "description": "MAGI research workspace skills (requires the magi CLI on PATH)",
       "source": "./"
     }
-  ]
+  ],
+  "description": "MAGI — agent-native research workspace: ingestion, concept wiki, knowledge graph, hybrid retrieval, literature radar. Skills drive the magi CLI."
 }

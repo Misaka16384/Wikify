@@ -164,6 +164,10 @@ environment. Scope: {args.scope}
 - Do NOT answer research questions from parametric memory. Retrieve from
   `wiki/` and cite `[[wikilinks]]`; verify claims with `magi verify`.
 - Syntax for any command: `magi <command> --help`. Overview: `magi --help`.
+- Stuck, or asked how something works? The manual ships with the CLI —
+  `magi guide --search "<the error>"` finds the section, `magi guide
+  --symptoms` is the symptom→fix index, `magi guide <chapter>` reads one.
+  Prefer it over recalling flags from memory; add `--json` for parsing.
 - The wiki_* skills teach when/why to run each pipeline (ingest, compile,
   enrich, link, lint, ask, audit, research).
 """

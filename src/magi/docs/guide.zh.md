@@ -40,6 +40,32 @@ magi sync                    # 验收：同步率 + 三核状态 + 下一步提�
 
 **③ 只想先试试**——不建 hub，随便找个空目录 `magi init` 就能用，之后 `magi hub register <slug>` 再收编。
 
+### 这份手册怎么读 {#howto-read}
+
+同一份内容有三个入口，挑顺手的：
+
+| 入口 | 适合 | 怎么用 |
+|---|---|---|
+| **看板** | 坐下来通读、边看边操作 | `magi ui` → 文档与指引 → 使用指南 |
+| **终端** | 手上正卡着一条命令 | `magi guide` 列章节；`magi guide ingest` 读某章 |
+| **问 agent** | 懒得自己找 | 直接把报错贴给 agent，让它查 |
+
+终端里最有用的三条：
+
+```powershell
+magi guide                          # 列出全部章节（编号 + 锚点 + 一句话简介）
+magi guide graph                    # 按编号 7、锚点 graph 或标题片段读某一章
+magi guide --search "no workspace found"   # 全文检索：把报错原文贴进去
+magi guide --symptoms               # 全书的「症状 → 原因 → 怎么修」索引
+```
+
+`--json` 是给 agent 用的机器格式，`--lang en` 切英文。
+
+**让 agent 直接排查**：仓库自带 `magi_guide` 技能，随插件一起装好。你只要把报错原样贴进对话，或者说一句「用 magi_guide 查一下」，它会先在手册里检索症状、读相关章节、再跑 `magi sync` / `magi setup --check` 确认现状，最后给你手册里那条确切的命令——而不是凭记忆编一个参数。
+
+> [!NOTE]
+> 手册里的每条命令都对着真实 CLI 校验过，测试会保证它不漂移。所以 agent 引用手册比它凭印象作答可靠得多——遇到 MAGI 相关的问题，值得明确要求它「查手册再回答」。
+
 ### 怎么读 `magi sync`
 
 `magi sync` 是每次进场的第一条命令，也是每次卡住时的第一条命令：
@@ -148,9 +174,31 @@ magi setup --check
 
 ### 让你的 CLI agent 学会用 MAGI {#install-hosts}
 
-这一步不是锦上添花：**知识库的编译环节只在 agent 里跑**（见第 6 章）。所有宿主共用仓库里同一份 `skills/*/SKILL.md`，区别只在安装方式：
+这一步不是锦上添花：**知识库的编译环节只在 agent 里跑**（见第 6 章）。
 
-**Claude Code**——一键脚本已经装好了（`magi setup` 在检测到 `claude` 命令时自动执行）。技能以 `/magi:wiki_ingest` 这样的命名空间出现，插件还带一个 SessionStart 钩子，每次开新会话自动跑 `magi sync`。手动补装：
+一条命令装完你机器上所有 agent CLI：
+
+```powershell
+magi skills install              # 全局：所有检测到的 CLI，所有项目可用
+magi skills install --scope project   # 只装进当前目录（随仓库走）
+magi skills where                # 看每个 CLI 从哪读、现在装了几个
+magi skills install --host codex --dry-run   # 只看会写哪些文件，不动手
+```
+
+技能文件随 CLI 一起分发，**不需要 clone 仓库、不需要联网**。`magi setup` 也会自动为检测到的 CLI 装一遍（`--no-skills` 可关掉）。
+
+| 宿主 | 全局位置 | 项目位置 | 怎么触发 |
+|---|---|---|---|
+| **Claude Code** | `~/.claude/skills/` | `.claude/skills/` | `/技能名`，也会按描述自动触发 |
+| **Codex** | `~/.agents/skills/`（外加 `~/.codex/skills/`） | `<仓库根>/.agents/skills/` | `$技能名`，或让它按描述自选 |
+| **Antigravity（agy）** | `~/.gemini/config/skills/` | `<仓库根>/.agents/skills/` | 说出名字，或按描述自动触发；`/skills` 可浏览 |
+| **opencode** | `~/.config/opencode/commands/` + `skills/` | `.opencode/commands/` + `skills/` | `/技能名` |
+
+> [!NOTE]
+> **不是每个 CLI 都有斜杠命令。** Claude Code 和 opencode 有；Codex 用 `$技能名`；agy 只按描述自动触发（`/skills` 只是个浏览面板）。所以最稳的用法在哪都一样：**把你要做的事说出来**——「摄入 inbox 里的论文」「查一下这个报错」——描述匹配上就会自动加载对应技能。
+> `.agents/skills/` 是跨 agent 的公共约定：Codex、agy、opencode 都会读它，所以项目级安装一份就能同时喂饱三个。
+
+**Claude Code 还可以走插件**（一键脚本已自动执行）：技能带 `magi:` 命名空间出现，还附带一个 SessionStart 钩子每次自动跑 `magi sync`：
 
 ```powershell
 claude plugin marketplace add Misaka16384/magi
@@ -158,20 +206,20 @@ claude plugin install magi
 claude plugin install <本地仓库目录>      # 本地开发模式
 ```
 
-**Codex 及其他 Agent Plugins 1.0 宿主**——仓库根部自带 `plugin.json`，按宿主自己的插件安装流程指向本仓库即可。
+插件和 `magi skills install` 可以共存——前者给你 `/magi:技能名`，后者给你 `/技能名`。
 
-**Gemini CLI / Antigravity**——把仓库的 `skills/` 复制或软链到 `<project>/.agents/skills/`。这一步没有脚本，手动做。
-
-**任何其他 agent**——工作区里的 `CLAUDE.md` 和 `AGENTS.md`（两份内容完全一致）就是入场协议：它告诉 agent 进场先跑 `magi sync`，三核各自对应哪些命令，以及「不许凭记忆回答研究问题，必须引用 `[[wikilink]]` 并用 `magi verify` 核验」。只要宿主会读其中之一，它就知道该调什么。实在不认，把 `magi --help` 的输出贴给它也能开工。
+**任何其他 agent**——工作区里的 `CLAUDE.md` 和 `AGENTS.md`（两份内容完全一致）就是入场协议：它告诉 agent 进场先跑 `magi sync`、三核对应哪些命令、卡住时用 `magi guide --search` 查手册，以及「不许凭记忆回答研究问题」。只要宿主会读其中之一就能开工；实在不认，把 `magi --help` 贴给它也行。
 
 > [!EXPECT]
-> 在 agent 里输入 `/magi:` 能看到技能列表；或者说一句「摄入 inbox 里的论文」，它会自己调 `magi ingest`。
+> `magi skills where` 里对应行显示 18/18；重开一个 agent 会话后，输入 `/` 能看到技能（Claude Code / opencode），或者直接说「摄入 inbox 里的论文」它就动手。
 
 > [!FIX]
-> - 技能列表里没有 magi：`claude plugin list` 确认；没有就重跑上面两条命令。
-> - agent 调用了不存在的脚本路径（`python bin/llm-wiki.py ...`）：旧版 Wikify 的 SKILL.md 还在。跑 `magi setup --remove-legacy`。
-> - 技能列表里少了某个技能（例如 `wiki_draft`）：宿主的技能索引缓存旧了。重装插件或重启 agent 会话。
-> - `magi setup`、`magi migrate`、`magi ui` **没有对应的技能**——它们是纯 CLI 命令，直接在终端敲。
+> - **装完看不到**：技能是启动时扫描的——**重开一个会话**。
+> - **不确定装到哪了**：`magi skills where` 会打印每个 CLI 的真实路径与数量。
+> - **提示 skipped**：目标位置已有同名文件且不像我们写的，出于安全没覆盖。确认后 `magi skills install --force`。
+> - **agent 调用了不存在的脚本路径**（`python bin/llm-wiki.py ...`）：旧版 Wikify 的 SKILL.md 还在，跑 `magi setup --remove-legacy`。
+> - **想卸载**：`magi skills uninstall [--host X] [--scope project]`。
+> - `magi setup`、`magi migrate`、`magi ui` **没有对应技能**——纯 CLI 命令，直接敲。
 
 ### 外部工具（按需）{#install-tools}
 
@@ -191,6 +239,8 @@ ollama pull glm-ocr                  # 本地 OCR（可选）
 ```
 
 Windows 的 `pandoc-crossref.exe` 已内置于仓库 `vendor/windows/`：加入 PATH，或在工作区 `config.yaml` 的 `tools.pandoc_crossref_path` 里指路。
+
+体检表最后四行是你机器上的 agent CLI（claude / codex / agy / opencode）：装没装、技能装了几个。缺技能时它会直接给出补装命令。
 
 > [!WARN]
 > `magi setup --check` 的体检只查 PATH，**不读** `config.yaml` 里的 `tools.*` 路径。所以体检表显示 `[-] pdftoppm`、而你已经在 config 里配好了绝对路径时，实际摄入是能跑的——以实跑为准。
@@ -871,7 +921,14 @@ magi ui --reload                 # 改代码自动重载（开发用）
 
 ## 疑难速查 {#troubleshoot}
 
-按症状找，不用记命令归属。
+按症状找，不用记命令归属。也可以直接在终端里查同一张表：
+
+```powershell
+magi guide --symptoms                       # 全书症状索引（84 条左右）
+magi guide --symptoms --search "ollama"     # 按关键词过滤
+```
+
+或者把报错贴给 agent，让 `magi_guide` 技能替你查（见 [1.2](#howto-read)）。
 
 | 症状 | 先跑这个 |
 |---|---|
@@ -894,6 +951,7 @@ magi ui --reload                 # 改代码自动重载（开发用）
 | 定时任务不触发 | Windows `schtasks /Query`；Linux 上它根本没装，自己写 crontab |
 | 配置改了没效果 | 用 `python -c "import yaml;yaml.safe_load(open('config.yaml',encoding='utf-8'))"` 验一遍——YAML 解析失败是静默的 |
 | 想看某条命令到底有什么参数 | `magi <命令> --help`，或本页顶部的 **CLI 命令参考手册** |
+| 不知道该读哪一章 | `magi guide --search "<报错原文>"` |
 
 > [!TIP]
 > 所有命令的完整参数以 `magi <命令> --help` 为准——这份指南讲的是**何时用、期望什么、出错怎么办**，参数清单不重复维护。

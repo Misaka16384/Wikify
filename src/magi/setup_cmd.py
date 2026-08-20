@@ -7,8 +7,10 @@ CLI, then hand over to this command, which:
    elsewhere: the official installer via curl|sh)
 2. pulls the Ollama embedding model when Ollama is present
 3. registers the Claude Code plugin when the claude CLI is present
-4. detects legacy Wikify installations (old copied skills/ + bin/)
-5. prints a doctor table + quick-start
+4. installs the skills into every OTHER agent CLI it finds (Codex,
+   Antigravity, opencode ...) so they are slash-triggerable there too
+5. detects legacy Wikify installations (old copied skills/ + bin/)
+6. prints a doctor table + quick-start
 
 Safe to re-run any time (idempotent). `magi setup --check` only reports.
 Legacy copies are only DELETED with the explicit --remove-legacy flag.
@@ -115,7 +117,7 @@ def setup_ollama_models() -> str:
 
 def setup_claude_plugin() -> str:
     if not _which("claude"):
-        return "claude CLI not found — skills install per host, see README §2.5"
+        return "claude CLI not found — skills go in per host, see 'magi skills install'"
     add = _run(["claude", "plugin", "marketplace", "add", PLUGIN_SOURCE], timeout=120)
     inst = _run(["claude", "plugin", "install", "magi"], timeout=180)
     if inst and inst.returncode == 0:
@@ -127,6 +129,43 @@ def setup_claude_plugin() -> str:
             break
     return (f"could not auto-install ({detail or 'no output'}) — run manually: "
             f"claude plugin marketplace add {PLUGIN_SOURCE} && claude plugin install magi")
+
+
+# --------------------------------------------------------------------------
+# component: skills for every other agent CLI
+# --------------------------------------------------------------------------
+
+def setup_agent_skills(skip: tuple[str, ...] = ()) -> str:
+    """Install the bundled skills into each detected agent CLI.
+
+    Claude Code is normally served by the plugin (namespaced /magi:<skill>),
+    so it is skipped when that succeeded — installing both would give the
+    user two copies of every skill.
+    """
+    try:
+        from magi.skills_cmd import detected_hosts, install_host, load_skills
+    except Exception as exc:  # pragma: no cover - defensive
+        return f"unavailable ({type(exc).__name__})"
+
+    skills = load_skills()
+    if not skills:
+        return "no skills bundled in this installation"
+
+    hosts = [h for h in detected_hosts() if h.key not in skip]
+    if not hosts:
+        return "no other agent CLI detected"
+
+    parts = []
+    for host in hosts:
+        try:
+            rep = install_host(host, skills, "global", force=False, dry_run=False)
+        except OSError as exc:
+            parts.append(f"{host.key}: failed ({exc.__class__.__name__})")
+            continue
+        c = rep["counts"]
+        changed = c["created"] + c["updated"]
+        parts.append(f"{host.key}: {'up to date' if not changed else str(changed) + ' installed'}")
+    return "; ".join(parts)
 
 
 # --------------------------------------------------------------------------
@@ -179,13 +218,54 @@ def doctor_rows() -> list[tuple[str, bool, str]]:
         ("pandoc", "needed for 'magi ingest tex'"),
         ("pdftoppm", "poppler; needed for local OCR"),
         ("pdflatex", "optional deep math validation"),
-        ("claude", "Claude Code host (optional)"),
     ):
         path = _which(tool)
         rows.append((tool, path is not None, path or hint))
     if not _which("pandoc-crossref"):
         rows.append(("pandoc-crossref", False,
                      "optional; Windows binary vendored in the repo's vendor/windows/"))
+    rows.extend(agent_cli_rows())
+    return rows
+
+
+def agent_cli_rows() -> list[tuple[str, bool, str]]:
+    """One row per supported agent CLI, with its skill-install state.
+
+    All of them or none: reporting only Claude Code would imply the others
+    are unsupported, which is exactly backwards — the skills install into
+    every one of them.
+    """
+    try:
+        from magi.skills_cmd import HOSTS, installed_state, load_skills
+    except Exception:
+        return []
+
+    skills = load_skills()
+    state = {}
+    for row in installed_state(skills):
+        if row["scope"] != "global":
+            continue
+        # A host can read from more than one directory; the best count wins.
+        prev = state.get(row["host"])
+        if prev is None or row["installed"] > prev["installed"]:
+            state[row["host"]] = row
+
+    rows: list[tuple[str, bool, str]] = []
+    for host in HOSTS.values():
+        path = _which(host.binary)
+        found = host.detected()
+        row = state.get(host.key)
+        if not found:
+            rows.append((host.binary, False, f"{host.label} not installed (optional)"))
+            continue
+        where = path or "config dir present"
+        if row and row["installed"]:
+            extra = f"skills {row['installed']}/{row['total']}"
+            if row["outdated"]:
+                extra += f" ({row['outdated']} outdated — 'magi skills install')"
+        else:
+            extra = "no skills yet — run 'magi skills install'"
+        rows.append((host.binary, True, f"{where} · {extra}"))
     return rows
 
 
@@ -206,6 +286,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-beads", action="store_true", help="Skip Beads installation")
     parser.add_argument("--no-models", action="store_true", help="Skip Ollama model pulls")
     parser.add_argument("--no-plugin", action="store_true", help="Skip Claude Code plugin registration")
+    parser.add_argument("--no-skills", action="store_true",
+                        help="Skip installing the skills into other agent CLIs (Codex, agy, opencode ...)")
     parser.add_argument("--kb-only", action="store_true",
                         help="Knowledge-base-only profile (the classic Wikify experience): "
                              "skip Beads, and magi sync stops suggesting task tracking. "
@@ -239,8 +321,15 @@ def main(argv: list[str] | None = None) -> int:
             results.append(("beads", "skipped (kb-only profile)"))
         if not args.no_models:
             results.append(("ollama", setup_ollama_models()))
+        plugin_outcome = ""
         if not args.no_plugin:
-            results.append(("claude plugin", setup_claude_plugin()))
+            plugin_outcome = setup_claude_plugin()
+            results.append(("claude plugin", plugin_outcome))
+        if not args.no_skills:
+            # Claude Code gets its skills from the plugin; only fall back to a
+            # direct install there when the plugin did not land.
+            skip = ("claude",) if plugin_outcome.startswith("plugin installed") else ()
+            results.append(("agent skills", setup_agent_skills(skip=skip)))
         results.append(("legacy", handle_legacy(remove=args.remove_legacy)))
 
     print_doctor()
@@ -253,6 +342,8 @@ def main(argv: list[str] | None = None) -> int:
     print("  mkdir -p topics/my-topic && cd topics/my-topic")
     print('  magi init --name "My Topic" --scope "..." && magi sync')
     print("Migrating from Wikify? Run 'magi migrate' at your hub root (migrates every topic).")
+    print("Stuck at any point?  magi guide --search \"<the error>\"   (manual: magi guide)")
+    print("Skills per agent CLI: magi skills where")
     return 0
 
 

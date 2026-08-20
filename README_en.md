@@ -56,7 +56,7 @@ Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 ```text
 You (the pilot)
   └─ Claude Code / Codex / Antigravity  (the mecha: reasoning, writing, judgment)
-       ├─ skills/*/SKILL.md   — teach the agent WHEN and WHY to run each pipeline
+       ├─ skills (ship with the CLI) — teach the agent WHEN and WHY to run each pipeline
        └─ magi CLI (restraint armor) — every deterministic operation:
             ingestion, graph, retrieval, validation, tasks, radar
             └─ durable state lives on disk: raw/ wiki/ output/ .beads/
@@ -127,11 +127,30 @@ uv tool install --python 3.12 git+https://github.com/Misaka16384/magi
 
 ### 2.4 Installing the skills (teaching your agent)
 
-Every host shares the same `skills/*/SKILL.md` tree:
+All 18 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command installs them into every agent CLI on your machine** — no repo clone needed:
 
-- **Claude Code**: the one-line installer registers this automatically (`magi setup` runs `claude plugin marketplace add Misaka16384/magi` + `claude plugin install magi`). Skills appear namespaced as `/magi:wiki_ingest` etc., and the plugin ships a SessionStart hook that runs `magi sync`; for local dev use `claude plugin install <repo-dir>`.
-- **Codex and other Agent Plugins 1.0 hosts**: the repo root ships a `plugin.json`; point your host's plugin flow at this repository.
-- **Gemini / Antigravity**: copy (or link) `skills/` into `<project>/.agents/skills/`.
+```powershell
+magi skills install                   # global: every detected CLI
+magi skills install --scope project   # only this directory (travels with the repo)
+magi skills where                     # per CLI: where it reads, what is installed, how it fires
+```
+
+`magi setup` installs them too (disable with `--no-skills`).
+
+| Host | Global | Project | How it fires |
+|---|---|---|---|
+| **Claude Code** | `~/.claude/skills/` | `.claude/skills/` | `/skill-name` (`/magi:skill-name` via the plugin), and auto by description |
+| **Codex** | `~/.agents/skills/` (plus `~/.codex/skills/`) | `<repo root>/.agents/skills/` | `$skill-name`, or auto by description |
+| **Antigravity (agy)** | `~/.gemini/config/skills/` | `<repo root>/.agents/skills/` | auto by description; `/skills` browses |
+| **opencode** | `~/.config/opencode/{commands,skills}/` | `.opencode/{commands,skills}/` | `/skill-name` |
+
+> Not every CLI has slash commands (Codex uses `$`, agy fires on description only). The habit that works everywhere: just say what you want — "ingest the papers in inbox". `.agents/skills/` is the cross-agent convention Codex, agy and opencode all read.
+
+**Claude Code plugin route** (run by the one-line installer; coexists with the above):
+
+```powershell
+claude plugin marketplace add Misaka16384/magi && claude plugin install magi
+```
 
 ---
 

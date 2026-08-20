@@ -868,7 +868,9 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         candidates.append(Path.cwd())
         for base in candidates:
             p_zh = base / "README.md"
-            if p_zh.is_file() and (base / "skills").is_dir():
+            # Marker for "this is the repo checkout, not a random cwd". Uses the
+            # package source tree because skills/ moved inside the package.
+            if p_zh.is_file() and (base / "src" / "magi").is_dir():
                 readme_zh = p_zh.read_text(encoding="utf-8", errors="replace")
                 p_en = base / "README_en.md"
                 if p_en.is_file():
@@ -941,41 +943,29 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     def get_guide_docs(lang: Optional[str] = Query(None)) -> dict:
         """Scenario-based operating manual shipped inside the package.
 
-        The markdown lives under static/docs/ so the existing package-data
-        glob carries it into the wheel; served through the API (not the
-        static mount) so a missing translation falls back to the other
-        language instead of 404ing the docs tab.
+        Content and parsing both come from ``magi.guide`` — the same single
+        implementation behind the ``magi guide`` command and the magi_guide
+        skill, so the manual reads identically to a person here and to an
+        agent in a terminal.
         """
-        lang_norm = "en" if (lang and lang.strip().lower().startswith("en")) else "zh"
-        guide_dir = _get_static_dir() / "docs"
+        from magi.guide import available_langs, load_guide, normalize_lang, parse_chapters
 
-        def _read(code: str) -> str:
-            path = guide_dir / f"guide.{code}.md"
-            if not path.is_file():
-                return ""
-            try:
-                return path.read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                return ""
+        lang_norm = normalize_lang(lang)
+        content, served = load_guide(lang_norm)
 
-        content = _read(lang_norm)
-        served = lang_norm
-        if not content:
-            fallback = "zh" if lang_norm == "en" else "en"
-            content = _read(fallback)
-            served = fallback if content else lang_norm
-
-        available = sorted(
-            p.name.split(".")[1]
-            for p in guide_dir.glob("guide.*.md")
-            if p.is_file()
-        ) if guide_dir.is_dir() else []
+        # Chapters come from the same parser `magi guide` uses, so a deep link
+        # in this tab and a chapter reference from an agent name the same thing.
+        chapters = [
+            {"n": c["n"], "anchor": c["anchor"], "title": c["title"], "summary": c["summary"]}
+            for c in parse_chapters(content)
+        ] if content else []
 
         return {
             "content": content,
             "lang": served,
             "requested": lang_norm,
-            "available": available,
+            "available": available_langs(),
+            "chapters": chapters,
             "version": magi.__version__,
         }
 

@@ -22,6 +22,11 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("hub", "register"): "把已存在的课题目录登记进中枢",
     ("sync",): "工作区体检：同步率与三核状态",
     ("ui",): "启动本地 MAGI 网页控制台",
+    ("guide",): "阅读内置使用指南（分章阅读、--search 全文检索、--symptoms 故障索引）",
+    ("skills", "list"): "列出随 magi 一起分发的 agent 技能",
+    ("skills", "where"): "查看各个 agent CLI 从哪里加载技能，以及当前装了哪些",
+    ("skills", "install"): "把技能装进你的 agent CLI（--scope global 全局 / project 仅当前目录）",
+    ("skills", "uninstall"): "从某个 agent CLI 卸载 magi 的技能",
     ("setup",): "一键配置环境（beads、模型、插件）并做体检",
     ("migrate",): "迁移 magi 之前的 Wikify 工作区（中枢或单课题）",
     # 任务状态（Beads 桥接）
@@ -89,6 +94,7 @@ GROUP_HELP_ZH: dict[str, str] = {
     "claims": "命题与证据溯源",
     "radar": "文献雷达（定时发现）",
     "tags": "标签本体规范化",
+    "skills": "按 CLI 宿主安装 agent 技能",
 }
 
 
