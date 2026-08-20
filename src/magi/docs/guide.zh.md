@@ -204,7 +204,7 @@ magi skills uninstall            # 撤掉
 技能文件随 CLI 一起分发，**不需要 clone 仓库、不需要联网**。
 
 > [!WARN]
-> **默认只装进当前工作区，不装全局。** 这 18 个技能都是围着某个研究工作区转的（往 `raw/` 摄入、编译进 `wiki/`、查这个库的图谱），装到全局意味着你打开任何一个无关项目，agent 都要背着它们。真想全机可用：`magi skills install --scope global`（命令会提醒你一次）。
+> **默认只装进当前工作区，不装全局。** 这 19 个技能都是围着某个研究工作区转的（往 `raw/` 摄入、编译进 `wiki/`、查这个库的图谱），装到全局意味着你打开任何一个无关项目，agent 都要背着它们。真想全机可用：`magi skills install --scope global`（命令会提醒你一次）。
 > 装在工作区里还有个好处：这些文件跟着仓库走，同事 clone 下来就有。
 
 | 宿主 | 全局位置 | 项目位置 | 怎么触发 |
@@ -576,6 +576,7 @@ magi ingest finalize inbox/paper.pdf --topic-dir . --md-file raw/papers/2026-08-
 | 「合并重复概念」 | `wiki_concept_sync` | 同义概念物理归并、过宽概念拆分、多源定义重写 |
 | 「清理标签」 | `wiki_tag_sync` | 标签/别名本体论归一（见第 7 章） |
 | 「体检并修复」 | `wiki_lint` | 死链、frontmatter、公式的自动修补 |
+| 「公式被摄入弄坏了」 | `wiki_math_fix` | 全库把坏公式抓成一张清单，逐条读懂再改 |
 
 对应的确定性命令：
 
@@ -1007,7 +1008,7 @@ magi guide --symptoms --search "ollama"     # 按关键词过滤
 | 双链点不开 / 断链多 | `magi graph browse broken` |
 | 概念重复、标签发散 | `magi link . --dedup-only`；`magi tags extract` |
 | 卡片格式报错 | `magi lint --fix` |
-| 公式渲染不对 | `magi math format` → `magi math check` |
+| 公式渲染不对 | `magi math format` → `magi math check`（整库；`--json` 出清单交给 `wiki_math_fix` 技能逐条修）|
 | 引用导不出来 | 检查文献卡 frontmatter 的 `title/authors/year/arxiv_id` |
 | 论断被标 unverified | 引文要与来源逐字一致，且必须单行 |
 | 雷达没有新东西 | 检查 `arxiv_categories` / `seed_arxiv_ids`；`--days` 放宽 |

@@ -136,7 +136,7 @@ uv tool install --force magi-research   # 升级
 
 ### 2.4 Skills 安装（教 agent 用 MAGI）
 
-18 个 skill 随 CLI 一起分发（`magi/skills/*/SKILL.md`，在 wheel 里），**在工作区里一条命令**装进你机器上所有 agent CLI，不需要 clone 仓库：
+19 个 skill 随 CLI 一起分发（`magi/skills/*/SKILL.md`，在 wheel 里），**在工作区里一条命令**装进你机器上所有 agent CLI，不需要 clone 仓库：
 
 ```powershell
 cd <你的主题工作区>
@@ -220,6 +220,7 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 | 关联 | `wiki_semantic_link` | Ollama 向量语义双链 + 高相似度自动去重合并（`magi link`） |
 | 规范 | `wiki_tag_sync` / `wiki_concept_sync` | 标签本体论清洗 / 同义概念物理归并 |
 | 质量 | `wiki_lint` | 死链自愈、frontmatter 修复、LaTeX 校验（`magi lint --fix`） |
+| 质量 | `wiki_math_fix` | 把摄入弄坏的公式全抓出来，一条一条修（`magi math check --json`） |
 | 图谱 | `wiki_graph_index` | 重建 SQLite 图谱（`magi graph build` / `magi graph query`） |
 | 问答 | `wiki_ask` | 混合检索 + 图遍历 + 严格引用的零幻觉问答 |
 | 审查 | `wiki_audit` | 跨论文矛盾审计（claim/证据验证 + 溯源落库） |

@@ -108,3 +108,41 @@ def atomic_write(filepath: str | Path, content: str, encoding: str = "utf-8", ne
                 pass
         raise
 
+
+
+# --------------------------------------------------------------------------
+# What counts as "the library"
+# --------------------------------------------------------------------------
+
+# The same three trees `magi index` walks. scratch/ holds concept backups
+# whose formulas are copies of the originals and output/ is generated, so a
+# maintenance pass that included them would report every defect twice — and,
+# worse, rewrite the backups you were keeping in case the fix went wrong.
+CORPUS_DIRS = ("wiki", "raw", "drafts")
+
+
+def corpus_files(root) -> list:
+    """Every markdown file a workspace-wide maintenance pass should touch.
+
+    Falls back to a plain recursive walk when *root* is not a workspace at
+    all — a bare folder of notes still deserves an answer rather than silence.
+    """
+    from pathlib import Path
+
+    root = Path(root).resolve()
+    out: list = []
+    for base in CORPUS_DIRS:
+        d = root / base
+        if not d.is_dir():
+            continue
+        for p in sorted(d.rglob("*.md")):
+            rel = p.relative_to(root)
+            if p.name == "_index.md" or ".backup" in rel.parts:
+                continue
+            if any(part.startswith(".") for part in rel.parts):
+                continue
+            out.append(p)
+    if not out and not any((root / b).is_dir() for b in CORPUS_DIRS):
+        out = sorted(p for p in root.rglob("*.md")
+                     if not any(part.startswith(".") for part in p.relative_to(root).parts))
+    return out

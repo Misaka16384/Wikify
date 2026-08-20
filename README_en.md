@@ -137,7 +137,7 @@ uv tool install --force magi-research   # upgrade
 
 ### 2.4 Installing the skills (teaching your agent)
 
-All 18 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command inside your workspace** installs them into every agent CLI on your machine — no repo clone needed:
+All 19 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command inside your workspace** installs them into every agent CLI on your machine — no repo clone needed:
 
 ```powershell
 cd <your topic workspace>
@@ -222,6 +222,7 @@ Trigger via slash commands in your agent (namespaced `magi:` under the Claude Co
 | Link | `wiki_semantic_link` | Ollama-embedding semantic wikilinks + auto-merge of near-duplicates (`magi link`) |
 | Normalize | `wiki_tag_sync` / `wiki_concept_sync` | tag ontology cleanup / physical merge of synonym concepts |
 | Quality | `wiki_lint` | dead-link healing, frontmatter repair, LaTeX validation (`magi lint --fix`) |
+| Quality | `wiki_math_fix` | harvests every formula ingestion broke and repairs them one at a time (`magi math check --json`) |
 | Graph | `wiki_graph_index` | rebuild the SQLite graph (`magi graph build` / `magi graph query`) |
 | Q&A | `wiki_ask` | hybrid retrieval + graph traversal + strictly cited, zero-hallucination answers |
 | Audit | `wiki_audit` | cross-paper contradiction audit (claim/evidence verification + provenance) |

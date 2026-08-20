@@ -8,4 +8,4 @@ Three-state architecture:
 The CLI is the restraint armor; the LLM host is the pilot's Eva.
 """
 
-__version__ = "1.9.0"
+__version__ = "1.9.1"

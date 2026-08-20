@@ -2083,6 +2083,15 @@ def print_text_report(ctx: LintContext) -> None:
         verdict += f" ({counts['warning']} warning(s) to review)"
     print("Result: " + verdict)
 
+    # Math errors are the one class lint reports but cannot repair: an OCR'd
+    # formula needs someone who can read it. Point at the tools that do.
+    if any("[Block Math]" in i.message or "[Inline Math]" in i.message
+           for i in ctx.active_issues()):
+        print("\nBroken formulas need reading, not a --fix flag:")
+        print("  magi math format                # the mechanical half, whole workspace")
+        print("  magi math check --json          # the rest, as a worklist")
+        print("  (the wiki_math_fix skill works that list one formula at a time)")
+
 
 def append_log(path: Path, operation: str, message: str) -> None:
     log = path / "log.md"

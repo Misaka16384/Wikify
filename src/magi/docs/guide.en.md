@@ -204,7 +204,7 @@ magi skills uninstall            # take them back out
 The skill files ship with the CLI — **no repo clone, no network**.
 
 > [!WARN]
-> **The default is this workspace, not your whole machine.** All 18 skills revolve around one research workspace — ingest into its `raw/`, compile into its `wiki/`, query its graph — so a machine-wide install makes every unrelated project carry them for nothing. If you really want that: `magi skills install --scope global` (it warns once).
+> **The default is this workspace, not your whole machine.** All 19 skills revolve around one research workspace — ingest into its `raw/`, compile into its `wiki/`, query its graph — so a machine-wide install makes every unrelated project carry them for nothing. If you really want that: `magi skills install --scope global` (it warns once).
 > Installing into the workspace has a second benefit: the files travel with the repo, so a collaborator who clones it gets them.
 
 | Host | Global | Project | How it fires |
@@ -231,7 +231,7 @@ The plugin and `magi skills install` coexist — one gives you `/magi:skill-name
 **Any other agent** — the workspace's `CLAUDE.md` and `AGENTS.md` (identical content, two copies) are the onboarding protocol: run `magi sync` on entry, which commands map to which core, use `magi guide --search` when stuck, and never answer research questions from memory. Any host that reads either file can work here; if it reads neither, pasting `magi --help` is enough.
 
 > [!EXPECT]
-> `magi skills where` shows 18/18 on the project rows. Start a fresh agent session **from that workspace directory** and the skills appear under `/` (Claude Code, opencode), or just say "ingest the papers in inbox" and watch it act. `magi setup --check` also shows the per-CLI count for the workspace you are in.
+> `magi skills where` shows 19/19 on the project rows. Start a fresh agent session **from that workspace directory** and the skills appear under `/` (Claude Code, opencode), or just say "ingest the papers in inbox" and watch it act. `magi setup --check` also shows the per-CLI count for the workspace you are in.
 
 > [!FIX]
 > - **Installed but not showing**: skills are scanned at startup — **start a new session from the workspace directory** (project skills are only visible when the CLI is launched there).
@@ -575,6 +575,7 @@ Tell your agent these, in order (or use the slash commands):
 | "Merge duplicate concepts" | `wiki_concept_sync` | Physically merges synonymous concepts, splits overly broad ones, and rewrites multi-source definitions |
 | "Clean up tags" | `wiki_tag_sync` | Normalizes the tag/alias ontology (see Chapter 7) |
 | "Run a checkup and fix" | `wiki_lint` | Auto-repairs broken links, frontmatter, and formulas |
+| "Ingestion mangled the formulas" | `wiki_math_fix` | Harvests every broken formula in the library, then reads and repairs them one at a time |
 
 The corresponding deterministic commands:
 
@@ -1008,7 +1009,7 @@ Or paste the error to your agent and let the `magi_guide` skill look it up (see 
 | Wikilinks won't open / lots of broken links | `magi graph browse broken` |
 | Duplicate concepts, sprawling tags | `magi link . --dedup-only`; `magi tags extract` |
 | Card format errors | `magi lint --fix` |
-| Formulas render incorrectly | `magi math format` → `magi math check` |
+| Formulas render incorrectly | `magi math format` → `magi math check` (whole library; `--json` hands the list to the `wiki_math_fix` skill) |
 | Citations won't export | Check the reference card's `title/authors/year/arxiv_id` frontmatter |
 | A claim is marked unverified | The evidence quote must match the source verbatim, and it must be a single line |
 | The radar has nothing new | Check `arxiv_categories` / `seed_arxiv_ids`; widen `--days` |

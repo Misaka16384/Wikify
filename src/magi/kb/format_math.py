@@ -314,20 +314,34 @@ def process_file(file_path):
         print(f"  Error processing {file_path}: {e}")
 
 def process_directory(directory):
-    print(f"Formatting math formulas in markdown files under: {directory}")
-    for root, dirs, files in os.walk(directory):
-        # Skip hidden directories
-        dirs[:] = [d for d in dirs if not d.startswith('.')]
-        for file in files:
-            if file.endswith('.md'):
-                file_path = os.path.join(root, file)
-                process_file(file_path)
+    """Format every card in the library.
+
+    Scoped to wiki/ raw/ drafts/ rather than the whole tree: this rewrites
+    files in place and has no dry-run, and scratch/ is where the concept
+    backups live — the copies you would want if a formatting pass went wrong.
+    """
+    from magi.core.wiki_common import corpus_files
+
+    files = corpus_files(directory)
+    print(f"Formatting math formulas in {len(files)} markdown file(s) under: {directory}")
+    for file_path in files:
+        process_file(str(file_path))
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi math format", description="Auto-fix LaTeX delimiter/escaping issues in markdown files.")
-    parser.add_argument("target", help="Topic directory or markdown file to format")
+    parser.add_argument("target", nargs="?", default=None,
+                        help="Topic directory or markdown file (default: the workspace you are in)")
     args = parser.parse_args(argv)
     target = args.target
+    if target is None:
+        # Same default as `magi lint` and `magi math check`: the maintenance
+        # commands operate on a workspace, not on whatever file you name.
+        from magi.core.workspace import find_workspace_root
+
+        root = find_workspace_root()
+        if root is None:
+            parser.error("no MAGI workspace here — pass a directory, or cd into one")
+        target = str(root)
     if not os.path.exists(target):
         print(f"Path not found: {target}")
         return 1

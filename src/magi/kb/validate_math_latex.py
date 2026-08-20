@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import re
 import sys
@@ -309,6 +310,153 @@ def validate_math_pdflatex(valid_blocks, valid_inlines):
             
     return unique_issues[:15]
 
+# --------------------------------------------------------------------------
+# Prose that ended up inside a display block.
+#
+# The commonest ingest defect is not malformed LaTeX — it is a `$$` whose
+# closing pair went missing, so a paragraph of the paper reads as one enormous
+# formula. pylatexenc parses that happily (words are just letters) and
+# pdflatex mostly does too, which is why it survives every existing check and
+# then renders as a wall of italic single letters.
+#
+# Detected by the one thing formulas never have: a long run of ordinary words
+# carrying no mathematics at all. Measured against 8 208 display blocks in a
+# real library, 7 999 have no such run whatsoever and the tail is contamination
+# — "Proof. We replace the ground field with its algebraic closure", "This
+# appendix presents the pseudocode for the algorithm". Six is well clear of the
+# 113 blocks whose longest run is a single connective like "where".
+# --------------------------------------------------------------------------
+
+PROSE_RUN_WORDS = 6
+
+# Prose legitimately appears inside math through these, so it does not count.
+_TEXTISH = re.compile(
+    r"\\(?:text|mbox|textrm|textit|textbf|textsf|textnormal|operatorname|mathrm)\s*\{[^{}]*\}")
+_MATHY = re.compile(r"\\[a-zA-Z]+|[_^{}=<>+\-*/&|]|\$|\d")
+
+
+def longest_prose_run(body: str) -> int:
+    """Longest run of consecutive plain words carrying no mathematics."""
+    best = run = 0
+    for token in _TEXTISH.sub(" ", body).split():
+        if len(token) >= 2 and token.isalpha() and not _MATHY.search(token):
+            run += 1
+            best = max(best, run)
+        else:
+            run = 0
+    return best
+
+
+def detect_prose_blocks(content: str) -> list:
+    """Display blocks that are a paragraph of the paper, not a formula."""
+    content = re.sub(r'```.*?```', lambda m: "\n" * m.group(0).count("\n"),
+                     content, flags=re.DOTALL)
+    out = []
+    for match in re.finditer(r'\$\$(.*?)\$\$', content, re.DOTALL):
+        body = match.group(1)
+        run = longest_prose_run(body)
+        if run < PROSE_RUN_WORDS:
+            continue
+        excerpt = " ".join(body.split())[:110]
+        out.append({
+            "md_line": content.count('\n', 0, match.start()) + 1,
+            "md_end_line": content.count('\n', 0, match.end()) + 1,
+            "error": (f"{run} consecutive words of prose inside a display block — "
+                      f"this is almost certainly a `$$` that was never closed, "
+                      f"swallowing the paragraph after it"),
+            "context": excerpt,
+            "is_block": True,
+        })
+    return out
+
+
+# --------------------------------------------------------------------------
+# Worklist. `magi lint` prints math errors as prose in the middle of a
+# structural report, which is fine for "is this card healthy" and useless for
+# "work through every broken formula in the library". These functions turn the
+# same two validators into an addressable list: one entry per formula, with
+# the offending TeX verbatim, so an agent can triage the whole thing before
+# touching a single file.
+# --------------------------------------------------------------------------
+
+# pdflatex reports a macro it has never heard of the same way whether the
+# macro is a typo or comes from a package this validator does not load.
+_MACRO_HINT = "undefined control sequence"
+
+
+# A worklist entry has to stay scannable. The commonest ingest defect is a
+# `$$` nobody closed, which "spans" a page of prose — quoting all of it would
+# bury the other entries, and the line range says where to read the rest.
+TEX_EXCERPT = 900
+
+
+def _tex_at(lines: list[str], start, end) -> tuple[str, bool]:
+    """The source of the formula an issue points at, delimiters included."""
+    if not isinstance(start, int) or not isinstance(end, int):
+        return "", False
+    tex = "\n".join(lines[max(0, start - 1):end]).strip()
+    if len(tex) <= TEX_EXCERPT:
+        return tex, False
+    half = TEX_EXCERPT // 2
+    return f"{tex[:half]}\n…\n{tex[-half:]}", True
+
+
+def _entry(root: Path, path: Path, issue: dict, detector: str, lines: list[str]) -> dict:
+    rel = path.resolve().relative_to(root).as_posix()
+    start, end = issue["md_line"], issue["md_end_line"]
+    likely_macro = _MACRO_HINT in str(issue["error"]).lower()
+    tex, clipped = _tex_at(lines, start, end)
+    return {
+        # Stable across runs so an agent can tick entries off a long list.
+        "id": f"{rel}:{start}",
+        "path": rel,
+        "line": start,
+        "end_line": end,
+        "kind": "block" if issue["is_block"] else "inline",
+        "detector": detector,
+        "error": issue["error"],
+        # A macro pdflatex does not know is usually a package it does not load,
+        # not a typo — rewriting those on sight corrupts correct formulas.
+        "confidence": "likely-macro" if likely_macro else "certain",
+        "context": issue["context"],
+        "tex": tex,
+        "tex_clipped": clipped,
+        # raw/ is ingest output; wiki/ is the compiled library and holds the
+        # errors a reader will actually meet.
+        "collection": rel.split("/")[0] if "/" in rel else "",
+    }
+
+
+def collect_issues(root, use_pdflatex=True, on_progress=None):
+    """Every broken formula under *root*, as an addressable worklist."""
+    from magi.core.wiki_common import corpus_files
+
+    root = Path(root).resolve()
+    files = corpus_files(root)
+    out = []
+    for i, path in enumerate(files, 1):
+        if on_progress:
+            on_progress(i, len(files), path)
+        try:
+            content = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        lines = content.split("\n")
+        issues, valid_blocks, valid_inlines = validate_math_pylatexenc(content)
+        out.extend(_entry(root, path, it, "pylatexenc", lines) for it in issues)
+        # Pure Python, so it runs whether or not a LaTeX toolchain exists —
+        # and it is the only detector that sees the commonest defect.
+        out.extend(_entry(root, path, it, "prose", lines)
+                   for it in detect_prose_blocks(content))
+        if use_pdflatex and (valid_blocks or valid_inlines):
+            try:
+                deep = validate_math_pdflatex(valid_blocks, valid_inlines)
+            except Exception:
+                deep = []
+            out.extend(_entry(root, path, it, "pdflatex", lines) for it in deep)
+    return out
+
+
 def format_issue_for_cli(issue):
     line_range = f"{issue['md_line']}-{issue['md_end_line']}" if issue['md_line'] != issue['md_end_line'] else str(issue['md_line'])
     math_type = "Block Math" if issue['is_block'] else "Inline Math"
@@ -372,29 +520,128 @@ def process_directory(directory):
         print(f"\nCompleted: All {total_files} files passed math validation cleanly.")
     return files_with_issues > 0
 
+# A whole library's worth of ingest damage is hundreds of entries; printing
+# every one buries the shape of the problem. --json is the complete list.
+_MAX_PER_FILE = 6
+
+
+def _summarize(entries, root):
+    """Human view: what kind of damage, where, and what to run next."""
+    if not entries:
+        print(f"All formulas under {root} parse cleanly.")
+        return
+
+    by_file = {}
+    for e in entries:
+        by_file.setdefault(e["path"], []).append(e)
+    wiki = [e for e in entries if e["collection"] == "wiki"]
+    prose = [e for e in entries if e["detector"] == "prose"]
+    macros = [e for e in entries if e["confidence"] == "likely-macro"]
+
+    # Compiled cards first: those are the ones a reader actually opens.
+    for path in sorted(by_file, key=lambda p: (not p.startswith("wiki/"), p)):
+        items = by_file[path]
+        print(f"\n{path}  ({len(items)})")
+        for e in items[:_MAX_PER_FILE]:
+            span = e["line"] if e["line"] == e["end_line"] else f"{e['line']}-{e['end_line']}"
+            tag = "  [may be a package macro]" if e["confidence"] == "likely-macro" else ""
+            print(f"  {span} [{e['kind']}] {e['error'].splitlines()[0]}{tag}")
+            for line in str(e["context"]).split("\n")[:2]:
+                print(f"      {line}")
+        if len(items) > _MAX_PER_FILE:
+            print(f"  … and {len(items) - _MAX_PER_FILE} more in this file")
+
+    print(f"\n{len(entries)} formula(s) in {len(by_file)} file(s) need attention.")
+    if prose:
+        print(f"  {len(prose)} are prose swallowed by an unclosed $$ — the usual ingest damage")
+    if wiki:
+        print(f"  {len(wiki)} are in compiled cards under wiki/ — fix these first")
+    else:
+        print("  none are in wiki/ — your compiled cards are clean")
+    if macros:
+        print(f"  {len(macros)} may be package macros rather than typos; check the source PDF")
+    print("\nDeterministic pass first:  magi math format")
+    print("Then work the list:        magi math check --json")
+    print("                           (the wiki_math_fix skill drives that list, one at a time)")
+
+
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="magi math check", description="Detect LaTeX syntax errors in markdown math blocks.")
-    parser.add_argument("target", help="Topic directory or markdown file to validate")
+    parser = argparse.ArgumentParser(
+        prog="magi math check",
+        description="Detect LaTeX syntax errors in markdown math blocks. "
+                    "Defaults to the surrounding workspace, like `magi lint`.")
+    parser.add_argument("target", nargs="?", default=None,
+                        help="Topic directory or markdown file (default: the workspace you are in)")
+    parser.add_argument("--json", action="store_true",
+                        help="Emit the worklist as JSON: one entry per broken formula")
+    parser.add_argument("--fast", action="store_true",
+                        help="Structural checks only — skip the per-file pdflatex pass")
+    parser.add_argument("--wiki-only", action="store_true",
+                        help="Only compiled cards under wiki/, not raw ingest output")
     args = parser.parse_args(argv)
 
     target = args.target
+    if target is None:
+        from magi.core.workspace import find_workspace_root
+
+        root = find_workspace_root()
+        if root is None:
+            parser.error("no MAGI workspace here — pass a directory, or cd into one")
+        target = str(root)
+
     if not os.path.exists(target):
         print(f"Path not found: {target}")
         return 1
 
-    if os.path.isdir(target):
-        had_errors = process_directory(target)
+    has_pdflatex = shutil.which("pdflatex") is not None and not args.fast
+    if not HAS_PYLATEXENC and not has_pdflatex and not args.json:
+        # The prose detector below is pure Python and still runs; only the
+        # LaTeX-level checks are unavailable.
+        print("Note: neither pdflatex nor pylatexenc found — checking for prose "
+              "inside display blocks only.", file=sys.stderr)
+
+    root = Path(target).resolve()
+    if root.is_file():
+        # One file still goes through the worklist so --json means one thing.
+        entries = []
+        content = root.read_text(encoding="utf-8", errors="replace")
+        issues, blocks, inlines = validate_math_pylatexenc(content)
+        lines = content.split("\n")
+        entries.extend(_entry(root.parent, root, it, "pylatexenc", lines) for it in issues)
+        entries.extend(_entry(root.parent, root, it, "prose", lines)
+                       for it in detect_prose_blocks(content))
+        if has_pdflatex and (blocks or inlines):
+            entries.extend(_entry(root.parent, root, it, "pdflatex", lines)
+                           for it in validate_math_pdflatex(blocks, inlines))
+        root = root.parent
     else:
-        has_pdflatex = shutil.which("pdflatex") is not None
-        if has_pdflatex:
-            print(f"Validating {os.path.basename(target)} using native pdflatex...")
-        elif HAS_PYLATEXENC:
-            print(f"Validating {os.path.basename(target)} using pylatexenc (structural only)...")
-        else:
-            print("Validation skipped (missing dependencies).")
-            return 0
-        had_errors = process_file(target, use_pdflatex=has_pdflatex)
-    return 1 if had_errors else 0
+        # pdflatex runs once per file and a real library takes minutes, so say
+        # where we are — but only to a terminal that can erase the line. Piped
+        # or redirected, a carriage return just stacks 260 lines of noise.
+        live = sys.stderr.isatty() and not args.json
+        progress = None
+        if live:
+            def progress(i, total, path):
+                print(f"\r  [{i}/{total}] {path.name[:60]:<60}",
+                      end="", file=sys.stderr, flush=True)
+
+        entries = collect_issues(root, use_pdflatex=has_pdflatex, on_progress=progress)
+        if live:
+            print("\r" + " " * 72 + "\r", end="", file=sys.stderr)
+
+    if args.wiki_only:
+        entries = [e for e in entries if e["collection"] == "wiki"]
+
+    if args.json:
+        print(json.dumps({
+            "root": str(root),
+            "detector": "pylatexenc+pdflatex" if has_pdflatex else "pylatexenc",
+            "count": len(entries),
+            "issues": entries,
+        }, ensure_ascii=False, indent=2))
+    else:
+        _summarize(entries, root)
+    return 1 if entries else 0
 
 if __name__ == '__main__':
     sys.exit(main())
