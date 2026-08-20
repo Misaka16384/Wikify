@@ -32,6 +32,7 @@ magi pm init                 # 任务系统（会 git-init 本目录）
 
 mkdir topics\quantum-toys ; cd topics\quantum-toys
 magi init --name "Quantum Toys" --scope "玩具模型中的量子现象"
+magi skills install          # 把技能装进这个工作区（见 2.4）
 
 magi sync                    # 验收：同步率 + 三核状态 + 下一步提示
 ```
@@ -176,16 +177,21 @@ magi setup --check
 
 这一步不是锦上添花：**知识库的编译环节只在 agent 里跑**（见第 6 章）。
 
-一条命令装完你机器上所有 agent CLI：
+**在工作区里跑一条命令**，你机器上所有 agent CLI 就都学会了：
 
 ```powershell
-magi skills install              # 全局：所有检测到的 CLI，所有项目可用
-magi skills install --scope project   # 只装进当前目录（随仓库走）
+cd <你的主题工作区>
+magi skills install              # 装进这个工作区（默认，推荐）
 magi skills where                # 看每个 CLI 从哪读、现在装了几个
-magi skills install --host codex --dry-run   # 只看会写哪些文件，不动手
+magi skills install --dry-run    # 只看会写哪些文件，不动手
+magi skills uninstall            # 撤掉
 ```
 
-技能文件随 CLI 一起分发，**不需要 clone 仓库、不需要联网**。`magi setup` 也会自动为检测到的 CLI 装一遍（`--no-skills` 可关掉）。
+技能文件随 CLI 一起分发，**不需要 clone 仓库、不需要联网**。
+
+> [!WARN]
+> **默认只装进当前工作区，不装全局。** 这 18 个技能都是围着某个研究工作区转的（往 `raw/` 摄入、编译进 `wiki/`、查这个库的图谱），装到全局意味着你打开任何一个无关项目，agent 都要背着它们。真想全机可用：`magi skills install --scope global`（命令会提醒你一次）。
+> 装在工作区里还有个好处：这些文件跟着仓库走，同事 clone 下来就有。
 
 | 宿主 | 全局位置 | 项目位置 | 怎么触发 |
 |---|---|---|---|
@@ -211,10 +217,10 @@ claude plugin install <本地仓库目录>      # 本地开发模式
 **任何其他 agent**——工作区里的 `CLAUDE.md` 和 `AGENTS.md`（两份内容完全一致）就是入场协议：它告诉 agent 进场先跑 `magi sync`、三核对应哪些命令、卡住时用 `magi guide --search` 查手册，以及「不许凭记忆回答研究问题」。只要宿主会读其中之一就能开工；实在不认，把 `magi --help` 贴给它也行。
 
 > [!EXPECT]
-> `magi skills where` 里对应行显示 18/18；重开一个 agent 会话后，输入 `/` 能看到技能（Claude Code / opencode），或者直接说「摄入 inbox 里的论文」它就动手。
+> `magi skills where` 里 project 那几行显示 18/18；在**这个工作区目录里**重开一个 agent 会话，输入 `/` 能看到技能（Claude Code / opencode），或者直接说「摄入 inbox 里的论文」它就动手。`magi setup --check` 的体检表也会显示当前工作区各 CLI 的技能数。
 
 > [!FIX]
-> - **装完看不到**：技能是启动时扫描的——**重开一个会话**。
+> - **装完看不到**：技能是启动时扫描的——**在工作区目录里重开一个会话**（项目级技能只在从该目录启动时可见）。
 > - **不确定装到哪了**：`magi skills where` 会打印每个 CLI 的真实路径与数量。
 > - **提示 skipped**：目标位置已有同名文件且不像我们写的，出于安全没覆盖。确认后 `magi skills install --force`。
 > - **agent 调用了不存在的脚本路径**（`python bin/llm-wiki.py ...`）：旧版 Wikify 的 SKILL.md 还在，跑 `magi setup --remove-legacy`。

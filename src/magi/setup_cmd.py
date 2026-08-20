@@ -7,8 +7,8 @@ CLI, then hand over to this command, which:
    elsewhere: the official installer via curl|sh)
 2. pulls the Ollama embedding model when Ollama is present
 3. registers the Claude Code plugin when the claude CLI is present
-4. installs the skills into every OTHER agent CLI it finds (Codex,
-   Antigravity, opencode ...) so they are slash-triggerable there too
+4. reports which other agent CLIs are installed (skills go in per
+   workspace via `magi skills install`, never machine-wide)
 5. detects legacy Wikify installations (old copied skills/ + bin/)
 6. prints a doctor table + quick-start
 
@@ -135,37 +135,24 @@ def setup_claude_plugin() -> str:
 # component: skills for every other agent CLI
 # --------------------------------------------------------------------------
 
-def setup_agent_skills(skip: tuple[str, ...] = ()) -> str:
-    """Install the bundled skills into each detected agent CLI.
+def report_agent_skills() -> str:
+    """Say which agent CLIs are present — do not install into them.
 
-    Claude Code is normally served by the plugin (namespaced /magi:<skill>),
-    so it is skipped when that succeeded — installing both would give the
-    user two copies of every skill.
+    The skills are workspace-specific (they ingest into raw/, compile into
+    wiki/, query that workspace's graph), so a machine-wide install would put
+    18 irrelevant skills in front of every unrelated project. The install is
+    one command, run inside the workspace where it means something.
     """
     try:
-        from magi.skills_cmd import detected_hosts, install_host, load_skills
+        from magi.skills_cmd import detected_hosts
     except Exception as exc:  # pragma: no cover - defensive
         return f"unavailable ({type(exc).__name__})"
 
-    skills = load_skills()
-    if not skills:
-        return "no skills bundled in this installation"
-
-    hosts = [h for h in detected_hosts() if h.key not in skip]
+    hosts = detected_hosts()
     if not hosts:
-        return "no other agent CLI detected"
-
-    parts = []
-    for host in hosts:
-        try:
-            rep = install_host(host, skills, "global", force=False, dry_run=False)
-        except OSError as exc:
-            parts.append(f"{host.key}: failed ({exc.__class__.__name__})")
-            continue
-        c = rep["counts"]
-        changed = c["created"] + c["updated"]
-        parts.append(f"{host.key}: {'up to date' if not changed else str(changed) + ' installed'}")
-    return "; ".join(parts)
+        return "no agent CLI detected"
+    names = ", ".join(h.key for h in hosts)
+    return f"{names} detected — install per workspace: cd <topic> && magi skills install"
 
 
 # --------------------------------------------------------------------------
@@ -241,9 +228,16 @@ def agent_cli_rows() -> list[tuple[str, bool, str]]:
         return []
 
     skills = load_skills()
+    # Report the scope that matters here: inside a workspace that is the
+    # workspace's own copy, anywhere else it is whatever is installed globally.
+    from magi.skills_cmd import _is_workspace, workspace_anchor
+
+    anchor = workspace_anchor()
+    scope = "project" if _is_workspace(anchor) else "global"
+
     state = {}
     for row in installed_state(skills):
-        if row["scope"] != "global":
+        if row["scope"] != scope:
             continue
         # A host can read from more than one directory; the best count wins.
         prev = state.get(row["host"])
@@ -260,11 +254,13 @@ def agent_cli_rows() -> list[tuple[str, bool, str]]:
             continue
         where = path or "config dir present"
         if row and row["installed"]:
-            extra = f"skills {row['installed']}/{row['total']}"
+            extra = f"{scope} skills {row['installed']}/{row['total']}"
             if row["outdated"]:
                 extra += f" ({row['outdated']} outdated — 'magi skills install')"
+        elif scope == "project":
+            extra = "no skills in this workspace — 'magi skills install'"
         else:
-            extra = "no skills yet — run 'magi skills install'"
+            extra = "installed; skills go in per workspace ('magi skills install')"
         rows.append((host.binary, True, f"{where} · {extra}"))
     return rows
 
@@ -287,7 +283,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-models", action="store_true", help="Skip Ollama model pulls")
     parser.add_argument("--no-plugin", action="store_true", help="Skip Claude Code plugin registration")
     parser.add_argument("--no-skills", action="store_true",
-                        help="Skip installing the skills into other agent CLIs (Codex, agy, opencode ...)")
+                        help="Skip the agent-CLI skills report")
     parser.add_argument("--kb-only", action="store_true",
                         help="Knowledge-base-only profile (the classic Wikify experience): "
                              "skip Beads, and magi sync stops suggesting task tracking. "
@@ -326,10 +322,7 @@ def main(argv: list[str] | None = None) -> int:
             plugin_outcome = setup_claude_plugin()
             results.append(("claude plugin", plugin_outcome))
         if not args.no_skills:
-            # Claude Code gets its skills from the plugin; only fall back to a
-            # direct install there when the plugin did not land.
-            skip = ("claude",) if plugin_outcome.startswith("plugin installed") else ()
-            results.append(("agent skills", setup_agent_skills(skip=skip)))
+            results.append(("agent skills", report_agent_skills()))
         results.append(("legacy", handle_legacy(remove=args.remove_legacy)))
 
     print_doctor()
@@ -343,7 +336,7 @@ def main(argv: list[str] | None = None) -> int:
     print('  magi init --name "My Topic" --scope "..." && magi sync')
     print("Migrating from Wikify? Run 'magi migrate' at your hub root (migrates every topic).")
     print("Stuck at any point?  magi guide --search \"<the error>\"   (manual: magi guide)")
-    print("Skills per agent CLI: magi skills where")
+    print("Agent skills:         cd <your topic workspace> && magi skills install")
     return 0
 
 

@@ -203,6 +203,8 @@ radar:
     safe_write(topic_path / "config.yaml", config_yaml, args.force)
 
     print(f"Workspace initialized successfully at: {topic_path}")
+    print("Next: cd into it, then 'magi skills install' to give your agent CLI "
+          "this workspace's skills, and 'magi sync' to see what to do first.")
 
     # 8. Auto-register in an ancestor hub when the topic sits under <hub>/topics/.
     try:

@@ -8,8 +8,12 @@ Code getting them through the plugin and everyone else copying directories by
 hand.
 
 Scopes:
-- ``global``  — user level, available in every project (the default).
-- ``project`` — inside the current directory, so a shared repo carries them.
+- ``project`` (default) — into the MAGI workspace you are standing in, so the
+  skills exist where they are useful and nowhere else.
+- ``global`` — user level, every project on the machine. Opt-in only: these
+  skills are about *this* research workspace (ingest into raw/, compile into
+  wiki/, query the graph), so loading them into every unrelated repo just
+  spends the agent's attention for nothing.
 
 The skill files ship inside the wheel (``magi/skills/*/SKILL.md``), so this
 works from a plain ``uv tool install`` with no repo checkout and no network.
@@ -134,12 +138,31 @@ def _config_home_opencode() -> Path:
     return base / "opencode"
 
 
-def _repo_root(start: Optional[Path] = None) -> Path:
-    """Antigravity anchors project skills at the repo root (the .git dir)."""
+def _is_workspace(path: Path) -> bool:
+    try:
+        from magi.core.workspace import is_hub_root, is_topic_root
+
+        return bool(is_topic_root(path) or is_hub_root(path))
+    except Exception:
+        return False
+
+
+def workspace_anchor(start: Optional[Path] = None) -> Path:
+    """Where a project-scope install belongs.
+
+    The MAGI workspace root (topic first, then hub) rather than the cwd: you
+    might be three directories deep in raw/ when you run this, and the agent
+    CLI is launched from the workspace root.
+    """
     cur = (start or Path.cwd()).resolve()
-    for parent in [cur, *cur.parents]:
-        if (parent / ".git").exists():
-            return parent
+    try:
+        from magi.core.workspace import find_hub_root, find_workspace_root
+
+        root = find_workspace_root(cur) or find_hub_root(cur)
+        if root is not None:
+            return Path(root)
+    except Exception:
+        pass
     return cur
 
 
@@ -166,7 +189,7 @@ HOSTS: Dict[str, Host] = {
         targets=[
             Target(kind="skill",
                    global_dir=lambda: _home() / ".agents" / "skills",
-                   project_dir=lambda root: _repo_root(root) / ".agents" / "skills",
+                   project_dir=lambda root: workspace_anchor(root) / ".agents" / "skills",
                    layout="dir",
                    invoke="$" + "{name}  (or let Codex pick it by description)"),
             Target(kind="skill",
@@ -184,7 +207,7 @@ HOSTS: Dict[str, Host] = {
         targets=[
             Target(kind="skill",
                    global_dir=lambda: _home() / ".gemini" / "config" / "skills",
-                   project_dir=lambda root: _repo_root(root) / ".agents" / "skills",
+                   project_dir=lambda root: workspace_anchor(root) / ".agents" / "skills",
                    layout="dir",
                    invoke="named in your prompt, or auto by description (/skills lists them)"),
         ],
@@ -298,8 +321,9 @@ def install_host(host: Host, skills: List[Skill], scope: str, force: bool,
     for target in host.targets:
         dest = override_dir if override_dir is not None else target_dir(target, scope, project_root)
         if dest is None:
-            placements.append({"kind": target.kind, "dir": None,
-                               "error": f"{host.label} has no {scope} scope for {target.kind}s"})
+            # A host can have several directories and only some of them exist
+            # at this scope (Codex has no project-level ~/.codex/skills). That
+            # is not an error as long as another target covers the scope.
             continue
         sub = {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0}
         for sk in skills:
@@ -320,6 +344,10 @@ def install_host(host: Host, skills: List[Skill], scope: str, force: bool,
         })
         if override_dir is not None:
             break  # an explicit --dir means "put it here", once
+
+    if not placements:
+        placements.append({"kind": "skill", "dir": None,
+                           "error": f"{host.label} has no {scope} scope"})
 
     return {
         "host": host.key,
@@ -430,8 +458,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         p.add_argument("--host", action="append", default=None,
                        help=f"Host to target ({', '.join(HOSTS)}); 'auto' = every detected host "
                             f"(default), 'all' = every known host. Repeatable.")
-        p.add_argument("--scope", choices=["global", "project"], default="global",
-                       help="global: this user, every project (default). project: only the current directory.")
+        p.add_argument("--scope", choices=["project", "global"], default="project",
+                       help="project (default): into the MAGI workspace you are in. "
+                            "global: every project on this machine — rarely what you want, "
+                            "since these skills only do anything inside a workspace.")
         p.add_argument("--dir", default=None,
                        help="Write to this directory instead of the host's standard location.")
         p.add_argument("--only", action="append", default=None,
@@ -491,7 +521,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"  [{mark}] {r['label']:<22} {kind:<17} {r['installed']}/{r['total']}{stale}")
             print(f"      {r['dir']}")
             print(f"      {r['invoke']}")
-        print("\n  magi skills install [--scope project] [--host <name>]")
+        print("\n  magi skills install                 # into this workspace (recommended)")
+        print("  magi skills install --scope global  # every project on this machine")
         return 0
 
     hosts = _resolve_hosts(args.host)
@@ -502,6 +533,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 1
 
     override = Path(args.dir).expanduser().resolve() if args.dir else None
+
+    if not args.json and override is None:
+        if args.scope == "global":
+            print("note: installing globally — these skills only do anything inside a MAGI\n"
+                  "      workspace, so every unrelated project will carry them for nothing.\n"
+                  "      'magi skills install' (project scope) is usually what you want.\n")
+        else:
+            anchor = workspace_anchor()
+            if not _is_workspace(anchor):
+                print(f"note: {anchor} is not a MAGI workspace — installing here anyway.\n"
+                      f"      Run this inside a topic workspace (magi init) or its hub for\n"
+                      f"      the skills to have something to work on.\n")
+
     reports = []
     for host in hosts:
         if cmd == "install":

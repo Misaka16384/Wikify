@@ -127,15 +127,16 @@ uv tool install --python 3.12 git+https://github.com/Misaka16384/magi
 
 ### 2.4 Installing the skills (teaching your agent)
 
-All 18 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command installs them into every agent CLI on your machine** — no repo clone needed:
+All 18 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command inside your workspace** installs them into every agent CLI on your machine — no repo clone needed:
 
 ```powershell
-magi skills install                   # global: every detected CLI
-magi skills install --scope project   # only this directory (travels with the repo)
+cd <your topic workspace>
+magi skills install                   # into this workspace (the default)
 magi skills where                     # per CLI: where it reads, what is installed, how it fires
+magi skills install --scope global    # machine-wide (rarely useful — these are workspace skills)
 ```
 
-`magi setup` installs them too (disable with `--no-skills`).
+**Not global by default**: these skills revolve around one research workspace, and installing into the workspace also lets them travel with the repo to collaborators.
 
 | Host | Global | Project | How it fires |
 |---|---|---|---|

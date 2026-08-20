@@ -126,15 +126,16 @@ uv tool install --python 3.12 git+https://github.com/Misaka16384/magi
 
 ### 2.4 Skills 安装（教 agent 用 MAGI）
 
-18 个 skill 随 CLI 一起分发（`magi/skills/*/SKILL.md`，在 wheel 里），**一条命令装进你机器上所有 agent CLI**，不需要 clone 仓库：
+18 个 skill 随 CLI 一起分发（`magi/skills/*/SKILL.md`，在 wheel 里），**在工作区里一条命令**装进你机器上所有 agent CLI，不需要 clone 仓库：
 
 ```powershell
-magi skills install                   # 全局：所有检测到的 CLI
-magi skills install --scope project   # 只装进当前目录（随仓库走）
+cd <你的主题工作区>
+magi skills install                   # 默认装进当前工作区（推荐）
 magi skills where                     # 每个 CLI 从哪读、装了几个、怎么触发
+magi skills install --scope global    # 全机可用（技能只在工作区里有意义，慎用）
 ```
 
-`magi setup` 也会自动装一遍（`--no-skills` 关闭）。
+**默认不装全局**：这些技能是围着某个研究工作区转的，装进工作区还能随仓库分发给同事。
 
 | 宿主 | 全局位置 | 项目位置 | 怎么触发 |
 |---|---|---|---|

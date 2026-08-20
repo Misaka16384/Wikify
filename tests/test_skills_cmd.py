@@ -174,3 +174,55 @@ def test_registered_in_the_dispatch_table():
         assert _COMMANDS[key][0] == "magi.skills_cmd"
         assert command_help_zh(key), f"{key}: missing Chinese help"
     assert _GROUP_HELP.get("skills") and group_help_zh("skills")
+
+
+def test_default_scope_is_the_workspace_not_the_machine(tmp_path, monkeypatch):
+    """Workspace-specific skills must not land in every unrelated project."""
+    import argparse
+    import inspect
+
+    from magi import skills_cmd
+
+    src = inspect.getsource(skills_cmd.main)
+    assert '"--scope", choices=["project", "global"], default="project"' in src, (
+        "installing globally by default puts 18 workspace skills in front of every repo"
+    )
+
+
+def test_project_scope_anchors_at_the_workspace_root(tmp_path, monkeypatch):
+    from magi.skills_cmd import workspace_anchor
+
+    topic = tmp_path / "topics" / "demo"
+    (topic / "wiki").mkdir(parents=True)
+    (topic / "config.yaml").write_text("ollama: {}\n", encoding="utf-8")
+    deep = topic / "raw" / "papers"
+    deep.mkdir(parents=True)
+
+    monkeypatch.chdir(deep)
+    assert workspace_anchor() == topic.resolve(), (
+        "running from inside raw/ must still install at the workspace root"
+    )
+
+    outside = tmp_path / "elsewhere"
+    outside.mkdir()
+    monkeypatch.chdir(outside)
+    assert workspace_anchor() == outside.resolve()
+
+
+def test_setup_reports_hosts_without_installing(tmp_path, monkeypatch):
+    """`magi setup` must never write skills anywhere."""
+    import inspect
+
+    from magi import setup_cmd
+
+    assert not hasattr(setup_cmd, "setup_agent_skills"), (
+        "setup must not install skills machine-wide"
+    )
+    src = inspect.getsource(setup_cmd.report_agent_skills)
+    assert "install_host" not in src
+    assert "magi skills install" in src
+
+    monkeypatch.chdir(tmp_path)
+    out = setup_cmd.report_agent_skills()
+    assert isinstance(out, str)
+    assert not any(tmp_path.iterdir()), "reporting must not create files"

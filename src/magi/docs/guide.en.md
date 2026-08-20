@@ -32,6 +32,7 @@ magi pm init                 # task system (git-inits this directory)
 
 mkdir topics\quantum-toys ; cd topics\quantum-toys
 magi init --name "Quantum Toys" --scope "Quantum phenomena in toy models"
+magi skills install          # give this workspace's skills to your agent CLI (see 2.4)
 
 magi sync                    # sanity check: sync ratio + three-core status + next-step hint
 ```
@@ -176,16 +177,21 @@ Install the CLI once; after that, starting a new topic only takes `magi init`.
 
 This step isn't a nice-to-have: **the knowledge base's compile step only runs inside an agent** (see Chapter 6).
 
-One command covers every agent CLI on your machine:
+**One command, run inside the workspace**, teaches every agent CLI on your machine:
 
 ```powershell
-magi skills install              # global: every detected CLI, every project
-magi skills install --scope project   # only this directory (travels with the repo)
+cd <your topic workspace>
+magi skills install              # into this workspace (the default)
 magi skills where                # where each CLI reads from, and what is installed
-magi skills install --host codex --dry-run   # see the exact files first, write nothing
+magi skills install --dry-run    # see the exact files first, write nothing
+magi skills uninstall            # take them back out
 ```
 
-The skill files ship with the CLI — **no repo clone, no network**. `magi setup` also installs them into every detected CLI (turn that off with `--no-skills`).
+The skill files ship with the CLI — **no repo clone, no network**.
+
+> [!WARN]
+> **The default is this workspace, not your whole machine.** All 18 skills revolve around one research workspace — ingest into its `raw/`, compile into its `wiki/`, query its graph — so a machine-wide install makes every unrelated project carry them for nothing. If you really want that: `magi skills install --scope global` (it warns once).
+> Installing into the workspace has a second benefit: the files travel with the repo, so a collaborator who clones it gets them.
 
 | Host | Global | Project | How it fires |
 |---|---|---|---|
@@ -211,10 +217,10 @@ The plugin and `magi skills install` coexist — one gives you `/magi:skill-name
 **Any other agent** — the workspace's `CLAUDE.md` and `AGENTS.md` (identical content, two copies) are the onboarding protocol: run `magi sync` on entry, which commands map to which core, use `magi guide --search` when stuck, and never answer research questions from memory. Any host that reads either file can work here; if it reads neither, pasting `magi --help` is enough.
 
 > [!EXPECT]
-> `magi skills where` shows 18/18 on the matching row. Start a fresh agent session and the skills appear under `/` (Claude Code, opencode), or just say "ingest the papers in inbox" and watch it act.
+> `magi skills where` shows 18/18 on the project rows. Start a fresh agent session **from that workspace directory** and the skills appear under `/` (Claude Code, opencode), or just say "ingest the papers in inbox" and watch it act. `magi setup --check` also shows the per-CLI count for the workspace you are in.
 
 > [!FIX]
-> - **Installed but not showing**: skills are scanned at startup — **start a new session**.
+> - **Installed but not showing**: skills are scanned at startup — **start a new session from the workspace directory** (project skills are only visible when the CLI is launched there).
 > - **Not sure where they went**: `magi skills where` prints the real path and count per CLI.
 > - **It says skipped**: a file of the same name was already there and didn't look like ours, so it wasn't overwritten. Check it, then `magi skills install --force`.
 > - **The agent calls a script that doesn't exist** (`python bin/llm-wiki.py ...`): old Wikify SKILL.md files are still around — run `magi setup --remove-legacy`.
