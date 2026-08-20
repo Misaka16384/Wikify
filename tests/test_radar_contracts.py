@@ -82,14 +82,21 @@ def test_a_scheduled_harvest_starts_in_the_workspace(tmp_path, monkeypatch):
     assert "cd /d" in tr and str(ws) in tr, tr
 
 
-def test_scheduling_a_harvest_is_not_a_danger_zone_operation():
-    """It registers a reversible cron entry and touches no workspace data. It
-    used to sit behind the same type-the-exact-name modal as `migrate` and
-    `setup --remove-legacy`, on a different tab from the feature it enables."""
+def test_the_danger_zone_holds_only_destructive_operations():
+    """Scheduling a harvest registers a reversible cron entry and touches no
+    workspace data; `magi pm init` is additive and no-ops when the database
+    already exists. Both used to sit behind the same type-the-exact-name modal
+    as `migrate` and `setup --remove-legacy` — which is how a required
+    first-run step came to read as something to avoid.
+
+    The zone is for operations that destroy or restructure. Putting anything
+    else in it spends the user's caution on the wrong thing, and they stop
+    reading the modal."""
     from magi.ui.jobs import OPS
 
-    assert OPS["radar-install-schedule"]["danger"] is False
-    for destructive in ("migrate", "setup-remove-legacy", "pm-init"):
+    for routine in ("radar-install-schedule", "pm-init"):
+        assert OPS[routine]["danger"] is False, f"{routine} is not destructive"
+    for destructive in ("migrate", "setup-remove-legacy", "setup"):
         assert OPS[destructive]["danger"] is True
 
 

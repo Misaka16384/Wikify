@@ -41,6 +41,13 @@ OPS: dict[str, dict] = {
               "label_i18n": "op_stats"},
     "backlog-sync": {"argv": ["pm", "backlog-sync"], "scope": "kb", "danger": False,
                      "label_i18n": "op_backlog_sync"},
+    # Additive and idempotent — `magi pm init` checks for .beads/metadata.json
+    # and no-ops if it is there. It was in the Danger Zone behind a
+    # type-the-exact-name modal, next to genuine deletions, while being the
+    # exact step the dashboard tells a new user to take second. That made the
+    # whole task-tracking bootstrap read as something to avoid.
+    "pm-init": {"argv": ["pm", "init"], "scope": "global", "danger": False,
+                "label_i18n": "btn_danger_pm_init", "desc_i18n": "danger_pm_init_desc"},
     "radar-harvest": {"argv": ["radar", "harvest"], "scope": "kb", "danger": False,
                       "label_i18n": "btn_radar_harvest"},
     "radar-citation-gap": {"argv": ["radar", "citation-gap"], "scope": "kb", "danger": False,
@@ -50,8 +57,6 @@ OPS: dict[str, dict] = {
               "label_i18n": "btn_danger_setup", "desc_i18n": "danger_setup_desc"},
     "migrate": {"argv": ["migrate"], "scope": "global", "danger": True,
                 "label_i18n": "btn_danger_migrate", "desc_i18n": "danger_migrate_desc"},
-    "pm-init": {"argv": ["pm", "init"], "scope": "global", "danger": True,
-                "label_i18n": "btn_danger_pm_init", "desc_i18n": "danger_pm_init_desc"},
     "setup-remove-legacy": {"argv": ["setup", "--remove-legacy"], "scope": "global", "danger": True,
                             "label_i18n": "btn_danger_legacy", "desc_i18n": "danger_remove_legacy_desc"},
     # Not a danger-zone operation. It registers or removes a daily scheduled

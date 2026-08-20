@@ -47,7 +47,7 @@
       </div>
       <div>
         <span class="brand-title">MAGI</span>
-        <span class="brand-badge" id="app-version">v1.10.0</span>
+        <span class="brand-badge" id="app-version">v1.10.1</span>
       </div>
       <span class="eva-clock" id="eva-clock" aria-hidden="true"></span>
     </div>
@@ -118,7 +118,9 @@
       <div class="core-stat" id="core-stat-cas">--</div>
       <div class="core-detail" id="core-detail-cas">--</div>
     </div>
-    <div class="core-sync">
+    <!-- The tooltip belongs on the big element, not only the small pill: this
+         is the most-asked-about number on the page. -->
+    <div class="core-sync" title="" data-i18n-title="sync_ratio_tooltip">
       <span class="core-sync-label" data-i18n="core_sync_label">Three-core sync</span>
       <div class="core-sync-rail"><i id="core-sync-fill"></i></div>
       <span class="core-sync-val" id="dash-sync-ratio">--%</span>

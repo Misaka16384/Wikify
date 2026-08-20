@@ -20,7 +20,7 @@
       term_retention_note: "任务历史跨重启保留（最近 40 条，magi 配置目录下 ui-jobs.jsonl）。",
       sync_label: "三核同步:",
       running_jobs_label: "运行中任务:",
-      sync_ratio_tooltip: "Melchior / Balthasar / Casper 三核协同同步率",
+      sync_ratio_tooltip: "工作区就绪度：知识（图谱是否最新、待编译源、断言覆盖）、任务追踪、检索索引三块的加权平均。把上方三核里标红/标黄的项处理掉，这个数就会涨。",
       doctor_btn: "环境体检",
       doctor_btn_title: "环境依赖与规范体检",
       theme_btn_title: "切换深浅配色主题",
@@ -39,12 +39,12 @@
       // Dashboard Metrics
       dash_sync_label: "三核同步率",
       dash_sync_subtitle: "认知 + 任务 + 检索协同",
-      dash_kb_label: "已注册知识库",
-      dash_kb_subtitle: "全局知识联合",
-      dash_radar_label: "待审阅简报",
+      dash_kb_label: "知识库",
+      dash_kb_subtitle: "本机可检索的库；当前正在看的那个见顶栏",
+      dash_radar_label: "待分流文献",
       dash_radar_subtitle: "文献雷达追踪",
-      dash_task_label: "科研任务状态",
-      dash_task_subtitle: "待办及进行中任务",
+      dash_task_label: "可开始的任务",
+      dash_task_subtitle: "没有被依赖挡住的任务",
 
       // Three-core status band
       core_role_mel: "认知状态",
@@ -52,6 +52,12 @@
       core_role_cas: "文献检索",
       core_sync_label: "三核同步率",
       core_state_ok: "正常",
+      graph_needs_build: "这个库还没建知识图谱。建完之后才能浏览概念之间的连接。",
+      running_jobs_tooltip: "正在运行的后台任务（本机全部工作区）——点击查看实时日志。",
+      claims_none_yet: "还没有断言",
+      btn_hint_howto: "怎么做",
+      kb_table_sub: "本机上 magi 知道的所有知识库；切换后所有面板都会指向它。",
+      core_state_notset: "尚未设置",
       core_state_attention: "待处理",
       core_state_fault: "故障",
       core_state_offline: "未接入",
@@ -66,7 +72,7 @@
 
       // Dashboard KB Table
       dash_kb_table_title: "已注册知识库",
-      dash_kb_table_subtitle: "全局注册表位于 ~/.config/magi/registry.json",
+      dash_kb_table_subtitle: "本机上 magi 知道的所有知识库；切换之后所有面板都指向它。",
       btn_refresh: "刷新",
       th_kb_name: "知识库名称",
       th_path: "路径",
@@ -137,7 +143,7 @@
       bal_subtitle: "确定性工作流与任务图谱",
       btn_backlog_sync: "待办文献转任务",
       bal_engine_not_ready: "科研任务追踪引擎未就绪或未安装。请运行 <code>magi setup</code> 初始化工作流引擎。",
-      bal_no_db_initialized: "当前工作区或 Hub 尚未初始化任务追踪库。点击下方初始化任务工作流。",
+      bal_no_db_initialized: "本工作区（或所属 Hub）还没有任务追踪库。这一步是可选的——不想用任务追踪就不必初始化。",
       bal_ready_label: "可执行",
       bal_ready_sub: "可直接启动的任务",
       bal_progress_label: "进行中",
@@ -166,6 +172,10 @@
       search_summary: "找到 {total} 条结果 · 关键词命中 {bm25} · 语义检索{vec}",
       search_lines: "行 {start}-{end}",
       vec_avail_yes: "已启用",
+      badge_rrf_tip: "综合排名分：把关键词排名和语义排名融合后的结果，越大越靠前。",
+      badge_bm25_tip: "按关键词匹配，这条排第 {n}",
+      badge_vec_tip: "按语义相近，这条排第 {n}",
+      vec_avail_bychoice: "本次未使用（你选了纯关键词）",
       vec_avail_no: "未启用",
 
       // Literature Radar
@@ -312,7 +322,7 @@
       hint_graph_build: "知识图谱落后于卡片内容，需要重建",
       hint_index: "检索索引缺失或已过期，需要重建",
       hint_backlog_sync: "有未编译文献尚未纳入任务追踪",
-      hint_pm_init: "任务引擎尚未初始化（在 运维与操作 中初始化）",
+      hint_pm_init: "还没有任务追踪库（可选，不用任务追踪就可以忽略）",
       hint_radar_review: "有文献雷达简报等待审阅",
       hint_claims_unverified: "有学术命题尚未验证（到 Melchior 面板查看）",
       hint_bd_ready: "有可直接开工的任务（到 Balthasar 面板查看）",
@@ -359,7 +369,7 @@
       cfg_f_models_embedding: "语义模型（Ollama 模型名）",
 
       // Search filters
-      opt_scope_auto: "联邦检索（本库 + 启用的注册库）",
+      opt_scope_auto: "本库 + 其它已启用的库",
       opt_scope_local: "仅当前工作区",
       opt_coll_all: "全部集合",
       opt_coll_concepts: "concepts 概念卡",
@@ -471,7 +481,7 @@
       term_retention_note: "Job history persists across restarts (last 40 records, ui-jobs.jsonl in the magi config directory).",
       sync_label: "Sync:",
       running_jobs_label: "Running Jobs:",
-      sync_ratio_tooltip: "Three-core sync ratio (Melchior + Balthasar + Casper)",
+      sync_ratio_tooltip: "How ready this workspace is: a weighted average over knowledge (graph freshness, uncompiled backlog, claim coverage), task tracking, and the retrieval index. Clear whatever the three cores above flag and this goes up.",
       doctor_btn: "Doctor",
       doctor_btn_title: "Environment Doctor Check",
       theme_btn_title: "Toggle Light/Dark Theme",
@@ -490,12 +500,12 @@
       // Dashboard Metrics
       dash_sync_label: "Sync Ratio",
       dash_sync_subtitle: "Melchior + Balthasar + Casper",
-      dash_kb_label: "Registered KBs",
-      dash_kb_subtitle: "Global federation",
-      dash_radar_label: "Pending Digests",
+      dash_kb_label: "Libraries",
+      dash_kb_subtitle: "Searchable on this machine — the one you are viewing is named in the topbar",
+      dash_radar_label: "Papers to Triage",
       dash_radar_subtitle: "Literature radar",
-      dash_task_label: "Active Task State",
-      dash_task_subtitle: "Actionable tasks",
+      dash_task_label: "Tasks Ready",
+      dash_task_subtitle: "Not blocked by anything else",
 
       // Three-core status band
       core_role_mel: "Cognitive state",
@@ -503,6 +513,12 @@
       core_role_cas: "Retrieval",
       core_sync_label: "Three-core sync",
       core_state_ok: "Nominal",
+      graph_needs_build: "No knowledge graph for this library yet. Build it to browse how concepts connect.",
+      running_jobs_tooltip: "Background jobs running right now, across every workspace on this machine. Click to watch the log.",
+      claims_none_yet: "No claims recorded yet",
+      btn_hint_howto: "How",
+      kb_table_sub: "Every library magi knows about on this machine. Switching points every panel at it.",
+      core_state_notset: "Not set up yet",
       core_state_attention: "Needs attention",
       core_state_fault: "Fault",
       core_state_offline: "Not linked",
@@ -517,7 +533,7 @@
 
       // Dashboard KB Table
       dash_kb_table_title: "Registered Knowledge Bases",
-      dash_kb_table_subtitle: "Global registry located at ~/.config/magi/registry.json",
+      dash_kb_table_subtitle: "Every library magi knows about on this machine. Switching points every panel at it.",
       btn_refresh: "Refresh",
       th_kb_name: "KB Name",
       th_path: "Path",
@@ -588,7 +604,7 @@
       bal_subtitle: "Deterministic work graph and issue tracker",
       btn_backlog_sync: "Sync Backlog to Tasks",
       bal_engine_not_ready: "Task tracking engine is not ready or not installed. Run <code>magi setup</code> to initialize workflow engine.",
-      bal_no_db_initialized: "No task tracking workspace initialized at workspace or hub. Click below to initialize task tracking.",
+      bal_no_db_initialized: "No task-tracking database in this workspace or its hub. This step is optional — skip it if you do not want task tracking.",
       bal_ready_label: "Ready",
       bal_ready_sub: "Actionable tasks",
       bal_progress_label: "In Progress",
@@ -617,6 +633,10 @@
       search_summary: "Found {total} hit(s) · keyword hits: {bm25} · semantic search: {vec}",
       search_lines: "lines {start}-{end}",
       vec_avail_yes: "on",
+      badge_rrf_tip: "Combined rank score: the keyword ranking and the meaning ranking fused into one. Higher is more relevant.",
+      badge_bm25_tip: "Ranked #{n} by keyword match",
+      badge_vec_tip: "Ranked #{n} by meaning similarity",
+      vec_avail_bychoice: "not used (you chose keyword-only)",
       vec_avail_no: "off",
 
       // Literature Radar
@@ -763,7 +783,7 @@
       hint_graph_build: "Knowledge graph is behind the cards and needs a rebuild",
       hint_index: "Retrieval index is missing or stale and needs a rebuild",
       hint_backlog_sync: "Uncompiled sources are not yet tracked as tasks",
-      hint_pm_init: "Task engine is not initialized (do it in Operations)",
+      hint_pm_init: "No task-tracking database yet (optional — skip it if you do not want task tracking)",
       hint_radar_review: "Literature radar digests are waiting for review",
       hint_claims_unverified: "Some claims are still unverified (see Melchior)",
       hint_bd_ready: "There is actionable work ready (see Balthasar)",
@@ -810,7 +830,7 @@
       cfg_f_models_embedding: "Semantic model (Ollama model name)",
 
       // Search filters
-      opt_scope_auto: "Federated (this KB + enabled KBs)",
+      opt_scope_auto: "This library + other enabled ones",
       opt_scope_local: "This workspace only",
       opt_coll_all: "All collections",
       opt_coll_concepts: "concepts",
@@ -1634,14 +1654,18 @@
     if (kind === "mel") {
       const detail = `${core.concepts || 0} CPT / ${core.references || 0} REF / CLM ${core.claims_verified || 0}/${core.claims || 0}`;
       if (core.graph === "fresh") return { cls: "state-ok", stat: "NOMINAL", detail };
-      if (core.graph === "empty-wiki") return { cls: "state-warn", stat: "STANDBY", detail };
+      // Empty is not broken. A workspace made ninety seconds ago has nothing
+      // in it because nobody has put anything in it yet, and reporting that as
+      // "needs attention" told every new user their install was damaged
+      // before they had a chance to do anything right.
+      if (core.graph === "empty-wiki") return { cls: "state-new", stat: "STANDBY", detail };
       if (core.graph === "stale") return { cls: "state-warn", stat: "STALE", detail };
       return { cls: "state-warn", stat: "NO GRAPH", detail };
     }
     if (kind === "bal") {
       if (core.state === "disabled") return { cls: "state-off", stat: "OFFLINE", detail: "KB-ONLY PROFILE" };
       if (!core.bd_installed) return { cls: "state-err", stat: "NO ENGINE", detail: "RUN MAGI SETUP" };
-      if (!core.beads_root) return { cls: "state-warn", stat: "STANDBY", detail: "PM NOT INITIALIZED" };
+      if (!core.beads_root) return { cls: "state-new", stat: "STANDBY", detail: "PM NOT INITIALIZED" };
       return {
         cls: "state-ok",
         stat: "NOMINAL",
@@ -1650,7 +1674,9 @@
     }
     // casper
     if (core.state === "missing" || core.state === "offline") {
-      return { cls: "state-err", stat: "NO INDEX", detail: "RUN MAGI INDEX" };
+      // Same reasoning as Melchior above: an index you have not built yet is
+      // a step outstanding, not a fault.
+      return { cls: "state-new", stat: "NO INDEX", detail: "RUN MAGI INDEX" };
     }
     const casDetail = `INDEX ${core.chunks || 0} / SEMANTIC ${core.vectors || 0}`;
     if (core.state === "stale") return { cls: "state-warn", stat: "STALE", detail: casDetail };
@@ -1698,6 +1724,7 @@
   // speaks NERV codes, the band speaks the UI language.
   const CORE_STATUS_KEYS = {
     "state-ok": "core_state_ok",
+    "state-new": "core_state_notset",
     "state-warn": "core_state_attention",
     "state-err": "core_state_fault",
     "state-off": "core_state_offline",
@@ -1880,9 +1907,34 @@
   // Workspace & Global Status
   // ------------------------------------------------------------------------
 
+  // Anything on screen that belongs to a specific library has to go when the
+  // library changes. Search results were the loud case: the status band above
+  // them flipped to "no retrieval index built" while the list below kept
+  // showing the previous workspace's fully-scored hits, with nothing marking
+  // them stale.
+  function clearWorkspaceScopedViews() {
+    if (els.searchResultsList) {
+      els.searchResultsList.innerHTML =
+        `<p class="empty-note center mt-3">${t("search_prompt")}</p>`;
+    }
+    if (els.searchInfoBar) els.searchInfoBar.textContent = "";
+    state.activeDigest = null;
+    const preview = document.querySelector(".doc-preview-window");
+    if (preview && preview.classList.contains("open")) {
+      const close = document.getElementById("doc-preview-close");
+      if (close) close.click();
+    }
+  }
+
   function renderWorkspaceSelect() {
     if (!els.workspaceSelect) return;
-    const currentVal = els.workspaceSelect.value || state.workspace;
+    // state.workspace wins over whatever the <select> happens to hold. Read
+    // the other way round, a hub-root launch (no server-side active workspace)
+    // let the empty select fall to its first alphabetical option, and the
+    // dropdown then stayed on that name while every number on the page came
+    // from the workspace state actually points at — the label quietly
+    // describing a different library than the one on screen.
+    const currentVal = state.workspace || els.workspaceSelect.value;
     els.workspaceSelect.innerHTML = "";
     state.kbs.forEach((kb) => {
       const opt = document.createElement("option");
@@ -1911,11 +1963,26 @@
     return String(p || "").replace(/\\/g, "/").replace(/\/+$/, "").toLowerCase();
   }
 
+  // Written once at boot and never again, this said "Running Jobs: 1" for a
+  // job that had long finished, and stayed silent for one you started
+  // afterwards. It is also the only place a running job is visible from
+  // another tab, so it needs to be both live and clickable.
+  function setActiveJobs(n) {
+    if (!els.activeJobsBadge || !els.activeJobsCount) return;
+    els.activeJobsBadge.style.display = n > 0 ? "flex" : "none";
+    els.activeJobsCount.textContent = n;
+  }
+
   function updateBrowsingBadge() {
     const badge = document.getElementById("browsing-badge");
     if (!badge) return;
-    const browsing = state.workspace && state.serverWorkspace &&
-      _normPath(state.workspace) !== _normPath(state.serverWorkspace);
+    // Started at a hub root, the server has no active workspace at all — so
+    // whatever you are looking at, you are looking at it by choice. Requiring
+    // serverWorkspace to be set meant the badge could never fire in exactly
+    // the launch mode where it matters most.
+    const browsing = !!state.workspace && (
+      !state.serverWorkspace ||
+      _normPath(state.workspace) !== _normPath(state.serverWorkspace));
     badge.style.display = browsing ? "" : "none";
   }
 
@@ -1943,11 +2010,13 @@
         state.workspace = els.workspaceSelect.value;
         safeStorageSet("magi-view-workspace", state.workspace);
       }
+      // Re-render once state.workspace has settled, so the dropdown's selected
+      // option is guaranteed to name the library the rest of the page is
+      // about to load. Every panel below reads state.workspace, so this is the
+      // one place the label and the data can be reconciled.
+      renderWorkspaceSelect();
       updateBrowsingBadge();
-      if (status.active_jobs_count > 0) {
-        els.activeJobsBadge.style.display = "flex";
-        els.activeJobsCount.textContent = status.active_jobs_count;
-      }
+      setActiveJobs(status.active_jobs_count || 0);
       loadSyncRatio();
       loadTabData(state.activeTab);
     } catch (err) {
@@ -2014,13 +2083,17 @@
     "index-missing": { i18n: "hint_index", action: { type: "job", op: "index", nameKey: "op_rebuild_index" } },
     "index-stale": { i18n: "hint_index", action: { type: "job", op: "index", nameKey: "op_rebuild_index" } },
     "backlog-untracked": { i18n: "hint_backlog_sync", action: { type: "job", op: "backlog-sync", nameKey: "op_backlog_sync" } },
-    "pm-uninit": { i18n: "hint_pm_init", action: { type: "tab", tab: "operations" } },
+    "pm-uninit": { i18n: "hint_pm_init", action: { type: "job", op: "pm-init", nameKey: "btn_danger_pm_init" } },
     "radar-digests-pending": { i18n: "hint_radar_review", action: { type: "tab", tab: "radar" } },
     "radar-gaps-pending": { i18n: "hint_radar_review", action: { type: "tab", tab: "radar" } },
     "claims-unverified": { i18n: "hint_claims_unverified", action: { type: "tab", tab: "melchior" } },
     "bd-ready": { i18n: "hint_bd_ready", action: { type: "tab", tab: "balthasar" } },
-    "beads-missing": { i18n: "hint_install_beads", action: null },
-    "ingest-start": { i18n: "hint_ingest_start", action: null },
+    // The panel says "click to run" and this was the one inert row — and the
+    // only row a brand-new user with an inbox full of PDFs actually needs.
+    // It is an agent-skill step, not a job, so it opens the chapter that
+    // explains how to trigger one.
+    "ingest-start": { i18n: "hint_ingest_start", action: { type: "docs", anchor: "ingest" } },
+    "beads-missing": { i18n: "hint_install_beads", action: { type: "docs", anchor: "pm" } },
     "hub-topics": { i18n: null, action: null },
   };
 
@@ -2063,6 +2136,15 @@
         if (rule.action.type === "job") {
           btn.textContent = t("btn_hint_run");
           btn.addEventListener("click", () => launchJob(rule.action.op, t(rule.action.nameKey)));
+        } else if (rule.action.type === "docs") {
+          // Some steps are done by talking to your agent, not by pressing a
+          // button here. Those get taken to the chapter that explains how,
+          // rather than being left as the one row you cannot click.
+          btn.textContent = t("btn_hint_howto");
+          btn.addEventListener("click", () => {
+            switchTab("docs");
+            state.pendingDocAnchor = rule.action.anchor;
+          });
         } else {
           btn.textContent = t("btn_hint_goto");
           btn.addEventListener("click", () => switchTab(rule.action.tab));
@@ -2093,9 +2175,9 @@
         const pm = await apiFetch(`/api/workspace/pm?workspace=${encodeURIComponent(state.workspace)}`);
         const engineReady = (pm.task_engine_ready !== undefined ? pm.task_engine_ready : pm.beads_available);
         if (pm.summary) {
-          els.dashTaskReady.textContent = `${pm.summary.ready || 0} ${t("unit_ready")}`;
+          els.dashTaskReady.textContent = String(pm.summary.ready || 0);
         } else {
-          els.dashTaskReady.textContent = engineReady ? `0 ${t("unit_ready")}` : t("task_engine_offline");
+          els.dashTaskReady.textContent = engineReady ? "0" : t("task_engine_offline");
         }
       } catch (_) {}
 
@@ -2138,7 +2220,7 @@
             <td>${syncBadge}</td>
             <td>
               <button class="btn btn-secondary btn-sm switch-ws-btn" data-path="${escapeHtml(kb.path)}">${t("btn_switch_ws")}</button>
-              <button class="btn btn-danger btn-sm unreg-kb-btn" data-name="${escapeHtml(kb.name)}">${t("btn_unreg_kb")}</button>
+              <button class="btn btn-quiet btn-sm unreg-kb-btn" data-name="${escapeHtml(kb.name)}">${t("btn_unreg_kb")}</button>
             </td>
           </tr>
         `;
@@ -2208,8 +2290,15 @@
       const claimsData = await apiFetch(`/api/workspace/claims?workspace=${encodeURIComponent(state.workspace)}`);
       const claims = claimsData.claims || [];
       els.melchiorClaimsVal.textContent = `${claimsData.verified || 0} / ${claimsData.total || 0}`;
-      const pct = claimsData.total ? Math.round((claimsData.verified / claimsData.total) * 100) : 100;
-      els.melchiorClaimsRate.textContent = t("claims_verified_rate", { rate: pct });
+      // 0/0 used to render as "100% verified", which is vacuously true and
+      // reads as a lie — and it is the one place a newcomer meets the word
+      // "claim" at all.
+      if (!claimsData.total) {
+        els.melchiorClaimsRate.textContent = t("claims_none_yet");
+      } else {
+        const pct = Math.round((claimsData.verified / claimsData.total) * 100);
+        els.melchiorClaimsRate.textContent = t("claims_verified_rate", { rate: pct });
+      }
 
       if (!claims.length) {
         els.claimsTableBody.innerHTML = `<tr><td colspan="4" class="empty-cell">${t("no_claims")}</td></tr>`;
@@ -2373,7 +2462,8 @@
       renderGraphBrowse(data);
     } catch (err) {
       if (token !== loadGraphBrowse._req) return;
-      els.graphBrowseContainer.innerHTML = `<div class="error-box">${escapeHtml(err.message)}</div>`;
+      els.graphBrowseContainer.innerHTML = "";
+      els.graphBrowseContainer.appendChild(graphMissingBox(err.message));
     }
   }
   loadGraphBrowse._req = 0;
@@ -2777,7 +2867,8 @@
       buildGraphMap(data.results || {}, key);
     } catch (err) {
       if (els.graphMapNote) {
-        els.graphMapNote.textContent = err.message;
+        els.graphMapNote.textContent = /graph\.db|graph build/i.test(err.message || "")
+          ? t("graph_needs_build") : err.message;
         els.graphMapNote.style.display = "";
       }
     }
@@ -2786,6 +2877,28 @@
   // Derives the corner note from graphMap state, so a language switch on a
   // cached dataset re-renders it in the new language instead of keeping the
   // old string.
+  // The same condition the Dashboard offers a "Run" button for. Melchior used
+  // to print the backend's own sentence — "Knowledge graph database not found
+  // at D:\...\graph.db. Run 'magi graph build' first." — as inert text, so
+  // one fact had two interfaces depending on which tab you happened to be on.
+  function graphMissingBox(message) {
+    const box = document.createElement("div");
+    const missing = /graph\.db|graph build/i.test(message || "");
+    box.className = missing ? "empty-note pad-1" : "error-box";
+    const line = document.createElement("div");
+    line.textContent = missing ? t("graph_needs_build") : message;
+    box.appendChild(line);
+    if (missing) {
+      const btn = document.createElement("button");
+      btn.className = "btn btn-primary btn-sm mt-1";
+      btn.textContent = t("op_build_graph");
+      btn.addEventListener("click", () =>
+        launchJob("graph-build", t("op_build_graph"), null, { stay: true }));
+      box.appendChild(btn);
+    }
+    return box;
+  }
+
   function renderGraphMapNote() {
     if (!els.graphMapNote) return;
     if (!graphMap.key) return;
@@ -3139,11 +3252,23 @@
         return;
       }
       if (!pm.summary) {
-        els.taskStatusBanner.innerHTML = `
-          <div class="banner-pill info">
-            ${t("bal_no_db_initialized")}
-          </div>
-        `;
+        // The banner used to say "click below to initialize" with nothing
+        // below it to click — the actual control lives on another tab and was
+        // never named. Put the button in the banner and run it from here.
+        els.taskStatusBanner.innerHTML = "";
+        const pill = document.createElement("div");
+        pill.className = "banner-pill info banner-with-action";
+        const msg = document.createElement("span");
+        msg.textContent = t("bal_no_db_initialized");
+        pill.appendChild(msg);
+        const go = document.createElement("button");
+        go.className = "btn btn-primary btn-sm";
+        go.textContent = t("btn_danger_pm_init");
+        go.addEventListener("click", () => {
+          launchJob("pm-init", t("btn_danger_pm_init"), null, { stay: true });
+        });
+        pill.appendChild(go);
+        els.taskStatusBanner.appendChild(pill);
         els.taskReadyVal.textContent = "0";
         els.taskProgressVal.textContent = "0";
         els.taskBlockedVal.textContent = "0";
@@ -3871,18 +3996,21 @@
         return;
       }
 
-      const vecStatus = data.vector_available ? t("vec_avail_yes") : t("vec_avail_no");
+      const vecStatus = data.vector_available ? t("vec_avail_yes")
+        : data.mode === "bm25" ? t("vec_avail_bychoice")
+          : t("vec_avail_no");
       els.searchInfoBar.textContent = t("search_summary", {
         total: data.results.length,
         bm25: data.bm25_hits || 0,
         vec: vecStatus,
       });
-      if (!data.vector_available) {
+      // Three different reasons land here as "no vectors", and they need three
+      // different responses: you chose keyword-only, Ollama is busy, or it is
+      // not set up. Telling a user who picked bm25 to go install Ollama is
+      // troubleshooting copy applied to a deliberate choice.
+      if (!data.vector_available && data.mode !== "bm25") {
         const note = document.createElement("div");
         note.className = "hint-note";
-        // "Ollama isn't set up" and "Ollama is busy indexing right now" both
-        // arrive here as vectors-off, and they need opposite responses from
-        // the reader: one is a setup task, the other is a wait.
         note.textContent = data.vector_degraded
           ? t("vec_degraded_hint")
           : t("vec_unavailable_hint");
@@ -3913,9 +4041,9 @@
                 <div class="search-hit-title">${escapeHtml(hit.heading || hit.path)}</div>
                 <div class="search-hit-badges">
                   ${kbBadge}${collBadge}
-                  <span class="badge badge-terracotta">RRF ${hit.score}</span>
-                  ${hit.bm25_rank ? `<span class="badge badge-blue">BM25 #${hit.bm25_rank}</span>` : ""}
-                  ${hit.vector_rank ? `<span class="badge badge-sage">Vec #${hit.vector_rank}</span>` : ""}
+                  <span class="badge badge-terracotta" title="${escapeHtml(t("badge_rrf_tip"))}">RRF ${hit.score}</span>
+                  ${hit.bm25_rank ? `<span class="badge badge-blue" title="${escapeHtml(t("badge_bm25_tip", { n: hit.bm25_rank }))}">BM25 #${hit.bm25_rank}</span>` : ""}
+                  ${hit.vector_rank ? `<span class="badge badge-sage" title="${escapeHtml(t("badge_vec_tip", { n: hit.vector_rank }))}">Vec #${hit.vector_rank}</span>` : ""}
                 </div>
               </div>
               <div class="search-hit-path">
@@ -4324,6 +4452,7 @@
       });
 
       showToast(t("toast_job_started", { name: displayName || opId }), "info");
+      setActiveJobs(1);
       if (!stay) switchTab("operations");
       startLogStream(res.job_id, displayName || opId);
     } catch (err) {
@@ -4467,6 +4596,7 @@
             state.activeJobId = null;
             els.termJobName.textContent = t("term_idle");
             invalidateCoalesced();
+            setActiveJobs(0);
             loadSyncRatio();
             // A job that ran without leaving its own panel should leave that
             // panel showing what it produced.
@@ -4475,6 +4605,7 @@
             els.termStatusDot.className = "status-dot error";
             if (termContainer) termContainer.classList.remove("is-running");
             els.termCancelBtn.style.display = "none";
+            setActiveJobs(0);
             showToast(t("toast_job_ended", { name: jobName, status: payload.status }), "error");
             source.close();
             state.activeJobId = null;
@@ -4865,11 +4996,24 @@
     state.workspace = e.target.value;
     safeStorageSet("magi-view-workspace", state.workspace);
     updateBrowsingBadge();
+    clearWorkspaceScopedViews();
     loadSyncRatio();
     loadTabData(state.activeTab);
   });
 
   // Refresh KB button
+  // A count you cannot click is a notification you cannot act on.
+  if (els.activeJobsBadge) {
+    els.activeJobsBadge.style.cursor = "pointer";
+    els.activeJobsBadge.setAttribute("title", "");
+    els.activeJobsBadge.setAttribute("data-i18n-title", "running_jobs_tooltip");
+    els.activeJobsBadge.addEventListener("click", () => {
+      switchTab("operations");
+      const term = document.querySelector("#tab-operations .terminal-container");
+      if (term) term.scrollIntoView({ block: "nearest" });
+    });
+  }
+
   els.refreshKbBtn.addEventListener("click", () => {
     invalidateCoalesced();
     loadKBRegistry();

@@ -654,6 +654,9 @@ body {
 }
 
 .core-dot.state-ok { background-color: var(--accent-sage); }
+/* "Not set up yet" is a step outstanding, not a problem — neutral, so a brand
+   new workspace does not greet its owner with a wall of amber and red. */
+.core-dot.state-new { background-color: var(--text-subtle); box-shadow: 0 0 0 2px rgba(127, 127, 127, 0.18); }
 .core-dot.state-warn { background-color: var(--accent-amber); }
 .core-dot.state-err { background-color: var(--accent-danger); }
 .core-dot.state-off { background-color: var(--text-subtle); }
@@ -833,7 +836,13 @@ body {
 
 #tab-operations .terminal-body {
   flex: 1 1 auto;
-  max-height: none;
+  /* Deliberately NOT `max-height: none`. Removing the cap left the element
+     with no internal overflow, so auto-scroll — which is on by default — had
+     nothing to scroll: a finished job's output sat thousands of pixels below
+     the fold while the visible pane stayed frozen on "Connecting to log
+     stream…", and the job read as hung. Taller here than elsewhere, since
+     this tab is where you actually watch output, but still scrollable. */
+  max-height: clamp(320px, 55vh, 620px);
 }
 
 .grid-2, .grid-3, .grid-4 {

@@ -299,7 +299,14 @@ def test_jobs_lifecycle(client):
     op_ids = {o["op"] for o in ops}
     assert {"index", "graph-build", "stats", "migrate", "radar-install-schedule"} <= op_ids
     assert all(o.get("label_i18n") for o in ops)
-    assert all(o["danger"] for o in ops if o["op"] in ("setup", "migrate", "pm-init"))
+    # Reserved for operations that destroy or restructure. `pm-init` and
+    # `radar-install-schedule` are additive and idempotent and deliberately
+    # are NOT here — dressing a required first-run step as a destructive one
+    # is how the task-tracking bootstrap became something users avoided.
+    assert all(o["danger"] for o in ops
+               if o["op"] in ("setup", "migrate", "setup-remove-legacy"))
+    assert not any(o["danger"] for o in ops
+                   if o["op"] in ("pm-init", "radar-install-schedule"))
 
     # Non-existent job
     assert client.get("/api/jobs/nonexistent-id").status_code == 404

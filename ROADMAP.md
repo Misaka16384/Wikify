@@ -2,7 +2,29 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-20 · 当前阶段：**v1.10.0 已发布**（tag `v1.10.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+> 最后更新：2026-08-20 · 当前阶段：**v1.10.1 已发布**（tag `v1.10.1`；版本号同步 ×5）。此前：M0–M9 全部完成。
+>
+> 2026-08-20 WebUI 人类模拟压测 (v1.10.1)：用户「对 webui 其他功能也做这种端到端真实压测，模拟人类用户，看看哪里会让人觉得 confuse / 重点不突出」。**造了三档成熟度的真实场景**：`fresh`（刚 `magi init` 出来、彻底空的）、`mature`（真实库的副本：100 concepts / 19 references / 图谱已建 / 1371 段全部向量化）、`radar-stress-ws`（67 references、零 concepts 的半成品），从 hub 根起一个服务，配置目录隔离到独立 `MAGI_CONFIG_HOME`，全程没碰用户真实数据。10 个维度 × 64 个 agent（三个"人格"任务：新手带着 20 篇 PDF 从零上手、老用户日常一轮、踩坑用户找回路径；外加逐面板与跨面板审计），53 条上报、**38 条通过对抗式复核**。
+>
+> **① 头号问题：工作区下拉框会说谎。** 从 hub 根启动时服务端没有 active workspace，`renderWorkspaceSelect()` 里 `els.workspaceSelect.value || state.workspace` 让空的 select 落到字母序第一个选项上，而后面每一次取数用的都是真正的 `state.workspace`——于是**下拉框显示的库和屏幕上所有数字属于的库不是同一个**。而专门为了暴露这种分歧而做的 `#browsing-badge`，判据是 `state.workspace !== state.serverWorkspace`，在 hub 根启动时 `serverWorkspace` 是 null，**永远不会亮**。这不是众多 bug 里的一个，是"页面上任何数字都不能信"的原因。改：`state.workspace` 优先于 DOM 值；`loadInitialStatus` 里工作区确定之后再渲染一次下拉框；badge 判据改成"服务端没有 active workspace = 一直在浏览别人"。
+>
+> **② 空 ≠ 坏。** 一个刚建了九十秒的工作区，三核状态是 Melchior「需要注意」、Balthasar「需要注意」、Casper「**故障**」——什么都没坏，用户只是还没开始。新人打开就是一片红黄，先被告知自己装坏了。新增 `state-new` 状态（「尚未设置」，中性灰点），用于 empty-wiki / 未初始化 beads / 未建索引三处。**同一个问题的另一面**：`claimsData.total ? … : 100` 让零断言的工作区显示「100% verified」——空的东西不该报满分，改成「还没有断言」。
+>
+> **③ 同步率用行话解释行话。** `Sync: 33.3%` 挂在每一个屏幕的顶栏，唯一的 tooltip 是「Three-core sync ratio (Melchior + Balthasar + Casper)」——把缩写展开了一遍，没说这个百分比是**什么的**百分比、怎么才能涨、33.3% 算不算糟。而且 tooltip 挂在小药丸上，旁边那条**全宽的** THREE-CORE SYNC 长条反而什么都没有。现在 tooltip 讲人话（"工作区就绪度：知识/任务/检索三块的加权平均，把上面标记的项处理掉就会涨"），并且挂到了那个大的元素上——最需要解释的数字应该由最显眼的元素带解释。
+>
+> **④ 最该点的那一步没有按钮。** 「Suggested Actions」卡片副标题写着「click to run」，三行里两行有 Open/Run，而**第一行——"把 PDF 丢进 inbox/ 然后跑 wiki_ingest 技能"，也就是新用户唯一真正要做的第一件事——是唯一没有任何控件的那行**（`HINT_ACTIONS['ingest-start'].action` 写死 `null`）。它是个 agent 技能步骤、不是 job，所以现在给它一个「怎么做」按钮跳到手册对应章节；`beads-missing` 同理。
+>
+> **⑤ 任务追踪的启动路径整条是断的（三条 finding 一个根因）。** Balthasar 空状态横幅写着「点击下方初始化任务工作流」——**下方没有任何可点的东西**，真正的入口在另一个标签页且从未被提及；而那个入口 `pm-init` 待在**危险区**里，和 `migrate`、`setup --remove-legacy` 共用"输入操作 ID 二次确认"的仪式——可它是 additive 且幂等的（`cmd_init` 见到 `.beads/metadata.json` 就直接 no-op，已核实），还是 Dashboard 建议新用户做的第二步。三处一起修：`pm-init` 移出危险区；横幅自带按钮就地执行；文案改成「这一步是可选的——不想用任务追踪就不必初始化」（**它本来就是可选的，而产品的核心指标却把不用它当成永久扣分**：一个 99 concepts、1371 段全向量化的成熟库照样只有 66.7%，`magi setup --kb-only` 能把 Balthasar 整个摘出比例，但 WebUI 里从来没提过）。
+>
+> **⑥ 「自动滚动」在运维页什么也不做，跑完的任务看起来像卡死。** `styles.css` 里 `#tab-operations .terminal-body { max-height: none }` 覆盖掉了可滚动规则，元素没有内部溢出，于是默认勾着的自动滚动**无处可滚**——任务输出落在视口下方一万多像素处，而可见的那块永远停在「Connecting to log stream…」。改回可滚动（这一页留高一点，55vh）。
+>
+> **⑦ 频率与重量不匹配**（用户点名的那类）：知识库表格每一行结尾都是 `[切换] [移除]`，而**移除是 `btn-danger` 红色**、切换是次要按钮——切换是天天做的，移除几乎不做，红的却是罕见且不可逆的那个，每一行都红一次；改成安静按钮。首屏第一个指标位是「REGISTERED KBS 3 / 全局知识联合」——一个数配置文件条目数的计数，配一句没人天生认识的行话；改成「知识库 / 本机可检索的库，当前正在看的那个见顶栏」。「Pending Digests」在新用户还没见过"简报"这个词的时候就出现了 → 「待分流文献」。「Active Task State: 0 ready」把值和单位焊在一起而所有兄弟格子都是裸数字 → 标签改成「可开始的任务」、值就是数字。副标题「全局注册表位于 ~/.config/magi/registry.json」——GUI 里摆文件系统路径，占的是本该说明这张表是干什么的那一行。
+>
+> **⑧ 其余死路与泄漏**：Melchior 图谱缺失时把后端原句（带 `D:\...\graph.db` 路径和 `Run 'magi graph build' first`）当成呆文本显示，而**同一个条件在 Dashboard 上是有 Run 按钮的**——同一个事实两套界面，现在也给按钮；顶栏「Running Jobs」药丸只在开机时写一次、之后永不更新（开机后启动的任务整个运行期间在顶栏都是隐形的），也不可点、也没说清是哪个工作区的——改成随任务启停实时更新、可点击跳到日志、tooltip 说明是本机全部工作区；切换工作区时 Casper 的检索结果不会清空，上方状态条已经翻成"没有索引"而下方还挂着上一个库的完整评分结果——现在切换时清掉检索结果与打开的卡片预览；用户主动选了"纯关键词"模式，界面却还是弹「语义检索未启用：需要本机 Ollama 模型…」这种排障文案——现在区分"你自己选的"和"坏了"；检索结果上的 `RRF 0.029 / BM25 #1 / Vec #12` 三个徽章全无解释，加了 tooltip；`opt_scope_auto` 的「联邦检索（本库 + 启用的注册库）」一句话三个行话 → 「本库 + 其它已启用的库」。
+>
+> **刻意没在这一版做的**（都写进了简报的风险项）：向量检索的相关度下限（会影响真实查询的结果数，需要先拿 mature 库做基线）、图谱 map 的图例与标签防重叠（工作量更大）、`magi stats` 输出瘦身（要改 CLI）、`localStorage` → `sessionStorage`（行为变更）、卡片预览「Links view」的返回栈。测试 301 项全绿（两条断言 `pm-init` 属于危险区的测试按新意图改写：危险区只放会破坏或重构的操作，把必做的首次设置放进去，等于把用户的警惕心花在错的地方，久了他们就不看那个弹窗了）。
+>
+> 压测场景留在 `D:\AI_Playground\ui-stress-hub`（mature + fresh 两个 topic、独立配置目录），随时可以再起服务复跑。
 >
 > 2026-08-20 文献雷达压测 (v1.10.0)：用户要求「用 homepage 里的论文单独建一个工作区，从头真实模拟使用场景，测试所有功能」，并追加「webui 上不方便操作的、按钮设计重点不突出的也要一起优化」。**建了真库**：从叶鹏组主页抓下全部 **67 篇**论文，逐篇从 arXiv API 取回真实摘要（67/67），写成 reference 卡，`magi index` 建索引（**268/268 chunk 全部向量化**），radar 分类按该组实际投稿分布配置（42 篇 cond-mat.str-el、11 quant-ph、4 mes-hall、3 hep-th）。然后真跑：**harvest 拿到 40 个候选**（S2 推荐 20 + arXiv 新文 20，字段无一残缺），**citation-gap 跑完四层漏斗**拿到 1 条。8 维度 × 41 个 agent 的对抗式审计：32 条上报、**26 条通过复核**。
 >
@@ -22,7 +44,8 @@
 >
 > 新增 `tests/test_radar_contracts.py` 18 项（配置解析跟随 `--topic-dir`、计划任务的工作目录、install-schedule 不再是危险操作、`--topic-dir` 校验、`max_candidates=0` 不发请求、`--days 0`、来源预算、digest 往返的四种畸形输入、frontmatter 状态、triage 记录与撤销、harvest 时效）。测试 283 → **301**。
 >
-> 压测工作区留在 `D:\AI_Playgroundadar-stress-ws`（67 篇真实论文 + 索引 + 真实 harvest/citation-gap 产物），已从全局注册表注销以免污染仪表盘。
+> 压测工作区留在 `D:\AI_Playground
+adar-stress-ws`（67 篇真实论文 + 索引 + 真实 harvest/citation-gap 产物），已从全局注册表注销以免污染仪表盘。
 >
 > 2026-08-20 性能：卡死的那三件事 (v1.9.3)：用户在做语义检索时被告知没有 Ollama，去运维点了「重建索引」，然后整个 WebUI 卡住。**三件事，互相独立，只有一件是它看上去的样子。**
 >
