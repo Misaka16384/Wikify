@@ -123,10 +123,12 @@ def _safe_workspace_file(ws: Path, rel: str, suffixes: set[str] | None = None) -
     if not rel:
         raise HTTPException(status_code=400, detail="empty path")
     candidate = Path(rel)
-    # A leading slash is absolute to any reader; Path() on Windows calls
-    # "/etc/hosts" drive-relative and would let it fall through to the escape
-    # check with a confusing 403.
-    if candidate.is_absolute() or candidate.drive or rel[0] in "/\\":
+    # Absoluteness is decided by the string, not by whichever OS is parsing
+    # it: PurePath on Linux calls "C:/Windows/win.ini" relative, and on
+    # Windows it calls "/etc/hosts" drive-relative. Either way the caller
+    # plainly meant an absolute path, and either way the answer is no.
+    if (candidate.is_absolute() or candidate.drive or rel[0] in "/\\"
+            or re.match(r"^[A-Za-z]:[\\/]", rel)):
         raise HTTPException(status_code=400, detail="path must be workspace-relative")
     target = (ws / candidate).resolve()
     root = ws.resolve()

@@ -1428,7 +1428,8 @@ def test_preview_reports_a_node_with_no_card_behind_it(client):
 @pytest.mark.parametrize("bad,status", [
     ("../../../etc/passwd", 403),
     ("wiki/../../outside.md", 403),
-    ("C:/Windows/win.ini", 400),
+    ("C:/Windows/win.ini", 400),        # absolute on Windows, "relative" to a Linux Path
+    ("C:\Windows\win.ini", 400),
     ("", 400),
     ("output/graph.db", 415),
     ("wiki/concepts/nope.md", 404),
