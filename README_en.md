@@ -32,7 +32,10 @@ Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 *iOS-material liquid glass: the artwork reads through every panel while text stays legible; the ◐ tuner (bottom-right) adjusts blur / opacity / CRT scanlines live.*
 
 ![Knowledge graph view](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-graph.jpg)
-*An Obsidian-style force-directed graph: drag to arrange, scroll to zoom, hover to focus a neighbourhood, click to drill into links — unresolved wikilinks render as ghost nodes.*
+*An Obsidian-style force-directed graph: drag to arrange, scroll to zoom, hover to focus a neighbourhood, click a node to read its card — unresolved wikilinks render as ghost nodes.*
+
+![Card preview](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-preview.jpg)
+*Click any node in the graph, or any search result, and the card opens where you are: formulas typeset by KaTeX, `[[links]]` you can follow, figures and mermaid diagrams drawn in place, an outline and the graph links beside the prose. A search hit scrolls straight to the passage it matched.*
 
 <img src="https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-tuner.jpg" width="340" alt="The ◐ material tuner">
 
@@ -118,7 +121,7 @@ uv tool install --force magi-research   # upgrade
 
 **Beads**: Windows `irm https://raw.githubusercontent.com/gastownhall/beads/main/install.ps1 | iex`; macOS/Linux see the [official docs](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md). MAGI degrades gracefully without `bd`.
 
-**Ollama models**: `ollama pull qwen3-embedding:0.6b` (vector search); `ollama pull glm-ocr` (local OCR, optional). Retrieval degrades to BM25-only when Ollama is unreachable.
+**Ollama models**: `ollama pull qwen3-embedding:0.6b` (vector search); `ollama pull glm-ocr` (local OCR, optional). **You never run `ollama serve` yourself** — a local Ollama that is merely stopped gets started the first time something needs it (once per process; `ollama.autostart` in `config.yaml` is on by default, and `MAGI_NO_OLLAMA_AUTOSTART` turns it off). Retrieval only degrades to BM25-only when Ollama really is not installed, or the configured endpoint is a remote one that is down.
 
 </details>
 
@@ -142,6 +145,7 @@ magi skills install                   # into this workspace; lists the CLIs it f
 magi skills install --host codex      # name one and skip the question
 magi skills install --host auto       # every CLI it detects
 magi skills where                     # per CLI: where it reads, what is installed, how it fires
+magi skills install --scope global    # machine-wide (rarely useful — these are workspace skills)
 ```
 
 **Not global by default**: these skills revolve around one research workspace, and installing into the workspace also lets them travel with the repo to collaborators.
@@ -238,7 +242,7 @@ magi search "..." --scope local # current workspace only (classic behavior)
 magi search "..." --kb <name>   # target one registered KB
 ```
 
-The current workspace is always searchable; other KBs are governed by enable/disable. `magi kb register <path>` registers any workspace manually; `unregister` removes only the registry entry, never files.
+The current workspace is always searchable; other KBs are governed by enable/disable. `magi kb register <path>` registers any workspace manually; `unregister` removes only the registry entry, never files. In the WebUI, a hit tagged `[kb:name]` opens its card in place like any other — the preview request carries the source library along, so there is nothing to switch to first.
 
 > Search tips: `--path 'raw/papers/2026-*<slug>*'` narrows semantic search to one paper; Chinese and English queries both work (CJK bigram tokenization feeds BM25, and the embedding model handles cross-lingual matching on the vector side).
 

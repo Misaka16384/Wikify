@@ -72,17 +72,48 @@ def browse_nodes(conn, node_type=None, q=None, limit=50):
     return [dict(r) for r in rows]
 
 
-def _resolve_node(conn, node_id):
-    row = conn.execute(
-        "SELECT id, title, type FROM nodes WHERE id = ?", (node_id,)).fetchone()
+def _link_key(text):
+    """The graph builder's link normalisation, kept identical on purpose."""
+    return text.strip().casefold().replace("_", " ")
+
+
+def resolve_node_id(conn, text):
+    """Resolve a node id, a title, a file stem or an alias to a node id.
+
+    `magi graph build` resolves every [[wikilink]] against all four, so a
+    browser that only knew ids would report half of a card's links as broken
+    when the graph itself considers them fine. First match wins, matching the
+    builder's setdefault over a sorted walk.
+    """
+    if not text:
+        return None
+    row = conn.execute("SELECT id FROM nodes WHERE id = ?", (text,)).fetchone()
     if row:
-        return dict(row)
-    rows = conn.execute(
-        "SELECT id, title, type FROM nodes WHERE ulower(title) = ? LIMIT 2",
-        (node_id.casefold(),)).fetchall()
-    if len(rows) == 1:
-        return dict(rows[0])
-    return None
+        return row["id"]
+
+    table = {}
+    for r in conn.execute("SELECT id, path, title FROM nodes ORDER BY id"):
+        stem = (r["path"] or r["id"]).rsplit("/", 1)[-1]
+        if stem.endswith(".md"):
+            stem = stem[:-3]
+        for candidate in (r["title"] or "", stem):
+            if candidate:
+                table.setdefault(_link_key(candidate), r["id"])
+    try:
+        for r in conn.execute("SELECT node_id, alias FROM aliases ORDER BY node_id"):
+            table.setdefault(_link_key(r["alias"]), r["node_id"])
+    except sqlite3.OperationalError:
+        pass   # graph.db from before aliases existed; titles and stems still work
+    return table.get(_link_key(text))
+
+
+def _resolve_node(conn, node_id):
+    resolved = resolve_node_id(conn, node_id)
+    if resolved is None:
+        return None
+    row = conn.execute(
+        "SELECT id, title, type FROM nodes WHERE id = ?", (resolved,)).fetchone()
+    return dict(row) if row else None
 
 
 def browse_links(conn, node_id):

@@ -1385,3 +1385,316 @@ def test_dashboard_adopts_the_workspace_the_dropdown_shows(client):
     assert init.index("els.workspaceSelect.value") < init.index("loadSyncRatio()"), (
         "adopting the shown workspace has to happen before the first sync fetch"
     )
+
+
+# --------------------------------------------------------------------------
+# Card preview — you could see the graph but not what any of it said.
+# --------------------------------------------------------------------------
+
+def test_preview_serves_a_card_by_path(client):
+    ws = client.test_workspace
+    res = client.get("/api/workspace/doc", params={
+        "path": "wiki/concepts/test-concept.md", "workspace": str(ws)})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["path"] == "wiki/concepts/test-concept.md"
+    assert "Content about test concept." in body["content"]
+    assert body["truncated"] is False
+    assert body["modified"]
+
+
+def test_preview_resolves_a_node_by_id_title_and_file_stem(client):
+    """`magi graph build` resolves [[wikilinks]] against all three; a preview
+    that only knew ids would call half a card's links broken."""
+    ws = client.test_workspace
+    for ref in ("wiki/concepts/test-concept", "Test Concept", "test concept", "test-concept"):
+        res = client.get("/api/workspace/doc", params={"node": ref, "workspace": str(ws)})
+        assert res.status_code == 200, f"{ref!r} did not resolve"
+        assert res.json()["node"]["id"] == "wiki/concepts/test-concept"
+
+
+def test_preview_reports_a_node_with_no_card_behind_it(client):
+    ws = client.test_workspace
+    conn = sqlite3.connect(ws / "output" / "graph.db")
+    conn.execute("INSERT INTO nodes VALUES('tag:physics', NULL, 'physics', 'tag',"
+                 " NULL, NULL, NULL, NULL)")
+    conn.commit()
+    conn.close()
+    res = client.get("/api/workspace/doc", params={"node": "tag:physics", "workspace": str(ws)})
+    assert res.status_code == 404
+    assert "no file behind it" in res.json()["detail"]
+
+
+@pytest.mark.parametrize("bad,status", [
+    ("../../../etc/passwd", 403),
+    ("wiki/../../outside.md", 403),
+    ("C:/Windows/win.ini", 400),
+    ("", 400),
+    ("output/graph.db", 415),
+    ("wiki/concepts/nope.md", 404),
+])
+def test_preview_is_the_only_door_and_it_is_locked(client, bad, status):
+    """Every path in the query string is attacker-controlled by construction."""
+    res = client.get("/api/workspace/doc", params={
+        "path": bad, "workspace": str(client.test_workspace)})
+    assert res.status_code == status
+
+
+def test_preview_reaches_another_registered_kb(client):
+    """Search is federated: half the hits in a result list live elsewhere."""
+    ws = client.test_workspace
+    assert client.post("/api/kb/register",
+                       json={"path": str(ws), "name": "other-kb", "enabled": True}).status_code == 200
+    res = client.get("/api/workspace/doc", params={
+        "path": "wiki/concepts/test-concept.md", "kb": "other-kb"})
+    assert res.status_code == 200
+    assert "Content about test concept." in res.json()["content"]
+
+    assert client.get("/api/workspace/doc", params={
+        "path": "wiki/concepts/test-concept.md", "kb": "no-such-kb"}).status_code == 404
+
+
+def test_assets_serve_figures_and_nothing_else(client):
+    """Cards compiled from papers embed images/fig-3.png next to themselves."""
+    ws = client.test_workspace
+    (ws / "wiki" / "concepts" / "images").mkdir(parents=True, exist_ok=True)
+    png = ws / "wiki" / "concepts" / "images" / "fig.png"
+    png.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 16)
+
+    res = client.get("/api/workspace/asset", params={
+        "path": "wiki/concepts/images/fig.png", "workspace": str(ws)})
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("image/png")
+
+    # The same door refuses text through the image keyring.
+    assert client.get("/api/workspace/asset", params={
+        "path": "wiki/concepts/test-concept.md", "workspace": str(ws)}).status_code == 415
+    assert client.get("/api/workspace/asset", params={
+        "path": "../fig.png", "workspace": str(ws)}).status_code == 403
+
+
+def test_preview_pulls_math_out_before_markdown_sees_it(client):
+    r"""marked reads `a_1 \ldots b_2` as italics, so the math has to leave the
+    source before it parses — and code has to be recognised first, or `$x$` in
+    a snippet stops being a snippet."""
+    js = client.get("/app.js").text
+    token = js[js.index("const MD_TOKEN"):js.index("const SLOT_RE")]
+    assert "```" in token, "fenced code is not recognised"
+    assert "`[^`" in token, "inline code is not recognised"
+    assert "MATH_ENVS.join" in token, r"\begin{align} outside $$ is not recognised"
+    # The alternatives live in strings fed to `new RegExp`, so a backslash in
+    # the pattern is a doubled backslash in the source.
+    assert r"\\$\\$" in token, "display math is not recognised"
+    assert r"\\[\\[" in token, "wikilinks are not recognised"
+    # display math replaces its paragraph rather than nesting a block in a <p>
+    assert "SLOT_BLOCK_RE" in js
+    assert "renderToString" in js and "throwOnError: false" in js
+
+
+def test_preview_maps_rendered_blocks_back_to_source_lines(client):
+    """A search hit knows the lines it matched; without the map the preview
+    could only ever open at the top of a forty-page paper."""
+    js = client.get("/app.js").text
+    assert 'data-src-line=' in js
+    assert "function scrollPreviewToLine" in js
+    assert "data-hit-line=" in js
+    # front matter is stripped for rendering but counted for line numbers
+    assert "offset: (m[0].match(/\\n/g) || []).length" in js
+
+
+def test_preview_escapes_html_but_keeps_the_collapsibles(client):
+    js = client.get("/app.js").text
+    assert "const SAFE_TAG" in js
+    safelist = js.split("const SAFE_TAG")[1].split("\n")[0]
+    for tag in ("details", "summary", "br", "sub", "sup"):
+        assert tag in safelist, f"{tag} is not on the safelist"
+    # No attributes admitted anywhere on the safelist: an attribute is where a
+    # handler hides, and one attribute is all an OCR'd PDF needs.
+    assert "[^>]" not in safelist, "the safelist admits attributes"
+
+
+def test_preview_typography_outranks_magi_mode(client):
+    """MAGI MODE sets markdown headings in the mono face; a page of prose and
+    mathematics wants a serif in every theme."""
+    css = client.get("/styles.css").text
+    assert "--font-reading:" in css
+    # the pinned rules must outrank [data-theme="eva"] .markdown-body h1 (0,2,1)
+    assert ".doc-preview-window .markdown-body.doc-preview-content h1," in css
+    eva_reading = [ln for ln in css.splitlines()
+                   if "--font-reading" in ln and "data-theme" in ln]
+    assert not eva_reading, f"the reading face must not track the theme: {eva_reading}"
+
+
+def test_diagrams_load_only_when_a_card_has_one(client):
+    """mermaid is 2.7 MB — a dashboard of tables must never pay for it."""
+    js = client.get("/app.js").text
+    assert "/vendor/mermaid.min.js" in js
+    assert "function loadMermaid" in js
+    html = client.get("/").text
+    assert "mermaid.min.js" not in html, "mermaid must not be a <script> in the page head"
+
+
+def test_vendored_assets_are_served(client):
+    for path, marker in (("/vendor/katex.min.js", "katex"),
+                         ("/vendor/katex.min.css", "KaTeX_Main"),
+                         ("/vendor/mermaid.min.js", "mermaid"),
+                         ("/vendor/katex-fonts/KaTeX_Main-Regular.woff2", None)):
+        res = client.get(path)
+        assert res.status_code == 200, f"{path} is not served"
+        if marker:
+            assert marker in res.text[:4000] or marker in res.text[-4000:]
+
+
+def test_katex_css_points_at_the_fonts_we_ship(client):
+    """woff/ttf fallbacks are stripped from the wheel; the urls must match."""
+    css = client.get("/vendor/katex.min.css").text
+    assert "url(fonts/" not in css
+    assert "/vendor/katex-fonts/" in css
+    assert ".ttf)" not in css and ".woff)" not in css
+
+
+def test_clicking_a_node_or_a_hit_opens_the_card(client):
+    js = client.get("/app.js").text
+    # graph rows and map nodes go to the card, links stay one button away
+    assert "function openGraphNode" in js and "openDocPreview({ node: nodeId }" in js
+    assert "function openGraphLinks" in js
+    assert 'openDocPreview({ path: card.dataset.hitPath, kb: card.dataset.hitKb }' in js
+
+
+def test_a_whole_paper_does_not_typeset_itself_all_at_once(client):
+    """760 KB of paper is five thousand formulas; typesetting them up front is
+    15 MB of DOM and thirteen seconds before the reader sees anything."""
+    js = client.get("/app.js").text
+    assert "MATH_EAGER_LIMIT" in js, "small cards must still typeset before the first paint"
+    assert "function typesetNearViewport" in js
+    # Not an IntersectionObserver: those only fire while the tab is rendering,
+    # so a preview opened in a background tab would sit on raw TeX forever.
+    assert "new IntersectionObserver" not in js
+    # rects are all read before anything is written, or each of several
+    # thousand nodes forces its own layout
+    body = js.split("function typesetNearViewport")[1][:1400]
+    assert body.index("getBoundingClientRect") < body.index("due.forEach(typesetMath)")
+
+
+def test_preview_refuses_a_directory_that_is_not_a_workspace(client, tmp_path):
+    """The report endpoints hand back derived data; these two hand back file
+    bytes, so workspace= has to name a MAGI workspace and not just a path
+    somebody typed into the query string."""
+    outside = tmp_path / "not-a-workspace"
+    outside.mkdir()
+    (outside / "secrets.md").write_text("token: hunter2\n", encoding="utf-8")
+
+    res = client.get("/api/workspace/doc",
+                     params={"path": "secrets.md", "workspace": str(outside)})
+    assert res.status_code == 400
+    assert "not a MAGI workspace" in res.json()["detail"]
+
+    # ...but a registered KB is fair game, even without the marker files.
+    assert client.post("/api/kb/register",
+                       json={"path": str(outside), "name": "reg", "enabled": True}
+                       ).status_code == 200
+    res = client.get("/api/workspace/doc",
+                     params={"path": "secrets.md", "workspace": str(outside)})
+    assert res.status_code == 200, res.json()
+
+
+@pytest.mark.parametrize("asset", ["/app.js", "/styles.css", "/"])
+def test_shipped_assets_carry_no_stray_control_characters(client, asset):
+    """A `\b` written into a regex through a shell heredoc once arrived as a
+    literal backspace, and the pattern silently stopped matching."""
+    text = client.get(asset).text
+    bad = [(i, repr(ch)) for i, ch in enumerate(text)
+           if ord(ch) < 32 and ch not in "\n\r\t"]
+    assert not bad, f"{asset} carries control characters at {bad[:5]}"
+
+
+def test_display_math_owns_its_own_block(client):
+    """.katex-display is block-level; inside a <p> the paragraph's margins
+    fight it. The line stamp has to survive the swap."""
+    js = client.get("/app.js").text
+    assert 'class="math-block"' in js
+    block = js[js.index("const SLOT_BLOCK_RE"):]
+    block = block[:block.index("\n")]
+    # the <p> carries data-src-line by then, so a bare-<p> pattern would miss
+    assert "[^>]*" in block, f"SLOT_BLOCK_RE cannot match a <p> with attributes: {block}"
+
+
+def test_an_unclosed_math_delimiter_cannot_swallow_the_document(client):
+    """A `$$` someone forgot to close used to pair with the next one hundreds
+    of lines later and eat everything between."""
+    js = client.get("/app.js").text
+    assert "MATH_SPAN_CAP" in js
+    token = js[js.index("const MD_TOKEN"):js.index("const SLOT_RE")]
+    assert "MATH_SPAN_CAP" in token, "the cap is declared but not applied to the delimiters"
+    assert "[\\s\\S]+?\\$\\$" not in token, "an unbounded $$ span is back"
+    # 1 940 characters is the longest real formula in a 35 000-slot corpus
+    cap = int(js.split("const MATH_SPAN_CAP = ")[1].split(";")[0])
+    assert cap >= 3000, f"cap {cap} would reject real multi-line align blocks"
+
+
+def test_inline_tag_is_stripped_before_katex_sees_it(client):
+    """KaTeX accepts \\tag only in display mode, and rejects the whole formula
+    otherwise — it was the single largest source of parse failures."""
+    js = client.get("/app.js").text
+    norm = js[js.index("function normalizeTex"):js.index("function renderTex")]
+    assert "if (!display)" in norm, "the strip is not conditioned on display mode"
+    assert "tag" in norm
+    assert "function normalizeTex(tex, display)" in js
+    assert "normalizeTex(entry.tex, entry.display)" in js
+
+
+@pytest.mark.parametrize("path,expect", [
+    ("/vendor/katex-fonts/KaTeX_Main-Regular.woff2", "font/woff2"),
+    ("/backgrounds/manifest.json", "application/json"),
+])
+def test_bundled_assets_go_out_with_the_right_type(client, path, expect):
+    """Windows' registry-driven mimetypes table lacks .webp and .woff2, and
+    the fonts would ship as application/octet-stream."""
+    res = client.get(path)
+    if res.status_code == 404:
+        pytest.skip(f"{path} not bundled in this checkout")
+    assert res.headers["content-type"].split(";")[0] == expect
+
+
+def test_raw_html_is_escaped_first_then_selectively_restored(client):
+    """A scanner that looks for tags to keep cannot see `<img src=x
+    onerror=... <br>>`: it locks onto the inner <br>, the surrounding pieces
+    never form a <...> pair of their own, and a live <img onerror> reaches
+    innerHTML. Cards are compiled from other people's PDFs."""
+    js = client.get("/app.js").text
+    body = js[js.index("renderer.html = (tok)"):]
+    body = body[:body.index("};")]
+    assert "escapeHtml(raw)" in body, "the fragment must be escaped in full first"
+    assert "&lt;" in js.split("const SAFE_TAG")[1][:400], (
+        "SAFE_TAG must match already-escaped tags, not raw ones")
+    # a scan-and-keep shape would look like this; it must not come back
+    assert "SAFE_TAG.test(tag)" not in js
+    assert "/<[^<>]*>/g" not in js
+
+
+def test_an_unterminated_display_delimiter_stays_literal(client):
+    """It used to pair with an unrelated `$$` further down and turn the prose
+    between them into single-letter variables."""
+    js = client.get("/app.js").text
+    token = js[js.index("const MD_TOKEN"):js.index("const SLOT_RE")]
+    alts = [ln.strip() for ln in token.splitlines() if "MATH_SPAN_CAP" in ln]
+    # one-line, then no-blank-line, then line-anchored closer — in that order,
+    # or the line-anchored form steps over a real mid-line closer
+    assert len(alts) >= 3
+    # discriminated by structure, not by counting backslashes
+    assert "(?!" not in alts[0] and "S]" not in alts[0], f"not the one-line form: {alts[0]}"
+    assert "(?!" in alts[1], f"not the no-blank-line form: {alts[1]}"
+    assert "S]" in alts[2] and "(?!" not in alts[2], f"not the line-anchored form: {alts[2]}"
+
+
+def test_line_anchored_patterns_tolerate_crlf(client):
+    r"""The corpus is CRLF. A closer that stops at the \r matches nothing, and
+    a fenced block then runs to the end of the file — it cost 7 866 formulas."""
+    js = client.get("/app.js").text
+    token = js[js.index("const MD_TOKEN"):js.index("const SLOT_RE")]
+    # Every trailing-whitespace class in the token has to admit a carriage
+    # return; "t]*" is what one that stops at the tab looks like.
+    for ln in token.splitlines():
+        if ln.strip().startswith("//"):
+            continue
+        assert "t]*" not in ln, f"line anchor stops at the tab, not the CR: {ln.strip()}"

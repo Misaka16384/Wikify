@@ -32,7 +32,10 @@
 *iOS 材质液态玻璃：背景画透过每一块面板仍保持文字可读；右下角 ◐ 校准器实时调节模糊 / 不透明度 / CRT 扫描线。*
 
 ![知识图谱视图](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-graph.jpg)
-*Obsidian 式力导向知识图谱：拖拽布局、滚轮缩放、悬停邻域聚焦、点击钻取链接，未解析的 wikilink 渲染为幽灵节点。*
+*Obsidian 式力导向知识图谱：拖拽布局、滚轮缩放、悬停邻域聚焦、点击节点直接读卡片，未解析的 wikilink 渲染为幽灵节点。*
+
+![卡片预览](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-preview.jpg)
+*点图谱里的任一节点，或检索结果里的任一条，卡片就地展开：公式由 KaTeX 排版、`[[链接]]` 可点、插图与 mermaid 图跟着一起画，左边正文右边目录与出入链。检索命中会直接滚到匹配的那一段。*
 
 <img src="https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-tuner.jpg" width="340" alt="◐ 材质校准器">
 
@@ -117,7 +120,7 @@ uv tool install --force magi-research   # 升级
 
 **Beads**：Windows 用 `irm https://raw.githubusercontent.com/gastownhall/beads/main/install.ps1 | iex`，macOS/Linux 见[官方文档](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md)。没有 `bd` 时 MAGI 优雅降级。
 
-**Ollama 模型**：`ollama pull qwen3-embedding:0.6b`（向量检索）；`ollama pull glm-ocr`（本地 OCR，可选）。Ollama 不可达时检索自动降级 BM25-only。
+**Ollama 模型**：`ollama pull qwen3-embedding:0.6b`（向量检索）；`ollama pull glm-ocr`（本地 OCR，可选）。**不用自己 `ollama serve`**——本机 Ollama 只是没启动的话，MAGI 第一次用到它时会拉起来（每进程试一次；`config.yaml` 的 `ollama.autostart` 默认开，环境变量 `MAGI_NO_OLLAMA_AUTOSTART` 可关）。真没装、或配的是连不上的远端地址，检索才降级成 BM25-only。
 
 </details>
 
@@ -137,7 +140,9 @@ uv tool install --force magi-research   # 升级
 
 ```powershell
 cd <你的主题工作区>
-magi skills install                   # 默认装进当前工作区（推荐）
+magi skills install                   # 默认装进当前工作区（推荐），会列出检测到的 CLI 让你选
+magi skills install --host codex      # 指定一个，跳过询问
+magi skills install --host auto       # 检测到的全装
 magi skills where                     # 每个 CLI 从哪读、装了几个、怎么触发
 magi skills install --scope global    # 全机可用（技能只在工作区里有意义，慎用）
 ```
@@ -235,7 +240,7 @@ magi search "..." --scope local # 只搜当前工作区（经典行为）
 magi search "..." --kb <name>   # 定向搜某一个注册库
 ```
 
-当前工作区永远默认可检索；其他库通过 `enable/disable` 控制。`magi kb register <path>` 可手动注册任意工作区，`unregister` 只移除注册项、不动文件。
+当前工作区永远默认可检索；其他库通过 `enable/disable` 控制。`magi kb register <path>` 可手动注册任意工作区，`unregister` 只移除注册项、不动文件。WebUI 里点开带 `[kb:名称]` 标记的命中，卡片照样就地展开、公式插图照样渲染——预览请求带着来源库名走，不用先切过去。
 
 > 检索小抄：`--path 'raw/papers/2026-*<slug>*'` 可把语义检索限定在某一篇论文里；中英文问题都支持（中文经 CJK 二元组分词进 BM25，向量侧由嵌入模型天然跨语言）。
 

@@ -253,6 +253,11 @@ claude plugin install <本地仓库目录>      # 本地开发模式
 | **pdflatex** | 数学公式深度校验 | 自动回退 `pylatexenc` 轻量校验 |
 | **Ghostscript** | LaTeX 源码里的 EPS 插图转位图 | EPS 原样拷贝，markdown 里不显示 |
 
+> [!NOTE]
+> 不用自己 `ollama serve`。只要 Ollama 装了但没跑，MAGI 会在第一次要用到它时
+> 自动拉起（每进程一次）。想自己管这个守护进程，就在 `config.yaml` 里设
+> `ollama.autostart: false`，或者设环境变量 `MAGI_NO_OLLAMA_AUTOSTART=1`。
+
 ```powershell
 ollama pull qwen3-embedding:0.6b     # 向量检索（约 640MB）
 ollama pull glm-ocr                  # 本地 OCR（可选）
@@ -471,6 +476,7 @@ models:
 
 ollama:
   base_url: http://127.0.0.1:11434
+  autostart: true                 # 本机 Ollama 停着时按需拉起
 
 tools:                      # 只有在这些程序不在 PATH 上时才需要填
   pandoc_path: ""
@@ -478,7 +484,7 @@ tools:                      # 只有在这些程序不在 PATH 上时才需要�
   pdftoppm_path: ""
 ```
 
-`OLLAMA_HOST` / `PANDOC_PATH` / `PANDOC_CROSSREF_PATH` / `PDFTOPPM_PATH` / `PDFIMAGES_PATH` 这五个环境变量**优先级高于 config.yaml**，其余所有键都只能改文件。
+`OLLAMA_HOST` / `PANDOC_PATH` / `PANDOC_CROSSREF_PATH` / `PDFTOPPM_PATH` / `PDFIMAGES_PATH` / `MAGI_NO_OLLAMA_AUTOSTART` 这六个环境变量**优先级高于 config.yaml**，其余所有键都只能改文件。
 
 > [!WARN]
 > **YAML 写错不会报错。** 自动发现的 `config.yaml` 解析失败时，程序静默回退到内置默认值，一个字都不提示。改完拿这条验一下：
@@ -697,7 +703,8 @@ magi tags apply . scratch/tag_mapping.json scratch/alias_mapping.json
 `apply` 会改写全部 frontmatter、把规范标签清单写进 `output/ontology.txt`，并自动重建图谱与索引（`--no-rebuild` 可跳过后半段）。**没有 dry-run**，改的是真文件——跑之前建议先 git commit。
 
 > [!FIX]
-> - `[Error] Cannot reach Ollama` / `Embedding model ... is not installed`：`ollama serve` 起来，`ollama pull qwen3-embedding:0.6b`。
+> - `[Error] Cannot reach Ollama`：本机 Ollama 停着会被自动拉起，所以报这个就是压根没装（或者 autostart 被关了）。去 https://ollama.com 装一个。
+> - `Embedding model ... is not installed`：MAGI 只负责把服务叫醒，模型得自己拉——`ollama pull qwen3-embedding:0.6b`。
 > - `[Info] Not enough concepts to analyze`：少于两张非 stub 概念卡，正常退出，不是错误。
 > - `magi graph browse links --node X` 说 `node not found`：X 既不是节点 ID，标题也不唯一。先用 `browse nodes --q X` 拿到确切 ID。
 > - 某个文件的标签死活进不了图：frontmatter 的列表写法不规范。`magi lint --fix` 之后重建。
@@ -753,7 +760,7 @@ magi kb unregister <名字>      # 只删注册项，不动文件
 > - `no index at output/index.db` → 先 `magi index`。
 > - `no workspace here and no searchable registered KBs` → 你不在工作区里，且没有可搜的注册库。`cd` 进去，或 `magi kb register` + `enable`。
 > - **搜不到刚写的内容** → 索引是按哈希增量的，但**不会自动触发**。编辑后重跑 `magi index`。
-> - **结果全是关键词命中，没有语义** → 结尾会提示 `BM25-only`。启动 Ollama 后重跑 `magi index` 补向量。
+> - **结果全是关键词命中，没有语义** → 结尾会提示 `BM25-only`。MAGI 已经试过拉起本机 Ollama 了；还是 BM25-only 就说明它没装、或者嵌入模型没拉。用 `magi setup --check` 看一眼，再重跑 `magi index` 补向量。
 > - **中文搜不出东西** → 提示 `this index predates CJK-aware tokenization` 时，重跑 `magi index` 即可（会自动重建分词层）。
 > - `index dims mismatch current embedding model` → 换过嵌入模型。改回去，或重跑 `magi index` 全量重嵌。
 > - `sqlite-vec unavailable` → 向量扩展加载失败（macOS 上常见于系统 Python 不支持加载扩展）。用 uv/Homebrew 的 Python，或接受关键词检索。
@@ -917,7 +924,7 @@ magi radar install-schedule --uninstall      # 卸载
 |---|---|
 | `harvest: no new candidates` | 种子和分区是不是空的？窗口太窄？`--days 30` 试试。也可能真的都收过了——账本在 `output/radar/seen.jsonl`，**没有命令能重置它**，要重刷得手动删行 |
 | 候选太多太杂 | 调高 `min_relevance`、调低 `max_candidates`、精简 `arxiv_categories` |
-| 相关度全是空的 | 提示 `relevance scoring unavailable`——先 `magi index` 建向量索引并启动 Ollama |
+| 相关度全是空的 | 提示 `relevance scoring unavailable`——先 `magi index` 建向量索引。停着的 Ollama 会自己起来；还是空的就是没装、或者模型没拉 |
 | `warning: S2 recommendations failed` | Semantic Scholar 限流或网络问题；调用是匿名的，没有 API key 可配，过一会儿重跑 |
 | `arXiv query failed for <分区>` | 简报 frontmatter 会记 `sources_failed`，`magi radar status` 也会提示；重跑补齐 |
 | `citation-gap: no candidates survived` | 漏斗太严：降 `min_shared_refs`、升 `years` |
@@ -943,12 +950,19 @@ magi ui --reload                 # 改代码自动重载（开发用）
 | 面板 | 能干什么 |
 |---|---|
 | **课题总览** | 同步率、可一键执行的修复建议、注册库管理、`config.yaml` 关键字段编辑 |
-| **Melchior（认知）** | 概念/文献计数、命题与证据表、待编译积压、图谱七视图 + 只读 SQL 台、BibTeX 复制、草稿列表 |
+| **Melchior（认知）** | 概念/文献计数、命题与证据表、待编译积压、图谱七视图 + 只读 SQL 台、BibTeX 复制、草稿列表——点任意节点即可读到那张卡片 |
 | **Balthasar（任务）** | Beads 计数 + 一键「把积压同步成任务」 |
-| **Casper（文献检索）** | 检索实验台：模式/范围/集合/路径过滤，与 `magi search --json` 完全同构 |
+| **Casper（文献检索）** | 检索实验台：模式/范围/集合/路径过滤，与 `magi search --json` 完全同构——点一条命中就打开卡片，直接停在命中的那一段 |
 | **文献雷达** | 简报阅读 + 逐条审阅动作 |
 | **运维与危险区** | 服务端操作白名单 + 输入操作 ID 二次确认 + 实时终端，任务历史落盘 |
 | **文档与指引** | 就是你现在看的这份，外加 README 与 CLI 命令参考 |
+
+> [!NOTE]
+> **读卡片的入口只有一个。** 图谱上的节点、侧栏里的链接、卡片正文里的 `[[双链]]`、
+> Casper 里的一条检索命中——点开的都是同一个渲染视图：公式排好版的 markdown、
+> 从卡片自己的 `images/` 里取出的插图、就地画出来的 mermaid 图，正文旁边是目录
+> 大纲。检索命中会停在匹配的那一段而不是文件开头；命中落在哪个已注册的库里，
+> 预览就去那个库里读。
 
 **看板能触发的后台任务只有 14 个**：建索引、建图谱、重建目录表、语义连边、lint 修复、统计、积压同步、雷达收割、引用缺口，以及需要二次确认的 setup / migrate / pm init / 删除旧版拷贝 / 雷达定时任务。
 
@@ -989,7 +1003,7 @@ magi guide --symptoms --search "ollama"     # 按关键词过滤
 | 摄入完了但库里没有 | 忘了 `magi ingest finalize` |
 | 图谱是旧的 | `magi graph build` —— 它没有增量模式 |
 | 搜不到刚写的东西 | `magi index` —— 它不会自动触发 |
-| 检索没有语义结果 | 启动 Ollama → `magi index` 补向量 |
+| 检索没有语义结果 | `magi setup --check`——停着的 Ollama 会自己起来，所以是没装或模型没拉；然后 `magi index` 补向量 |
 | 双链点不开 / 断链多 | `magi graph browse broken` |
 | 概念重复、标签发散 | `magi link . --dedup-only`；`magi tags extract` |
 | 卡片格式报错 | `magi lint --fix` |

@@ -386,11 +386,11 @@
       graph_back: "返回词条列表",
       graph_out: "出链",
       graph_in: "入链",
-      graph_hubs_hint: "连接最多的词条，点击查看其链接",
+      graph_hubs_hint: "连接最多的词条，点击阅读卡片",
       graph_broken_empty: "没有断链，链接网络完整。",
       graph_view_map: "图谱",
       graph_map_tags: "显示标签节点",
-      graph_map_hint: "拖拽节点 · 滚轮缩放 · 点击节点查看链接",
+      graph_map_hint: "拖拽节点 · 滚轮缩放 · 点击节点阅读卡片",
       graph_map_empty: "图谱为空——先运行 magi graph build 构建知识图谱。",
       graph_map_truncated: "节点较多，已按连接度显示前 {n} 个",
       graph_map_no_d3: "图谱物理引擎未加载——请检查 /vendor/d3-*.min.js 是否可访问",
@@ -416,6 +416,24 @@
       // Radar digest filter
       radar_filter_ph: "按作者或标题筛选候选…",
       radar_filter_count: "显示 {shown} / {total} 条",
+
+      // Card preview
+      preview_loading: "正在读取…",
+      preview_back: "返回上一张",
+      preview_close: "关闭",
+      preview_copy_path: "复制路径",
+      preview_copied: "路径已复制：{path}",
+      preview_open_links: "链接视图",
+      preview_out: "出链",
+      preview_in: "入链",
+      preview_no_links: "这张卡片还没有链接。",
+      preview_truncated: "文件较大，仅显示前 2 MB。",
+      preview_hint_graph: "点击节点查看卡片内容",
+      preview_hint_search: "点击结果查看整张卡片",
+      preview_math_off: "公式渲染引擎未加载——请检查 /vendor/katex.min.js 是否可访问",
+      preview_read_card: "阅读卡片",
+      preview_contents: "目录",
+      preview_unresolved: "这条链接还没有对应的卡片",
     },
 
     en: {
@@ -796,11 +814,11 @@
       graph_back: "Back to entries",
       graph_out: "Outgoing",
       graph_in: "Incoming",
-      graph_hubs_hint: "Most-connected entries — click one to inspect its links",
+      graph_hubs_hint: "Most-connected entries — click one to read its card",
       graph_broken_empty: "No broken links — the link network is intact.",
       graph_view_map: "Graph",
       graph_map_tags: "Show tag nodes",
-      graph_map_hint: "Drag nodes · scroll to zoom · click a node to inspect its links",
+      graph_map_hint: "Drag nodes · scroll to zoom · click a node to read its card",
       graph_map_empty: "The graph is empty — run magi graph build first.",
       graph_map_truncated: "Large graph — showing the top {n} nodes by degree",
       graph_map_no_d3: "Graph physics library failed to load — check /vendor/d3-*.min.js",
@@ -826,6 +844,24 @@
       // Radar digest filter
       radar_filter_ph: "Filter candidates by author or title…",
       radar_filter_count: "Showing {shown} of {total}",
+
+      // Card preview
+      preview_loading: "Reading…",
+      preview_back: "Back",
+      preview_close: "Close",
+      preview_copy_path: "Copy path",
+      preview_copied: "Path copied: {path}",
+      preview_open_links: "Links view",
+      preview_out: "Outgoing",
+      preview_in: "Incoming",
+      preview_no_links: "This card has no links yet.",
+      preview_truncated: "Large file — showing the first 2 MB.",
+      preview_hint_graph: "Click a node to read its card",
+      preview_hint_search: "Click a result to read the whole card",
+      preview_math_off: "Math renderer failed to load — check /vendor/katex.min.js",
+      preview_read_card: "Read card",
+      preview_contents: "Contents",
+      preview_unresolved: "No card behind this link yet",
     },
   };
 
@@ -1049,6 +1085,15 @@
     doctorModal: document.getElementById("doctor-modal"),
     doctorModalBody: document.getElementById("doctor-modal-body"),
     doctorModalClose: document.getElementById("doctor-modal-close"),
+    docPreviewModal: document.getElementById("doc-preview-modal"),
+    docPreviewTitle: document.getElementById("doc-preview-title"),
+    docPreviewMeta: document.getElementById("doc-preview-meta"),
+    docPreviewContent: document.getElementById("doc-preview-content"),
+    docPreviewSide: document.getElementById("doc-preview-side"),
+    docPreviewBack: document.getElementById("doc-preview-back"),
+    docPreviewCopy: document.getElementById("doc-preview-copy"),
+    docPreviewClose: document.getElementById("doc-preview-close"),
+    docPreviewLinksBtn: document.getElementById("doc-preview-links-btn"),
 
     toastContainer: document.getElementById("toast-container"),
   };
@@ -1075,6 +1120,10 @@
       [/^[Nn]o index (found|at) .*$/, "当前工作区还没有检索索引——请先在 运维与操作 里点「重建检索索引」"],
       [/^Knowledge graph database not found.*$/, "知识图谱数据库不存在——请先在 运维与操作 里点「构建知识图谱」"],
       [/^Digest file not found: (.+)$/, "找不到简报文件：$1"],
+      [/^Node '?(.+?)'? has no file behind it.*$/, "「$1」还没有对应的卡片（它是标签，或一条尚未写出的链接）"],
+      [/^No graph node with id '?(.+?)'?$/, "图谱里没有「$1」这个节点——可能是还没写的卡片"],
+      [/^No such file: (.+)$/, "文件不存在：$1"],
+      [/^path escapes the workspace$/, "路径越出了工作区"],
       [/^Report is not pending-review: (.+)$/, "该报告不在待审状态：$1"],
       [/^Already accepted: (.+)$/, "该候选已收入过：$1"],
       [/^No beads workspace found.*$/, "尚未初始化任务引擎——请先运行 magi pm init"],
@@ -2180,7 +2229,14 @@
     if (els.graphType) els.graphType.style.display = view === "nodes" ? "" : "none";
   }
 
-  function openGraphNode(nodeId) {
+  function openGraphNode(nodeId, title) {
+    // Clicking a node used to swap in its link table — useful, but it answered
+    // "what does this connect to" when the question is "what does it say".
+    // The card opens; its links ride along in the preview sidebar.
+    openDocPreview({ node: nodeId }, { title });
+  }
+
+  function openGraphLinks(nodeId) {
     state.graphNode = nodeId;
     loadGraphBrowse("links");
   }
@@ -2282,7 +2338,9 @@
 
   function attachGraphRowClicks() {
     els.graphBrowseContainer.querySelectorAll("[data-node-id]").forEach((tr) => {
-      tr.addEventListener("click", () => openGraphNode(tr.dataset.nodeId));
+      tr.title = t("preview_hint_graph");
+      tr.addEventListener("click", () =>
+        openGraphNode(tr.dataset.nodeId, tr.dataset.nodeTitle || ""));
     });
   }
 
@@ -2295,7 +2353,8 @@
       `<th>${t("graph_th_title")}</th><th>${t("graph_th_type")}</th>` +
       `<th>${t("graph_th_degree")}</th><th>${t("graph_th_updated")}</th></tr></thead><tbody>`;
     rows.forEach((r) => {
-      html += `<tr class="graph-row-click" data-node-id="${escapeHtml(r.id)}">` +
+      html += `<tr class="graph-row-click" data-node-id="${escapeHtml(r.id)}" ` +
+        `data-node-title="${escapeHtml(r.title || r.id)}">` +
         `<td>${escapeHtml(r.title || r.id)}</td>` +
         `<td><span class="badge badge-muted">${escapeHtml(graphTypeLabel(r.type))}</span></td>` +
         `<td>${escapeHtml(String(r.degree ?? 0))}</td>` +
@@ -2312,6 +2371,8 @@
     let html = `<div class="graph-node-head">` +
       `<strong>${escapeHtml(nodeTitle)}</strong>` +
       (node ? `<span class="badge badge-muted">${escapeHtml(graphTypeLabel(node.type))}</span>` : "") +
+      (node ? `<button type="button" class="btn btn-secondary btn-sm" data-graph-read ` +
+              `data-node-id="${escapeHtml(node.id)}">${t("preview_read_card")}</button>` : "") +
       `<button type="button" class="btn btn-secondary btn-sm" data-graph-back>${t("graph_back")}</button>` +
       `</div>`;
     // "type" here is the edge type (wikilink / supported_by / has_claim),
@@ -2331,7 +2392,8 @@
           return;
         }
         const id = direction === "out" ? r.target_id : r.source_id;
-        s += `<tr class="graph-row-click" data-node-id="${escapeHtml(id)}">` +
+        s += `<tr class="graph-row-click" data-node-id="${escapeHtml(id)}" ` +
+          `data-node-title="${escapeHtml(r.title || id)}">` +
           `<td>${escapeHtml(r.title || id)}</td>` +
           `<td><code>${escapeHtml(r.type || "")}</code></td></tr>`;
       });
@@ -2341,6 +2403,13 @@
     html += linkTable(t("graph_out"), res.outgoing || [], "out");
     html += linkTable(t("graph_in"), res.incoming || [], "in");
     els.graphBrowseContainer.innerHTML = html;
+    const read = els.graphBrowseContainer.querySelector("[data-graph-read]");
+    if (read) {
+      read.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        openGraphNode(read.dataset.nodeId, nodeTitle);
+      });
+    }
     const back = els.graphBrowseContainer.querySelector("[data-graph-back]");
     if (back) {
       back.addEventListener("click", () => {
@@ -2361,7 +2430,8 @@
       `<th>${t("graph_th_title")}</th><th>${t("graph_th_type")}</th>` +
       `<th>${t("graph_th_degree")}</th></tr></thead><tbody>`;
     rows.forEach((r) => {
-      html += `<tr class="graph-row-click" data-node-id="${escapeHtml(r.id)}">` +
+      html += `<tr class="graph-row-click" data-node-id="${escapeHtml(r.id)}" ` +
+        `data-node-title="${escapeHtml(r.title || r.id)}">` +
         `<td>${escapeHtml(r.title || r.id)}</td>` +
         `<td><span class="badge badge-muted">${escapeHtml(graphTypeLabel(r.type))}</span></td>` +
         `<td>${escapeHtml(String(r.degree ?? 0))}</td></tr>`;
@@ -2381,12 +2451,16 @@
       `<th>${t("graph_th_doc")}</th></tr></thead><tbody>`;
     rows.forEach((c) => {
       const badgeClass = c.status === "verified" ? "badge-sage" : "badge-muted";
+      const doc = c.doc_id
+        ? `<code class="graph-row-click" data-node-id="${escapeHtml(c.doc_id)}">${escapeHtml(c.doc_id)}</code>`
+        : "";
       html += `<tr><td><span class="badge ${badgeClass}">${escapeHtml(graphClaimStatusLabel(c.status))}</span></td>` +
         `<td>${escapeHtml(c.text || "")}</td>` +
-        `<td><code>${escapeHtml(c.doc_id || "")}</code></td></tr>`;
+        `<td>${doc}</td></tr>`;
     });
     html += `</tbody></table>`;
     els.graphBrowseContainer.innerHTML = html;
+    attachGraphRowClicks();
   }
 
   function renderGraphTags(rows) {
@@ -2419,7 +2493,8 @@
       `<th>${t("graph_th_source")}</th><th>${t("graph_th_target_missing")}</th>` +
       `<th>${t("graph_th_type")}</th></tr></thead><tbody>`;
     rows.forEach((r) => {
-      html += `<tr class="graph-row-click" data-node-id="${escapeHtml(r.source_id)}">` +
+      html += `<tr class="graph-row-click" data-node-id="${escapeHtml(r.source_id)}" ` +
+        `data-node-title="${escapeHtml(r.source_title || r.source_id)}">` +
         `<td>${escapeHtml(r.source_title || r.source_id)}</td>` +
         `<td><span class="graph-dangling">${escapeHtml(r.target_text)}</span></td>` +
         `<td><code>${escapeHtml(r.type || "")}</code></td></tr>`;
@@ -2747,7 +2822,7 @@
         d.node.fx = null;
         d.node.fy = null;
         // A press that never moved is a click: drill into that node's links.
-        if (!d.moved && d.node.type !== "ghost") openGraphNode(d.node.id);
+        if (!d.moved && d.node.type !== "ghost") openGraphNode(d.node.id, d.node.title);
       }
     });
     c.addEventListener("mouseleave", () => {
@@ -2975,6 +3050,692 @@
   }
 
   // ------------------------------------------------------------------------
+  // Card preview — the rendered markdown behind a node or a search hit.
+  // Cards are written for a wiki, not for a terminal: they carry LaTeX, wiki
+  // links and extracted figures, so a preview that showed source text would
+  // be a page of $$ and [[ ]]. Everything below turns one file into a page.
+  // ------------------------------------------------------------------------
+
+  // Display environments KaTeX handles unwrapped, so a card may write
+  // \begin{align}…\end{align} with no surrounding $$.
+  const MATH_ENVS = [
+    "align", "aligned", "alignat", "equation", "gather", "gathered",
+    "multline", "split", "cases", "eqnarray", "array",
+    "matrix", "pmatrix", "bmatrix", "vmatrix", "Vmatrix", "Bmatrix",
+  ];
+
+  // A delimiter someone forgot to close would otherwise pair with the next
+  // one hundreds of lines later and swallow the document whole. The longest
+  // real formula across 35 000 slots of the corpus is 1 940 characters.
+  const MATH_SPAN_CAP = 6000;
+
+  // One pass that recognises what math must NOT be pulled out of (fenced
+  // blocks, inline code) alongside what IS math or a wikilink. Alternation
+  // order is precedence, and code comes first: `$x$` in a snippet is a
+  // snippet. Pulling math out before marked sees it is the whole point —
+  // otherwise `a_1 \ldots b_2` comes back as italics.
+  const MD_TOKEN = new RegExp([
+    // A closing fence carries no info string (CommonMark), so an inner
+    // ```mermaid is content — treating it as the closer ended the block
+    // early and disagreed with marked's own lexer about what is code.
+    // \r is in the trailing class because the corpus is CRLF and a closer
+    // that stops at the \r matches nothing at all.
+    "(^|\\n)(```|~~~)[\\s\\S]*?(?:\\n\\2[ \\t\\r]*(?=\\n|$)|$)",
+    "`[^`\\n]*`",
+    // Order matters: nearest closer first (same line, then any body with no
+    // paragraph break in it); only a body that spans a blank line goes hunting
+    // for a closer that begins a line. Put the line-anchored form first and it
+    // steps straight over the real closer of `$$\begin{array}...\end{array}$$`.
+    "\\$\\$[^\\n]{1," + MATH_SPAN_CAP + "}?\\$\\$",
+    "\\$\\$(?:[^\\n$]|\\n(?![ \\t\\r]*\\n)|\\$(?!\\$)){1," + MATH_SPAN_CAP + "}?\\$\\$",
+    "\\$\\$[\\s\\S]{1," + MATH_SPAN_CAP + "}?\\n[ \\t\\r]*\\$\\$",
+    "\\\\\\[[\\s\\S]{1," + MATH_SPAN_CAP + "}?\\\\\\]",
+    "\\\\\\([\\s\\S]{1," + MATH_SPAN_CAP + "}?\\\\\\)",
+    "\\\\begin\\{(" + MATH_ENVS.join("|") + ")(\\*?)\\}[\\s\\S]*?\\\\end\\{\\3\\4\\}",
+    "\\$(?:[^$\\\\\\n]|\\\\.)+?\\$",
+    "\\[\\[[^\\[\\]\\n]+\\]\\]",
+  ].join("|"), "g");
+
+  const SLOT_RE = /@@MAGIMD(\d+)@@/g;
+
+  // Bare structural tags a compiled card legitimately uses — <details> wraps
+  // the mermaid figures the ingest pipeline writes, and escaping those left
+  // "<details> <summary>flowchart</summary>" sitting in the prose as text.
+  //
+  // Applied by escaping the whole fragment and then putting these back, NOT
+  // by scanning it for tags to keep. A scanner cannot see `<img src=x
+  // onerror=... <br>>` for what it is: it locks onto the inner <br>, the
+  // surrounding pieces never form a <...> pair of their own, and a live
+  // <img onerror> reaches innerHTML. Cards are compiled from other people's
+  // PDFs, so that is a real path in.
+  const SAFE_TAG = /&lt;(\/?)(details|summary|br|sub|sup|mark|kbd|small|u)\s*(\/?)&gt;/gi;
+  // The <p> carries data-src-line by the time this runs, so it is never bare.
+  const SLOT_BLOCK_RE = /<p( [^>]*)?>\s*@@MAGIMD(\d+)@@\s*<\/p>/g;
+
+  function protectTokens(src) {
+    const slots = [];
+    const text = src.replace(MD_TOKEN, (m, nl, fence, env) => {
+      if (fence !== undefined || m.charCodeAt(0) === 96) return m;   // code, untouched
+      let entry;
+      if (env !== undefined) entry = { kind: "math", tex: m, display: true };
+      else if (m.startsWith("$$")) entry = { kind: "math", tex: m.slice(2, -2), display: true };
+      else if (m.startsWith("\\[")) entry = { kind: "math", tex: m.slice(2, -2), display: true };
+      else if (m.startsWith("\\(")) entry = { kind: "math", tex: m.slice(2, -2), display: false };
+      else if (m.startsWith("[[")) {
+        const body = m.slice(2, -2);
+        const bar = body.indexOf("|");
+        entry = {
+          kind: "link",
+          target: (bar < 0 ? body : body.slice(0, bar)).trim(),
+          label: (bar < 0 ? body : body.slice(bar + 1)).trim(),
+        };
+      } else {
+        const body = m.slice(1, -1);
+        // "$12 and $15 each" is money, not math: real inline math never opens
+        // or closes against whitespace.
+        if (!body.trim() || /^\s|\s$/.test(body)) return m;
+        entry = { kind: "math", tex: body, display: false };
+      }
+      // A five-line $$…$$ collapses to a one-line placeholder; the line
+      // bookkeeping below has to add those lines back.
+      entry.nl = (m.match(/\n/g) || []).length;
+      slots.push(entry);
+      return `@@MAGIMD${slots.length - 1}@@`;
+    });
+    return { text, slots };
+  }
+
+  function normalizeTex(tex, display) {
+    // \label and \nonumber belong to a numbering system KaTeX does not have,
+    // and eqnarray it refuses outright — both arrive constantly from OCR'd
+    // papers, and both are one substitution away from rendering.
+    let out = tex.replace(/\\(?:label|nonumber)\s*(?:\{[^}]*\})?/g, "");
+    if (!display) {
+      // \tag is a display-mode construct; KaTeX rejects the whole formula
+      // when it shows up inline, which is most of what it ever rejects here.
+      out = out.replace(/\\tag\*?\s*\{[^}]*\}/g, "");
+    }
+    if (/\\begin\{eqnarray\*?\}/.test(out)) {
+      out = out
+        .replace(/\\(begin|end)\{eqnarray\*?\}/g, "\\$1{aligned}")
+        // a &=& b -> a &= b. The relation may itself be a command
+        // (a &\overset{def}{=}& b), so backslashes have to be allowed here.
+        .replace(/&\s*([^&\n]*?)\s*&/g, "&$1");
+    }
+    return out;
+  }
+
+  function renderTex(entry) {
+    if (!window.katex) {
+      const d = entry.display ? "$$" : "$";
+      return `<code class="math-raw">${escapeHtml(d + entry.tex + d)}</code>`;
+    }
+    try {
+      return window.katex.renderToString(normalizeTex(entry.tex, entry.display), {
+        displayMode: entry.display,
+        throwOnError: false,   // a broken formula shows in red, not as a blank card
+        strict: false,
+        trust: false,
+      });
+    } catch (_) {
+      return `<code class="math-raw">${escapeHtml(entry.tex)}</code>`;
+    }
+  }
+
+  function slotHtml(entry) {
+    if (!entry) return "";
+    if (entry.kind === "link") {
+      return `<a href="#" class="wikilink" data-wikilink="${escapeHtml(entry.target)}">` +
+        `${escapeHtml(entry.label || entry.target)}</a>`;
+    }
+    // Not typeset yet — a 760 KB paper holds five thousand formulas, and
+    // KaTeX-ing all of them up front is 15 MB of DOM and thirteen seconds
+    // before the reader sees anything. The slot carries its own source, so it
+    // is roughly the right size while it waits and still legible if the
+    // typesetting never happens.
+    return `<span class="math-lazy${entry.display ? " math-lazy-block" : ""}"` +
+      `${entry.display ? ' data-d="1"' : ""}>${escapeHtml(entry.tex)}</span>`;
+  }
+
+  function typesetMath(node) {
+    const entry = { tex: node.textContent, display: node.dataset.d === "1" };
+    node.outerHTML = renderTex(entry);
+  }
+
+  // Under this many formulas, typeset everything before the first paint: the
+  // flash of raw TeX is not worth saving milliseconds an ordinary card does
+  // not spend.
+  const MATH_EAGER_LIMIT = 400;
+
+  // How far outside the pane still counts as "about to be read".
+  const MATH_MARGIN = 1500;
+
+  function hydrateMath(root) {
+    const slots = [...root.querySelectorAll(".math-lazy")];
+    preview.pending = [];
+    if (!slots.length) return false;
+    if (slots.length <= MATH_EAGER_LIMIT) {
+      slots.forEach(typesetMath);
+      return false;
+    }
+    // Headings are few and their text becomes the outline, so they never
+    // wait — a sidebar entry reading "\mathfrak{C}(D, p)" helps nobody.
+    const inHeadings = new Set(
+      root.querySelectorAll("h1 .math-lazy, h2 .math-lazy, h3 .math-lazy, h4 .math-lazy"));
+    inHeadings.forEach(typesetMath);
+    preview.pending = slots.filter((n) => !inHeadings.has(n));
+    typesetNearViewport();
+    return true;
+  }
+
+  /** Typeset the formulas near the pane, leave the rest as source.
+   *
+   * Deliberately not an IntersectionObserver: those only fire while the tab
+   * is rendering, so a preview opened in a background tab would sit there
+   * showing raw TeX forever. This runs off the scroll handler instead, which
+   * is driven by something the reader actually did.
+   */
+  function typesetNearViewport() {
+    const pending = preview.pending;
+    if (!pending || !pending.length) return;
+    const pane = els.docPreviewContent.getBoundingClientRect();
+    const top = pane.top - MATH_MARGIN;
+    const bottom = pane.bottom + MATH_MARGIN;
+
+    // Read every rect first, then write: interleaving them would force a
+    // fresh layout for each of several thousand nodes.
+    const rects = pending.map((n) => (n.isConnected ? n.getBoundingClientRect() : null));
+    const due = [];
+    const left = [];
+    pending.forEach((node, i) => {
+      const r = rects[i];
+      if (!r) return;
+      if (r.bottom >= top && r.top <= bottom) due.push(node);
+      else left.push(node);
+    });
+    preview.pending = left;
+    due.forEach(typesetMath);
+    // Typesetting moved everything below it; one more pass catches what just
+    // slid into range.
+    if (due.length && left.length) requestAnimationFrame(typesetNearViewport);
+  }
+
+  function splitFrontMatter(md) {
+    const m = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(md || "");
+    // `offset` is how many file lines the body starts below line 1. The
+    // retrieval index numbers its chunks against the whole file, front matter
+    // included, so every line the preview reports has to add it back.
+    if (!m) return { front: "", body: md || "", offset: 0 };
+    return {
+      front: m[1],
+      body: (md || "").slice(m[0].length),
+      offset: (m[0].match(/\n/g) || []).length,
+    };
+  }
+
+  function frontField(front, key) {
+    const m = new RegExp(`^${key}\\s*:\\s*(.+)$`, "mi").exec(front || "");
+    return m ? m[1].trim().replace(/^["']|["']$/g, "") : "";
+  }
+
+  function renderCardMarkdown(md, lineOffset = 0) {
+    if (!window.marked) return `<pre>${escapeHtml(md)}</pre>`;
+    const { text, slots } = protectTokens(md);
+    const renderer = new window.marked.Renderer();
+    // Cards are compiled from OCR'd papers: stray angle brackets are routine,
+    // and real HTML has no business executing inside the dashboard.
+    renderer.html = (tok) => {
+      const raw = typeof tok === "string" ? tok : (tok.raw || tok.text || "");
+      return escapeHtml(raw).replace(
+        SAFE_TAG, (m, close, name, slash) => `<${close}${name.toLowerCase()}${slash}>`);
+    };
+    // The ingest pipeline writes figures as ```mermaid fences. Left as code
+    // they are a wall of `style A fill:#f9f` where a diagram belongs.
+    const codeRenderer = renderer.code.bind(renderer);
+    renderer.code = (tok) => {
+      const lang = (typeof tok === "object" && (tok.lang || "")) || "";
+      if (lang.trim().split(/\s+/)[0].toLowerCase() === "mermaid") {
+        return `<pre class="mermaid">${escapeHtml(tok.text || "")}</pre>\n`;
+      }
+      return codeRenderer(tok);
+    };
+
+    // Block by block rather than in one parse, so every top-level element can
+    // carry the source line it came from. A search hit knows the lines of the
+    // passage that matched, and without this map the preview could only ever
+    // open at the top of a forty-page paper.
+    let html = "";
+    try {
+      const tokens = window.marked.lexer(text);
+      let line = 1 + lineOffset;
+      for (const tok of tokens) {
+        const start = line;
+        let spans = (tok.raw.match(/\n/g) || []).length;
+        for (const slot of tok.raw.matchAll(SLOT_RE)) {
+          spans += (slots[+slot[1]] && slots[+slot[1]].nl) || 0;
+        }
+        line += spans;
+        const one = [tok];
+        one.links = tokens.links;   // reference-style links live on the array
+        html += window.marked.parser(one, { renderer })
+          .replace(/^(\s*)<([a-zA-Z][\w-]*)/, `$1<$2 data-src-line="${start}"`);
+      }
+    } catch (_) {
+      // Any lexer surprise: a plain parse still reads, just without the map.
+      html = window.marked.parse(text, { renderer });
+    }
+    // A display formula that owns its paragraph gets a block of its own —
+    // .katex-display is block-level, and a block inside a <p> lays out with
+    // the paragraph's margins fighting it. The line stamp moves across.
+    html = html.replace(SLOT_BLOCK_RE, (m, attrs, i) => {
+      const entry = slots[+i];
+      if (!entry || entry.kind !== "math" || !entry.display) return m;
+      return `<div${attrs || ""} class="math-block">${slotHtml(entry)}</div>`;
+    });
+    return html.replace(SLOT_RE, (m, i) => slotHtml(slots[+i]));
+  }
+
+  /** Mermaid is 2.7 MB; it loads the first time a card actually has a
+      diagram in it, and never on a dashboard that only shows tables. */
+  function loadMermaid() {
+    if (loadMermaid._p) return loadMermaid._p;
+    loadMermaid._p = new Promise((resolve) => {
+      const el = document.createElement("script");
+      el.src = "/vendor/mermaid.min.js";
+      el.onload = () => resolve(window.mermaid || null);
+      el.onerror = () => resolve(null);
+      document.head.appendChild(el);
+    }).then((m) => {
+      if (m) {
+        // A light theme in every MAGI theme, on purpose: these diagrams carry
+        // their own `style A fill:#f9f` from the paper, and a dark theme puts
+        // pale label text on those pale fills. The CSS gives the figure a
+        // light plate to sit on, the way it sat on the page it came from.
+        m.initialize({
+          startOnLoad: false,
+          securityLevel: "strict",
+          theme: "neutral",
+        });
+      }
+      return m;
+    });
+    return loadMermaid._p;
+  }
+
+  async function renderPreviewDiagrams(root) {
+    const all = [...root.querySelectorAll("pre.mermaid")];
+    if (!all.length) return;
+    // A diagram inside a collapsed <details> would lay out at zero width, so
+    // it waits for the reader to open it.
+    const ready = [];
+    all.forEach((node) => {
+      const box = node.closest("details");
+      if (box && !box.open) {
+        box.addEventListener("toggle", function once() {
+          box.removeEventListener("toggle", once);
+          if (box.open) drawDiagrams([node]);
+        });
+        return;
+      }
+      ready.push(node);
+    });
+    drawDiagrams(ready);
+  }
+
+  async function drawDiagrams(nodes) {
+    if (!nodes.length) return;
+    const m = await loadMermaid();
+    if (!m) return;
+    try {
+      await m.run({ nodes, suppressErrors: true });
+    } catch (_) {
+      // Leave the source visible; a diagram that will not parse is still
+      // readable as text.
+    }
+  }
+
+  function resolveCardAssets(root, docPath, kb) {
+    const dir = docPath.includes("/") ? docPath.slice(0, docPath.lastIndexOf("/")) : "";
+    const owner = kb && kb !== "local"
+      ? `&kb=${encodeURIComponent(kb)}`
+      : `&workspace=${encodeURIComponent(state.workspace)}`;
+    root.querySelectorAll("img").forEach((img) => {
+      const src = img.getAttribute("src") || "";
+      if (!src || /^(https?:|data:|\/)/i.test(src)) return;
+      let rel = (dir ? dir + "/" : "") + src.replace(/^\.\//, "");
+      // Markdown escapes spaces in image paths; encoding that again turns
+      // %20 into %2520 and every figure 404s.
+      try { rel = decodeURIComponent(rel); } catch (_) { /* literal % */ }
+      img.src = `/api/workspace/asset?path=${encodeURIComponent(rel)}` + owner;
+      img.addEventListener("error", () => { img.classList.add("img-missing"); });
+    });
+  }
+
+  // ---- the modal ---------------------------------------------------------
+
+  const preview = {
+    stack: [], current: null, tocHtml: "", headings: [],
+    scrollTarget: null, pending: [],
+  };
+
+  function closeDocPreview() {
+    if (!els.docPreviewModal) return;
+    els.docPreviewModal.classList.remove("open");
+    els.docPreviewContent.innerHTML = "";
+    preview.stack = [];
+    preview.current = null;
+  }
+
+  /** ref: {node} or {path}. opts: {title, heading, push} */
+  function openDocPreview(ref, opts = {}) {
+    if (!els.docPreviewModal || !state.workspace) return;
+    if (opts.push && preview.current) preview.stack.push(preview.current);
+    else if (!opts.keepStack) preview.stack = [];
+    preview.current = { ref, opts };
+    els.docPreviewModal.classList.add("open");
+    // A class, not style.display: the base rule hides the button, so clearing
+    // the inline style would put it right back to hidden.
+    els.docPreviewBack.classList.toggle("show", preview.stack.length > 0);
+    els.docPreviewLinksBtn.style.display = ref.node ? "" : "none";
+    els.docPreviewTitle.textContent = opts.title || ref.node || ref.path || "";
+    els.docPreviewMeta.textContent = "";
+    els.docPreviewSide.innerHTML = "";
+    preview.tocHtml = "";
+    preview.headings = [];
+    preview.scrollTarget = null;
+    preview.pending = [];
+    setPreviewSideVisible(false);
+    els.docPreviewContent.innerHTML = `<p class="empty-note">${t("preview_loading")}</p>`;
+    els.docPreviewContent.scrollTop = 0;
+    loadDocPreview(ref, opts);
+  }
+
+  async function loadDocPreview(ref, opts) {
+    const token = ++loadDocPreview._req;
+    const qs = new URLSearchParams({ workspace: state.workspace });
+    if (ref.kb && ref.kb !== "local") qs.set("kb", ref.kb);
+    if (ref.node) qs.set("node", ref.node);
+    else qs.set("path", ref.path);
+
+    let data;
+    try {
+      data = await apiFetch(`/api/workspace/doc?${qs.toString()}`);
+    } catch (err) {
+      if (token !== loadDocPreview._req) return;
+      els.docPreviewContent.innerHTML =
+        `<div class="error-box">${escapeHtml(localizeApiError(err.message))}</div>`;
+      return;
+    }
+    if (token !== loadDocPreview._req) return;
+
+    const node = data.node || {};
+    const { front, body, offset } = splitFrontMatter(data.content || "");
+    const title = node.title || frontField(front, "title") || opts.title || data.path;
+    els.docPreviewTitle.textContent = title;
+
+    const bits = [];
+    const type = node.type || frontField(front, "type");
+    if (type) bits.push(`<span class="badge badge-muted">${escapeHtml(graphTypeLabel(type))}</span>`);
+    bits.push(`<code class="doc-preview-path">${escapeHtml(data.path)}</code>`);
+    if (data.modified) bits.push(`<span>${escapeHtml(data.modified.replace("T", " "))}</span>`);
+    if (data.truncated) bits.push(`<span class="badge badge-terracotta">${t("preview_truncated")}</span>`);
+    els.docPreviewMeta.innerHTML = bits.join("");
+
+    els.docPreviewContent.innerHTML = renderCardMarkdown(body, offset);
+    if (!window.katex) {
+      // Without KaTeX the formulas stay as source; say so rather than let the
+      // reader think the card is written that way.
+      els.docPreviewContent.insertAdjacentHTML(
+        "afterbegin", `<div class="hint-note">${t("preview_math_off")}</div>`);
+    }
+    resolveCardAssets(els.docPreviewContent, data.path, ref.kb);
+    decorateCodeBlocks(els.docPreviewContent);
+    renderPreviewDiagrams(els.docPreviewContent);
+    els.docPreviewContent.scrollTop = 0;
+    // Hydration first: the outline is read out of the headings, and a heading
+    // still holding raw TeX would put "\mathfrak{C}(D, p)" in the sidebar.
+    const lazy = hydrateMath(els.docPreviewContent);
+    preview.tocHtml = buildPreviewToc();
+    els.docPreviewSide.innerHTML = preview.tocHtml;
+    setPreviewSideVisible(Boolean(preview.tocHtml));
+    // Lines are exact; a heading match is the fallback for a hit whose chunk
+    // began mid-section, or a document with no line map.
+    if (!(opts.line && scrollPreviewToLine(opts.line)) && opts.heading) {
+      highlightPreviewHeading(opts.heading);
+    }
+    if (lazy) settlePreviewScroll();
+    syncPreviewSpy();
+
+    // Remember what the server actually resolved: a wikilink opened by title
+    // becomes a node id here, and `path` is what relative links resolve from.
+    const nodeId = (ref.kb && ref.kb !== "local") ? null : (node.id || ref.node);
+    preview.current = {
+      ref: { ...ref, ...(nodeId ? { node: nodeId } : {}), path: data.path },
+      opts: { ...opts, title },
+    };
+    if (nodeId) loadPreviewLinks(nodeId, token);
+  }
+  loadDocPreview._req = 0;
+
+  /** A heading's text as a reader sees it.
+      KaTeX renders each formula twice — MathML for screen readers plus the
+      visual HTML — so textContent on a heading with inline math comes back
+      tripled ("C(D,p)\mathfrak{C}(D,p)C(D,p)"). */
+  function headingText(h) {
+    const clone = h.cloneNode(true);
+    clone.querySelectorAll(".katex-mathml").forEach((n) => n.remove());
+    return clone.textContent.replace(/\s+/g, " ").trim();
+  }
+
+  function scrollPreviewTo(el) {
+    // scrollIntoView would move the modal inside the viewport; the content
+    // pane is the only thing that should scroll.
+    els.docPreviewContent.scrollTop =
+      el.offsetTop - els.docPreviewContent.offsetTop - 8;
+  }
+
+  /** Land on the passage the search matched, not on line 1. */
+  function scrollPreviewToLine(line) {
+    const blocks = [...els.docPreviewContent.querySelectorAll("[data-src-line]")];
+    if (!blocks.length) return false;
+    let target = blocks[0];
+    for (const b of blocks) {
+      if (Number(b.dataset.srcLine) <= line) target = b;
+      else break;
+    }
+    target.classList.add("doc-preview-hit");
+    preview.scrollTarget = target;
+    scrollPreviewTo(target);
+    return true;
+  }
+
+  /** Typesetting changes the height of everything above the target, so the
+      first scroll only lands approximately. Re-apply it as the page settles. */
+  function settlePreviewScroll() {
+    const target = preview.scrollTarget;
+    if (!target) return;
+    let left = 6;
+    const again = () => {
+      if (!preview.scrollTarget || preview.scrollTarget !== target) return;
+      if (!target.isConnected) return;
+      typesetNearViewport();
+      scrollPreviewTo(target);
+      if (--left > 0) setTimeout(again, 120);
+    };
+    setTimeout(again, 60);
+  }
+
+  function highlightPreviewHeading(heading) {
+    const want = String(heading).trim().toLowerCase();
+    const hs = els.docPreviewContent.querySelectorAll("h1, h2, h3, h4, h5, h6");
+    for (const h of hs) {
+      if (headingText(h).toLowerCase() === want) {
+        h.classList.add("doc-preview-hit");
+        preview.scrollTarget = h;
+        scrollPreviewTo(h);
+        return;
+      }
+    }
+  }
+
+  /** The card's own headings, as a navigable outline. Papers run to dozens of
+      screens; scrolling blind through one is not reading it. */
+  function buildPreviewToc() {
+    preview.headings = [];
+    const hs = [...els.docPreviewContent.querySelectorAll("h1, h2, h3, h4")];
+    // One heading is a title, not an outline.
+    if (hs.length < 2) return "";
+    let html = `<div class="doc-preview-side-head">${escapeHtml(t("preview_contents"))}</div>` +
+      `<ul class="doc-preview-toc">`;
+    hs.forEach((h, i) => {
+      const id = `magi-h${i}`;
+      h.id = id;
+      html += `<li><button type="button" class="doc-preview-toc-link lv${h.tagName[1]}" ` +
+        `data-toc="${id}">${escapeHtml(headingText(h))}</button></li>`;
+      preview.headings.push({ el: h, id });
+    });
+    return html + `</ul>`;
+  }
+
+  function syncPreviewSpy() {
+    if (!preview.headings.length) return;
+    const top = els.docPreviewContent.scrollTop + els.docPreviewContent.offsetTop + 16;
+    let active = preview.headings[0];
+    for (const h of preview.headings) {
+      if (h.el.offsetTop <= top) active = h;
+      else break;
+    }
+    els.docPreviewSide.querySelectorAll("[data-toc]").forEach((b) =>
+      b.classList.toggle("active", b.dataset.toc === active.id));
+  }
+
+  function onPreviewScroll() {
+    if (onPreviewScroll._q) return;
+    onPreviewScroll._q = true;
+    requestAnimationFrame(() => {
+      onPreviewScroll._q = false;
+      typesetNearViewport();
+      syncPreviewSpy();
+    });
+  }
+
+  async function loadPreviewLinks(nodeId, token) {
+    const qs = new URLSearchParams({
+      view: "links", node: nodeId, workspace: state.workspace,
+    });
+    let res;
+    try {
+      res = await apiFetch(`/api/workspace/graph/browse?${qs.toString()}`);
+    } catch (_) {
+      return;   // no graph, no sidebar — the card still reads fine
+    }
+    if (token !== loadDocPreview._req) return;
+    const data = res.results || {};
+    const group = (label, rows, key) => {
+      if (!rows || !rows.length) return "";
+      let s = `<div class="doc-preview-side-head">${escapeHtml(label)}</div><ul class="doc-preview-side-list">`;
+      rows.forEach((r) => {
+        const id = r[key];
+        const dangling = key === "target_id" && (r.title === null || r.title === undefined);
+        // A dangling target gets the same type as its siblings — it is the
+        // colour that says "nothing behind this yet", not a change of face.
+        s += dangling
+          ? `<li><span class="doc-preview-jump is-dangling" ` +
+            `title="${escapeHtml(t("preview_unresolved"))}">${escapeHtml(id)}</span></li>`
+          : `<li><button type="button" class="doc-preview-jump" data-node="${escapeHtml(id)}">` +
+            `${escapeHtml(r.title || id)}</button></li>`;
+      });
+      return s + `</ul>`;
+    };
+    const links = group(t("preview_out"), data.outgoing, "target_id") +
+      group(t("preview_in"), data.incoming, "source_id");
+    els.docPreviewSide.innerHTML = preview.tocHtml +
+      (links || `<p class="empty-note">${t("preview_no_links")}</p>`);
+    setPreviewSideVisible(true);
+    syncPreviewSpy();
+  }
+
+  function setPreviewSideVisible(on) {
+    const body = els.docPreviewSide && els.docPreviewSide.parentElement;
+    if (body) body.classList.toggle("no-side", !on);
+  }
+
+  function previewGoBack() {
+    const prev = preview.stack.pop();
+    if (!prev) return;
+    preview.current = null;
+    openDocPreview(prev.ref, { ...prev.opts, push: false, keepStack: true });
+  }
+
+  function bindDocPreview() {
+    if (!els.docPreviewModal) return;
+    els.docPreviewClose.addEventListener("click", closeDocPreview);
+    els.docPreviewBack.addEventListener("click", previewGoBack);
+    els.docPreviewModal.addEventListener("click", (ev) => {
+      if (ev.target === els.docPreviewModal) closeDocPreview();
+    });
+    els.docPreviewCopy.addEventListener("click", async () => {
+      const path = els.docPreviewMeta.querySelector(".doc-preview-path");
+      if (!path) return;
+      const text = path.textContent;
+      let ok = false;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+          ok = true;
+        }
+      } catch (_) { ok = false; }
+      if (!ok) ok = legacyCopy(text);
+      showToast(ok ? t("preview_copied", { path: text }) : "clipboard unavailable",
+                ok ? "success" : "error");
+    });
+    els.docPreviewLinksBtn.addEventListener("click", () => {
+      const ref = preview.current && preview.current.ref;
+      if (!ref || !ref.node) return;
+      closeDocPreview();
+      switchTab("melchior");
+      openGraphLinks(ref.node);
+    });
+    els.docPreviewContent.addEventListener("click", (ev) => {
+      const a = ev.target.closest("a[data-wikilink]");
+      if (a) {
+        ev.preventDefault();
+        openDocPreview({ node: a.dataset.wikilink },
+                       { push: true, title: a.textContent });
+        return;
+      }
+      const link = ev.target.closest("a[href]");
+      // Cards link to each other by relative path too; keep those inside.
+      if (link && /\.md(#.*)?$/i.test(link.getAttribute("href") || "")) {
+        ev.preventDefault();
+        const href = link.getAttribute("href").split("#")[0];
+        const cur = preview.current && preview.current.ref;
+        const base = cur && cur.path ? cur.path : "";
+        const dir = base.includes("/") ? base.slice(0, base.lastIndexOf("/")) : "";
+        openDocPreview({ path: (dir ? dir + "/" : "") + href.replace(/^\.\//, "") },
+                       { push: true, title: link.textContent });
+      }
+    });
+    els.docPreviewContent.addEventListener("scroll", onPreviewScroll, { passive: true });
+    els.docPreviewSide.addEventListener("click", (ev) => {
+      const jump = ev.target.closest("[data-toc]");
+      if (jump) {
+        const target = document.getElementById(jump.dataset.toc);
+        if (target) {
+          preview.scrollTarget = target;
+          scrollPreviewTo(target);
+          settlePreviewScroll();
+        }
+        return;
+      }
+      const btn = ev.target.closest("[data-node]");
+      if (!btn) return;
+      openDocPreview({ node: btn.dataset.node },
+                     { push: true, title: btn.textContent });
+    });
+  }
+
+  // ------------------------------------------------------------------------
   // Tab 4: Casper (Retrieval)
   // ------------------------------------------------------------------------
 
@@ -3029,7 +3790,10 @@
           const collBadge = hit.collection
             ? `<span class="badge badge-muted">${escapeHtml(hit.collection)}</span>` : "";
           return `
-            <div class="search-hit-card">
+            <div class="search-hit-card" data-hit-path="${escapeHtml(hit.path)}"
+                 data-hit-heading="${escapeHtml(hit.heading || "")}"
+                 data-hit-line="${escapeHtml(String(lineStart || ""))}"
+                 data-hit-kb="${escapeHtml(hit.kb || "local")}">
               <div class="search-hit-header">
                 <div class="search-hit-title">${escapeHtml(hit.heading || hit.path)}</div>
                 <div class="search-hit-badges">
@@ -3047,6 +3811,19 @@
           `;
         })
         .join("");
+      // A snippet is a few lines out of the middle of a card; the card itself
+      // is one click away.
+      els.searchResultsList.querySelectorAll("[data-hit-path]").forEach((card) => {
+        card.classList.add("search-hit-clickable");
+        card.title = t("preview_hint_search");
+        card.addEventListener("click", () => {
+          // Search is federated: a hit may belong to another registered KB,
+          // and the server resolves that name to a root for us.
+          openDocPreview({ path: card.dataset.hitPath, kb: card.dataset.hitKb },
+                         { heading: card.dataset.hitHeading,
+                           line: Number(card.dataset.hitLine) || 0 });
+        });
+      });
     } catch (err) {
       els.searchResultsList.innerHTML = `<div class="error-box">${escapeHtml(err.message)}</div>`;
     }
@@ -3919,6 +4696,17 @@
   els.doctorBtn.addEventListener("click", openDoctorModal);
   els.doctorModalClose.addEventListener("click", () => {
     els.doctorModal.classList.remove("open");
+  });
+
+  // Card preview
+  bindDocPreview();
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
+    if (els.docPreviewModal && els.docPreviewModal.classList.contains("open")) {
+      closeDocPreview();
+    } else if (els.doctorModal && els.doctorModal.classList.contains("open")) {
+      els.doctorModal.classList.remove("open");
+    }
   });
 
   // Init

@@ -320,3 +320,75 @@ def test_main_missing_db(tmp_path, capsys):
     assert rc == 1
     payload = json.loads(capsys.readouterr().out)
     assert "error" in payload
+
+
+# --------------------------------------------------------------------------
+# Wikilink resolution. `magi graph build` maps a link onto a title, a file
+# stem or an alias; a browser that only knew node ids would report half of a
+# card's links as broken while the graph itself considers them fine.
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("link,expected", [
+    ("wiki/concepts/alpha", "wiki/concepts/alpha"),   # the id itself
+    ("Alpha Concept", "wiki/concepts/alpha"),         # the title
+    ("alpha concept", "wiki/concepts/alpha"),         # case-folded
+    ("alpha", "wiki/concepts/alpha"),                 # the file stem
+    ("ALPHA", "wiki/concepts/alpha"),
+    ("Paper One", "wiki/references/paper-one"),
+    ("Nonexistent Page", None),
+])
+def test_resolve_node_id_matches_the_builder(db_path, link, expected):
+    from magi.kb.graph_browse import resolve_node_id
+
+    conn = open_ro(db_path)
+    try:
+        assert resolve_node_id(conn, link) == expected
+    finally:
+        conn.close()
+
+
+def test_resolve_node_id_follows_an_alias(db_path):
+    from magi.kb.graph_browse import resolve_node_id
+
+    conn = sqlite3.connect(db_path)
+    conn.execute("INSERT INTO aliases VALUES('wiki/concepts/beta', 'The Second One')")
+    conn.commit()
+    conn.close()
+
+    conn = open_ro(db_path)
+    try:
+        assert resolve_node_id(conn, "the second one") == "wiki/concepts/beta"
+    finally:
+        conn.close()
+
+
+def test_resolve_node_id_survives_a_graph_built_before_aliases(tmp_path):
+    """Old graph.db files in the wild have no aliases table."""
+    from magi.kb.graph_browse import resolve_node_id
+
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.executescript(
+        "CREATE TABLE nodes(id TEXT PRIMARY KEY, path TEXT, title TEXT, type TEXT,"
+        " category TEXT, summary TEXT, created TEXT, updated TEXT);"
+        "INSERT INTO nodes VALUES('wiki/concepts/gamma','wiki/concepts/gamma.md',"
+        "'Gamma','concept',NULL,NULL,NULL,NULL);"
+    )
+    conn.close()
+
+    conn = open_ro(path)
+    try:
+        assert resolve_node_id(conn, "Gamma") == "wiki/concepts/gamma"
+    finally:
+        conn.close()
+
+
+def test_browse_links_accepts_a_wikilink_not_just_an_id(db_path):
+    conn = open_ro(db_path)
+    try:
+        by_title = browse_links(conn, "Alpha Concept")
+        by_stem = browse_links(conn, "alpha")
+        assert by_title["node"]["id"] == by_stem["node"]["id"] == "wiki/concepts/alpha"
+        assert by_title == by_stem
+    finally:
+        conn.close()

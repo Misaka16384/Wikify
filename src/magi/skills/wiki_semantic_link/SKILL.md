@@ -23,7 +23,7 @@ Depending on the objective, you MUST use the correct parameters:
 2. **Deduplication Scan (Auto-Merge)**: If the user is running the `wiki_concept_sync` pipeline to merge duplicates:
    `magi link <TOPIC_DIR> --dedup-only --auto-merge`
 
-> **Prerequisites**: Ensure the embedding model is available locally via `ollama pull <model>` (check `config.yaml` for the configured model name). Requires `numpy` and `scikit-learn` Python packages.
+> **Prerequisites**: A stopped local Ollama is started for you (once per process; turn it off with `ollama.autostart: false` in `config.yaml` or `MAGI_NO_OLLAMA_AUTOSTART=1`). The embedding model is still yours to pull — `ollama pull <model>`, name in `config.yaml`; MAGI reports a missing one but will not fetch it. Requires the `numpy` and `scikit-learn` packages.
 
 ## Internal Phases
 

@@ -95,6 +95,14 @@
     system-ui, Roboto, "Helvetica Neue", var(--font-cjk), sans-serif;
   --font-mono: "Cascadia Code", "JetBrains Mono", "SF Mono", ui-monospace, Menlo,
     Consolas, var(--font-cjk), monospace;
+  /* Reading face for the card preview. Deliberately NOT redefined per theme:
+     a page of prose and mathematics wants a serif at any hour, and MAGI MODE
+     turning the body monospace made cards hard to read. Colour still follows
+     the theme; only the type is pinned. */
+  --font-cjk-serif: "Songti SC", "Noto Serif SC", "Source Han Serif SC",
+    "SimSun", "MS Mincho";
+  --font-reading: "Iowan Old Style", "Palatino Linotype", Palatino,
+    "Book Antiqua", Georgia, "Times New Roman", var(--font-cjk-serif), serif;
 
   --radius-sm: 4px;
   --radius-md: 7px;
@@ -2222,6 +2230,319 @@ details.advanced-sql > summary {
 }
 
 /* --------------------------------------------------------------------------
+   16b. Card preview — a full card, rendered, over whatever you clicked from
+   -------------------------------------------------------------------------- */
+
+.doc-preview-window {
+  width: min(1080px, 100%);
+  max-height: min(88vh, 900px);
+  height: min(88vh, 900px);
+  padding: 0;
+  overflow: hidden;          /* the panes scroll, not the window */
+  display: flex;
+  flex-direction: column;
+}
+
+.doc-preview-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem 0.85rem;
+  border-bottom: 1px solid var(--border-default);
+  flex: 0 0 auto;
+}
+
+.doc-preview-back { display: none; flex: 0 0 auto; margin-top: 0.1rem; }
+.doc-preview-back.show { display: inline-flex; }
+
+.doc-preview-titles { flex: 1 1 auto; min-width: 0; }
+
+.doc-preview-title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 0.3rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.doc-preview-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.doc-preview-path {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: none;
+  padding: 0;
+  overflow-wrap: anywhere;
+}
+
+.doc-preview-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: 0 0 auto;
+}
+
+.doc-preview-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+}
+
+.doc-preview-content {
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 1.1rem 1.4rem 2.5rem;
+  min-width: 0;
+}
+
+.doc-preview-side {
+  overflow-y: auto;
+  padding: 1.1rem 1rem 2rem;
+  border-left: 1px solid var(--border-default);
+  background: var(--bg-subtle);
+  font-size: 0.78rem;
+}
+
+.doc-preview-side-head {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0.9rem 0 0.4rem;
+}
+
+.doc-preview-side-head:first-child { margin-top: 0; }
+
+.doc-preview-side-list { list-style: none; margin: 0; padding: 0; }
+
+/* The card's own outline. Indent carries the heading level; there is no
+   numbering because a paper already numbers its own sections. */
+.doc-preview-toc { list-style: none; margin: 0 0 0.4rem; padding: 0; }
+.doc-preview-toc li { margin: 0; }
+
+.doc-preview-toc-link {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-left: 2px solid transparent;
+  padding: 0.22rem 0.3rem 0.22rem 0.45rem;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.doc-preview-toc-link.lv1 { font-weight: 600; color: var(--text-secondary); }
+.doc-preview-toc-link.lv2 { padding-left: 0.45rem; }
+.doc-preview-toc-link.lv3 { padding-left: 1.05rem; }
+.doc-preview-toc-link.lv4 { padding-left: 1.65rem; font-size: 0.72rem; }
+
+.doc-preview-toc-link:hover { color: var(--text-primary); background: var(--bg-surface); }
+
+.doc-preview-toc-link.active {
+  color: var(--accent-primary);
+  border-left-color: var(--accent-primary);
+}
+
+.doc-preview-jump {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.24rem 0.3rem;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  overflow-wrap: anywhere;
+}
+
+.doc-preview-jump:hover {
+  background: var(--bg-surface);
+  color: var(--accent-primary);
+}
+
+/* The block a search hit was cut from, so the result you clicked is the thing
+   you land on. Wash plus a rail, because the target can be a heading or a
+   paragraph in the middle of a section. */
+.doc-preview-hit {
+  background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+  box-shadow:
+    -0.5rem 0 0 color-mix(in srgb, var(--accent-primary) 14%, transparent),
+    inset 3px 0 0 var(--accent-primary);
+  scroll-margin-top: 1rem;
+}
+
+/* An unresolved link: muted and underscored, never a different typeface. */
+.doc-preview-jump.is-dangling {
+  color: var(--text-subtle);
+  border-bottom: 1px dotted currentColor;
+  cursor: default;
+}
+.doc-preview-jump.is-dangling:hover { background: none; color: var(--text-subtle); }
+
+/* Typography for the preview is fixed across themes (see --font-reading);
+   KaTeX_Main is itself a serif, so the formulas sit in the prose instead of
+   floating above a sans-serif line. */
+/* Three classes on purpose: the MAGI MODE rules further down set markdown
+   headings in the mono face at (0,2,1), and this has to outrank them without
+   reaching for !important. */
+.doc-preview-window .markdown-body.doc-preview-content,
+.doc-preview-window .markdown-body.doc-preview-content p,
+.doc-preview-window .markdown-body.doc-preview-content li,
+.doc-preview-window .markdown-body.doc-preview-content blockquote,
+.doc-preview-window .markdown-body.doc-preview-content td,
+.doc-preview-window .markdown-body.doc-preview-content th,
+.doc-preview-window .markdown-body.doc-preview-content h1,
+.doc-preview-window .markdown-body.doc-preview-content h2,
+.doc-preview-window .markdown-body.doc-preview-content h3,
+.doc-preview-window .markdown-body.doc-preview-content h4,
+.doc-preview-window .markdown-body.doc-preview-content h5,
+.doc-preview-window .markdown-body.doc-preview-content h6 {
+  font-family: var(--font-reading);
+}
+
+.doc-preview-window .markdown-body.doc-preview-content code,
+.doc-preview-window .markdown-body.doc-preview-content pre,
+.doc-preview-window .markdown-body.doc-preview-content pre code {
+  font-family: var(--font-mono);
+}
+
+.doc-preview-content { font-size: 0.94rem; line-height: 1.75; }
+
+/* Nothing to link to (a card from another KB, or a graph that has not been
+   built): the reading pane takes the whole width rather than sitting next to
+   an empty rail. */
+.doc-preview-body.no-side { grid-template-columns: minmax(0, 1fr); }
+.doc-preview-body.no-side .doc-preview-side { display: none; }
+
+/* Diagrams: mermaid replaces the <pre> content with an <svg>, which comes out
+   at its natural size and has to be reined in to the pane. */
+.doc-preview-content pre.mermaid {
+  background: none;
+  border: none;
+  padding: 0.4rem 0;
+  text-align: center;
+  overflow-x: auto;
+}
+
+/* mermaid stamps data-processed once it has swapped in the <svg>; only then
+   does the figure get its plate, so a diagram that failed to parse stays a
+   plain code block. */
+.doc-preview-content pre.mermaid[data-processed] {
+  background: #FAF8F4;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 0.9rem 0.6rem;
+}
+
+[data-theme="eva"] .doc-preview-content pre.mermaid[data-processed] {
+  border-radius: 0;
+  -webkit-clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+
+.doc-preview-content pre.mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.doc-preview-content details {
+  margin: 0.6rem 0;
+  border-left: 2px solid var(--border-default);
+  padding-left: 0.7rem;
+}
+
+.doc-preview-content summary {
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-family: var(--font-mono);
+}
+
+/* A formula waiting to be typeset. It shows its own source, so it occupies
+   roughly the right space and stays readable if KaTeX never gets to it. */
+.math-lazy {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+}
+
+/* A display formula that owned its paragraph. */
+.doc-preview-content .math-block { margin: 0.2rem 0 0.9rem; }
+
+.math-lazy-block {
+  display: block;
+  text-align: center;
+  padding: 0.3rem 0;
+}
+
+.search-hit-clickable { cursor: pointer; }
+.search-hit-clickable:hover { border-color: var(--accent-primary); }
+
+/* Links between cards. [[Wikilinks]] resolve through the graph, so a link to
+   a card nobody has written yet is still a link — it just fails on open. */
+.markdown-body a.wikilink {
+  color: var(--accent-primary);
+  border-bottom: 1px dotted currentColor;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.markdown-body a.wikilink:hover { border-bottom-style: solid; }
+
+.markdown-body img.img-missing {
+  display: inline-block;
+  min-width: 3rem;
+  min-height: 1.5rem;
+  outline: 1px dashed var(--border-default);
+  opacity: 0.45;
+}
+
+/* KaTeX failed on this one; showing the source beats showing nothing. */
+.math-raw {
+  color: var(--accent-danger);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+/* Long equations scroll inside their own line rather than widening the pane. */
+.markdown-body .katex { color: inherit; }
+.markdown-body .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0 0.6rem;
+}
+.markdown-body .katex-error { color: var(--accent-danger); }
+
+@media (max-width: 860px) {
+  .doc-preview-body { grid-template-columns: minmax(0, 1fr); }
+  .doc-preview-side {
+    border-left: none;
+    border-top: 1px solid var(--border-default);
+  }
+  .doc-preview-window { width: 100%; }
+}
+
+/* --------------------------------------------------------------------------
    17. Toasts
    -------------------------------------------------------------------------- */
 
@@ -3086,6 +3407,7 @@ details.advanced-sql > summary {
 [data-theme="eva"] .glass-tuner-btn,
 [data-theme="eva"] .bg-thumb,
 [data-theme="eva"] .graph-map-toggle,
+[data-theme="eva"] .doc-preview-jump,
 [data-theme="eva"] .graph-map-note,
 [data-theme="eva"] .graph-map-hint,
 [data-theme="eva"] .copy-btn {

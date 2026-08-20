@@ -30,6 +30,9 @@ except ImportError:
 _DEFAULTS: dict[str, Any] = {
     "ollama": {
         "base_url": "http://127.0.0.1:11434",
+        # A stopped local server is not an error state — MAGI starts it. Set
+        # this false to keep `ollama serve` under your own control.
+        "autostart": True,
     },
     "models": {
         "ocr": "glm-ocr",

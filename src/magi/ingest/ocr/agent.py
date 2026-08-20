@@ -166,7 +166,16 @@ class PDF2MarkdownAgent:
             # Step 1: 检查 OCR 模型
             console.print(Panel("[bold blue]Step 1: 检查环境[/bold blue]", expand=False))
             if not self.ocr_engine.check_model_available():
-                raise RuntimeError(f"OCR 模型 {self.ocr_engine.model} 不可用，请先通过 'ollama pull {self.ocr_engine.model}' 下载")
+                # "pull the model" is the wrong instruction when Ollama is not
+                # installed at all, or would not start. check_model_available
+                # left the state it got behind precisely so we can say which.
+                from magi.core import ollama as ollama_svc
+
+                state = getattr(self.ocr_engine, "ollama_state", None)
+                raise RuntimeError(
+                    (ollama_svc.hint(state, self.ocr_engine.model) if state else None)
+                    or f"OCR 模型 {self.ocr_engine.model} 不可用，请先通过 "
+                       f"'ollama pull {self.ocr_engine.model}' 下载")
             
             # 检查模型是否已加载，显示模型信息
             loaded, model_info = self.ocr_engine.is_model_loaded()

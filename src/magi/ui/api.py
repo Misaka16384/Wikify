@@ -22,11 +22,19 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 import magi
-from magi.core.workspace import find_hub_root, find_workspace_root
+from magi.core.workspace import (
+    find_hub_root,
+    find_workspace_root,
+    is_hub_root,
+    is_topic_root,
+)
 
-# Windows' registry-driven mimetypes table often lacks .webp, so the bundled
-# background art would be served as application/octet-stream.
+# Windows' registry-driven mimetypes table often lacks .webp and .woff2, so the
+# bundled background art and the KaTeX fonts would go out as
+# application/octet-stream.
 mimetypes.add_type("image/webp", ".webp")
+mimetypes.add_type("font/woff2", ".woff2")
+mimetypes.add_type("font/woff", ".woff")
 from magi.kb.detect_uncompiled import find_uncompiled
 from magi.kb_registry import (
     _config_home,
@@ -89,6 +97,82 @@ def _resolve_workspace(workspace_param: Optional[str]) -> Path:
     if ws is not None:
         return ws
     return Path.cwd().resolve()
+
+
+# Preview reads a whole file into a JSON reply; past a couple of megabytes
+# that is a browser problem, not a reading experience.
+DOC_PREVIEW_MAX_BYTES = 2 * 1024 * 1024
+
+# Text the preview knows how to show. Refusing the rest is not about secrecy —
+# the endpoint would happily base64 a 400 MB PDF into a JSON string.
+DOC_PREVIEW_SUFFIXES = {
+    ".md", ".markdown", ".txt", ".tex", ".bib", ".yaml", ".yml", ".json", ".csv",
+}
+
+# Figures a card can embed. Same door, different keyring.
+ASSET_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".avif"}
+
+
+def _safe_workspace_file(ws: Path, rel: str, suffixes: set[str] | None = None) -> Path:
+    """Resolve *rel* inside *ws*, or raise. The only door into the filesystem.
+
+    Query strings arrive from the browser, so `..`, absolute paths and
+    symlinks pointing out of the workspace all have to bounce here rather
+    than at the read.
+    """
+    if not rel:
+        raise HTTPException(status_code=400, detail="empty path")
+    candidate = Path(rel)
+    # A leading slash is absolute to any reader; Path() on Windows calls
+    # "/etc/hosts" drive-relative and would let it fall through to the escape
+    # check with a confusing 403.
+    if candidate.is_absolute() or candidate.drive or rel[0] in "/\\":
+        raise HTTPException(status_code=400, detail="path must be workspace-relative")
+    target = (ws / candidate).resolve()
+    root = ws.resolve()
+    if root != target and root not in target.parents:
+        raise HTTPException(status_code=403, detail="path escapes the workspace")
+    allowed = DOC_PREVIEW_SUFFIXES if suffixes is None else suffixes
+    if target.suffix.lower() not in allowed:
+        raise HTTPException(
+            status_code=415,
+            detail=f"{target.suffix or 'that file type'} is not served by this endpoint")
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail=f"No such file: {candidate.as_posix()}")
+    return target
+
+
+def _reading_root(workspace: Optional[str], kb: Optional[str]) -> Path:
+    """The workspace a file-reading endpoint is allowed to read from.
+
+    Unlike the report endpoints, /doc and /asset return raw bytes, so the
+    directory has to be a MAGI workspace (or a hub, or a registered KB) and
+    not merely a path someone typed into the query string.
+    """
+    if kb and kb != "local":
+        return _kb_root(kb)
+    root = _resolve_workspace(workspace)
+    if is_topic_root(root) or is_hub_root(root):
+        return root
+    registered = {Path(e["path"]).resolve()
+                  for e in load_registry().get("kbs", {}).values()}
+    if root.resolve() in registered:
+        return root
+    raise HTTPException(
+        status_code=400,
+        detail=f"{root} is not a MAGI workspace — pass a topic directory or kb=<name>")
+
+
+def _kb_root(name: str) -> Path:
+    """Root of a registered KB by name. Search results name their KB, not its
+    path, and the browser has no business learning filesystem layout."""
+    entry = load_registry().get("kbs", {}).get(name)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"KB '{name}' not found in registry")
+    root = Path(entry["path"])
+    if not root.is_dir():
+        raise HTTPException(status_code=404, detail=f"KB '{name}' path is gone: {root}")
+    return root.resolve()
 
 
 def _get_static_dir() -> Path:
@@ -478,6 +562,103 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                     "vector_available": False, "error": str(exc)}
         payload["workspace"] = str(ws)
         return payload
+
+    @app.get("/api/workspace/doc")
+    def get_workspace_doc(
+        path: Optional[str] = Query(None),
+        node: Optional[str] = Query(None),
+        workspace: Optional[str] = Query(None),
+        kb: Optional[str] = Query(None),
+    ) -> dict:
+        """Raw markdown for one file in a workspace, for the preview pane.
+
+        Addressable two ways: by workspace-relative `path` (what search hits
+        carry) or by graph `node` id (what the graph views carry). `kb` names
+        a registered knowledge base instead of the current workspace — search
+        is federated, so half the hits in a result list live somewhere else.
+        The reply is source text; rendering, math included, is the browser's.
+        """
+        ws = _reading_root(workspace, kb)
+        meta: dict[str, Any] = {}
+
+        if not path:
+            if not node:
+                raise HTTPException(status_code=400, detail="pass path= or node=")
+            graph_db = ws / "output" / "graph.db"
+            if not graph_db.is_file():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Knowledge graph database not found at {graph_db}. Run 'magi graph build' first.")
+            from magi.kb import graph_browse
+
+            conn = None
+            try:
+                # open_ro, not a bare connect: it registers the Unicode-aware
+                # ulower() the title fallback below needs.
+                conn = graph_browse.open_ro(graph_db)
+                # Wikilinks inside a card carry a title, a file stem or an
+                # alias — never the node id. resolve_node_id knows all four,
+                # exactly as `magi graph build` did when it drew the edges.
+                resolved = graph_browse.resolve_node_id(conn, node)
+                row = conn.execute(
+                    "SELECT id, path, title, type, summary, updated FROM nodes WHERE id = ?",
+                    (resolved,)).fetchone() if resolved else None
+            except sqlite3.Error as exc:
+                raise HTTPException(status_code=400, detail=f"Graph lookup failed: {exc}")
+            finally:
+                if conn is not None:
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+            if row is None:
+                raise HTTPException(status_code=404, detail=f"No graph node with id {node!r}")
+            meta = {k: row[k] for k in ("id", "title", "type", "summary", "updated")}
+            path = row["path"]
+            if not path:
+                # Tag and ghost nodes are graph-only — they have no card yet.
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Node {node!r} has no file behind it (it is a tag or an unwritten link)")
+
+        target = _safe_workspace_file(ws, path)
+        try:
+            raw = target.read_bytes()
+        except OSError as exc:
+            raise HTTPException(status_code=404, detail=f"Cannot read {path}: {exc}")
+
+        truncated = len(raw) > DOC_PREVIEW_MAX_BYTES
+        if truncated:
+            raw = raw[:DOC_PREVIEW_MAX_BYTES]
+        content = raw.decode("utf-8", errors="replace")
+        stat = target.stat()
+        return {
+            "workspace": str(ws),
+            "path": Path(path).as_posix(),
+            "content": content,
+            "truncated": truncated,
+            "bytes": stat.st_size,
+            "modified": dt.datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
+            "node": meta or None,
+        }
+
+    @app.get("/api/workspace/asset")
+    def get_workspace_asset(
+        path: str = Query(...),
+        workspace: Optional[str] = Query(None),
+        kb: Optional[str] = Query(None),
+    ):
+        """One image out of a workspace, for figures embedded in a card.
+
+        Cards compiled from papers point at `images/fig-3.png` next to them;
+        without this the preview would be a page of broken icons.
+        """
+        from fastapi.responses import FileResponse
+
+        ws = _reading_root(workspace, kb)
+        target = _safe_workspace_file(ws, path, suffixes=ASSET_SUFFIXES)
+        media, _ = mimetypes.guess_type(target.name)
+        return FileResponse(target, media_type=media or "application/octet-stream")
 
     @app.get("/api/workspace/graph/query")
     def query_graph_sql(

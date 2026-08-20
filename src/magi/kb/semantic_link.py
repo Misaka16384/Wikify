@@ -58,29 +58,27 @@ def check_model_available(ollama_url, model):
     """Preflight: confirm the embedding model is installed before doing any work.
 
     Fails fast with a clear message instead of 404-ing mid-run (after backups
-    and partial embedding). `ollama_url` is the full embeddings endpoint; we
-    derive the /api/tags endpoint from it.
+    and partial embedding). A stopped local server is not a failure — it gets
+    started. `ollama_url` is the full embeddings endpoint.
     """
+    from magi.core import ollama as ollama_svc
+
     base = ollama_url.rsplit("/api/", 1)[0]
-    tags_url = f"{base}/api/tags"
-    try:
-        with urllib.request.urlopen(tags_url, timeout=10) as response:
-            data = json.loads(response.read().decode("utf-8"))
-    except urllib.error.URLError as e:
-        print(f"[Error] Cannot reach Ollama at {base}: {e}")
-        print("[Hint] Is the Ollama server running? Try `ollama serve`.")
+    state = ollama_svc.ensure(base)
+    if state.started:
+        print(f"[Info] Started Ollama at {base}.")
+    if not state.running:
+        print(f"[Error] {ollama_svc.hint(state)}")
         sys.exit(1)
-    available = [m.get("name", "") for m in data.get("models", [])]
-    if model in available:
+    if state.has_model(model):
         return
-    base_name = model.split(":")[0]
-    matches = [m for m in available if m.split(":")[0] == base_name]
+    matches = [m for m in state.matching(model) if m != model]
     print(f"[Error] Embedding model '{model}' is not installed in Ollama.")
     if matches:
         print(f"[Hint] Found related tag(s): {', '.join(matches)}.")
         print(f"[Hint] Set models.embedding in config.yaml to one of those, or pass --model.")
     else:
-        print(f"[Hint] Installed models: {', '.join(available) or '(none)'}")
+        print(f"[Hint] Installed models: {', '.join(state.models) or '(none)'}")
         print(f"[Hint] Install it with: ollama pull {model}")
     sys.exit(1)
 

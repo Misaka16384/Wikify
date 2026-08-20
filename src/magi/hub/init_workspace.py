@@ -188,6 +188,7 @@ environment. Scope: {args.scope}
     config_yaml = """# MAGI workspace configuration (discovered by upward walk from cwd)
 ollama:
   base_url: "http://127.0.0.1:11434"
+  autostart: true      # start a stopped local Ollama on demand
 models:
   ocr: "glm-ocr"
   embedding: "qwen3-embedding:0.6b"

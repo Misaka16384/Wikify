@@ -4,8 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MAGI — Research Workspace WebUI</title>
+  <!-- KaTeX (MIT, vendor/katex-LICENSE.txt) — the cards are full of $$…$$ -->
+  <link rel="stylesheet" href="/vendor/katex.min.css">
   <link rel="stylesheet" href="/styles.css">
   <script src="/vendor/marked.min.js"></script>
+  <script src="/vendor/katex.min.js"></script>
   <!-- d3-force microlibs (ISC, vendor/d3-force-LICENSE.txt) — physics for the graph map -->
   <script src="/vendor/d3-dispatch.min.js"></script>
   <script src="/vendor/d3-quadtree.min.js"></script>
@@ -44,7 +47,7 @@
       </div>
       <div>
         <span class="brand-title">MAGI</span>
-        <span class="brand-badge" id="app-version">v1.8.2</span>
+        <span class="brand-badge" id="app-version">v1.9.0</span>
       </div>
       <span class="eva-clock" id="eva-clock" aria-hidden="true"></span>
     </div>
@@ -668,6 +671,32 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-primary" id="doctor-modal-close" data-i18n="btn_doc_close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card Preview — rendered markdown for a graph node or a search hit -->
+  <div class="modal-backdrop" id="doc-preview-modal">
+    <div class="modal-window doc-preview-window">
+      <div class="doc-preview-head">
+        <button class="icon-btn doc-preview-back" id="doc-preview-back"
+                title="Back" data-i18n-title="preview_back">&#8592;</button>
+        <div class="doc-preview-titles">
+          <h3 class="doc-preview-title" id="doc-preview-title">&nbsp;</h3>
+          <div class="doc-preview-meta" id="doc-preview-meta"></div>
+        </div>
+        <div class="doc-preview-actions">
+          <button class="btn btn-secondary btn-sm" id="doc-preview-links-btn"
+                  data-i18n="preview_open_links">Links view</button>
+          <button class="icon-btn" id="doc-preview-copy"
+                  title="Copy path" data-i18n-title="preview_copy_path">&#9106;</button>
+          <button class="icon-btn" id="doc-preview-close"
+                  title="Close" data-i18n-title="preview_close">&#10005;</button>
+        </div>
+      </div>
+      <div class="doc-preview-body">
+        <article class="markdown-body doc-preview-content" id="doc-preview-content"></article>
+        <aside class="doc-preview-side" id="doc-preview-side"></aside>
       </div>
     </div>
   </div>

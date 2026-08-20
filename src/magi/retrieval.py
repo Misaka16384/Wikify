@@ -174,9 +174,30 @@ class Embedder:
         self.base_url = cfg_get(cfg, "ollama.base_url", "http://127.0.0.1:11434").rstrip("/")
         self.model = cfg_get(cfg, "models.embedding", "qwen3-embedding:0.6b")
         self.available: bool | None = None  # unknown until first call
+        self._preflighted = False
+
+    def _preflight(self) -> bool:
+        """Wake a stopped Ollama, and speak up only when a human is needed.
+
+        A server that was merely asleep is not worth a line of output — it
+        gets started. A missing install or an unpulled model is, because both
+        otherwise show up as nothing more than a silent BM25-only index.
+        """
+        if self._preflighted:
+            return self.available is not False
+        self._preflighted = True
+        from magi.core import ollama as ollama_svc
+
+        state, _ = ollama_svc.ensure_model(self.base_url, self.model)
+        if not state.running or not state.has_model(self.model):
+            self.available = False
+            return False
+        return True
 
     def embed(self, text: str) -> list[float] | None:
         if self.available is False:
+            return None
+        if not self._preflight():
             return None
         try:
             import requests
@@ -524,8 +545,9 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
                 merged[(name, cid)] = legs
 
         if mode == "vector" and not vector_available:
-            raise SearchError("vector search unavailable (no vectors in index or Ollama down)",
-                              "start Ollama and re-run 'magi index'")
+            raise SearchError("vector search unavailable — this index holds no vectors",
+                              "run 'magi index' to embed it (MAGI starts Ollama itself; "
+                              "if it is not installed, get it from https://ollama.com)")
 
         scores = {
             key: sum(1.0 / (RRF_K + r) for r in legs.values())
@@ -599,7 +621,7 @@ def cmd_search(args: argparse.Namespace) -> int:
         if len(payload["kbs_searched"]) > 1:
             print(f"(searched: {', '.join(payload['kbs_searched'])} — narrow with --scope local or --kb <name>)")
         if not payload["vector_available"] and args.mode == "hybrid":
-            print("(BM25-only: vectors unavailable — is Ollama running? re-run 'magi index' after starting it)")
+            print("(BM25-only: this index holds no vectors — run 'magi index' to add them)")
     return 0
 
 

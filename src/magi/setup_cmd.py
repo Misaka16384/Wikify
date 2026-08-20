@@ -97,13 +97,16 @@ def install_beads() -> str:
 # --------------------------------------------------------------------------
 
 def setup_ollama_models() -> str:
+    from magi.core import ollama as ollama_svc
+
     if not _which("ollama"):
         return "Ollama not installed — vectors degrade to BM25-only (https://ollama.com to enable)"
-    listed = _run(["ollama", "list"], timeout=30)
-    if listed is None:
-        return "Ollama present but not responding — start it with 'ollama serve'"
-    if EMBED_MODEL.split(":")[0] in (listed.stdout or ""):
-        return f"ready ({EMBED_MODEL} present)"
+    # Setup is allowed to start things; a stopped server is not a report.
+    state = ollama_svc.ensure()
+    if not state.running:
+        return f"Ollama present but would not start — try 'ollama serve': {state.reason}"
+    if state.has_model(EMBED_MODEL):
+        return f"ready ({EMBED_MODEL} present{', server started' if state.started else ''})"
     print(f"[setup] pulling {EMBED_MODEL} (~640 MB, one-time)...")
     proc = _run(["ollama", "pull", EMBED_MODEL], timeout=1800)
     if proc and proc.returncode == 0:
@@ -194,6 +197,20 @@ def handle_legacy(remove: bool) -> str:
 # doctor
 # --------------------------------------------------------------------------
 
+def _ollama_server_note() -> str:
+    """Server state for the doctor row, without starting anything."""
+    from magi.core import ollama as ollama_svc
+
+    models = ollama_svc.probe()
+    if models is None:
+        return "server stopped (MAGI starts it when it needs vectors)"
+    if not models:
+        return f"server up, no models pulled — run: ollama pull {EMBED_MODEL}"
+    if ollama_svc.OllamaState("", True, models).has_model(EMBED_MODEL):
+        return f"server up, {EMBED_MODEL} ready"
+    return f"server up, but {EMBED_MODEL} is not pulled — run: ollama pull {EMBED_MODEL}"
+
+
 def doctor_rows() -> list[tuple[str, bool, str]]:
     rows: list[tuple[str, bool, str]] = []
     rows.append(("magi", True, f"v{__import__('magi').__version__}"))
@@ -207,6 +224,12 @@ def doctor_rows() -> list[tuple[str, bool, str]]:
         ("pdflatex", "optional deep math validation"),
     ):
         path = _which(tool)
+        if tool == "ollama" and path is not None:
+            # "installed" is the least useful thing to say about Ollama —
+            # every vector question is really about the server. Doctor reports;
+            # it does not start anything.
+            rows.append((tool, True, f"{path} — {_ollama_server_note()}"))
+            continue
         rows.append((tool, path is not None, path or hint))
     if not _which("pandoc-crossref"):
         rows.append(("pandoc-crossref", False,

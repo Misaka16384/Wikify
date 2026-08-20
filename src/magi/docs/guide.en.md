@@ -253,6 +253,12 @@ The plugin and `magi skills install` coexist — one gives you `/magi:skill-name
 | **pdflatex** | Deep verification of math formulas | Automatically falls back to lightweight `pylatexenc` verification |
 | **Ghostscript** | Converting EPS figures in LaTeX source to raster images | EPS files are copied as-is and won't display in markdown |
 
+> [!NOTE]
+> You never need to run `ollama serve` yourself. If Ollama is installed but not
+> running, MAGI starts it the first time something needs it (once per process).
+> Set `ollama.autostart: false` in `config.yaml`, or `MAGI_NO_OLLAMA_AUTOSTART=1`,
+> to keep the daemon under your own control.
+
 ```powershell
 ollama pull qwen3-embedding:0.6b     # vector search (~640MB)
 ollama pull glm-ocr                  # local OCR (optional)
@@ -469,6 +475,7 @@ models:
 
 ollama:
   base_url: http://127.0.0.1:11434
+  autostart: true                 # start a stopped local Ollama on demand
 
 tools:                      # only needed if these programs aren't on PATH
   pandoc_path: ""
@@ -476,7 +483,7 @@ tools:                      # only needed if these programs aren't on PATH
   pdftoppm_path: ""
 ```
 
-These five environment variables — `OLLAMA_HOST` / `PANDOC_PATH` / `PANDOC_CROSSREF_PATH` / `PDFTOPPM_PATH` / `PDFIMAGES_PATH` — **take priority over `config.yaml`**; every other key can only be changed by editing the file.
+These six environment variables — `OLLAMA_HOST` / `PANDOC_PATH` / `PANDOC_CROSSREF_PATH` / `PDFTOPPM_PATH` / `PDFIMAGES_PATH` / `MAGI_NO_OLLAMA_AUTOSTART` — **take priority over `config.yaml`**; every other key can only be changed by editing the file.
 
 > [!WARN]
 > **A malformed YAML file fails silently.** If the auto-discovered `config.yaml` doesn't parse, the program silently falls back to its built-in defaults — no message at all. After editing, verify it with this:
@@ -695,7 +702,8 @@ magi tags apply . scratch/tag_mapping.json scratch/alias_mapping.json
 `apply` rewrites all frontmatter, writes the canonical tag list to `output/ontology.txt`, and automatically rebuilds the graph and index (`--no-rebuild` skips that second half). **There's no dry-run** — it edits real files, so commit to git before you run it.
 
 > [!FIX]
-> - `[Error] Cannot reach Ollama` / `Embedding model ... is not installed`: start `ollama serve`, then `ollama pull qwen3-embedding:0.6b`.
+> - `[Error] Cannot reach Ollama`: a stopped local Ollama gets started for you, so this means it isn't installed at all (or autostart is off). Get it from https://ollama.com.
+> - `Embedding model ... is not installed`: starting the server is all MAGI does — pull the model yourself with `ollama pull qwen3-embedding:0.6b`.
 > - `[Info] Not enough concepts to analyze`: fewer than two non-stub concept cards — a normal exit, not an error.
 > - `magi graph browse links --node X` says `node not found`: X is neither a node ID nor a unique title. Get the exact ID first with `browse nodes --q X`.
 > - A file's tags just won't make it into the graph: the frontmatter list isn't formatted correctly. Run `magi lint --fix`, then rebuild.
@@ -751,7 +759,7 @@ magi kb unregister <name>      # Remove only the registry entry, files untouched
 > - `no index at output/index.db` → Run `magi index` first.
 > - `no workspace here and no searchable registered KBs` → You're not inside a workspace, and there's no searchable registered KB. `cd` into one, or `magi kb register` + `enable`.
 > - **Can't find something you just wrote** → The index updates incrementally by hash, but it **doesn't trigger automatically**. Rerun `magi index` after editing.
-> - **Results are all keyword hits, no semantic ones** → It ends with a `BM25-only` notice. Start Ollama, then rerun `magi index` to fill in the vectors.
+> - **Results are all keyword hits, no semantic ones** → It ends with a `BM25-only` notice. MAGI already tried to wake a local Ollama; if it's still BM25-only, Ollama isn't installed or the embedding model isn't pulled. Check with `magi setup --check`, then rerun `magi index` to fill in the vectors.
 > - **Chinese search turns up nothing** → When you see `this index predates CJK-aware tokenization`, just rerun `magi index` (it rebuilds the tokenization layer automatically).
 > - `index dims mismatch current embedding model` → You switched embedding models. Switch back, or rerun `magi index` for a full re-embed.
 > - `sqlite-vec unavailable` → The vector extension failed to load (common on macOS when the system Python doesn't support loading extensions). Use uv/Homebrew Python, or fall back to keyword search.
@@ -915,7 +923,7 @@ magi radar install-schedule --uninstall      # uninstall it
 |---|---|
 | `harvest: no new candidates` | Are your seeds and categories empty? Is the window too narrow? Try `--days 30`. It's also possible you really have harvested everything already — the ledger is `output/radar/seen.jsonl`, and **no command resets it**; to re-harvest, delete lines from it by hand |
 | Too many, too noisy candidates | Raise `min_relevance`, lower `max_candidates`, trim down `arxiv_categories` |
-| Relevance scores are all blank | You'll see `relevance scoring unavailable` — run `magi index` to build the vector index first, and make sure Ollama is running |
+| Relevance scores are all blank | You'll see `relevance scoring unavailable` — run `magi index` to build the vector index first. A stopped Ollama starts itself; if the scores stay blank, it isn't installed or the model isn't pulled |
 | `warning: S2 recommendations failed` | Semantic Scholar is rate-limiting you or there's a network issue; the calls are anonymous, there's no API key to configure — just retry later |
 | `arXiv query failed for <category>` | The digest's frontmatter records `sources_failed`, and `magi radar status` flags it too; rerun to fill in the gap |
 | `citation-gap: no candidates survived` | The funnel is too strict: lower `min_shared_refs`, raise `years` |
@@ -941,12 +949,20 @@ Seven panels:
 | Panel | What it does |
 |---|---|
 | **Topic overview** | Sync ratio, one-click fix suggestions, registered-library management, editing key `config.yaml` fields |
-| **MELCHIOR (knowledge)** | Concept/reference counts, claims and evidence table, compile backlog, seven graph views + a read-only SQL console, BibTeX copy, draft list |
+| **MELCHIOR (knowledge)** | Concept/reference counts, claims and evidence table, compile backlog, seven graph views + a read-only SQL console, BibTeX copy, draft list — click any node to read its card |
 | **BALTHASAR (work state)** | Beads counts + a one-click "sync backlog to tasks" |
-| **CASPER (retrieval)** | A search testbed: mode/scope/collection/path filters, exactly mirroring `magi search --json` |
+| **CASPER (retrieval)** | A search testbed: mode/scope/collection/path filters, exactly mirroring `magi search --json` — click a hit to open the card at the passage that matched |
 | **Literature radar** | Digest reading + entry-by-entry review actions |
 | **Ops & danger zone** | An allowlist of server-side operations + type-the-operation-ID confirmation + a live terminal, with task history persisted to disk |
 | **Docs & guides** | This very page, plus the README and the CLI command reference |
+
+> [!NOTE]
+> **Reading a card is the same everywhere.** A graph node, a link in the sidebar, a
+> `[[wikilink]]` inside a card, a CASPER search hit — all of them open one rendered
+> preview: markdown with the math typeset, figures resolved from the card's own
+> `images/`, mermaid diagrams drawn in place, and an outline beside the prose. A
+> search hit scrolls to the passage that matched rather than the top of the file,
+> and preview follows a hit into whichever registered library it actually lives in.
 
 **The dashboard can trigger exactly 14 background tasks**: build index, build graph, rebuild the directory table, semantic linking, lint fix, stats, backlog sync, radar harvest, citation gap, plus the ones that need a second confirmation: setup / migrate / pm init / delete legacy copies / radar scheduling.
 
@@ -988,7 +1004,7 @@ Or paste the error to your agent and let the `magi_guide` skill look it up (see 
 | Ingestion finished, but it's not in the library | You forgot `magi ingest finalize` |
 | The graph is stale | `magi graph build` — it has no incremental mode |
 | Can't search for something you just wrote | `magi index` — it never triggers automatically |
-| Search returns no semantic results | Start Ollama → `magi index` to backfill vectors |
+| Search returns no semantic results | `magi setup --check` — a stopped Ollama starts itself, so it's not installed or the model isn't pulled; then `magi index` to backfill vectors |
 | Wikilinks won't open / lots of broken links | `magi graph browse broken` |
 | Duplicate concepts, sprawling tags | `magi link . --dedup-only`; `magi tags extract` |
 | Card format errors | `magi lint --fix` |

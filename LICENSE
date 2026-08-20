@@ -30,6 +30,11 @@ This distribution bundles third-party assets, each under its own license:
   the file banner: src/magi/ui/static/vendor/marked.min.js
 - Archivo (SIL Open Font License 1.1) — Copyright 2016 The Archivo Project
   Authors. Full text: src/magi/ui/static/vendor/fonts/Archivo-OFL.txt
+- KaTeX (MIT) — Copyright 2013-2020 Khan Academy and other contributors. Full
+  text: src/magi/ui/static/vendor/katex-LICENSE.txt. The bundled fonts
+  (src/magi/ui/static/vendor/katex-fonts/) are part of the same distribution.
+- mermaid (MIT) — Copyright 2014-2022 Knut Sveidqvist. Full text:
+  src/magi/ui/static/vendor/mermaid-LICENSE.txt
 
 The MAGI MODE background artwork under src/magi/ui/static/backgrounds/ is
 original work by the repository author, distributed under the MIT terms above.

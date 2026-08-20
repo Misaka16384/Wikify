@@ -268,17 +268,19 @@ class OCREngine:
         return self._norm(candidate) == self._norm(self.model)
 
     def check_model_available(self) -> bool:
-        """检查模型是否可用（已下载）"""
-        try:
-            url = f"{self.base_url}/api/tags"
-            response = requests.get(url, timeout=10)
-            if response.status_code == 200:
-                models = response.json().get("models", [])
-                model_names = [m.get("name", "") for m in models]
-                return any(self._name_matches(name) for name in model_names)
-        except Exception as e:
-            print(f"Warning: check_model_available failed: {e}", file=sys.stderr)
-        return False
+        """检查模型是否可用（已下载）
+
+        服务器没启动不算错误——先叫醒它再查。ensure() 的返回值就是答案，
+        不要再自己发一次 /api/tags：那样「没装」「没启动」「模型没拉」
+        会一起塌成 False，调用方只能笼统地喊「去 ollama pull」。
+        """
+        from magi.core import ollama as ollama_svc
+
+        state = ollama_svc.ensure(self.base_url)
+        self.ollama_state = state
+        if not state.running:
+            return False
+        return any(self._name_matches(name) for name in state.models)
 
     def is_model_loaded(self) -> Tuple[bool, Optional[Dict]]:
         """

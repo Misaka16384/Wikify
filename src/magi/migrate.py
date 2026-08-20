@@ -185,7 +185,7 @@ def carry_legacy_config(topic: Path, legacy: Path) -> list[str]:
     # Values a freshly scaffolded config carries; anything still equal to one
     # of these is untouched and safe to overwrite.
     defaults = {
-        "ollama": {"base_url": "http://127.0.0.1:11434"},
+        "ollama": {"base_url": "http://127.0.0.1:11434", "autostart": True},
         "models": {"ocr": "glm-ocr", "embedding": "qwen3-embedding:0.6b"},
         "ocr": {"mineru_api_token": "", "use_mineru": False, "timeout": 180, "dpi": 130},
         "semantic_link": {"threshold": 0.75, "merge_threshold": 0.85,
