@@ -937,6 +937,48 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             })
         return {"commands": cmd_list, "groups": _GROUP_HELP, "groups_zh": GROUP_HELP_ZH}
 
+    @app.get("/api/docs/guide")
+    def get_guide_docs(lang: Optional[str] = Query(None)) -> dict:
+        """Scenario-based operating manual shipped inside the package.
+
+        The markdown lives under static/docs/ so the existing package-data
+        glob carries it into the wheel; served through the API (not the
+        static mount) so a missing translation falls back to the other
+        language instead of 404ing the docs tab.
+        """
+        lang_norm = "en" if (lang and lang.strip().lower().startswith("en")) else "zh"
+        guide_dir = _get_static_dir() / "docs"
+
+        def _read(code: str) -> str:
+            path = guide_dir / f"guide.{code}.md"
+            if not path.is_file():
+                return ""
+            try:
+                return path.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                return ""
+
+        content = _read(lang_norm)
+        served = lang_norm
+        if not content:
+            fallback = "zh" if lang_norm == "en" else "en"
+            content = _read(fallback)
+            served = fallback if content else lang_norm
+
+        available = sorted(
+            p.name.split(".")[1]
+            for p in guide_dir.glob("guide.*.md")
+            if p.is_file()
+        ) if guide_dir.is_dir() else []
+
+        return {
+            "content": content,
+            "lang": served,
+            "requested": lang_norm,
+            "available": available,
+            "version": magi.__version__,
+        }
+
     # ----------------------------------------------------------------------
     # 4b. UI backgrounds (user override dir beats packaged manifest)
     # ----------------------------------------------------------------------

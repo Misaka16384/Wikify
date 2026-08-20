@@ -2,7 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-19 · 当前阶段：**v1.4.5 已发布**（tag `v1.4.5`；版本号同步 ×5）。此前：M0–M9 全部完成。
+> 最后更新：2026-08-20 · 当前阶段：**v1.5.0 已发布**（tag `v1.5.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+>
+> 2026-08-20 内置使用指南 (v1.5.0)：**场景式操作手册**——`static/docs/guide.{zh,en}.md`（各 ~900 行、12 章：先跑通/安装/迁移/建库/摄入/编译/图谱/检索/写作/雷达/看板/疑难速查），每节按「做什么 → 怎么做 → 预期效果 → 不达预期怎么办」四段式写，覆盖全局 vs 按项目安装、四类 agent 宿主接入、Wikify 迁移、四条摄入路线与全部配置键、图谱质量七症状诊断表、检索降级链、beads 写作循环、雷达调噪与三平台定时任务差异。**指南阅读器**——Docs 面板新增默认视图：章节轨（h2 自动编号 + h3 随滚动展开 + scroll-spy）、`{#anchor}` 稳定锚点（供他处深链）、`> [!EXPECT|FIX|WARN|NOTE|TIP]` 提示框（marked 后处理为带主题色的 callout）、代码块一键复制（clipboard API + 非安全上下文 textarea 回退 + 1.2s 超时兜底，保证按钮永远给反馈）、52rem 阅读宽度上限；四主题态全覆盖。**后端**——`GET /api/docs/guide?lang=`（zh/en，缺失语言互为回退，随包分发走既有 package-data glob）。**内容可信度**——13-agent 侦察工作流逐子系统读源码取证（命令/flag/配置键/真实错误串/失败分支），再由 completeness critic 找缺口（补上「raw→wiki 编译无 CLI、必须接 agent」这条第一要务、`magi grep`、`setup --no-models/--no-plugin`、`ui --host/--port`、`pm init` 无需 hub）；47 条命令的全部 flag 与 live `--help` 逐一对照通过。**测试**——新增 4 项（端点契约与语言回退、markdown 结构不变量、中英章节锚点一致、指南只引用真实命令）+ 阅读器 wiring 锁，94 → 98 全绿。**边缘内发光加强 (v1.5.0)**——三层 inset 光晕（深晕 clamp(120px,15vw,260px) + 紧贴 46px/14px 光环 + 1px 发丝边框），呼吸区间 0.66→1，新增 `--eva-glow-boost` per-variant 强度（红 1 / 蓝 0.86，浅底不发浑）。
 >
 > 2026-08-19 品牌 + 排印 + 文案 (v1.4.5)：**三贤者徽记**——顶栏原创 SVG mark（六边形壳 + 红/绿/青三核节点 + 总线），颜色走 per-core token 四主题态自动换装，EVA 下三核序列脉冲（bm-pulse，reduced-motion 门控）；**字号层级**——卡片标题 1.04→1.18rem、metric 数值 clamp 上限 2.5rem、副标题 0.75/标签 0.66 加字距、品牌 1.32rem；**去术语化**——BM25/向量/RRF 等引擎词从界面清除（cas_title/subtitle、opt_* 三项、search_summary、vec_unavailable_hint、cfg 嵌入模型、tab_casper、core_role_cas、HUD 明细行），中英同步。README 双语新增 MAGI MODE 展示区（docs/webui-*.jpg ×4）。
 >

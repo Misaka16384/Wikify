@@ -160,6 +160,8 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 
 然后把 PDF / LaTeX / 笔记丢进 `inbox/`，在你的 agent 里说一句"摄入 inbox 里的论文"（或直接 `/magi:wiki_ingest`），流水线就开始了。
 
+> 📖 **完整使用指南就在看板里**：`magi ui` → **文档与指引** → **使用指南**。按使用场景分十二章（安装 / 迁移 / 建库 / 摄入 / 编译 / 图谱调优 / 检索 / 写作 / 雷达 / 看板 / 疑难速查），每一步都写清了**预期效果**和**不达预期怎么办**。也可直接阅读 [`guide.zh.md`](./src/magi/ui/static/docs/guide.zh.md)。
+
 ---
 
 ## 4. 研究生命周期（skills 总览）

@@ -1158,3 +1158,120 @@ def test_no_cors_headers_emitted(client):
         },
     )
     assert "access-control-allow-origin" not in {k.lower() for k in res.headers.keys()}
+
+
+def _guide_files():
+    from magi.ui.api import _get_static_dir
+
+    return sorted((_get_static_dir() / "docs").glob("guide.*.md"))
+
+
+def test_guide_endpoint_and_language_fallback(client):
+    res = client.get("/api/docs/guide")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["lang"] == "zh"
+    assert data["requested"] == "zh"
+    assert data["content"].lstrip().startswith("#")
+    assert set(data["available"]) >= {"zh", "en"}
+    assert data["version"]
+
+    for param, expect in (("en", "en"), ("EN", "en"), ("en-US", "en"), ("zh-CN", "zh"), ("nonsense", "zh")):
+        d = client.get(f"/api/docs/guide?lang={param}").json()
+        assert d["requested"] == expect
+        assert d["content"]
+
+
+def test_guide_markdown_structure():
+    # The reader derives its chapter rail from h2/h3 and its callouts from
+    # `[!TAG]` blockquotes — both are contracts between the markdown and app.js.
+    import re
+
+    files = _guide_files()
+    assert len(files) >= 2, "guide must ship at least zh + en"
+
+    known_tags = {"EXPECT", "FIX", "WARN", "NOTE", "TIP"}
+    anchors_by_lang = {}
+
+    for path in files:
+        text = path.read_text(encoding="utf-8")
+        # Strip fenced blocks: a "## " inside a sample digest is not a chapter.
+        body = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+
+        h2s = re.findall(r"^## (.+)$", body, flags=re.MULTILINE)
+        assert len(h2s) >= 10, f"{path.name}: expected a full manual, got {len(h2s)} chapters"
+
+        anchors = []
+        for head in h2s:
+            m = re.search(r"\{#([A-Za-z0-9_-]+)\}\s*$", head)
+            assert m, f"{path.name}: chapter without a stable anchor: {head}"
+            anchors.append(m.group(1))
+        assert len(anchors) == len(set(anchors)), f"{path.name}: duplicate chapter anchors"
+        anchors_by_lang[path.name] = anchors
+
+        for tag in re.findall(r"^> \[!([A-Z]+)\]", body, flags=re.MULTILINE):
+            assert tag in known_tags, f"{path.name}: unknown callout tag [!{tag}]"
+
+        assert re.search(r"^> \[!EXPECT\]", body, flags=re.MULTILINE), (
+            f"{path.name}: a scenario manual must state expected outcomes"
+        )
+        assert re.search(r"^> \[!FIX\]", body, flags=re.MULTILINE), (
+            f"{path.name}: a scenario manual must state what to do when it fails"
+        )
+
+    # Translations must stay structurally interchangeable: same chapters, same
+    # anchors, same order — the rail and any deep link work in either language.
+    distinct = {tuple(v) for v in anchors_by_lang.values()}
+    assert len(distinct) == 1, f"guide translations disagree on chapters: {anchors_by_lang}"
+
+
+def test_guide_only_cites_real_commands():
+    # Locks the manual against CLI drift: every `magi ...` line in a fenced
+    # block must resolve to a real entry in the dispatch table.
+    import re
+
+    from magi.cli import _COMMANDS
+
+    singles = {k[0] for k in _COMMANDS if len(k) == 1}
+    groups = {}
+    for key in _COMMANDS:
+        if len(key) == 2:
+            groups.setdefault(key[0], set()).add(key[1])
+
+    checked = 0
+    for path in _guide_files():
+        text = path.read_text(encoding="utf-8")
+        for block in re.findall(r"```[a-z]*\n(.*?)```", text, flags=re.DOTALL):
+            for line in block.splitlines():
+                line = line.strip()
+                if not line.startswith("magi "):
+                    continue
+                parts = [t for t in line.split() if t]
+                if any(t.startswith(("<", "&lt;")) for t in parts[1:2]):
+                    continue  # `magi <command> --help` placeholder
+                head = parts[1]
+                if head in groups:
+                    sub = parts[2] if len(parts) > 2 else ""
+                    assert sub in groups[head], f"{path.name}: unknown subcommand: {line}"
+                else:
+                    assert head in singles, f"{path.name}: unknown command: {line}"
+                checked += 1
+    assert checked > 40, f"expected the manual to be command-dense, checked only {checked}"
+
+
+def test_guide_reader_wiring(client):
+    html = client.get("/").text
+    assert 'data-doc="guide"' in html
+    assert 'id="docs-toc-list"' in html
+    assert 'class="docs-shell"' in html
+
+    css = client.get("/styles.css").text.lower()
+    for rule in (".docs-toc-link", ".doc-callout", ".cal-expect", ".code-wrap", ".copy-btn"):
+        assert rule in css, f"missing guide reader style: {rule}"
+
+    js = client.get("/app.js").text
+    for fn in ("decorateCallouts", "decorateCodeBlocks", "buildGuideNav", "syncGuideSpy", "currentDocKey"):
+        assert fn in js, f"missing guide reader function: {fn}"
+    # The callout contract itself, and the anchor syntax the rail depends on.
+    assert 'EXPECT: { cls: "expect"' in js
+    assert "{#" in js

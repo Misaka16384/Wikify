@@ -44,7 +44,7 @@
       </div>
       <div>
         <span class="brand-title">MAGI</span>
-        <span class="brand-badge" id="app-version">v1.4.5</span>
+        <span class="brand-badge" id="app-version">v1.5.0</span>
       </div>
       <span class="eva-clock" id="eva-clock" aria-hidden="true"></span>
     </div>
@@ -624,13 +624,20 @@
       <div class="card">
         <div class="card-header">
           <div class="card-actions">
-            <button class="btn btn-secondary btn-sm doc-switch-btn active" data-doc="readme-zh" data-i18n="doc_readme_zh">README (中文)</button>
+            <button class="btn btn-secondary btn-sm doc-switch-btn active" data-doc="guide" data-i18n="doc_guide">User Guide</button>
+            <button class="btn btn-secondary btn-sm doc-switch-btn" data-doc="readme-zh" data-i18n="doc_readme_zh">README (中文)</button>
             <button class="btn btn-secondary btn-sm doc-switch-btn" data-doc="readme-en" data-i18n="doc_readme_en">README (English)</button>
             <button class="btn btn-secondary btn-sm doc-switch-btn" data-doc="commands" data-i18n="doc_commands">CLI Commands Reference</button>
           </div>
         </div>
-        <div id="docs-content" class="markdown-body docs-body" data-i18n="loading_docs">
-          Loading documentation...
+        <div class="docs-shell" id="docs-shell">
+          <nav class="docs-toc" id="docs-toc" hidden>
+            <div class="docs-toc-title" data-i18n="docs_toc_title">Contents</div>
+            <ul class="docs-toc-list" id="docs-toc-list"></ul>
+          </nav>
+          <div id="docs-content" class="markdown-body docs-body" data-i18n="loading_docs">
+            Loading documentation...
+          </div>
         </div>
       </div>
     </section>

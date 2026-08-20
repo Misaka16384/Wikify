@@ -233,6 +233,16 @@
       doc_readme_zh: "README (中文)",
       doc_readme_en: "README (English)",
       doc_commands: "CLI 命令参考手册",
+      doc_guide: "使用指南",
+      docs_toc_title: "章节",
+      copy_code: "复制",
+      copied: "已复制",
+      copy_failed: "复制失败",
+      cal_expect: "预期效果",
+      cal_fix: "不达预期怎么办",
+      cal_warn: "注意",
+      cal_note: "说明",
+      cal_tip: "提示",
       loading_docs: "正在加载文档...",
       no_docs_found: "未找到相关文档。",
       docs_cmd_title: "MAGI CLI 命令速查手册",
@@ -626,6 +636,16 @@
       doc_readme_zh: "README (中文)",
       doc_readme_en: "README (English)",
       doc_commands: "CLI Commands Reference",
+      doc_guide: "User Guide",
+      docs_toc_title: "Contents",
+      copy_code: "Copy",
+      copied: "Copied",
+      copy_failed: "Copy failed",
+      cal_expect: "What you should see",
+      cal_fix: "If it doesn't",
+      cal_warn: "Careful",
+      cal_note: "Note",
+      cal_tip: "Tip",
       loading_docs: "Loading documentation...",
       no_docs_found: "No documentation found.",
       docs_cmd_title: "MAGI CLI Commands Reference",
@@ -876,7 +896,7 @@
     serverWorkspace: "",
     kbs: [],
     activeTab: "dashboard",
-    activeDoc: "readme",
+    activeDoc: "guide",
     graphView: "map",
     graphNode: null,
     activeJobId: null,
@@ -994,6 +1014,9 @@
     // Docs
     docSwitchBtns: document.querySelectorAll(".doc-switch-btn"),
     docsContent: document.getElementById("docs-content"),
+    docsShell: document.getElementById("docs-shell"),
+    docsToc: document.getElementById("docs-toc"),
+    docsTocList: document.getElementById("docs-toc-list"),
 
     // Modals
     dangerModal: document.getElementById("danger-modal"),
@@ -1560,7 +1583,7 @@
 
     // Refresh dynamic data of active tab
     if (state.activeTab === "docs") {
-      loadDocs(state.activeDoc === "commands" ? "commands" : (state.lang === "zh" ? "readme-zh" : "readme-en"));
+      loadDocs(currentDocKey());
     } else {
       loadTabData(state.activeTab);
     }
@@ -1608,7 +1631,7 @@
         // Terminal stays persistent
         break;
       case "docs":
-        loadDocs(state.activeDoc === "commands" ? "commands" : (state.lang === "zh" ? "readme-zh" : "readme-en"));
+        loadDocs(currentDocKey());
         break;
     }
   }
@@ -3279,6 +3302,204 @@
   // Tab 7: Documentation
   // ------------------------------------------------------------------------
 
+  // Which doc the tab should show right now: the user's pick, with the two
+  // README variants following the interface language.
+  function currentDocKey() {
+    if (state.activeDoc === "commands" || state.activeDoc === "guide") return state.activeDoc;
+    return state.lang === "zh" ? "readme-zh" : "readme-en";
+  }
+
+  // Guide reader ------------------------------------------------------------
+  // The guide is a numbered path (install -> library -> graph -> writing), so
+  // the rail numbers its chapters and unfolds only the one being read.
+
+  // Full i18n keys, not built by concatenation: the dictionary-completeness
+  // test scans for literal t("...") keys, and a computed key is invisible to it.
+  const CALLOUT_KINDS = {
+    EXPECT: { cls: "expect", label: () => t("cal_expect") },
+    FIX: { cls: "fix", label: () => t("cal_fix") },
+    WARN: { cls: "warn", label: () => t("cal_warn") },
+    NOTE: { cls: "note", label: () => t("cal_note") },
+    TIP: { cls: "tip", label: () => t("cal_tip") },
+  };
+
+  let guideHeadings = [];
+  let guideSpyQueued = false;
+
+  function decorateCallouts(root) {
+    root.querySelectorAll("blockquote").forEach((bq) => {
+      const first = bq.firstElementChild;
+      if (!first) return;
+      const m = first.innerHTML.match(/^\s*\[!([A-Z]+)\]\s*/);
+      if (!m) return;
+      const kind = CALLOUT_KINDS[m[1]];
+      if (!kind) return;
+      first.innerHTML = first.innerHTML.slice(m[0].length);
+      const box = document.createElement("div");
+      box.className = "doc-callout cal-" + kind.cls;
+      const label = document.createElement("div");
+      label.className = "doc-callout-label";
+      label.textContent = kind.label();
+      box.appendChild(label);
+      while (bq.firstChild) box.appendChild(bq.firstChild);
+      bq.replaceWith(box);
+    });
+  }
+
+  function legacyCopy(text) {
+    // Served over a LAN IP the page is not a secure context and
+    // navigator.clipboard is undefined - fall back to the textarea trick.
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.setAttribute("readonly", "");
+      ta.style.position = "fixed";
+      ta.style.top = "-1000px";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function decorateCodeBlocks(root) {
+    root.querySelectorAll("pre").forEach((pre) => {
+      if (pre.parentElement && pre.parentElement.classList.contains("code-wrap")) return;
+      const wrap = document.createElement("div");
+      wrap.className = "code-wrap";
+      pre.replaceWith(wrap);
+      wrap.appendChild(pre);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "copy-btn";
+      btn.textContent = t("copy_code");
+      btn.addEventListener("click", async () => {
+        const text = pre.innerText;
+        let ok = false;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          // The promise can hang indefinitely when the page lacks focus or a
+          // permission decision never arrives — race it so the button always
+          // reports something instead of sitting silent.
+          ok = await Promise.race([
+            navigator.clipboard.writeText(text).then(() => true, () => false),
+            new Promise((resolve) => setTimeout(() => resolve(null), 1200)),
+          ]);
+          if (ok === null || ok === false) ok = legacyCopy(text);
+        } else {
+          ok = legacyCopy(text);
+        }
+        btn.textContent = t(ok ? "copied" : "copy_failed");
+        btn.classList.toggle("copied", ok);
+        setTimeout(() => {
+          btn.textContent = t("copy_code");
+          btn.classList.remove("copied");
+        }, 1600);
+      });
+      wrap.appendChild(btn);
+    });
+  }
+
+  function buildGuideNav(root) {
+    guideHeadings = [];
+    const list = els.docsTocList;
+    if (!list) return;
+    list.innerHTML = "";
+
+    let chapter = 0;
+    let section = 0;
+    root.querySelectorAll("h2, h3").forEach((h) => {
+      // `{#anchor}` at the end of a heading pins a stable id so other parts of
+      // the dashboard can deep-link into a chapter.
+      const explicit = h.innerHTML.match(/\s*\{#([A-Za-z0-9_-]+)\}\s*$/);
+      let id = "";
+      if (explicit) {
+        id = explicit[1];
+        h.innerHTML = h.innerHTML.slice(0, h.innerHTML.length - explicit[0].length);
+      }
+      const lv2 = h.tagName === "H2";
+      if (lv2) {
+        chapter += 1;
+        section = 0;
+      } else {
+        section += 1;
+      }
+      if (!chapter) return; // an h3 before any chapter has nothing to belong to
+      if (!id) id = lv2 ? "ch-" + chapter : "ch-" + chapter + "-" + section;
+      h.id = id;
+
+      const title = h.textContent.trim();
+      const num = lv2 ? String(chapter).padStart(2, "0") : chapter + "." + section;
+
+      if (lv2) {
+        const numEl = document.createElement("span");
+        numEl.className = "h-num";
+        numEl.textContent = num;
+        h.insertBefore(numEl, h.firstChild);
+      }
+
+      const li = document.createElement("li");
+      if (!lv2) {
+        li.className = "toc-sub";
+        li.dataset.chapter = String(chapter);
+      }
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "docs-toc-link " + (lv2 ? "lv2" : "lv3");
+      btn.dataset.target = id;
+      const numSpan = document.createElement("span");
+      numSpan.className = "docs-toc-num";
+      numSpan.textContent = num;
+      const textSpan = document.createElement("span");
+      textSpan.textContent = title;
+      btn.appendChild(numSpan);
+      btn.appendChild(textSpan);
+      btn.addEventListener("click", () => scrollToGuideHeading(id));
+      li.appendChild(btn);
+      list.appendChild(li);
+
+      guideHeadings.push({ el: h, id: id, chapter: chapter, lv2: lv2 });
+    });
+
+    if (els.docsToc) els.docsToc.hidden = guideHeadings.length === 0;
+    if (els.docsShell) els.docsShell.classList.toggle("no-toc", guideHeadings.length === 0);
+    syncGuideSpy();
+  }
+
+  function scrollToGuideHeading(id) {
+    const entry = guideHeadings.find((h) => h.id === id);
+    if (!entry) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    entry.el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  }
+
+  function syncGuideSpy() {
+    if (!guideHeadings.length || !els.docsContent || !els.docsTocList) return;
+    const top = els.docsContent.getBoundingClientRect().top;
+    let active = guideHeadings[0];
+    guideHeadings.forEach((h) => {
+      if (h.el.getBoundingClientRect().top - top <= 28) active = h;
+    });
+    els.docsTocList.querySelectorAll(".docs-toc-link").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.target === active.id);
+    });
+    els.docsTocList.querySelectorAll("li.toc-sub").forEach((li) => {
+      li.classList.toggle("open", li.dataset.chapter === String(active.chapter));
+    });
+  }
+
+  function onGuideScroll() {
+    if (state.activeDoc !== "guide" || guideSpyQueued) return;
+    guideSpyQueued = true;
+    requestAnimationFrame(() => {
+      guideSpyQueued = false;
+      syncGuideSpy();
+    });
+  }
+
   async function loadDocs(docKey) {
     state.activeDoc = docKey;
 
@@ -3287,34 +3508,59 @@
       b.classList.toggle("active", b.dataset.doc === docKey);
     });
 
-    els.docsContent.innerHTML = `<p class="empty-note">${t("loading_docs")}</p>`;
+    const isGuide = docKey === "guide";
+    if (!isGuide) {
+      guideHeadings = [];
+      if (els.docsToc) els.docsToc.hidden = true;
+      if (els.docsTocList) els.docsTocList.innerHTML = "";
+      if (els.docsShell) els.docsShell.classList.add("no-toc");
+    }
+
+    els.docsContent.innerHTML = '<p class="empty-note">' + t("loading_docs") + "</p>";
     try {
       if (docKey === "commands") {
         const data = await apiFetch("/api/docs/commands");
         const cmds = data.commands || [];
-        let html = `<h1>${t("docs_cmd_title")}</h1>`;
-        html += `<p>${t("docs_cmd_sub")}</p>`;
-        html += `<table class="data-table"><thead><tr><th>${t("th_cmd_command")}</th><th>${t("th_cmd_group")}</th><th>${t("th_cmd_desc")}</th></tr></thead><tbody>`;
+        let html = "<h1>" + t("docs_cmd_title") + "</h1>";
+        html += "<p>" + t("docs_cmd_sub") + "</p>";
+        html += '<table class="data-table"><thead><tr><th>' + t("th_cmd_command") + "</th><th>" + t("th_cmd_group") + "</th><th>" + t("th_cmd_desc") + "</th></tr></thead><tbody>";
         cmds.forEach((c) => {
           const desc = state.lang === "zh" ? (c.help_zh || c.help) : c.help;
           const groupTitle = (state.lang === "zh" && c.group_help_zh)
-            ? ` title="${escapeHtml(c.group_help_zh)}"` : "";
-          html += `<tr><td><code>${escapeHtml(c.command)}</code></td><td><span class="badge badge-muted"${groupTitle}>${escapeHtml(c.group || "core")}</span></td><td>${escapeHtml(desc)}</td></tr>`;
+            ? ' title="' + escapeHtml(c.group_help_zh) + '"' : "";
+          html += "<tr><td><code>" + escapeHtml(c.command) + '</code></td><td><span class="badge badge-muted"' + groupTitle + ">" + escapeHtml(c.group || "core") + "</span></td><td>" + escapeHtml(desc) + "</td></tr>";
         });
-        html += `</tbody></table>`;
+        html += "</tbody></table>";
         els.docsContent.innerHTML = html;
+      } else if (isGuide) {
+        const data = await apiFetch("/api/docs/guide?lang=" + (state.lang === "zh" ? "zh" : "en"));
+        const mdText = data.content || "";
+        if (!mdText) {
+          els.docsContent.innerHTML = '<p class="empty-note">' + t("no_docs_found") + "</p>";
+          return;
+        }
+        if (window.marked) {
+          els.docsContent.innerHTML = window.marked.parse(mdText);
+          decorateCallouts(els.docsContent);
+          decorateCodeBlocks(els.docsContent);
+          buildGuideNav(els.docsContent);
+          if (els.docsShell) els.docsShell.classList.remove("no-toc");
+        } else {
+          els.docsContent.textContent = mdText;
+        }
+        els.docsContent.scrollTop = 0;
       } else {
         const langParam = docKey === "readme-en" ? "en" : "zh";
-        const data = await apiFetch(`/api/docs/readme?lang=${langParam}`);
+        const data = await apiFetch("/api/docs/readme?lang=" + langParam);
         // Installed (non-repo) deployments may only have the zh README from
-        // package metadata — hide the EN toggle instead of showing a blank tab.
+        // package metadata - hide the EN toggle instead of showing a blank tab.
         const enBtn = document.querySelector('.doc-switch-btn[data-doc="readme-en"]');
         if (enBtn) enBtn.style.display = data.readme_en ? "" : "none";
         const mdText = data.content || (langParam === "en" ? data.readme_en : data.readme_zh) || t("no_docs_found");
         if (window.marked && mdText) {
           els.docsContent.innerHTML = window.marked.parse(mdText);
           // README references repo-relative images the local server does not
-          // host — resolve them against the GitHub repo and hide any that
+          // host - resolve them against the GitHub repo and hide any that
           // still fail (e.g. offline).
           els.docsContent.querySelectorAll("img").forEach((img) => {
             const src = img.getAttribute("src") || "";
@@ -3324,12 +3570,13 @@
             img.addEventListener("error", () => { img.style.display = "none"; });
             img.style.maxWidth = "100%";
           });
+          decorateCodeBlocks(els.docsContent);
         } else {
           els.docsContent.textContent = mdText;
         }
       }
     } catch (err) {
-      els.docsContent.innerHTML = `<p style="color: var(--accent-danger);">${escapeHtml(err.message)}</p>`;
+      els.docsContent.innerHTML = '<p style="color: var(--accent-danger);">' + escapeHtml(err.message) + "</p>";
     }
   }
 
@@ -3553,6 +3800,8 @@
   });
 
   // Docs switcher
+  if (els.docsContent) els.docsContent.addEventListener("scroll", onGuideScroll, { passive: true });
+
   els.docSwitchBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
       loadDocs(btn.dataset.doc);

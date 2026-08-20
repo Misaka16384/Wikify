@@ -162,6 +162,8 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 
 Then drop PDFs / LaTeX / notes into `inbox/` and tell your agent to ingest them (or invoke `/magi:wiki_ingest`).
 
+> 📖 **The full user guide ships inside the dashboard**: `magi ui` → **Docs & Help** → **User Guide**. Twelve scenario chapters (install / migrate / build a library / ingest / compile / graph tuning / search / writing / radar / dashboard / troubleshooting), each stating what you should see and what to do when you don't. Also readable as [`guide.en.md`](./src/magi/ui/static/docs/guide.en.md).
+
 ---
 
 ## 4. The research lifecycle (skills overview)
