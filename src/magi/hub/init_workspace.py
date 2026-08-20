@@ -141,6 +141,9 @@ environment. Scope: {args.scope}
 ## On entering (do this first)
 
 1. `magi sync` — sync ratio, three-core status, and concrete restore hints.
+   Add `--fix` to run the deterministic ones (graph build, index, backlog
+   sync, task store) instead of typing them out; it reports what still
+   needs a person. `--dry-run` shows the plan first.
 2. `bd prime` — inject current work state (ready/blocked/in-progress tasks).
 
 ## The three cores
@@ -156,6 +159,13 @@ environment. Scope: {args.scope}
 - **Retrieval**: `magi search "..."` (hybrid BM25+vector; build/refresh with
   `magi index`); `magi grep` for exact regex. After a search, always read the
   underlying file before citing it.
+
+## Shortcuts worth preferring
+
+- `magi sync --fix` instead of running graph/index/backlog commands by hand.
+- `magi ingest auto <path>` (or bare, for all of `inbox/`) instead of choosing
+  between ingest mineru/ocr/tex/add and remembering `ingest finalize`.
+- `magi each <command>` to run one command across every topic of a hub.
 
 ## Ground rules
 

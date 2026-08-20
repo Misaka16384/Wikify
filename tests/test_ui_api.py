@@ -1329,3 +1329,46 @@ def test_every_bundled_backdrop_has_a_thumbnail(client):
             assert size < 40_000, f"{e['thumb']} is {size}B — thumbnails must stay small"
             total += size
     assert total < 400_000, "the whole thumbnail set should cost less than one full image"
+
+
+def test_magi_mode_cuts_the_same_corner_off_every_box(client):
+    """One shape language: MAGI mode had chamfered buttons and square panels."""
+    css = client.get("/styles.css").text
+    eva = css[css.index("/* \u2500\u2500 One shape for every box"):]
+    eva = eva[:eva.index('[data-theme="eva"] .btn-primary {')]
+
+    # Three scales, all cutting the same two corners.
+    for px in (14, 8, 5):
+        shape = (f"polygon({px}px 0, 100% 0, 100% calc(100% - {px}px), "
+                 f"calc(100% - {px}px) 100%, 0 100%, 0 {px}px)")
+        assert eva.count(shape) == 2, f"{px}px group needs the prefixed and plain clip-path"
+
+    for sel in (".card", ".eva-hud-frame", ".modal-window", ".danger-card",
+                ".btn", ".icon-btn", ".text-input", ".select-input", ".action-row",
+                ".badge", ".stat-pill", ".eva-clock", ".lang-toggle", ".brand-badge"):
+        assert f'[data-theme="eva"] {sel},' in eva or f'[data-theme="eva"] {sel} {{' in eva, (
+            f"{sel} is still a plain rectangle in MAGI mode"
+        )
+
+
+def test_magi_mode_has_no_rounded_corners_left(client):
+    """A 2px radius reads as a rounded box next to a chamfered one."""
+    css = client.get("/styles.css").text
+    eva = css[css.index('[data-theme="eva"] .topbar {'):]
+    strays = [ln.strip() for ln in eva.splitlines()
+              if "border-radius" in ln and "border-radius: 0" not in ln]
+    assert not strays, f"rounded corners survive in MAGI mode: {strays}"
+
+
+def test_clipped_panels_keep_their_lift(client):
+    """clip-path discards an outer box-shadow; these panels use a filter instead."""
+    css = client.get("/styles.css").text
+    for sel in ('[data-theme="eva"] .card {', '[data-theme="eva"] .eva-hud-frame {',
+                '[data-theme="eva"] .modal-window {', '[data-theme="eva"] .danger-card {'):
+        block = css[css.index(sel):]
+        block = block[:block.index("\n}")]
+        assert "drop-shadow(" in block, f"{sel} lost its depth to the chamfer"
+        shadows = [ln.strip() for ln in block.splitlines()
+                   if ln.strip().startswith("box-shadow") and "inset" not in ln
+                   and "none" not in ln]
+        assert not shadows, f"{sel} still paints a shadow the clip would eat: {shadows}"

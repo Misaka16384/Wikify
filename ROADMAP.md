@@ -2,7 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-20 · 当前阶段：**v1.7.2 已发布**（tag `v1.6.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+> 最后更新：2026-08-20 · 当前阶段：**v1.8.0 已发布**（tag `v1.6.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+>
+> 2026-08-20 命令合并 + 统一切角 (v1.8.0)：用户在真实迁移之后提的"命令有点太多了"。**四条合并全部落地**：`magi migrate` 不再只搬文件——迁完自动搬旧配置、检测项目内旧技能、在 hub 根 `magi pm init`、每个课题 `magi sync --fix`（`--minimal` 退回旧行为）；**`magi sync --fix`** 把报告里确定性的那几步直接跑掉（graph build / index / backlog-sync / pm init，`--dry-run` 先看计划），需要判断的（装 Beads、摄入、审雷达）仍然只列出来；**`magi each <命令>`** 在 hub 根对每个未归档课题跑同一条命令（`--stop-on-error`/`--json`）；**`magi ingest auto`** 按文件类型选路线（源码包→tex、PDF→有 token 走 mineru 否则本地 ocr、文本→add）并自动 finalize，整个 `inbox/` 也能一把梭。**`magi skills install` 加宿主选择**（用户："不要默认全部都装"）：检测到多个 CLI 时 TTY 下交互勾选，非交互直接报错并列出 `--host <名字>`；`--host auto` 才是全装。AI 侧同步：`wiki_ingest`/`wiki_ingest_ocr`/`magi_guide` 三个 SKILL.md 与工作区入场协议（CLAUDE.md/AGENTS.md）都改指新命令。**界面**：HUD 六边形里的 `SYNC RATIO` 此前比图形还宽、直接穿框而出（用户截图），字号/字距收紧并上移到六边形最宽处；**MAGI 模式统一为一套切角语言**——此前只有按钮是切角矩形、面板/输入框/徽章/时钟/终端全是直角甚至 2–3px 圆角（用户："要统一一下视觉风格"），现按面板 14px / 控件 8px / 徽章 5px 三档统一切掉左上与右下角，卡片角标移到剩下的两个直角上，被 clip-path 吃掉的外阴影改用 `drop-shadow` 滤镜补回（缩略图选中环改 inset）。README 四张截图按新界面重拍，并补上 ◐ 校准器特写。测试 128 → 150（`test_consolidation.py` 19 项 + 形状语言三项设计锁）。
 >
 > 2026-08-20 迁移无损化 (v1.7.2)：在用户的真实 Wikify 仓库（`D:\文档\MindPalace`，hub + 3 课题）上验收迁移后暴露的两个缺口。**旧配置现在默认搬过来**（用户："设计上各种旧的token当然默认要迁移啊，追求的是迁移之后无损体验"）——`magi migrate` 会在 `<课题>/.agents/`、`<hub>/.agents/`、`~/.claude`、`~/.gemini` 找旧 config.yaml，把 token/模型/dpi/阈值填进新配置，只填仍是默认值的项（迁移后的手动修改绝不覆盖），打印搬运的键名但不回显 token。此前那个 402 字符的 MinerU token 就这样丢在旧文件里，`magi ingest mineru` 直接报未配置。**项目内旧 skills 会被检测**——`.agents/skills/` 正是 Codex/agy/opencode 都读的目录，而 `setup --remove-legacy` 只扫 `~/.claude`、`~/.gemini`，够不着；migrate 现在检测 `<BIN>`/`llm-wiki.py` 特征并给出改名命令。**检索质量**——`magi link` 自己生成的「语义关联 (Semantic Links)」小节全是概念名，BM25 下压过真正的定义段（在真实库上复现），已加入 boilerplate 抑制表。手册迁移章同步。测试 127 → 128。
 >

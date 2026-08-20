@@ -26,6 +26,16 @@ magi guide --symptoms --search "<text>"    # that index, filtered
 magi guide --lang en                       # the manual defaults to Chinese; English also ships
 ```
 
+Repairs worth knowing before you prescribe a longer sequence:
+
+```bash
+magi sync --fix                            # runs the repairs the report suggests (graph, index,
+                                           # backlog sync, task store); lists what still needs a human
+magi sync --fix --dry-run                  # show them first
+magi each <command> [args...]              # the same command in every topic of a hub
+magi ingest auto <path>                    # route a file to the right ingester and finalize it
+```
+
 `--json` is the machine contract. Search hits carry `chapter_anchor`, `section`, matched lines, and `commands` — the runnable commands from that section. The symptom index carries `symptom`, `cause`, `fix`, `commands`, and the `anchor` of the chapter it came from.
 
 ## Flow A — a command failed

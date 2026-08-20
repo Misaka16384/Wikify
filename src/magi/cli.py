@@ -31,6 +31,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("sync",): ("magi.sync", [], "Workspace onboarding: sync ratio + three-core status"),
     ("ui",): ("magi.ui.server", [], "Launch the local MAGI WebUI dashboard"),
     ("guide",): ("magi.guide", [], "Read the built-in manual (chapters, --search, --symptoms)"),
+    ("each",): ("magi.each", [], "Run one command in every topic of the hub"),
     ("skills", "list"): ("magi.skills_cmd", ["list"], "List the agent skills bundled with magi"),
     ("skills", "where"): ("magi.skills_cmd", ["where"], "Show where each agent CLI loads skills from"),
     ("skills", "install"): ("magi.skills_cmd", ["install"], "Install the skills into your agent CLI(s) (--scope global|project)"),
@@ -42,6 +43,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("pm", "status"): ("magi.pm", ["status"], "Beads availability + issue counts"),
     ("pm", "backlog-sync"): ("magi.pm", ["backlog-sync"], "Uncompiled raw sources -> bd issues"),
     # ingestion
+    ("ingest", "auto"): ("magi.ingest.auto", [], "Route a file (or all of inbox/) to the right ingester and finalize"),
     ("ingest", "add"): ("magi.ingest.helper", [], "Normalize + file an inbox document into raw/"),
     ("ingest", "assemble"): ("magi.ingest.assemble", [], "Stitch per-page transcriptions into one document"),
     ("ingest", "mineru"): ("magi.ingest.mineru", [], "PDF -> Markdown via MinerU cloud OCR"),

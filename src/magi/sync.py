@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from magi.core.workspace import find_hub_root, find_workspace_root
@@ -282,9 +283,61 @@ def _fmt(v, suffix: str = "") -> str:
     return f"{v}{suffix}" if v is not None else "?"
 
 
+# `magi sync` already works out what is missing; --fix lets it act on the
+# subset that is deterministic and safe to re-run. Everything else (installing
+# Beads, ingesting sources, reviewing a digest) stays a human/agent decision
+# and is only reported.
+FIXABLE = {
+    "graph-stale": (["graph", "build"], "refresh the knowledge graph"),
+    "index-missing": (["index"], "build the retrieval index"),
+    "index-stale": (["index"], "refresh the retrieval index"),
+    "backlog-untracked": (["pm", "backlog-sync"], "track uncompiled sources as issues"),
+    "pm-uninit": (["pm", "init"], "initialize the task store (creates .beads/)"),
+}
+
+
+def run_fixes(report: dict, dry_run: bool = False) -> tuple[int, int]:
+    """Run the deterministic repairs the report asked for. Returns (ran, failed)."""
+    import subprocess
+
+    seen: set[tuple[str, ...]] = set()
+    ran = failed = 0
+    for hint in report.get("hints_structured", []):
+        entry = FIXABLE.get(hint.get("code"))
+        if entry is None:
+            continue
+        cmd, why = entry
+        key = tuple(cmd)
+        if key in seen:
+            continue
+        seen.add(key)
+        pretty = "magi " + " ".join(cmd)
+        if dry_run:
+            print(f"  would run {pretty:<26} # {why}")
+            ran += 1
+            continue
+        print(f"  {pretty:<26} # {why}")
+        proc = subprocess.run([sys.executable, "-m", "magi", *cmd],
+                              capture_output=True, text=True,
+                              encoding="utf-8", errors="replace")
+        ran += 1
+        out = (proc.stdout or proc.stderr or "").strip().splitlines()
+        for line in out[-2:]:
+            print(f"      {line}")
+        if proc.returncode != 0:
+            failed += 1
+            print(f"      exit {proc.returncode}")
+    return ran, failed
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="magi sync", description="Workspace onboarding: sync ratio + three-core status")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
+    parser.add_argument("--fix", action="store_true",
+                        help="Run the repairs this report suggests (graph build, index, "
+                             "backlog sync, pm init) and report the rest.")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="With --fix: show what would run, change nothing.")
     args = parser.parse_args(argv)
 
     report = build_report()
@@ -325,6 +378,30 @@ def main(argv: list[str] | None = None) -> int:
         print(f"hub: {report['hub']}")
     for h in report["hints"]:
         print(f"  -> {h}")
+
+    if not args.fix:
+        return 0
+
+    fixable = [h for h in report.get("hints_structured", []) if h.get("code") in FIXABLE]
+    manual = [h for h in report.get("hints_structured", []) if h.get("code") not in FIXABLE]
+    if not fixable:
+        print("\nnothing to fix automatically.")
+    else:
+        print("\nfixing:" if not args.dry_run else "\nwould fix:")
+        ran, failed = run_fixes(report, dry_run=args.dry_run)
+        if args.dry_run:
+            return 0
+        after = build_report()
+        before_ratio, after_ratio = report["sync_ratio"], after["sync_ratio"]
+        arrow = f"{before_ratio}% -> {after_ratio}%" if after_ratio is not None else "—"
+        print(f"\nran {ran} step(s)" + (f", {failed} failed" if failed else "") + f"; sync ratio {arrow}")
+        report = after
+        manual = [h for h in after.get("hints_structured", []) if h.get("code") not in FIXABLE]
+
+    if manual:
+        print("\nstill needs you:")
+        for h in manual:
+            print(f"  -> {h['text']}")
     return 0
 
 

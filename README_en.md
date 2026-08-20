@@ -34,6 +34,10 @@ Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 ![Knowledge graph view](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-graph.jpg)
 *An Obsidian-style force-directed graph: drag to arrange, scroll to zoom, hover to focus a neighbourhood, click to drill into links — unresolved wikilinks render as ghost nodes.*
 
+<img src="https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-tuner.jpg" width="340" alt="The ◐ material tuner">
+
+*The ◐ tuner: blur, opacity and CRT scanlines on live sliders, with the backdrop picker underneath — pin the artwork you want, or leave it unpinned and let it rotate by window aspect.*
+
 - Light/dark and MAGI MODE act **independently**: light base → blue state, dark base → red state; ☀︎/☽ switches the alert state inside the mode
 - Backdrops are aspect-matched to your screen and rotate on tab switches with a smooth crossfade — or pin one (or a few) from the thumbnail picker in the ◐ tuner. Fully replaceable via `~/.config/magi/ui-backgrounds/{blue,red}/`
 - Every animation respects `prefers-reduced-motion`; the UI is bilingual (中 / EN) with one click
@@ -134,9 +138,10 @@ All 18 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command
 
 ```powershell
 cd <your topic workspace>
-magi skills install                   # into this workspace (the default)
+magi skills install                   # into this workspace; lists the CLIs it found and asks
+magi skills install --host codex      # name one and skip the question
+magi skills install --host auto       # every CLI it detects
 magi skills where                     # per CLI: where it reads, what is installed, how it fires
-magi skills install --scope global    # machine-wide (rarely useful — these are workspace skills)
 ```
 
 **Not global by default**: these skills revolve around one research workspace, and installing into the workspace also lets them travel with the repo to collaborators.
@@ -169,8 +174,9 @@ mkdir topics\quantum-toys ; cd topics\quantum-toys
 magi init --name "Quantum Toys" --scope "quantum phenomena in toy models"
 # ↑ auto-registers in the hub; generates CLAUDE.md / AGENTS.md (agent entry
 #   protocol), config.yaml, scratch/
+magi skills install          # give this workspace's skills to your agent CLI (it asks which)
 
-magi sync                    # sync ratio + three cores + next-step hints
+magi sync --fix              # sync ratio + three cores, and run the repairs it suggests
 ```
 
 ```text
@@ -294,12 +300,15 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Mis
 #    into calling script paths that no longer exist)
 magi setup --remove-legacy
 
-# 3. Migrate ALL topics in one go from the hub root (non-destructive):
+# 3. One command at the hub root (non-destructive, and it finishes the job):
 cd <your-KnowledgeHub>
 magi migrate
 #    ↳ per topic: adds CLAUDE.md / AGENTS.md / config.yaml / scratch/ (reusing
-#      the old title & scope from config.md), rebuilds graph.db (now with
+#      the old title & scope from config.md), carries the old config.yaml's
+#      token/models/thresholds across, rebuilds graph.db (now with
 #      claims/evidence tables) and _index.md; raw/ and wiki/ untouched.
+#      Then runs magi pm init and a magi sync --fix per topic (index, backlog).
+#      --minimal migrates only; run it inside one topic to migrate just that one.
 #      Run inside a single topic dir to migrate just that topic.
 
 # Finish up: `magi pm init` at the hub root; `magi index` in each topic; `magi sync` to verify.

@@ -32,9 +32,9 @@ magi pm init                 # task system (git-inits this directory)
 
 mkdir topics\quantum-toys ; cd topics\quantum-toys
 magi init --name "Quantum Toys" --scope "Quantum phenomena in toy models"
-magi skills install          # give this workspace's skills to your agent CLI (see 2.4)
+magi skills install          # give this workspace's skills to your agent CLI (it asks which)
 
-magi sync                    # sanity check: sync ratio + three-core status + next-step hint
+magi sync --fix                    # sanity check: sync ratio + three-core status + next-step hint
 ```
 
 **② Existing Wikify user** — leave your data as-is; jump straight to Chapter 3, three commands to migrate.
@@ -81,7 +81,14 @@ MAGI SYSTEM ONLINE — sync ratio 33.3%
   -> magi index   # build the retrieval index
 ```
 
-The three cores are knowledge, work state, and retrieval. **The last line, the one starting with `->`, is what to do next** — just do it.
+The three cores are knowledge, work state, and retrieval. **The last line, the one starting with `->`, is what to do next** — do it, or let it do it:
+
+```powershell
+magi sync --fix             # graph, index, backlog sync, task store — whatever it just asked for
+magi sync --fix --dry-run   # see which of them first
+```
+
+`--fix` only runs the deterministic, repeatable steps. Anything needing judgment — installing Beads, ingesting sources, reviewing a radar digest — it just lists for you.
 
 Sync ratio is a weighted average of the three cores' readiness (only cores that currently apply are counted):
 
@@ -287,16 +294,14 @@ magi migrate
 > [!NOTE]
 > `magi migrate` has **no** `--dry-run` and **no** `--force`. Non-destructiveness isn't guaranteed by a flag — it's hard-coded into the implementation: when it calls the scaffolding, it never passes `--force`, so all it can ever do is create missing files. Running it again is safe; the second run just takes the "refresh index" branch.
 
-Three closing steps:
+One step is left — it asks which agent CLI, so it is not done for you:
 
 ```powershell
-magi pm init      # In the hub root: turn on the task system (one task store per hub)
-magi index        # In each topic directory: build the search index
-magi sync         # Verify everything
+cd topics\<your-topic> && magi skills install
 ```
 
 > [!EXPECT]
-> Each topic prints a `Migrating workspace: <path>` line, followed by `magi graph build: ok` / `magi wiki reindex: ok`, and ends with "Recommended next steps".
+> Each topic prints `Migrating workspace: <path>`, then `config carried from ...` when there were old settings to bring across, then `magi graph build: ok` / `magi wiki reindex: ok`. At the end, "Finishing up" runs `magi pm init` and a `magi sync --fix` per topic and reports the new sync ratio.
 
 > [!FIX]
 > - **Hub mode reports `N/N topics migrated` at the end, but you saw a `FAILED` in the middle**: the summary line and exit code don't reflect sub-step failures (a known gap). **Search the output for `FAILED` yourself**, then `cd` into the failing topic and rerun `magi migrate` there on its own.
@@ -394,6 +399,17 @@ magi hub restore <slug>           # Restore it
 
 `magi hub list` self-heals: any topic that exists on disk but isn't in the registry gets listed and flagged `registry repair needed` — just `register` it as prompted.
 
+**One command across every topic** — most maintenance is per-workspace, and `cd`-ing through a multi-topic hub gets old fast:
+
+```powershell
+magi each sync --fix        # bring every topic back to green
+magi each index             # rebuild every topic's retrieval index
+magi each lint --fix        # structural pass over the whole hub
+magi each skills install --host codex
+```
+
+Run it at the hub root: it picks the **unarchived** topics out of the registry, runs the command in each, and ends with one `N/N ok` line. `--stop-on-error` halts on the first failure, `--json` is for machines.
+
 ### How MAGI finds the "current workspace" {#workspace-discovery}
 
 Every command locates the workspace by **walking up from the current directory** (up to 30 levels):
@@ -422,6 +438,16 @@ Every command locates the workspace by **walking up from the current directory**
 | `magi ingest mineru` | General PDFs (including scans) | MinerU cloud token | Good, strong layout/formula recognition |
 | `magi ingest ocr` | General PDFs, fully offline | Ollama + poppler | Moderate, page-by-page visual transcription |
 | `magi ingest add` | Material that's already Markdown/text | None | Just archives it and injects frontmatter |
+
+**Don't want to choose?** `magi ingest auto` picks by file type (source bundle → tex, PDF → mineru when a token is configured, otherwise local ocr, text → add) and finalizes for you:
+
+```powershell
+magi ingest auto paper.pdf        # one file
+magi ingest auto                  # everything in inbox/
+magi ingest auto --dry-run        # see the routing first
+```
+
+Reach for the specific commands below when you need a page range, want to force a route, or are wrestling with a difficult scan.
 
 **If you can get the arXiv source package, use `tex` first** — it keeps `.bib`/`.bbl` alongside the markdown, and writes the arXiv ID into frontmatter for the radar and `magi bib` to use.
 
@@ -952,7 +978,8 @@ Or paste the error to your agent and let the `magi_guide` skill look it up (see 
 
 | Symptom | Run this first |
 |---|---|
-| No idea what to do next | `magi sync` — check the last line, `->` |
+| No idea what to do next | `magi sync` — check the last line, `->`; `magi sync --fix` lets it repair |
+| Maintaining a multi-topic hub one by one | `magi each <command>` — run it once at the hub root |
 | Installed, but `magi` isn't found | Open a **new terminal**; if that still doesn't work, add `~/.local/bin` to PATH |
 | Upgrade fails with `failed to remove directory ... Lib` | On Windows a running `magi ui` holds the install directory. Stop the dashboard, then upgrade |
 | A feature complains about a missing dependency | `magi setup --check` |

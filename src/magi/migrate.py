@@ -22,7 +22,7 @@ from magi.core.wiki_common import parse_frontmatter
 from magi.core.workspace import find_workspace_root, is_hub_root
 
 
-def _migrate_hub(hub: Path) -> int:
+def _migrate_hub(hub: Path, follow_up: bool = True) -> int:
     """Hub mode: migrate every active topic under <hub>/topics/."""
     topics = sorted(
         d for d in (hub / "topics").iterdir()
@@ -38,18 +38,51 @@ def _migrate_hub(hub: Path) -> int:
         failures += 1 if rc else 0
         print()
     print(f"Hub migration complete: {len(topics) - failures}/{len(topics)} topics migrated.")
-    print("Next: magi pm init   # provision beads once, at this hub root")
+
+    if follow_up:
+        _finish(hub, topics)
+    else:
+        print("Next: magi pm init, then 'magi sync --fix' in each topic")
+    print("\nGive your agent CLI this hub's skills when you are ready:")
+    print("  cd <topic> && magi skills install        # asks which CLI")
     return 1 if failures else 0
+
+
+def _finish(hub: Path, topics: list[Path]) -> None:
+    """Do what the user would otherwise type next.
+
+    Migration ends with a workspace that still needs a task store and an
+    index; those are deterministic, idempotent, and exactly what
+    `magi sync --fix` already knows how to do.
+    """
+    print("\nFinishing up (skip with --minimal):")
+    print("  magi pm init")
+    proc = subprocess.run([sys.executable, "-m", "magi", "pm", "init"], cwd=str(hub),
+                          capture_output=True, text=True, encoding="utf-8", errors="replace")
+    for line in (proc.stdout or proc.stderr or "").strip().splitlines()[-2:]:
+        print(f"      {line}")
+
+    for topic in topics:
+        print(f"  magi sync --fix   ({topic.name})")
+        proc = subprocess.run([sys.executable, "-m", "magi", "sync", "--fix"], cwd=str(topic),
+                              capture_output=True, text=True, encoding="utf-8", errors="replace")
+        for line in (proc.stdout or "").strip().splitlines():
+            if line.startswith("ran "):
+                print(f"      {line}")
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="magi migrate", description=__doc__)
     parser.add_argument("path", nargs="?", help="Workspace or hub to migrate (default: discovered from cwd)")
+    parser.add_argument("--minimal", action="store_true",
+                        help="Migrate only. Without this, migration also provisions the task "
+                             "store and brings each topic to a working state (magi sync --fix).")
     args = parser.parse_args(argv)
+    follow_up = not args.minimal
 
     base = Path(args.path).resolve() if args.path else Path.cwd()
     if is_hub_root(base):
-        return _migrate_hub(base)
+        return _migrate_hub(base, follow_up=follow_up)
 
     root = find_workspace_root(args.path) if args.path else find_workspace_root()
     if root is None:
@@ -66,7 +99,17 @@ def main(argv: list[str] | None = None) -> int:
     from magi.core.workspace import find_hub_root
 
     rc = _migrate_topic(root, hub=find_hub_root(root))
-    if rc == 0:
+    if rc == 0 and follow_up:
+        print("\nFinishing up (skip with --minimal):")
+        print("  magi sync --fix")
+        proc = subprocess.run([sys.executable, "-m", "magi", "sync", "--fix"], cwd=str(root),
+                              capture_output=True, text=True, encoding="utf-8", errors="replace")
+        for line in (proc.stdout or "").strip().splitlines():
+            if line.startswith(("ran ", "  magi", "still needs you")) or "sync ratio" in line:
+                print(f"      {line}")
+        print("\nGive your agent CLI this workspace's skills:")
+        print("  magi skills install        # asks which CLI")
+    elif rc == 0:
         print("\nRecommended next steps:")
         print("  magi pm init        # provision beads at the hub root (work-state tracking)")
         print("  magi index          # build the hybrid retrieval index (needs Ollama for vectors)")

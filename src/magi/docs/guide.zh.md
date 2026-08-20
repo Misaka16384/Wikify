@@ -32,9 +32,9 @@ magi pm init                 # 任务系统（会 git-init 本目录）
 
 mkdir topics\quantum-toys ; cd topics\quantum-toys
 magi init --name "Quantum Toys" --scope "玩具模型中的量子现象"
-magi skills install          # 把技能装进这个工作区（见 2.4）
+magi skills install          # 把技能装进这个工作区（会问你装给哪个 CLI）
 
-magi sync                    # 验收：同步率 + 三核状态 + 下一步提示
+magi sync --fix              # 验收，并把能自动修的都修掉
 ```
 
 **② Wikify 老用户**——数据不用动，直接看第 3 章，三条命令迁移。
@@ -81,7 +81,14 @@ MAGI SYSTEM ONLINE — sync ratio 33.3%
   -> magi index   # build the retrieval index
 ```
 
-三核分别是知识、任务、检索。**最后一行 `->` 就是下一步该干什么**，照做即可。
+三核分别是知识、任务、检索。**最后一行 `->` 就是下一步该干什么**——照做，或者直接让它自己做：
+
+```powershell
+magi sync --fix             # 建图 / 建索引 / 同步积压 / 初始化任务库，能自动的都跑掉
+magi sync --fix --dry-run   # 先看会跑哪几条
+```
+
+`--fix` 只做确定性、可重复的那几步；需要判断的（装 Beads、摄入文献、审雷达简报）它只会列出来告诉你。
 
 同步率是三核就绪度的加权平均（只计算「当前适用」的核）：
 
@@ -273,10 +280,12 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Mis
 # 2. 删掉旧安装拷贝——旧 SKILL.md 会指挥 agent 去调已经不存在的脚本
 magi setup --remove-legacy
 
-# 3. 在 Hub 根目录一键迁移全部主题（非破坏性）
+# 3. 在 Hub 根目录跑一条命令（非破坏性）
 cd <你的 KnowledgeHub>
 magi migrate
 ```
+
+**`magi migrate` 会一路做完**：逐个主题补齐脚手架 → 搬旧配置 → 重建图谱与目录表 → 在 hub 根 `magi pm init` → 每个主题 `magi sync --fix`（建索引、同步积压）。加 `--minimal` 只迁移不收尾。
 
 `magi migrate` 会自动判断你给的路径是 hub 还是单个主题：hub 模式一次迁移 `topics/` 下所有**未归档**主题；单主题模式只迁移当前这个。
 
@@ -287,16 +296,14 @@ magi migrate
 > [!NOTE]
 > `magi migrate` **没有** `--dry-run`，也**没有** `--force`。非破坏性是写死在实现里的，不靠开关保证：它调用脚手架时从不传 `--force`，所以只可能新建缺失文件。重复跑是安全的，第二次会走「刷新索引」分支。
 
-收尾三步：
+剩下的一步（要选装给哪个 CLI，所以没自动做）：
 
 ```powershell
-magi pm init      # 在 hub 根目录：启用任务系统（一个 hub 一个任务库）
-magi index        # 在每个主题目录：建检索索引
-magi sync         # 验收
+cd topics\<你的主题> && magi skills install
 ```
 
 > [!EXPECT]
-> 每个主题打印一段 `Migrating workspace: <path>`，随后 `magi graph build: ok` / `magi wiki reindex: ok`，最后给出「Recommended next steps」。
+> 每个主题先打印 `Migrating workspace: <path>`，有旧配置可搬时打印 `config carried from ...`，然后 `magi graph build: ok` / `magi wiki reindex: ok`。最后「Finishing up」跑 `magi pm init` 和每个主题的 `magi sync --fix`，并报出新的同步率。
 
 > [!FIX]
 > - **hub 模式最后说 `N/N topics migrated` 但中间有 `FAILED`**：这个汇总行和退出码不反映子步骤失败（已知缺陷）。**自己在输出里搜 `FAILED`**，对报错的主题单独进目录重跑 `magi migrate`。
@@ -394,6 +401,17 @@ magi hub restore <slug>           # 恢复
 
 `magi hub list` 会自我修复：磁盘上有、注册表里没有的主题会被列出来并标注 `registry repair needed`，按提示 `register` 一下即可。
 
+**一条命令跑遍所有主题**——维护操作大多是按工作区的，多主题 hub 里逐个 `cd` 很烦：
+
+```powershell
+magi each sync --fix        # 把每个主题都拉回绿色
+magi each index             # 重建所有课题的检索索引
+magi each lint --fix        # 全 hub 结构自愈
+magi each skills install --host codex
+```
+
+在 hub 根目录跑，它按注册表挑出**未归档**的主题依次执行，最后给一行 `N/N ok`。`--stop-on-error` 遇错即停，`--json` 给机器读。
+
 ### MAGI 怎么找到「当前工作区」{#workspace-discovery}
 
 所有命令都靠**从当前目录向上走**（最多 30 层）来定位工作区：
@@ -422,6 +440,16 @@ magi hub restore <slug>           # 恢复
 | `magi ingest mineru` | 一般 PDF（含扫描件） | MinerU 云端 token | 好，版面/公式识别强 |
 | `magi ingest ocr` | 一般 PDF，要求全离线 | Ollama + poppler | 中等，逐页视觉转录 |
 | `magi ingest add` | 已经是 Markdown/文本的材料 | 无 | 只做归档与 frontmatter 注入 |
+
+**懒得选？** `magi ingest auto` 按文件类型自动挑（源码包 → tex，PDF → 有 token 走 mineru、否则本地 ocr，文本 → add），而且自动收尾：
+
+```powershell
+magi ingest auto paper.pdf        # 单个文件
+magi ingest auto                  # 整个 inbox/
+magi ingest auto --dry-run        # 先看它打算怎么走
+```
+
+需要指定页码、强制某条路线、或者对付难搞的扫描件时，再手动挑下面的命令。
 
 **能拿到 arXiv 源码包就优先走 `tex`**——它保留 `.bib`/`.bbl` 到 markdown 旁边，还会把 arXiv ID 写进 frontmatter 供雷达和 `magi bib` 使用。
 

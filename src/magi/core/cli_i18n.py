@@ -23,6 +23,7 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("sync",): "工作区体检：同步率与三核状态",
     ("ui",): "启动本地 MAGI 网页控制台",
     ("guide",): "阅读内置使用指南（分章阅读、--search 全文检索、--symptoms 故障索引）",
+    ("each",): "在 hub 的每个课题里跑同一条命令（省掉 cd 循环）",
     ("skills", "list"): "列出随 magi 一起分发的 agent 技能",
     ("skills", "where"): "查看各个 agent CLI 从哪里加载技能，以及当前装了哪些",
     ("skills", "install"): "把技能装进你的 agent CLI（--scope global 全局 / project 仅当前目录）",
@@ -34,6 +35,7 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("pm", "status"): "查看 beads 是否可用及各类议题数量",
     ("pm", "backlog-sync"): "把尚未编译的原始文献转成 bd 议题",
     # 文献摄入
+    ("ingest", "auto"): "自动选路摄入（按文件类型选转换器并自动收尾；不给路径就处理整个 inbox/）",
     ("ingest", "add"): "规范化收件箱文档并归档进 raw/",
     ("ingest", "assemble"): "把逐页转写结果拼接成一份完整文档",
     ("ingest", "mineru"): "用 MinerU 云端 OCR 把 PDF 转成 Markdown",

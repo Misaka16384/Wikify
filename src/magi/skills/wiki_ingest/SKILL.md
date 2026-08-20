@@ -13,6 +13,14 @@ This skill handles converting external material (URLs, PDFs, local text files, a
 
 > **Tooling (framework-agnostic):** This skill is written tool-agnostic. Map each capability to your own agent's tool — *read-file* (`Read` in Claude Code, `view_file` in Antigravity), *sub-agent / parallel task* (`Task`/`Agent` in Claude Code, `invoke_subagent` in Antigravity), *shell* (`Bash`/`PowerShell`). Use the closest equivalent your framework provides; if a parallel sub-agent tool is unavailable, transcribe PDF pages sequentially yourself (still verifying the full page count).
 
+**Fast path (use it when nothing needs judgment):** `magi ingest auto "<PATH>"` — or
+`magi ingest auto` with no path to take the whole `inbox/` — picks the converter by file
+type (LaTeX source → `tex`, PDF → `mineru` when a token is configured else local `ocr`,
+text → `add`), runs `magi ingest finalize` for each file, and does one lint/graph/index
+pass at the end. Add `--dry-run` to see the routing first. Fall back to the numbered steps
+below when a file needs a decision the router cannot make: native-vision transcription,
+a page range, math-error triage, or a source type other than the default.
+
 When the user asks to ingest documents (or runs the command without a path):
 1.  **Resolve Ingestion Targets**:
     *   If a specific file path or URL is provided, process that target.

@@ -11,6 +11,8 @@ commands:
 
 This skill handles converting external PDF documents (especially academic papers or scanned articles inside `inbox/` or custom local paths) into high-fidelity clean Markdown using the local OCR model configured in `config.yaml` (default: `glm-ocr` at 130 DPI).
 
+> **Note:** `magi ingest auto` already picks this route for PDFs when no MinerU token is configured. Use this skill when you want to *force* local OCR (offline, or to save API credit), or when you need `--pages` or a specific `models.ocr`.
+
 > **Figures are handled automatically.** Both the PDF path (`magi ingest ocr`) and the TeX path (`magi ingest tex`) extract figures into an `images/` folder beside the output Markdown and embed them inline (`![caption](images/<slug>-...png)`). Figure files are prefixed with the document slug, so multiple papers can share one `raw/<type>/images/` folder without collisions. Vector figures and `.pdf`/`.eps` sources are rasterised to PNG. You do **not** need to handle figures manually.
 
 When the user asks to ingest PDFs using local OCR (or runs the command without a path):

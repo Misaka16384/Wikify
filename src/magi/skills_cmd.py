@@ -425,18 +425,62 @@ def installed_state(skills: List[Skill], project_root: Optional[Path] = None) ->
 # CLI
 # --------------------------------------------------------------------------
 
-def _resolve_hosts(names: Optional[List[str]]) -> List[Host]:
-    if not names or names == ["auto"]:
-        return detected_hosts()
+def _prompt_for_hosts(found: List[Host]) -> List[Host]:
+    """Ask which CLIs to install into.
+
+    Installing into every agent CLI on the machine is rarely what someone
+    wants — most people drive a workspace from one. Asking costs a keystroke
+    and avoids littering three other tools.
+    """
+    print("Which agent CLI should get these skills?\n")
+    for i, h in enumerate(found, 1):
+        print(f"  {i}. {h.label}")
+    print(f"  a. all {len(found)} of them")
+    print("  q. cancel\n")
+    try:
+        answer = input("choice [1]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return []
+    if answer in ("q", "quit", "n", "no"):
+        return []
+    if answer in ("a", "all"):
+        return found
+    if not answer:
+        return found[:1]
+    picked = []
+    for part in answer.replace(",", " ").split():
+        if not part.isdigit() or not (1 <= int(part) <= len(found)):
+            raise SystemExit(f"not one of the options: {part!r}")
+        picked.append(found[int(part) - 1])
+    return picked
+
+
+def _resolve_hosts(names: Optional[List[str]], interactive: bool = False) -> List[Host]:
     if names == ["all"]:
         return list(HOSTS.values())
-    out = []
-    for n in names:
-        h = HOSTS.get(n)
-        if h is None:
-            raise SystemExit(f"unknown host {n!r} — known: {', '.join(HOSTS)} (or auto/all)")
-        out.append(h)
-    return out
+    if names == ["auto"]:
+        return detected_hosts()
+    if names:
+        out = []
+        for n in names:
+            h = HOSTS.get(n)
+            if h is None:
+                raise SystemExit(f"unknown host {n!r} — known: {', '.join(HOSTS)} (or auto/all)")
+            out.append(h)
+        return out
+
+    found = detected_hosts()
+    if len(found) <= 1:
+        return found
+    if interactive:
+        return _prompt_for_hosts(found)
+    names_ = " ".join(f"--host {h.key}" for h in found)
+    raise SystemExit(
+        "several agent CLIs are installed — say which one:\n"
+        + "\n".join(f"  magi skills install --host {h.key:<12} # {h.label}" for h in found)
+        + "\n  magi skills install --host auto       # all of them"
+        + f"\n(or pass them together: {names_})")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -456,8 +500,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                            ("uninstall", "Remove MAGI's skills from a host's skills directory.")):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("--host", action="append", default=None,
-                       help=f"Host to target ({', '.join(HOSTS)}); 'auto' = every detected host "
-                            f"(default), 'all' = every known host. Repeatable.")
+                       help=f"Which agent CLI ({', '.join(HOSTS)}). Repeatable. Omit and you "
+                            f"are asked; 'auto' = every detected CLI, 'all' = every known one.")
         p.add_argument("--scope", choices=["project", "global"], default="project",
                        help="project (default): into the MAGI workspace you are in. "
                             "global: every project on this machine — rarely what you want, "
@@ -525,8 +569,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("  magi skills install --scope global  # every project on this machine")
         return 0
 
-    hosts = _resolve_hosts(args.host)
+    interactive = sys.stdin.isatty() and sys.stdout.isatty() and not args.json
+    hosts = _resolve_hosts(args.host, interactive=interactive)
     if not hosts:
+        if interactive and args.host is None:
+            print("nothing installed")
+            return 0
         msg = ("no agent CLI detected. Pass --host explicitly "
                f"({', '.join(HOSTS)}) or --dir <path>.")
         print(json.dumps({"error": msg}, ensure_ascii=False) if args.json else f"error: {msg}")

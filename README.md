@@ -34,6 +34,10 @@
 ![知识图谱视图](https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-graph.jpg)
 *Obsidian 式力导向知识图谱：拖拽布局、滚轮缩放、悬停邻域聚焦、点击钻取链接，未解析的 wikilink 渲染为幽灵节点。*
 
+<img src="https://raw.githubusercontent.com/Misaka16384/magi/main/docs/webui-tuner.jpg" width="340" alt="◐ 材质校准器">
+
+*◐ 校准器：模糊、不透明度、CRT 扫描线三个滑杆当场生效；下半是背景画选择器——点缩略图钉住你要的那几张，不选就按窗口比例自动轮换。*
+
 - 深浅切换与 MAGI MODE **独立作用**：浅色基底 → 蓝态，深色基底 → 红态，模式内 ☀︎/☽ 直接切换警戒态
 - 背景画默认按屏幕宽高比选图、切页随机轮换、平滑交叉淡入；也可以在 ◐ 面板的缩略图里**钉住某一张或几张**；把自己的图放进 `~/.config/magi/ui-backgrounds/{blue,red}/` 即可替换整套艺术
 - 全部动画尊重 `prefers-reduced-motion`；界面中英双语一键切换
@@ -167,9 +171,9 @@ magi pm init                 # beads + 六种科研 issue 类型（会 git-init 
 mkdir topics\quantum-toys ; cd topics\quantum-toys
 magi init --name "Quantum Toys" --scope "玩具模型中的量子现象"
 # ↑ 自动注册进 hub；生成 CLAUDE.md / AGENTS.md（agent 入场协议）、config.yaml、scratch/
-magi skills install          # 把技能装进这个工作区（Claude Code / Codex / agy / opencode 全覆盖）
+magi skills install          # 把技能装进这个工作区（会问装给哪个 CLI）
 
-magi sync                    # 同步率 + 三核状态 + 下一步提示
+magi sync --fix              # 同步率 + 三核状态，并把能自动修的都跑掉
 ```
 
 ```text
@@ -291,12 +295,14 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Mis
 # 2. 删除旧安装拷贝（旧 SKILL.md 会误导 agent 调用已不存在的脚本路径）
 magi setup --remove-legacy
 
-# 3. 在 Hub 根目录一键迁移全部主题（非破坏性）：
+# 3. 在 Hub 根目录跑一条命令（非破坏性，且会自动收尾）：
 cd <你的KnowledgeHub>
 magi migrate
 #    ↳ 逐个 topic 补齐 CLAUDE.md / AGENTS.md / config.yaml / scratch/（沿用 config.md
-#      里的旧标题与 scope），重建 graph.db（新增 claims/evidence 表）与 _index.md；
-#      raw/ wiki/ 内容一字不动。单个 topic 目录里跑则只迁移该 topic。
+#      里的旧标题与 scope）、把旧 config.yaml 里的 token/模型/阈值搬过来，重建
+#      graph.db（新增 claims/evidence 表）与 _index.md；raw/ wiki/ 内容一字不动。
+#      随后自动 magi pm init + 每个 topic 的 magi sync --fix（建索引、同步积压）。
+#      --minimal 只迁移不收尾；单个 topic 目录里跑则只迁移该 topic。
 
 # 收尾：hub 根 `magi pm init` 启用任务状态；各 topic `magi index` 建检索索引；`magi sync` 验收。
 ```

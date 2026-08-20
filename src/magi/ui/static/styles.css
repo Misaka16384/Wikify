@@ -1943,7 +1943,9 @@ details.advanced-sql > summary {
 .bg-thumb[aria-pressed="true"] {
   opacity: 1;
   border-color: var(--eva-p-strong, var(--accent-primary));
-  box-shadow: 0 0 0 1px var(--eva-p-strong, var(--accent-primary)),
+  /* Inset: MAGI mode chamfers the thumbnails, and a clip-path would take an
+     outer ring with it. */
+  box-shadow: inset 0 0 0 2px var(--eva-p-strong, var(--accent-primary)),
     0 0 10px rgba(var(--eva-p), 0.4);
 }
 
@@ -2646,7 +2648,6 @@ details.advanced-sql > summary {
   background-color: rgba(var(--eva-p), 0.14);
   color: var(--eva-p-soft);
   border: 1px solid rgba(var(--eva-p), 0.5);
-  border-radius: 2px;
 }
 
 [data-theme="eva"] .brand::after {
@@ -2750,10 +2751,13 @@ details.advanced-sql > summary {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border: 1px solid rgba(var(--eva-p), 0.2);
-  border-radius: 3px;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 1px rgba(var(--eva-p), 0.04),
+  border-radius: 0;
+  /* The lift is a drop-shadow filter rather than a box-shadow because the
+     chamfer below clips anything painted outside the silhouette; a filter is
+     applied after the clip and follows the cut corners. */
+  box-shadow: inset 0 0 0 1px rgba(var(--eva-p), 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.5));
 }
 
 [data-theme="eva"] .card::before,
@@ -2762,26 +2766,33 @@ details.advanced-sql > summary {
   position: absolute;
   width: 9px;
   height: 9px;
+  /* the base rule fills ::before; MAGI mode wants an L, not a block */
+  background-color: transparent;
   pointer-events: none;
 }
 
+/* Top-right and bottom-left: the corners the chamfer leaves square. */
 [data-theme="eva"] .card::before {
-  top: -1px;
-  left: -1px;
+  top: 0;
+  left: auto;
+  right: 0;
   border-top: 2px solid var(--accent-primary);
-  border-left: 2px solid var(--accent-primary);
+  border-right: 2px solid var(--accent-primary);
 }
 
 [data-theme="eva"] .card::after {
-  bottom: -1px;
-  right: -1px;
+  bottom: 0;
+  right: auto;
+  left: 0;
   border-bottom: 2px solid var(--accent-primary);
-  border-right: 2px solid var(--accent-primary);
+  border-left: 2px solid var(--accent-primary);
 }
 
 [data-theme="eva"] .card:hover {
   border-color: rgba(var(--eva-p), 0.42);
-  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.8), 0 0 12px rgba(var(--eva-p), 0.1);
+  box-shadow: inset 0 0 0 1px rgba(var(--eva-p), 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.11);
+  filter: drop-shadow(0 4px 18px rgba(0, 0, 0, 0.75)) drop-shadow(0 0 8px rgba(var(--eva-p), 0.18));
 }
 
 [data-theme="eva"] .card-header { border-bottom: 1px solid rgba(var(--eva-p), 0.16); }
@@ -2876,7 +2887,7 @@ details.advanced-sql > summary {
   color: var(--accent-sage);
   box-shadow: 0 0 10px var(--eva-balthasar-glow);
   font-family: var(--font-mono);
-  border-radius: 2px;
+  border-radius: 0;
 }
 
 [data-theme="eva"] #active-jobs-badge {
@@ -2885,7 +2896,7 @@ details.advanced-sql > summary {
   color: var(--accent-blue);
   box-shadow: 0 0 10px var(--eva-melchior-glow);
   font-family: var(--font-mono);
-  border-radius: 2px;
+  border-radius: 0;
 }
 
 [data-theme="eva"] #dash-sync-ratio {
@@ -2929,7 +2940,7 @@ details.advanced-sql > summary {
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.9)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(calc(var(--glass-blur) * 0.9)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border-color: rgba(var(--eva-p), 0.2);
-  border-radius: 3px;
+  border-radius: 0;
 }
 
 [data-theme="eva"] .pane-list-header {
@@ -2951,7 +2962,7 @@ details.advanced-sql > summary {
 [data-theme="eva"] .search-hit-card {
   background-color: rgba(var(--eva-bg-rgb), 0.88);
   border-color: rgba(var(--eva-p), 0.18);
-  border-radius: 3px;
+  border-radius: 0;
 }
 
 [data-theme="eva"] .search-hit-card:hover {
@@ -2961,7 +2972,7 @@ details.advanced-sql > summary {
 
 [data-theme="eva"] .action-row,
 [data-theme="eva"] .banner-pill {
-  border-radius: 2px;
+  border-radius: 0;
   background: rgba(var(--eva-bg-rgb), 0.75);
   border-color: rgba(var(--eva-p), 0.14);
 }
@@ -3016,11 +3027,71 @@ details.advanced-sql > summary {
   outline-offset: 2px;
 }
 
-[data-theme="eva"] .btn,
-[data-theme="eva"] .icon-btn {
+/* ── One shape for every box ───────────────────────────────────────────────
+   MAGI mode cuts the top-left and bottom-right corner off anything that reads
+   as a box, at three scales: panels, controls and rows, chips. A plain
+   rectangle sitting next to these reads as something the theme forgot, so
+   every surface with a border or a fill belongs to one of the three lists.
+
+   Two things to keep in mind when adding to them: clip-path discards whatever
+   the element paints outside the silhouette (outer box-shadows and rings —
+   use inset shadows or a drop-shadow filter instead), and it cuts the border
+   along the diagonal, so the cut edge is open by design. */
+
+/* panels */
+[data-theme="eva"] .card,
+[data-theme="eva"] .eva-hud-frame,
+[data-theme="eva"] .modal-window,
+[data-theme="eva"] .danger-card,
+[data-theme="eva"] .terminal-container {
   border-radius: 0;
-  -webkit-clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
-  clip-path: polygon(9px 0, 100% 0, 100% calc(100% - 9px), calc(100% - 9px) 100%, 0 100%, 0 9px);
+  -webkit-clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+}
+
+/* controls, rows, and the panels nested inside a card */
+[data-theme="eva"] .btn,
+[data-theme="eva"] .icon-btn,
+[data-theme="eva"] .select-input,
+[data-theme="eva"] .text-input,
+[data-theme="eva"] .search-input,
+[data-theme="eva"] .action-row,
+[data-theme="eva"] .search-hit-card,
+[data-theme="eva"] .pane-list,
+[data-theme="eva"] .pane-view,
+[data-theme="eva"] .graph-map-wrap,
+[data-theme="eva"] .docs-toc,
+[data-theme="eva"] .doc-callout,
+[data-theme="eva"] .markdown-body pre,
+[data-theme="eva"] .glass-tuner-panel,
+[data-theme="eva"] .toast {
+  border-radius: 0;
+  -webkit-clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+  clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+}
+
+/* Inline code and the code blocks inside a chamfered <pre> only need their
+   rounding removed — the <pre> already cuts the outer corners. */
+[data-theme="eva"] .markdown-body code { border-radius: 0; }
+
+/* chips and readouts */
+[data-theme="eva"] .badge,
+[data-theme="eva"] .stat-pill,
+[data-theme="eva"] .banner-pill,
+[data-theme="eva"] .brand-badge,
+[data-theme="eva"] .eva-clock,
+[data-theme="eva"] .eva-hud-code,
+[data-theme="eva"] .lang-toggle,
+[data-theme="eva"] .terminal-btn,
+[data-theme="eva"] .glass-tuner-btn,
+[data-theme="eva"] .bg-thumb,
+[data-theme="eva"] .graph-map-toggle,
+[data-theme="eva"] .graph-map-note,
+[data-theme="eva"] .graph-map-hint,
+[data-theme="eva"] .copy-btn {
+  border-radius: 0;
+  -webkit-clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
 }
 
 [data-theme="eva"] .btn-primary {
@@ -3073,7 +3144,7 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .stat-pill,
-[data-theme="eva"] .badge { border-radius: 2px; }
+[data-theme="eva"] .badge { border-radius: 0; }
 
 [data-theme="eva"] .magi-mode-btn.active {
   box-shadow: none;
@@ -3156,9 +3227,8 @@ details.advanced-sql > summary {
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border: 1px solid rgba(255, 74, 87, 0.35);
   border-left: 4px solid #FF4A57;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4),
-    0 0 16px rgba(255, 74, 87, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 12px rgba(255, 74, 87, 0.14));
 }
 
 [data-theme="eva"] .danger-card::before {
@@ -3204,7 +3274,8 @@ details.advanced-sql > summary {
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border: 1px solid rgba(var(--eva-p), 0.4);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.95), 0 0 24px rgba(var(--eva-p), 0.16);
+  box-shadow: none;
+  filter: drop-shadow(0 16px 34px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 18px rgba(var(--eva-p), 0.18));
   border-radius: 0;
 }
 
@@ -3218,7 +3289,8 @@ details.advanced-sql > summary {
 [data-theme="eva"] #danger-modal .modal-window {
   position: relative;
   border-color: rgba(255, 74, 87, 0.55);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.95), 0 0 24px rgba(255, 74, 87, 0.18);
+  box-shadow: none;
+  filter: drop-shadow(0 16px 34px rgba(0, 0, 0, 0.95)) drop-shadow(0 0 18px rgba(255, 74, 87, 0.2));
   overflow: hidden;
   padding-top: 2rem;
 }
@@ -3252,7 +3324,7 @@ details.advanced-sql > summary {
   color: var(--text-primary);
   font-family: var(--font-mono);
   border-radius: 0;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.8);
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.8));
 }
 
 [data-theme="eva"] .markdown-body h1,
@@ -3344,8 +3416,9 @@ details.advanced-sql > summary {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   padding: 0.9rem 1.1rem 0.6rem;
-  box-shadow: 0 0 24px rgba(var(--eva-p), 0.07), inset 0 0 40px rgba(var(--eva-p), 0.03),
+  box-shadow: inset 0 0 40px rgba(var(--eva-p), 0.03),
     inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  filter: drop-shadow(0 0 18px rgba(var(--eva-p), 0.12));
 }
 
 [data-theme="eva"] .eva-hud-frame::before,
@@ -3358,17 +3431,19 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .eva-hud-frame::before {
-  top: -1px;
-  left: -1px;
+  top: 0;
+  left: auto;
+  right: 0;
   border-top: 2px solid var(--eva-p-soft);
-  border-left: 2px solid var(--eva-p-soft);
+  border-right: 2px solid var(--eva-p-soft);
 }
 
 [data-theme="eva"] .eva-hud-frame::after {
-  bottom: -1px;
-  right: -1px;
+  bottom: 0;
+  right: auto;
+  left: 0;
   border-bottom: 2px solid var(--eva-p-soft);
-  border-right: 2px solid var(--eva-p-soft);
+  border-left: 2px solid var(--eva-p-soft);
 }
 
 [data-theme="eva"] .eva-hud-header {
@@ -3556,8 +3631,10 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .eva-hex-label {
-  font-size: 10px;
-  letter-spacing: 0.32em;
+  /* The hexagon tapers below y=209; at the old size and tracking this label
+     was wider than the shape and spilled through the outline. */
+  font-size: 9px;
+  letter-spacing: 0.2em;
   fill: var(--text-muted);
 }
 
@@ -3691,7 +3768,7 @@ details.advanced-sql > summary {
   height: 30px;
   background-color: rgba(var(--eva-bg-rgb), 0.72);
   border: 1px solid rgba(var(--eva-p), 0.35);
-  border-radius: 2px;
+  border-radius: 0;
   color: var(--eva-p-strong);
   font-size: 0.92rem;
   line-height: 1;
@@ -3714,7 +3791,7 @@ details.advanced-sql > summary {
   -webkit-backdrop-filter: blur(12px) saturate(1.5);
   backdrop-filter: blur(12px) saturate(1.5);
   border: 1px solid rgba(var(--eva-p), 0.35);
-  border-radius: 2px;
+  border-radius: 0;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
 }
 
