@@ -35,7 +35,9 @@ OPS: dict[str, dict] = {
              "label_i18n": "op_semantic_link"},
     "lint-fix": {"argv": ["lint", "--fix"], "scope": "kb", "danger": False,
                  "label_i18n": "op_lint_fix"},
-    "stats": {"argv": ["stats"], "scope": "kb", "danger": False,
+    # `magi stats` alone is ambiguous (three different reports); the button
+    # means "summarize this workspace".
+    "stats": {"argv": ["stats", "wiki-summary"], "scope": "kb", "danger": False,
               "label_i18n": "op_stats"},
     "backlog-sync": {"argv": ["pm", "backlog-sync"], "scope": "kb", "danger": False,
                      "label_i18n": "op_backlog_sync"},

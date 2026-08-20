@@ -2,7 +2,9 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-20 · 当前阶段：**v1.8.1 已发布**（tag `v1.6.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+> 最后更新：2026-08-20 · 当前阶段：**v1.8.2 已发布**（tag `v1.6.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+>
+> 2026-08-20 运维按钮修复 (v1.8.2)：用户报「在 WebUI 给 Algebra+Duality+Topology 构建图谱失败」。查 `ui-jobs.jsonl` 发现真正红的是**重建维基索引**：`magi wiki reindex` 要求位置参数 `topic_dir`，而 OPS 表里的 argv 只有 `["wiki","reindex"]`，argparse 直接 exit 2，日志里只有一行 usage。同类问题还有两个：`magi link` 同样要求 `topic_dir`（语义概念链接按钮），`magi stats` 要求三选一的子命令（工作区统计按钮）。**修法**：`wiki reindex` 与 `link` 的 `topic_dir` 改为可选、默认取所在工作区（与 `index`/`graph`/`lint` 等命令一致，CLI 用户在课题目录里直接敲也能用了）；`stats` 的按钮明确成 `stats wiki-summary`。**防复发**：`test_contracts.py` 对 OPS 表逐条参数化，把每个 op 的 argv 喂给真实解析器，比对 usage 里还剩几个必填位置参数——14 个 op 全部覆盖。顺带查清用户那个课题：18 篇论文躺在 `raw/papers/`，`wiki/concepts/` 一张卡都没有（0 concepts / 1 refs，那 1 张还是自动生成的 uncompiled-source-coverage），所以 `graph build` 只索引到 1 个节点 0 条边——图谱不是构建失败，是没东西可建；beads 里 17 条 `Compile raw source:` 就是待办。测试 151 → 165。
 >
 > 2026-08-20 首屏空仪表盘 (v1.8.1)：在 hub 根目录起 `magi ui`（用户就是这么用的）时，`/api/status` 的 `active_workspace` 是 null，而下拉框照样显示着一个已注册的库——两边不一致，`state.workspace` 为空导致 `loadSyncRatio()` 直接 return，HUD 一直停在 `--%` / NO LINK，非得手动把下拉框里已经显示着的那一项再选一次才活。现在初始化时若仍无工作区，就采用下拉框实际显示的那一项并存进 `magi-view-workspace`。在真实 hub（3 课题、6 个注册库）上验证：冷启动直接出 90% 与三核 NOMINAL。测试 150 → 151。
 >

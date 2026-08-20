@@ -3,6 +3,8 @@ import sys
 import datetime
 import glob
 import argparse
+
+from magi.core.workspace import find_workspace_root
 from magi.core.wiki_common import parse_frontmatter
 
 def extract_frontmatter(filepath):
@@ -85,10 +87,20 @@ Last updated: {today}
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi wiki reindex", description="Build index files for wiki directories")
-    parser.add_argument("topic_dir", help="Topic directory path")
+    parser.add_argument("topic_dir", nargs="?", default=None,
+                        help="Topic directory path (default: the workspace you are in)")
     args = parser.parse_args(argv)
-    
-    wiki_dir = os.path.join(args.topic_dir, "wiki")
+
+    topic_dir = args.topic_dir
+    if topic_dir is None:
+        # Every other command defaults to the surrounding workspace; requiring
+        # the path here is what made the WebUI's reindex button exit 2.
+        root = find_workspace_root()
+        if root is None:
+            parser.error("no MAGI workspace here - pass a topic directory, or cd into one")
+        topic_dir = str(root)
+
+    wiki_dir = os.path.join(topic_dir, "wiki")
     
     refs_dir = os.path.join(wiki_dir, "references")
     build_index_for_dir(refs_dir, "References")

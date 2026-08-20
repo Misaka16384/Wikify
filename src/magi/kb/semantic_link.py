@@ -15,10 +15,13 @@ from sklearn.metrics.pairwise import cosine_similarity
 from pathlib import Path
 
 from magi.core.config_loader import load_config, get as cfg_get
+from magi.core.workspace import find_workspace_root
 
 def setup_argparse(argv=None):
     parser = argparse.ArgumentParser(prog="magi link", description="Wiki Semantic Linker using Ollama")
-    parser.add_argument("topic_dir", help="Path to the root of the topic wiki (containing wiki/concepts/)")
+    parser.add_argument("topic_dir", nargs="?", default=None,
+                        help="Path to the root of the topic wiki (containing wiki/concepts/); "
+                             "defaults to the workspace you are in")
     parser.add_argument("--threshold", type=float, default=None, help="Cosine similarity threshold for linking (default: from config.yaml)")
     parser.add_argument("--merge-threshold", type=float, default=None, help="Cosine similarity threshold for merge suggestions (default: from config.yaml)")
     parser.add_argument("--auto-merge", action="store_true", help="Automatically merge concepts with score >= auto-merge-threshold")
@@ -28,6 +31,12 @@ def setup_argparse(argv=None):
     parser.add_argument("--model", type=str, default=None, help="Ollama embedding model to use (default: from config.yaml)")
     parser.add_argument("--ollama-url", type=str, default=None, help="Ollama API endpoint (default: from config.yaml)")
     args = parser.parse_args(argv)
+
+    if args.topic_dir is None:
+        root = find_workspace_root()
+        if root is None:
+            parser.error("no MAGI workspace here - pass a topic directory, or cd into one")
+        args.topic_dir = str(root)
 
     # Resolve defaults from unified config
     cfg = load_config()

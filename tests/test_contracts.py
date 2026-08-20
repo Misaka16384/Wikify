@@ -106,3 +106,63 @@ def test_radar_reports_single_source_of_truth(workspace):
     assert api["pending_citation_gaps"] == pending_names(reports, "citation-gap")
     kinds = {d["name"]: d["kind"] for d in api["digests"]}
     assert kinds["2026-08-18-citation-gaps.md"] == "citation-gap"
+
+
+# --------------------------------------------------------------------------
+# Every WebUI button has to be a command the CLI will actually accept.
+# `wiki reindex`, `link` and `stats` each shipped an argv the parser rejected
+# with exit 2 — the button just went red with an argparse usage line in the log.
+# --------------------------------------------------------------------------
+
+def _cli_usage(argv):
+    """`magi <argv> --help`, captured. SystemExit(0) proves the path dispatches."""
+    import contextlib
+    import io as _io
+
+    from magi import cli as magi_cli
+
+    buf = _io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        # cli.main normalizes argparse's SystemExit into a return code.
+        rc = magi_cli.main([a for a in argv if not a.startswith("-")] + ["--help"])
+    assert rc == 0, f"magi {' '.join(argv)} --help exited {rc}"
+    return buf.getvalue()
+
+
+def _unfilled_positionals(usage: str, argv) -> list[str]:
+    """Required arguments left over once the op's own argv is accounted for."""
+    import re
+
+    named = set(argv)
+
+    text = " ".join(usage.split("\n\n")[0].split())
+    text = text.split("usage:", 1)[-1].strip()
+    # Leading bare words are the prog name ("magi pm backlog-sync" — note the
+    # hyphen, so this has to be tokenwise); the spec starts at the first token
+    # that opens a bracket, a brace, or a flag.
+    tokens = text.split()
+    for i, tok in enumerate(tokens):
+        if tok[0] in "[{-":
+            tokens = tokens[i:]
+            break
+    else:
+        tokens = []
+    spec = re.sub(r"\[[^\[\]]*\]", " ", " ".join(tokens))   # drop optionals
+    leftover = [tok for tok in spec.split() if tok not in ("...", "|")]
+    # A word the op already passes is satisfied, whether it lands as a plain
+    # positional or as one of a {choices} subcommand group.
+    return [tok for tok in leftover
+            if tok not in named
+            and not (tok.startswith("{") and named & set(tok.strip("{}").split(",")))]
+
+
+@pytest.mark.parametrize("op", sorted(__import__("magi.ui.jobs", fromlist=["OPS"]).OPS))
+def test_every_webui_op_is_a_command_the_cli_accepts(op):
+    from magi.ui.jobs import OPS
+
+    argv = OPS[op]["argv"]
+    leftover = _unfilled_positionals(_cli_usage(argv), argv)
+    assert not leftover, (
+        f"op '{op}' runs `magi {' '.join(argv)}` but the parser still requires "
+        f"{leftover} — the job exits 2 before doing anything"
+    )
