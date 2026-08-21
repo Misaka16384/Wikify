@@ -40,15 +40,23 @@ Prepend a dated entry to `ROADMAP.md` — it is the living handoff document.
 Then upgrade the local install and restart any dashboards:
 
 ```powershell
+pipx install --force "magi-research==X.Y.Z"          # or, with uv:
 uv tool install --force --refresh "magi-research==X.Y.Z"
 ```
 
-> Pin the exact version. `--refresh` alone sometimes still resolves the previous
-> release from the index cache right after publishing.
+> Pin the exact version, and use `--force` rather than the plain
+> `pipx upgrade --install` the docs give users: right after publishing, an
+> index cache can still resolve the previous release, and `--force` (with
+> uv, `--refresh`) is what defeats that. Users never need this.
 
-> If `uv tool install --force` fails with `failed to remove directory ... Lib:
-> 拒绝访问`, a `magi ui` process is holding the install. Stop every one of them
-> first — a half-failed install leaves the CLI broken.
+> If the install fails with `failed to remove directory ... Lib: 拒绝访问`, a
+> `magi ui` process is holding it. Stop every one of them first — a half-failed
+> install leaves the CLI broken.
+
+> Do not verify a release by installing it with the *other* manager. pipx and
+> uv share `~/.local/bin`, so uninstalling the one you tested with deletes the
+> shim the other still needs, and `magi` vanishes from PATH while the surviving
+> manager still lists it as installed.
 
 ## PyPI (`pip install magi-research`)
 

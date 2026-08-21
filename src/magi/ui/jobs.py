@@ -84,6 +84,19 @@ OPS: dict[str, dict] = {
     "radar-citation-gap": {"argv": ["radar", "citation-gap"], "scope": "kb", "danger": False,
                            "label_i18n": "btn_radar_citation_gap",
                            "desc_i18n": "op_desc_radar_citation_gap"},
+    # Turning an optional feature on. Narrow on purpose: `magi setup` is far
+    # too broad to sit behind a button labelled "turn on task tracking", and a
+    # user clicking that has not consented to re-provisioning their machine.
+    # Both are machine-wide because what they install is machine-wide, and both
+    # are idempotent — clicking twice is not a mistake.
+    "install-tasks": {"argv": ["setup", "--install-tasks"], "scope": "global",
+                      "danger": False, "badge_i18n": "ops_badge_global",
+                      "label_i18n": "btn_install_tasks",
+                      "desc_i18n": "op_desc_install_tasks"},
+    "pull-models": {"argv": ["setup", "--pull-models"], "scope": "global",
+                    "danger": False, "badge_i18n": "ops_badge_global",
+                    "label_i18n": "btn_pull_models",
+                    "desc_i18n": "op_desc_pull_models"},
     # danger zone (server re-verifies confirm == op id)
     "setup": {"argv": ["setup"], "scope": "global", "danger": True,
               "label_i18n": "btn_danger_setup", "desc_i18n": "danger_setup_desc"},

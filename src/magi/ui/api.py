@@ -100,6 +100,22 @@ class IngestEnqueueRequest(BaseModel):
     title: Optional[str] = None
 
 
+class FeatureRequest(BaseModel):
+    """Turn one optional feature on or off, machine-wide.
+
+    Must live at module scope: `from __future__ import annotations` turns the
+    endpoint's `req: FeatureRequest` into a string, and FastAPI resolves it
+    against this module's globals. Defined inside create_app() it is not
+    found, and the parameter quietly becomes a query string instead of a body.
+    """
+
+    key: str = Field(..., min_length=1)
+    enabled: bool
+    #: "feature" flips one of MAGI's own workflows; "tool" only records
+    #: whether an external tool is wanted, so the doctor stops raising it.
+    kind: str = "feature"
+
+
 class JobCreateRequest(BaseModel):
     # Whitelisted operation id (see magi.ui.jobs.OPS) — raw argv is not accepted.
     op: str = Field(..., min_length=1)
@@ -356,6 +372,102 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         del data["kbs"][name]
         save_registry(data)
         return {"name": name, "deleted": True}
+
+    @app.get("/api/features")
+    def get_features() -> dict:
+        """What is turned on, and what a button could honestly do about it.
+
+        Two lists, kept apart because only one of them is actionable from here.
+        `features` are MAGI's own workflows: a switch, and for task tracking a
+        dependency MAGI installs itself. `tools` are other people's software —
+        MAGI cannot install any of them, so `can_install` is false and `url` is
+        the only useful thing a button has to offer. Saying otherwise on screen
+        would be a button that cannot keep its promise.
+
+        Machine-wide, both of them: none of this is per-workspace, which is why
+        there is no workspace parameter to pass.
+        """
+        import shutil as _shutil
+
+        from magi.features import FEATURES, feature_enabled
+        from magi.setup_cmd import MINERU_URL, OPTIONAL_TOOLS, wanted_optionals
+
+        wanted = wanted_optionals()
+        feats = []
+        for f in FEATURES:
+            feats.append({
+                "key": f.key,
+                "label": f.label,
+                "what": f.what,
+                "enabled": feature_enabled(f.key),
+                "needs": f.needs or None,
+                "needs_installed": (not f.needs) or bool(_shutil.which(f.needs)),
+                "can_install": f.magi_installs,
+                # The op a "turn it on" button should run once enabled. None
+                # means flipping the switch is the whole job.
+                "op": "install-tasks" if f.key == "tasks" else None,
+            })
+
+        tools = []
+        for t in OPTIONAL_TOOLS:
+            tools.append({
+                "key": t.key,
+                "label": t.label,
+                "unlocks": t.unlocks,
+                "installed": bool(_shutil.which(t.binary)),
+                # Absent means never asked, which reads as wanted.
+                "wanted": bool(wanted.get(t.key, True)),
+                "url": t.url,
+                "hint": t.install_hint or None,
+                "can_install": False,
+                "op": "pull-models" if t.key == "ollama" else None,
+            })
+        tools.append({
+            "key": "mineru", "label": "MinerU",
+            "unlocks": "cloud PDF conversion, strong on formulas and layout",
+            # A hosted service, not a binary: "installed" is not a question you
+            # can ask of it, so it reports on the token instead.
+            "installed": None,
+            "wanted": bool(wanted.get("mineru", False)),
+            "url": MINERU_URL,
+            "hint": "sign up, then put the token in config.yaml under "
+                    "ocr.mineru_api_token",
+            "can_install": False, "op": None,
+        })
+        return {"features": feats, "tools": tools}
+
+    @app.post("/api/features")
+    def post_feature(req: FeatureRequest) -> dict:
+        """Turn a feature on/off, or record whether a tool is wanted.
+
+        Writes to the machine-wide settings file, not a workspace — the same
+        file `magi setup` writes. Installing anything is a separate, explicit
+        step: this only ever flips a flag.
+        """
+        from magi.features import FEATURE_KEYS, set_feature
+        from magi.kb_registry import load_settings, save_settings
+        from magi.setup_cmd import OPTIONAL_TOOLS
+
+        if req.kind == "feature":
+            if req.key not in FEATURE_KEYS:
+                raise HTTPException(status_code=404,
+                                    detail=f"Unknown feature: {req.key}")
+            set_feature(req.key, req.enabled)
+            return {"key": req.key, "enabled": req.enabled, "kind": "feature"}
+
+        if req.kind == "tool":
+            known = {t.key for t in OPTIONAL_TOOLS} | {"mineru"}
+            if req.key not in known:
+                raise HTTPException(status_code=404,
+                                    detail=f"Unknown tool: {req.key}")
+            data = load_settings()
+            chosen = dict(data.get("optional_features") or {})
+            chosen[req.key] = bool(req.enabled)
+            data["optional_features"] = chosen
+            save_settings(data)
+            return {"key": req.key, "enabled": req.enabled, "kind": "tool"}
+
+        raise HTTPException(status_code=400, detail=f"Unknown kind: {req.kind}")
 
     @app.get("/api/doctor")
     def get_doctor(workspace: Optional[str] = Query(None)) -> dict:

@@ -91,11 +91,19 @@ def test_wanting_a_tool_still_shows_it_as_installable(bare, monkeypatch):
 # uv and bd
 # --------------------------------------------------------------------------
 
-def test_uv_is_never_a_problem(bare):
-    """uv installs magi and is never executed afterwards; pipx works too."""
+def test_neither_installer_is_ever_a_problem(bare):
+    """pipx and uv install magi and are never executed afterwards.
+
+    Either one is sufficient, so a machine missing one of them is not a machine
+    with a fault. pipx is the one the docs lead with; uv is there for a machine
+    with no Python 3.10+ of its own.
+    """
     rows = {r.name: r for r in setup.doctor_rows()}
+    assert rows["pipx"].status == "ok"
     assert rows["uv"].status == "ok"
-    assert "pipx" in rows["uv"].detail
+    # The recommended command has to be in the row that recommends it —
+    # a bare "not installed" leaves the reader to find it elsewhere.
+    assert "pipx upgrade --install magi-research" in rows["pipx"].detail
 
 
 def test_bd_missing_is_optional_because_setup_installs_it(bare):

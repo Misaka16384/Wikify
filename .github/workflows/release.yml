@@ -104,7 +104,7 @@ jobs:
             echo "::notice::No '#' headings in the tag body. If you wrote any," \
                  "re-tag with --cleanup=verbatim; git strips them otherwise."
           fi
-          printf '%s\n\n```bash\nuv tool install --force magi-research\n```\n' \
+          printf '%s\n\n```bash\npipx upgrade --install magi-research\n```\n' \
             "$BODY" > notes.md
           gh release create "$TAG" \
             --title "$SUBJECT" \

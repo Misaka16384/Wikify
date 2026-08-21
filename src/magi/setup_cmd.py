@@ -151,7 +151,7 @@ def install_beads() -> str:
                     shutil.copyfileobj(src, dst)
             zip_path.unlink(missing_ok=True)
             if not _which("bd") and str(dest_dir) not in os.environ.get("PATH", ""):
-                return f"installed to {dest_dir} — ADD IT TO PATH (uv tool update-shell usually covers it)"
+                return f"installed to {dest_dir} — ADD IT TO PATH (uv tool update-shell usually covers it; pipx: pipx ensurepath)"
             return f"installed ({release.get('tag_name', '')})"
         except Exception as exc:
             return (f"FAILED ({type(exc).__name__}) — install manually: "
@@ -303,8 +303,50 @@ def _ask_yes_no(question: str, default: bool = True) -> bool:
     return answer in ("y", "yes")
 
 
+def choose_features(interactive: bool) -> dict:
+    """Ask which of MAGI's own features the user wants.
+
+    Distinct from `choose_optionals` below, and asked first, because these are
+    the only ones MAGI can act on: the radar is pure MAGI, and task tracking
+    needs `bd`, which setup installs itself. Saying yes here actually turns
+    something on. Saying yes down there only records an intention.
+
+    Both default to on. A user pressing Enter through a fresh install gets the
+    whole product and can discover it; anyone who does not want a panel says so
+    once and it greys out, in the CLI and in the WebUI alike.
+    """
+    from magi.features import FEATURES, feature_enabled
+    from magi.kb_registry import load_settings, save_settings
+
+    settings = load_settings()
+    chosen = dict(settings.get("optional_features") or {})
+    if not interactive:
+        return {f.key: feature_enabled(f.key, settings) for f in FEATURES}
+
+    print("\n=== MAGI features ===")
+    print("  Both are on by default. Turn one off and its panel greys out,")
+    print("  with a button to turn it back on — nothing is deleted.\n")
+
+    for feat in FEATURES:
+        print(f"  {feat.label} — {feat.what}")
+        if feat.needs and not _which(feat.needs):
+            print(f"    needs {feat.needs}, which setup installs for you"
+                  if feat.magi_installs else f"    needs {feat.needs}")
+        chosen[feat.key] = _ask_yes_no(f"Turn on {feat.label}?",
+                                       default=feature_enabled(feat.key, settings))
+        print()
+
+    settings["optional_features"] = chosen
+    # `profile: kb-only` is the older way of saying "no task tracking" and is
+    # still consulted, so leaving it stale here would silently override the
+    # answer just given.
+    settings["profile"] = "full" if chosen.get("tasks", True) else "kb-only"
+    save_settings(settings)
+    return chosen
+
+
 def choose_optionals(interactive: bool) -> dict:
-    """Ask which optional capabilities the user wants, and remember the answer.
+    """Ask which optional external tools the user wants, and remember it.
 
     MAGI cannot install any of these — they are other people's installers — so
     the useful thing setup can do is explain what each one buys, hand over the
@@ -393,12 +435,19 @@ def doctor_rows(workspace: Path | None = None) -> list[DoctorRow]:
         DoctorRow("magi", "ok", f"v{__import__('magi').__version__}"),
         DoctorRow("python", "ok", sys.version.split()[0]),
     ]
-    # uv is an *installer*, not a dependency: nothing in MAGI ever executes it.
-    # `pipx install magi-research` is equally supported, so a machine without uv
-    # is not a machine with a problem.
+    # Both of these are *installers*, not dependencies: nothing in MAGI ever
+    # executes either one after the install. So neither can be "missing" —
+    # a machine without uv is not a machine with a problem, and the same is
+    # true in reverse. pipx is the one the docs lead with; uv is the fallback
+    # for a machine with no Python 3.10+ of its own.
+    pipx_path = _which("pipx")
+    rows.append(DoctorRow("pipx", "ok", pipx_path or
+                          "not installed — the recommended way to install and upgrade "
+                          "magi (pipx upgrade --install magi-research)"))
     uv_path = _which("uv")
     rows.append(DoctorRow("uv", "ok", uv_path or
-                          "not installed — only ever used to install magi (pipx works too)"))
+                          "not installed — the alternative installer, for a machine "
+                          "with no Python 3.10+ of its own"))
 
     bd_path = _which("bd")
     rows.append(DoctorRow(
@@ -429,6 +478,34 @@ def doctor_rows(workspace: Path | None = None) -> list[DoctorRow]:
             "not installed — cross-references degrade, conversion still works",
             "https://github.com/lierdakil/pandoc-crossref/releases"))
     rows.extend(agent_cli_rows(workspace))
+    rows.extend(feature_rows())
+    return rows
+
+
+def feature_rows() -> list[DoctorRow]:
+    """MAGI's own optional workflows, and whether they are turned on.
+
+    These are not environment faults in either direction — off is a choice, and
+    it reports as `declined` rather than `missing` for the same reason a tool
+    you said no to does. What makes them worth a row here is that the panel
+    they drive goes grey when they are off, and this is the table people open
+    when a panel is grey.
+    """
+    from magi.features import FEATURES, feature_enabled
+
+    rows: list[DoctorRow] = []
+    for feat in FEATURES:
+        if not feature_enabled(feat.key):
+            rows.append(DoctorRow(feat.label, "declined",
+                                  "off — turn it on in the WebUI, or with "
+                                  "'magi setup --optionals'"))
+            continue
+        if feat.needs and not _which(feat.needs):
+            rows.append(DoctorRow(feat.label, "optional",
+                                  f"on, but {feat.needs} is not installed — "
+                                  f"run 'magi setup' to install it"))
+        else:
+            rows.append(DoctorRow(feat.label, "ok", "on"))
     return rows
 
 
@@ -514,6 +591,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true", help="Doctor only: report, change nothing")
     parser.add_argument("--optionals", action="store_true",
                         help="Just re-run the optional-components questions")
+    # Two narrow, fixed-argv entry points so the WebUI's one-click buttons have
+    # something to call that does exactly one thing. `magi setup` on its own is
+    # too broad to put behind a button labelled "turn on task tracking".
+    parser.add_argument("--install-tasks", action="store_true",
+                        help="Turn task tracking on and install its store (bd)")
+    parser.add_argument("--pull-models", action="store_true",
+                        help="Pull the Ollama models MAGI uses (needs Ollama installed)")
     parser.add_argument("--yes", "-y", action="store_true",
                         help="Never prompt; keep whatever was chosen before")
     parser.add_argument("--no-beads", action="store_true", help="Skip Beads installation")
@@ -547,7 +631,27 @@ def main(argv: list[str] | None = None) -> int:
     # WebUI job would hang on input(), so those keep whatever was chosen before.
     interactive = (not args.yes) and sys.stdin.isatty() and sys.stdout.isatty()
 
+    if args.install_tasks:
+        from magi.features import set_feature
+
+        set_feature("tasks", True)
+        outcome = install_beads()
+        print(f"[setup] task tracking: on")
+        print(f"[setup] task store (bd): {outcome}")
+        print_doctor()
+        # The store is installed but not initialised; say where that happens
+        # rather than leaving a working `bd` and an empty Balthasar panel.
+        print("\nNext: run 'magi pm init' at your hub root to create the store.")
+        return 0 if "FAILED" not in outcome else 1
+
+    if args.pull_models:
+        outcome = setup_ollama_models()
+        print(f"[setup] ollama models: {outcome}")
+        print_doctor()
+        return 0
+
     if args.optionals:
+        choose_features(interactive)
         choose_optionals(interactive)
         print_doctor()
         return 0
@@ -557,11 +661,15 @@ def main(argv: list[str] | None = None) -> int:
         results.append(("profile", settings.get("profile", "full")))
         results.append(("legacy", handle_legacy(remove=False)))
     else:
+        # Features first: the answer to "do you want task tracking?" decides
+        # whether the next few lines install anything at all.
+        features = choose_features(interactive)
         choose_optionals(interactive)
-        if not args.no_beads and not kb_only:
-            results.append(("beads", install_beads()))
-        elif kb_only:
-            results.append(("beads", "skipped (kb-only profile)"))
+        want_tasks = features.get("tasks", not kb_only)
+        if not args.no_beads and want_tasks:
+            results.append(("task tracking", install_beads()))
+        elif not want_tasks:
+            results.append(("task tracking", "off (turn on with 'magi setup --optionals')"))
         if not args.no_models:
             results.append(("ollama", setup_ollama_models()))
         plugin_outcome = ""

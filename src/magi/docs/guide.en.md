@@ -11,7 +11,7 @@ Every chapter follows the same rhythm: **what to do → how to do it → what yo
 From nothing to a library you can search — four commands and one sentence to your agent:
 
 ```powershell
-pipx install magi-research           # 1. install (or: uv tool install magi-research)
+pipx upgrade --install magi-research # 1. install or upgrade (idempotent)
 magi hub init                        # 2. in the folder that will hold your topics
 cd topics/my-topic && magi init      # 3. one topic
 magi ingest auto                     # 4. after dropping PDFs into inbox/
@@ -117,13 +117,21 @@ Sync ratio is a weighted average of the three cores' readiness (only cores that 
 
 ## Installation {#install}
 
-Installing is one command:
+Installing is one command, and it is the same command you use to upgrade:
 
 ```powershell
-pipx install magi-research      # or: uv tool install magi-research
+pipx upgrade --install magi-research
 ```
 
-That is the whole thing — no git required, and MAGI never calls pipx or uv again after the install. Use **pipx** if you already have Python 3.10+; use **uv** if you would rather not think about Python at all, since it brings its own 3.12. Everything below is upgrading, per-project installs, and the optional external tools some ingestion routes need.
+It installs when MAGI is missing, upgrades when it is out of date, and does nothing when it is already current — so re-run it as often as you like. (`--install` needs pipx 1.5 or newer; on an older pipx use `pipx install magi-research` the first time and `pipx upgrade magi-research` after that.)
+
+No git required, and MAGI never calls pipx or uv again after the install. **pipx** is the default and needs Python 3.10+ already on the machine; **uv** is the alternative for a machine without one, since it brings its own 3.12:
+
+```powershell
+uv tool install --force magi-research   # the uv equivalent — also install-or-upgrade
+```
+
+Everything below is per-project installs and the optional external tools some ingestion routes need.
 
 ### One-line install (recommended) {#install-oneline}
 
@@ -143,9 +151,9 @@ curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | 
 
 The script does three things in order:
 
-1. Install [uv](https://docs.astral.sh/uv/) first, if it's missing;
-2. `uv tool install --force --python 3.12 magi-research` — from PyPI; uv brings its own Python 3.12, so **you don't need Python pre-installed**;
-3. Run `magi setup`: install Beads (`bd`), pull the Ollama embedding model, register the Claude Code plugin, report which agent CLIs it found, check for leftover legacy Wikify installs, and print a health-check table at the end.
+1. Find a package manager: pipx if you have it, else install pipx onto a Python 3.10+ it finds, else fall back to [uv](https://docs.astral.sh/uv/) — which brings its own Python 3.12, so **you don't need Python pre-installed**;
+2. `pipx upgrade --install magi-research` (or the uv equivalent) — from PyPI, install or upgrade in one step;
+3. Run `magi setup`: ask which optional features you want, install Beads (`bd`) if you want task tracking, pull the Ollama embedding model, register the Claude Code plugin, report which agent CLIs it found, check for leftover legacy Wikify installs, and print a health-check table at the end.
 
 **Idempotent**: rerunning the same command is how you upgrade.
 
@@ -162,14 +170,21 @@ The script does three things in order:
 ### Manual install, upgrade, uninstall {#install-manual}
 
 ```powershell
-uv tool install magi-research           # install (pipx install magi-research works too)
-uv tool install --force magi-research   # upgrade
+pipx upgrade --install magi-research    # install or upgrade — the same command for both
+pipx uninstall magi-research            # uninstall
+pipx list                               # see what version is installed
+
+# Or with uv, if you would rather not have a Python of your own:
+uv tool install --force magi-research   # install or upgrade
 uv tool uninstall magi-research         # uninstall
 uv tool list                            # see what version is installed
 
 # To try changes that are not released yet:
 uv tool install --force git+https://github.com/Misaka16384/magi
 ```
+
+> [!WARN]
+> pipx and uv put their shims in the **same** directory (`~/.local/bin`). Installing MAGI with both, then uninstalling one, deletes the shim the other is still relying on — `magi` disappears from PATH while `uv tool list` still swears it is installed. Pick one and stay with it; if you did hit this, `uv tool install --force magi-research` (or the pipx equivalent) puts the shim back.
 
 Health-check anytime after installing:
 
@@ -198,7 +213,7 @@ This is the one people most often get backwards. **You only need one global CLI 
 
 | Thing | Where it lives | How many |
 |---|---|---|
-| `magi` CLI | User-level (`uv tool install`), on PATH | One per machine |
+| `magi` CLI | User-level (`pipx install` / `uv tool install`), on PATH | One per machine |
 | skills | **Inside each workspace**, one directory per host (`magi skills install`) | One set per topic |
 | workspace | Your topic directory | One per topic |
 | Global config & registry | `~/.config/magi/` (on Windows: `C:\Users\<you>\.config\magi\`, **not** AppData) | One per machine |
@@ -206,7 +221,7 @@ This is the one people most often get backwards. **You only need one global CLI 
 Install the CLI once; after that, starting a new topic only takes `magi init` + `magi skills install`.
 
 > [!WARN]
-> A true in-project install (`uv venv && uv pip install -e .`) is only for people modifying MAGI's source. A `magi` installed that way **is not on PATH** — you can only invoke it as `.venv\Scripts\python.exe -m magi.cli ...`. Skills, Claude Code's SessionStart hook, and the radar's scheduled job all look for the bare command name `magi` on PATH, and won't find it there. For everyday use, install with `uv tool install`.
+> A true in-project install (`uv venv && uv pip install -e .`) is only for people modifying MAGI's source. A `magi` installed that way **is not on PATH** — you can only invoke it as `.venv\Scripts\python.exe -m magi.cli ...`. Skills, Claude Code's SessionStart hook, and the radar's scheduled job all look for the bare command name `magi` on PATH, and won't find it there. For everyday use, install with `pipx` (or `uv tool install`).
 
 ### Teach your CLI agent to use MAGI {#install-hosts}
 

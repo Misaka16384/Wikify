@@ -11,7 +11,7 @@
 从零到一个能检索的库——四条命令，加对 agent 说的一句话：
 
 ```powershell
-pipx install magi-research           # 1. 装（或者：uv tool install magi-research）
+pipx upgrade --install magi-research # 1. 装或升级（幂等，重复跑没副作用）
 magi hub init                        # 2. 在将来放所有课题的那个目录
 cd topics/my-topic && magi init      # 3. 建一个课题
 magi ingest auto                     # 4. 把 PDF 丢进 inbox/ 之后
@@ -117,13 +117,21 @@ magi sync --fix --dry-run   # 先看会跑哪几条
 
 ## 安装 {#install}
 
-安装就一条命令：
+安装就一条命令，而且升级用的是同一条：
 
 ```powershell
-pipx install magi-research      # 或者：uv tool install magi-research
+pipx upgrade --install magi-research
 ```
 
-就这些——不需要 git，而且装完之后 MAGI 再也不会调用 pipx 或 uv。机器上已经有 Python 3.10+ 就用 **pipx**；不想操心 Python 就用 **uv**，它自带 3.12。下面是升级、按项目安装，以及某些摄入路线才用得上的外部工具。
+没装就装，旧了就升，已经是最新就什么都不做——所以想跑几次跑几次。（`--install` 需要 pipx 1.5 以上；更老的 pipx 首装用 `pipx install magi-research`，之后升级用 `pipx upgrade magi-research`。）
+
+不需要 git，而且装完之后 MAGI 再也不会调用 pipx 或 uv。**pipx 是默认选择**，前提是机器上已经有 Python 3.10+；没有的话用**备选的 uv**，它自带 3.12：
+
+```powershell
+uv tool install --force magi-research   # uv 的等价写法，同样一条管装和升
+```
+
+下面是按项目安装，以及某些摄入路线才用得上的外部工具。
 
 ### 一键安装（推荐）{#install-oneline}
 
@@ -143,9 +151,9 @@ curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | 
 
 脚本按顺序做三件事：
 
-1. 缺 [uv](https://docs.astral.sh/uv/) 就先装 uv；
-2. `uv tool install --force --python 3.12 magi-research`——从 PyPI 装，uv 自带 Python 3.12，**你不需要预装 Python**；
-3. 执行 `magi setup`：装 Beads（`bd`）、拉 Ollama 嵌入模型、注册 Claude Code 插件、报告检测到的 agent CLI、检测旧版 Wikify 残留，最后打印体检表。
+1. 找一个包管理器：有 pipx 就用 pipx；没有就往它找到的 Python 3.10+ 上装一个；再没有就退回 [uv](https://docs.astral.sh/uv/)——uv 自带 Python 3.12，**你不需要预装 Python**；
+2. `pipx upgrade --install magi-research`（或 uv 的等价写法）——从 PyPI 装或升，一步到位；
+3. 执行 `magi setup`：问你要哪些可选功能、要任务待办就装 Beads（`bd`）、拉 Ollama 嵌入模型、注册 Claude Code 插件、报告检测到的 agent CLI、检测旧版 Wikify 残留，最后打印体检表。
 
 **幂等**：重跑同一条命令就是升级。
 
@@ -162,14 +170,21 @@ curl -LsSf https://raw.githubusercontent.com/Misaka16384/magi/main/install.sh | 
 ### 手动安装、升级、卸载 {#install-manual}
 
 ```powershell
-uv tool install magi-research           # 安装（pipx install magi-research 也行）
-uv tool install --force magi-research   # 升级
+pipx upgrade --install magi-research    # 装或升级，一条命令管两件事
+pipx uninstall magi-research            # 卸载
+pipx list                               # 看装了什么版本
+
+# 或者用 uv（不想自己管 Python 的话）：
+uv tool install --force magi-research   # 装或升级
 uv tool uninstall magi-research         # 卸载
 uv tool list                            # 看装了什么版本
 
 # 想试还没发版的改动：
 uv tool install --force git+https://github.com/Misaka16384/magi
 ```
+
+> [!WARN]
+> pipx 和 uv 的可执行入口放在**同一个目录**（`~/.local/bin`）。两个都用来装过 MAGI、然后卸载其中一个，会把另一个还在依赖的那个入口一起删掉——`magi` 从 PATH 上消失，而 `uv tool list` 还坚称它装着。挑一个用到底；已经中招的话，`uv tool install --force magi-research`（或 pipx 的等价命令）能把入口补回来。
 
 装完随时体检：
 
@@ -198,7 +213,7 @@ magi setup --check
 
 | 东西 | 装在哪 | 数量 |
 |---|---|---|
-| `magi` CLI | 用户级（`uv tool install`），在 PATH 上 | 全机一份 |
+| `magi` CLI | 用户级（`pipx install` / `uv tool install`），在 PATH 上 | 全机一份 |
 | skills | **每个工作区**里，按宿主分目录（`magi skills install`） | 每个课题一份 |
 | 工作区 | 你的课题目录 | 每个课题一个 |
 | 全局配置与注册表 | `~/.config/magi/`（Windows 是 `C:\Users\<你>\.config\magi\`，**不是** AppData） | 全机一份 |
@@ -206,7 +221,7 @@ magi setup --check
 装一次 CLI，之后每开一个新课题只需要 `magi init` + `magi skills install`。
 
 > [!WARN]
-> 真·项目内安装（`uv venv && uv pip install -e .`）只推荐给要改 MAGI 源码的人。这样装出来的 `magi` **不在 PATH 上**，只能用 `.venv\Scripts\python.exe -m magi.cli ...` 调用；而 skills、Claude Code 的 SessionStart 钩子、雷达定时任务全都是按裸命令名 `magi` 去 PATH 里找的，它们会找不到。日常使用请用 `uv tool install`。
+> 真·项目内安装（`uv venv && uv pip install -e .`）只推荐给要改 MAGI 源码的人。这样装出来的 `magi` **不在 PATH 上**，只能用 `.venv\Scripts\python.exe -m magi.cli ...` 调用；而 skills、Claude Code 的 SessionStart 钩子、雷达定时任务全都是按裸命令名 `magi` 去 PATH 里找的，它们会找不到。日常使用请用 `pipx`（或 `uv tool install`）。
 
 ### 让你的 CLI agent 学会用 MAGI {#install-hosts}
 

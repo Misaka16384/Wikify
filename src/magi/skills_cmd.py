@@ -16,7 +16,8 @@ Scopes:
   spends the agent's attention for nothing.
 
 The skill files ship inside the wheel (``magi/skills/*/SKILL.md``), so this
-works from a plain ``uv tool install`` with no repo checkout and no network.
+works from a plain ``pipx``/``uv tool`` install with no repo checkout and no
+network.
 """
 
 from __future__ import annotations
@@ -522,7 +523,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     skills = load_skills()
     if not skills:
         msg = {"error": "no skills found in this installation",
-               "hint": "reinstall: uv tool install --force magi-research"}
+               "hint": "reinstall: pipx upgrade --install magi-research "
+                       "(or uv tool install --force magi-research)"}
         print(json.dumps(msg, ensure_ascii=False) if getattr(args, "json", False)
               else f"error: {msg['error']} — {msg['hint']}")
         return 1

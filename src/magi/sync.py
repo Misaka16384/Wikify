@@ -176,6 +176,14 @@ def casper_status(topic: Path, scan: _WikiScan | None = None) -> dict:
             "score": round(0.7 * freshness + 0.3 * coverage, 3)}
 
 
+class _RadarOff(Exception):
+    """Sentinel: the radar is switched off, so its whole hint block is skipped.
+
+    Deliberately not StopIteration — PEP 479 turns that into a RuntimeError
+    inside a generator, and this block is one refactor away from being in one.
+    """
+
+
 def balthasar_status(topic: Path | None) -> dict:
     from magi.pm import bd_available, bd_status_summary, find_beads_root
 
@@ -236,14 +244,20 @@ def build_report(cwd: Path | None = None) -> dict:
                   unverified=n_unv)
 
     try:
-        from magi.kb_registry import load_settings
+        from magi.features import feature_enabled
 
-        kb_only = load_settings().get("profile") == "kb-only"
+        tasks_on = feature_enabled("tasks")
+        radar_on = feature_enabled("radar")
     except Exception:
-        kb_only = False
+        # An unreadable settings file must not turn features off — absent has
+        # always meant on, and a read error is less information than absent.
+        tasks_on = radar_on = True
 
-    if kb_only:
-        cores["balthasar"] = {"state": "disabled", "note": "kb-only profile", "score": None}
+    if not tasks_on:
+        # Not a core that is failing: a core that was switched off. It carries
+        # no weight, so the sync ratio is out of the two that are running
+        # rather than permanently capped at two thirds.
+        cores["balthasar"] = {"state": "disabled", "note": "turned off", "score": None}
     else:
         b = balthasar_status(topic)
         cores["balthasar"] = b
@@ -264,7 +278,11 @@ def build_report(cwd: Path | None = None) -> dict:
             _hint("index-missing", "magi index   # build the retrieval index")
         elif c["state"] == "stale":
             _hint("index-stale", "magi index   # refresh the retrieval index")
+        # Radar off means no radar hints at all — not a nag about a harvest
+        # that is deliberately not happening.
         try:
+            if not radar_on:
+                raise _RadarOff
             from magi.core.config_loader import get as cfg_get, load_config
             from magi.radar import harvest_age_days, pending_names, scan_reports
 

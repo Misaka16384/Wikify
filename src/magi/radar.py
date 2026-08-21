@@ -1056,7 +1056,8 @@ def cmd_install_schedule(args: argparse.Namespace) -> int:
 
     magi_exe = shutil.which("magi")
     if not magi_exe:
-        print("magi not found on PATH — install with 'uv tool install .' first", file=sys.stderr)
+        print("magi not found on PATH — install it first: "
+              "pipx upgrade --install magi-research", file=sys.stderr)
         return 1
     # Belt and braces on the working directory. `--topic-dir` now steers config
     # discovery on its own, but a scheduled task that also *starts* in the
