@@ -2,7 +2,42 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-21 · 当前阶段：**v1.10.3 已发布**（tag `v1.10.3`；版本号同步 ×5）。此前：M0–M9 全部完成。
+> 最后更新：2026-08-21 · 当前阶段：**v1.11.0 已发布**（tag `v1.11.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+>
+> 2026-08-21 确定性摄入、批量审批闸门、可关闭的功能 (v1.11.0)：这一版的起点是一次真实事故——一位客户用 codex 的 goal 模式跑 `magi radar harvest`，一次把周额度跑完了。
+>
+> **事故根因（两轮只读调查 + 16 个 subagent，客户日志佐证）**：radar harvest 本身几乎不花 token，但它产出的 accept 卡片正文是一句写给 agent 的祈使句「下载 PDF/源码到 inbox/ 并运行 wiki_ingest 技能」。agent 照做，然后连撞三次静默降级：MinerU 默认关闭（`ocr.use_mineru: false` 出现在每一个新工作区）→ 本地 OCR 需要 `ollama pull glm-ocr`，网络失败并反复重试 → 最后自己上手 Native Vision，**一页一个 subagent**。实测一篇 99 页的论文烧掉约 134,000 orchestrator token，而走本地 OCR 只需要一次 shell 调用。三次降级，零次提问。
+>
+> **真正的根因不是视觉路线贵，而是 MAGI 能转换文档却从来不会获取文档。** `src/magi/ingest/` 里唯一有网络代码的是 `mineru.py` 和 `ocr_engine.py`，没有任何东西负责把源文件取回来。没有确定性的获取路径，agent 只能即兴发挥。
+>
+> **① 阶梯，测过才定的。** 新的 rung 1 是 **arXiv 自己的 LaTeXML HTML**（`arxiv.org/html/{id}` → `ar5iv` 回退）。37 个 id 实测：ar5iv 在本用户库占多数的 2023 年前切片上 **14/15 = 93%**，1992–2019 全覆盖，**每一条命中都带 `alttext`**（每篇 107–2381 处）；原始 TeX 逐字写在属性里，读它不是识别，是读一段本来就写好的 TeX。`2608.20333` 上 767 个 `<math>` / 767 个 `alttext` / 767 个 `<annotation encoding="application/x-tex">`，1:1:1。原生 `/html` 也**不像官方文档说的那样卡在 2023-12**，2000 年的论文照样命中。
+>
+> 两次头对头比较直接暴露了旧 tarball 路线的实伤：`2401.00506` 上 `tex2md` **静默丢掉全部 6 张图**（它自己的日志写着 "references 6 figure(s) but only 0 survived"），而图片文件就在主 `.tex` 旁边；`cond-mat/0001002` 上 pandoc 直接死在 `\vskip 0.3truein` 这个 plain-TeX 原语上，什么都没产出。唯一还赢的一项是 `align` 分组，那是个后处理问题，不是保留 tarball 的理由——tarball 依然是 rung 2，因为 rung 1 是 beta，没有 SLA。
+>
+> **② 阶梯上跑的是闸门，不是偏好。** `arxiv-html → tex → textlayer → mineru → ocr`，**`vision` 不在阶梯里**，永远掉不到它上面。纯文本层那一级由 PyMuPDF 的两个正交判断决定：有没有可用文本层、里面有没有数学。顺带纠正一条我自己先前写错的判断：**真实 arXiv PDF 上根本没有 U+FFFD**——CM/AMS 字体的 `/Encoding /Differences` 里有规范字形名，MuPDF 已经解开了。字符是好的，**活不下来的是二维结构**（从一个横线字形加上下两坨内容里还原 `\frac{a}{b}`）。结论没变，但理由是结构性的，不是编码性的。
+>
+> **③ 没有人批准过的东西进不了库。** 新的 `output/ingest/` 走 append-only JSONL + last-write-wins（`seen.jsonl` 已经验证过的那套），`queue.jsonl` 一行一个请求，`<batch_id>.jsonl` 一行一个条目。`batch-run` 在开始时对队列做快照，只处理严格早于该次读取的条目——否则一条"拒绝并重试"会被卷进它本来要跟在后面的那一批。闸门在 commit，不在 review：一条转换完就能审，但没有全部决定完谁也进不了 `raw/`。拒绝会**自动降到下一级并出现在下一批**，用户不用手动重投。
+>
+> **④ Zotero 导入，在用户真实的 758 条库上量过。** 直接带 arXiv id 的有 221 条；**批量 DOI→Semantic Scholar 把它抬到 370 条（48.8%）**。用 `POST /graph/v1/paper/batch`——官方 OpenAPI 写 500 个 id 一次，**匿名限额实测拒绝 295，100 可以**，所以按 100 切。标题守卫是**比例**不是固定下限（固定下限 3 会把 "Fractons" 对 "Fractons" 判成不匹配）。SQLite 一律**先复制再只读打开**，绝不碰用户正在跑的库；`extensions.zotero.dataDir` 从 prefs.js 读，这是跨平台唯一权威来源。
+>
+> **⑤ 浏览器按钮，故意做得什么都不会。** `browser-extension/` 只有 manifest + popup，不抓取、不下载、不解析，只发一个 URL 和一个库名。`POST /api/ingest/enqueue` 的全部能力就是往 `queue.jsonl` 追加一行；它不 import `subprocess`、不碰 `pipeline.py`、不调 `task_manager.create_job()`，有测试盯着这条边界。**没有 auth token 是明确的决策**，安全性靠的是这个端点的爆炸半径，不是认证。
+>
+> **⑥ 从技能层把事故关掉。** 重写了 `wiki_ingest/SKILL.md` 的 PDF 分支——原来的 MUST 步骤写着 *MinerU 优先 → Native Vision 回退 → 本地 OCR 只在"用户明确要求"时*，而**无人值守的 agent 没有用户可以提出要求，所以它永远够不着便宜那条路**。所有技能的工具映射表加了 **ask-user** 这一行：此前只有 read-file / sub-agent / shell / web-search，**没有提问原语，所以沉默是结构性的，不是疏忽**。技能改成语义软路由（描述能力，不写死宿主工具名），所有问题汇总到主 agent。radar accept 卡片正文从祈使句改成一条可以直接跑的命令。
+>
+> **⑦ 安装：一条命令，装和升都归它。** `pipx upgrade --install magi-research` —— 在隔离的 `PIPX_HOME` 里实测：没装就装，装了就升，已经最新就什么都不做；而裸 `pipx upgrade` 在没装时直接报错。pipx 全面提到前面，uv 降为备选（没有 Python 3.10+ 时用，它自带 3.12）。doctor 加了 `pipx` 行——此前这个问题只在 "uv: not installed" 那行里顺带回答。
+>
+> **⑧ 文献雷达和任务待办变成可以关掉的功能。** `magi setup` 先问 MAGI 自己的功能、再问外部工具，因为**只有前者是它能动手的**：雷达是纯 MAGI，任务待办要 `bd` 而 setup 自己会装。默认全开，且**没有记录 = 开**——升级上来的用户不能因为版本号变了就丢掉天天在用的面板；旧的 `profile: kb-only` 依然优先。**关掉的功能不是故障**：它在同步率里不占权重（关掉任务待办让一个测试工作区从 57.6% 升到 86.3%，而不是永远封顶在三分之二）。WebUI 里对应面板变灰、保留标签页、顶上一张卡说明它是什么、打开能得到什么、已有数据不会被删。
+>
+> **⑨ 「一键安装」只在诚实的地方给。** MAGI 真正能自己装的只有 `bd`。Ollama / Pandoc / Poppler / LaTeX 是别人的安装器，MinerU 是在线服务——所以这些行只给官网链接和「我装好了，重新检测」，**不给一个点了会开浏览器的"安装"按钮**。Ollama 装好之后才出现「拉取 Ollama 模型」，因为那一件 MAGI 确实能做。
+>
+> **⑩ WebUI 全页复查，抓到的两个是真 bug，不是措辞问题。**
+> - **`ReferenceError: on is not defined` —— 整个仪表盘是死的。** 我自己写了四次 `on(el, "click", …)`，而这个代码库里根本没有这个 helper（其余 84 处全是 `addEventListener`）。语法合法，`node --check` 绿，692 个 Python 测试全绿（没有一个执行 JavaScript），**而页面打不开**。这是同一个文件第二次栽在"语法对、跑不起来"上。加了 `tests/app_js_smoke.js`：在 Node 里用桩 DOM 真加载一遍，再加一个测试**把这个 bug 重新注入**，确认 `node --check` 依然放行而冒烟测试当场拦下。
+> - **任务面板显示 0，而它正上方的核心卡写着 17。** `bd status --json` 的字段叫 `ready_issues`，`sync.py` 把它改名成 `ready`，而面板拿改名后的名字去读原始 payload——四个数全是 `undefined`，`|| 0` 把它变成一个自信的零。归一化下沉到 API，并加了静态守卫：app.js 第三次伸手去拿 `pm.summary.ready` 会直接构建失败。
+> - 检索「Found 10 hit(s)」却不说**当前工作区根本没被搜**（响应里 `kbs_skipped: ["local"]` 一直都在，面板从来没显示过）；Doctor 报的是服务进程 cwd 那个工作区、不是顶栏点名的那个；同一个 op 在两个页面挂着两个不同的作用域词。
+>
+> **⑪ 两个我自己制造又抓回来的坑，都补了守卫。** 重复的 JS 对象键（`radar_settings_title`）静默覆盖了一个全局标题——**重复键在 JS 里完全合法**，而现有的对称性测试比的是集合，`{"a","a"} == {"a"}` 干净通过；新测试改成计数，并且我注入过一个重复键看着它失败。`FeatureRequest` 定义在 `create_app()` 内部——`from __future__ import annotations` 让注解变成字符串，FastAPI 拿**模块**全局去解析，于是 POST body 静默降级成 query 参数。
+>
+> **测试 302 → 730。** 未做/已知：`radar-stress-ws` 还留在注册表里；rung 2 的 pandoc 成功率只在两篇老论文上试过（都暴露了缺陷），完整样本等 rung 1 上线后看 rung 2 真实流量再说；pre-2000 的原生 HTML 桶和非物理学科桶没取到样。
 >
 > 2026-08-21 pipx 与 uv 并列，且 uv 不再是必需项 (v1.10.3)：用户问「现在 uv 是我们的必须项吗？只用 pipx 可以装吗？可以的话就用 pipx 分发」。
 >
