@@ -11,18 +11,22 @@ commands:
 
 This skill handles converting external material (URLs, PDFs, local text files, and items inside `inbox/`) into raw sources.
 
-> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Map each capability to your own agent's tool — *read-file* (`Read` in Claude Code, `view_file` in Antigravity), *sub-agent / parallel task* (`Task`/`Agent` in Claude Code, `invoke_subagent` in Antigravity), *ask-user* (see the note below — **never assume an answer**), *shell* (`Bash`/`PowerShell`). Use the closest equivalent your framework provides; if a parallel sub-agent tool is unavailable, transcribe PDF pages sequentially yourself (still verifying the full page count).
+> **Tools — capabilities, not names.** This skill asks for things like *read a
+> file*, *edit a file*, *run a shell command*, *search the web*, *fetch a page*,
+> *look at an image*, *spawn a sub-agent*. Every host calls these something
+> different and the names change between versions, so use whichever of yours
+> fits. If you genuinely lack one, say so and do the sequential equivalent —
+> never silently skip the step.
 
-> **Asking the user (read before any step that says to):** stopping and asking in your
-> reply, then waiting, is the only mechanism that works on every host — use it by default.
-> A dedicated tool exists on some (`AskUserQuestion` in Claude Code, `request_user_input`
-> in Codex's Plan mode, `question` in opencode; Antigravity has none) and is fine to use
-> when you have one. Two limits matter more than the names:
-> **if you are a sub-agent, the tool will not reach the human** — put the question in the
-> report you return to whoever spawned you; and **in a headless or scheduled run nobody is
-> there**, where every host either denies the tool, errors on it, or hangs. So when there is
-> no answer to be had: do not guess and do not wait. Stop, and say plainly what you would
-> have asked and what you would need to proceed.
+> **Questions go to the main agent.** If you are running as a sub-agent, do not
+> try to ask the human: on most hosts the question will not reach them, and on
+> some it hangs. Put it in the report you return instead, on its own line:
+> `NEEDS-DECISION: <the question> | options: <a> / <b> | default if unanswered: <x>`
+> Whoever spawned you collects these and asks once, together — ten sub-agents
+> must not become ten interruptions.
+> If you **are** the main agent and nobody is there to answer (a scheduled run, a
+> piped run, CI), do not guess and do not wait. Stop, and state plainly what you
+> would have asked and what you need in order to continue.
 
 **Fast path (use it when nothing needs judgment):** `magi ingest auto "<PATH>"` — or
 `magi ingest auto` with no path to take the whole `inbox/` — picks the converter by file
@@ -53,6 +57,7 @@ When the user asks to ingest documents (or runs the command without a path):
     *   **Native Vision — last resort, and never by default**: transcribing a PDF page by page with your own multimodal vision costs roughly **one sub-agent call per page**, and a batch of papers can run to hundreds of calls. It has burned a user's entire weekly quota. Use it **only** when the user has explicitly asked for it after being told the page count, or when they say so having seen `magi ingest auto` report no available route.
         Before you spawn anything: count the pages with a deterministic script (`pymupdf` or `PyPDF2`), state the bill plainly — *"this is 34 pages, so about 34 sub-agent calls"* — and **ask the user to confirm**. If a batch, state the total across all files.
         Once confirmed: one sub-agent per page, never more than 10 concurrent, verify the number of returned transcriptions equals the page count and re-invoke for any missing page, then assemble in order:
+        **Collect any `NEEDS-DECISION:` lines the page sub-agents return** — an unreadable page or an ambiguous figure is something they cannot ask you about themselves. Raise them together, once, rather than per page.
         `magi ingest assemble --dir <PAGES_DIR> --out <FILE_PATH> --title <TITLE> [--source <SRC>] [--type papers]`
     *   **Local OCR**: `magi ingest auto` already picks this for a PDF when Ollama is present and no MinerU token is configured. It is one deterministic command with no fan-out, it supports `--pages`, and it resumes. Reach for the `wiki_ingest_ocr` skill when you need to force it, or need a page range.
     *   For `.md` files or general inbox files, call the ingest helper script:

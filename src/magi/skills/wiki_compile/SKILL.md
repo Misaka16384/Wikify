@@ -12,18 +12,22 @@ commands:
 
 This skill handles the AI-driven "compilation" of high-entropy raw source texts into beautiful, structured, and interconnected literature cards and concept sheets.
 
-> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Map each capability to your own agent's tool — *read-file* (`Read` in Claude Code, `view_file` in Antigravity), *sub-agent / parallel task* (`Task`/`Agent` in Claude Code, `invoke_subagent` in Antigravity), *web-search* (`WebSearch` in Claude Code, `search_web`), *ask-user* (see the note below — **never assume an answer**), *shell* (`Bash`/`PowerShell`). Use the closest equivalent your framework provides; if a parallel sub-agent tool is unavailable, perform the steps sequentially yourself.
+> **Tools — capabilities, not names.** This skill asks for things like *read a
+> file*, *edit a file*, *run a shell command*, *search the web*, *fetch a page*,
+> *look at an image*, *spawn a sub-agent*. Every host calls these something
+> different and the names change between versions, so use whichever of yours
+> fits. If you genuinely lack one, say so and do the sequential equivalent —
+> never silently skip the step.
 
-> **Asking the user (read before any step that says to):** stopping and asking in your
-> reply, then waiting, is the only mechanism that works on every host — use it by default.
-> A dedicated tool exists on some (`AskUserQuestion` in Claude Code, `request_user_input`
-> in Codex's Plan mode, `question` in opencode; Antigravity has none) and is fine to use
-> when you have one. Two limits matter more than the names:
-> **if you are a sub-agent, the tool will not reach the human** — put the question in the
-> report you return to whoever spawned you; and **in a headless or scheduled run nobody is
-> there**, where every host either denies the tool, errors on it, or hangs. So when there is
-> no answer to be had: do not guess and do not wait. Stop, and say plainly what you would
-> have asked and what you would need to proceed.
+> **Questions go to the main agent.** If you are running as a sub-agent, do not
+> try to ask the human: on most hosts the question will not reach them, and on
+> some it hangs. Put it in the report you return instead, on its own line:
+> `NEEDS-DECISION: <the question> | options: <a> / <b> | default if unanswered: <x>`
+> Whoever spawned you collects these and asks once, together — ten sub-agents
+> must not become ten interruptions.
+> If you **are** the main agent and nobody is there to answer (a scheduled run, a
+> piped run, CI), do not guess and do not wait. Stop, and state plainly what you
+> would have asked and what you need in order to continue.
 
 When the user asks to compile the wiki or process raw files, follow this parallelized workflow:
 
@@ -45,7 +49,7 @@ When the user asks to compile the wiki or process raw files, follow this paralle
     *   **Report Status**: The subagent must report back to the main agent once the reference file is written and all concepts are extracted via the command.
 
 ### Phase 3: Coordination and Cleanup (Main Agent)
-4.  **Wait for Completion**: The main agent must wait until all spawned subagents have successfully reported completion. If any subagent fails or times out, log the failure and continue.
+4.  **Wait for Completion**: The main agent must wait until all spawned subagents have successfully reported completion. If any subagent fails or times out, log the failure and continue. **Collect their `NEEDS-DECISION:` lines** as you go: a sub-agent cannot reach the human, so anything it was unsure about is sitting in its report. Ask the user about all of them together, once, at the end — not one interruption per sub-agent.
 5.  **Rebuild Navigation Indexes**: Run the index builder to deterministically rebuild all `_index.md` files:
     `magi wiki reindex "<TOPIC_DIR>"`
 6.  **Run Final Linting**: Run `magi lint --fix "<TOPIC_DIR>"` on the full topic workspace as a final structural pass.

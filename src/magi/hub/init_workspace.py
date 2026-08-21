@@ -171,6 +171,24 @@ environment. Scope: {args.scope}
   swallowed the paragraph after it — that parses as valid LaTeX, so nothing
   else catches it. Work the list with the `wiki_math_fix` skill.
 
+## Asking, and who does it
+
+Only the agent talking to the human asks the human. If you are a sub-agent, the
+question will not reach them on most hosts and hangs on some — put it in the
+report you return instead, on its own line:
+
+    NEEDS-DECISION: <the question> | options: <a> / <b> | default if unanswered: <x>
+
+Whoever spawned you collects these and asks once, together. Ten sub-agents must
+not become ten interruptions.
+
+If you are the main agent and nobody is there (a scheduled run, a piped run, CI),
+do not guess and do not wait: stop and state what you would have asked.
+
+Ask before anything expensive or irreversible, and say what it costs in the same
+breath — "this is 34 pages, so roughly 34 sub-agent calls" is a question someone
+can answer; "proceed?" is not.
+
 ## Ground rules
 
 - Durable state lives in files and databases here — not in your context.
