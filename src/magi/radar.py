@@ -42,9 +42,10 @@ from pathlib import Path
 # already-have dedup.
 from magi.core.arxiv_id import ARXIV_ID_RE
 from magi.core.config_loader import load_config, get as cfg_get
+from magi.core.http import USER_AGENT, Throttle as _CoreThrottle
+from magi.core.http import http_json as core_http_json
+from magi.core.http import http_text as core_http_text
 from magi.core.workspace import find_workspace_root
-
-USER_AGENT = "magi-radar/0.1 (research workspace tool)"
 
 # Per own-paper cap on citation-gap neighbour lookups. Each one is a separate
 # Semantic Scholar request behind ~1.1s of enforced politeness, so this bounds
@@ -52,20 +53,20 @@ USER_AGENT = "magi-radar/0.1 (research workspace tool)"
 NEIGHBOR_BUDGET = 20
 
 
+# radar already spaces its own requests: a bare time.sleep(3) between arXiv
+# category queries and time.sleep(1.1) after each Semantic Scholar call. Letting
+# the shared Throttle also space them would double every wait, so radar opts out
+# and keeps its own timing byte-for-byte. Folding these sleeps into the Throttle
+# is a deliberate follow-up, not a drive-by.
+_NO_THROTTLE = _CoreThrottle({})
+
+
 def _http_json(url: str, payload: dict | None = None, timeout: int = 60) -> dict:
-    data = json.dumps(payload).encode("utf-8") if payload is not None else None
-    req = urllib.request.Request(
-        url, data=data,
-        headers={"Content-Type": "application/json", "User-Agent": USER_AGENT},
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.load(r)
+    return core_http_json(url, payload, timeout, throttle=_NO_THROTTLE)
 
 
 def _http_text(url: str, timeout: int = 60) -> str:
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read().decode("utf-8", errors="replace")
+    return core_http_text(url, timeout, throttle=_NO_THROTTLE)
 
 
 def _ellipsize(text: str, budget: int) -> str:
