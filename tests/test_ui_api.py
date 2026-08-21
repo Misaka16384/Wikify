@@ -430,6 +430,39 @@ def test_docs_and_static(client):
     assert res_vendor.status_code == 200
 
 
+def test_every_op_badge_key_is_translated(client):
+    """Badge keys are looked up at runtime, so the static t() scan misses them.
+
+    `scope` is the concurrency class; `badge_i18n` is the word a reader sees
+    for how far the op reaches. `magi pm init` writes at the hub root, so
+    calling it "machine-wide" overstated it and disagreed with the same op's
+    badge on the Balthasar tab. A missing key here would render "undefined"
+    where the scope warning belongs.
+    """
+    import re
+
+    from magi.ui.jobs import OPS
+
+    js = client.get("/app.js").text
+    block = re.search(r"en:\s*\{(.*?)^\s*\},", js, re.DOTALL | re.MULTILINE)
+    zh = re.search(r"zh:\s*\{(.*?)^\s*\},", js, re.DOTALL | re.MULTILINE)
+    assert block and zh
+    en_keys = set(re.findall(r"^\s*([a-zA-Z0-9_]+)\s*:", block.group(1), re.MULTILINE))
+    zh_keys = set(re.findall(r"^\s*([a-zA-Z0-9_]+)\s*:", zh.group(1), re.MULTILINE))
+
+    assert "ops_badge_global" in en_keys and "ops_badge_global" in zh_keys
+    for op_id, spec in OPS.items():
+        key = spec.get("badge_i18n")
+        if key is None:
+            continue
+        assert key in en_keys, f"{op_id}: badge_i18n {key!r} missing from en"
+        assert key in zh_keys, f"{op_id}: badge_i18n {key!r} missing from zh"
+        assert spec["scope"] == "global", (
+            f"{op_id}: badge_i18n only renders for scope 'global'; this op is "
+            f"{spec['scope']!r}, so the badge would never be shown"
+        )
+
+
 def test_i18n_dictionaries_have_no_duplicate_keys(client):
     """A repeated key is legal JS that silently overrides the earlier one.
 

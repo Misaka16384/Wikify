@@ -1181,6 +1181,9 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                 "danger": spec["danger"],
                 "label_i18n": spec["label_i18n"],
                 "desc_i18n": spec.get("desc_i18n"),
+                # What to call this op's reach on screen; `scope` is the
+                # concurrency class and is too coarse to show.
+                "badge_i18n": spec.get("badge_i18n"),
                 "argv": ["magi", *spec["argv"]],
                 "params": sorted((spec.get("params") or {}).keys()),
             }

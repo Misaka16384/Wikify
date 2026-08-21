@@ -53,7 +53,12 @@ OPS: dict[str, dict] = {
     # type-the-exact-name modal, next to genuine deletions, while being the
     # exact step the dashboard tells a new user to take second. That made the
     # whole task-tracking bootstrap read as something to avoid.
+    # `scope: "global"` is the concurrency class — a global job blocks every
+    # other one. It is not the sentence to show a reader: `magi pm init`
+    # writes at the hub root, which is wider than the workspace in the picker
+    # but narrower than the machine. `badge_i18n` names the real reach.
     "pm-init": {"argv": ["pm", "init"], "scope": "global", "danger": False,
+                "badge_i18n": "scope_badge_hub",
                 "label_i18n": "btn_danger_pm_init", "desc_i18n": "danger_pm_init_desc"},
     "radar-harvest": {"argv": ["radar", "harvest"], "scope": "kb", "danger": False,
                       "label_i18n": "btn_radar_harvest",

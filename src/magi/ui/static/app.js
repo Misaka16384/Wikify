@@ -155,7 +155,7 @@
       bal_backlog_sync_desc: "扫描 raw/ 里还没编译成参考卡片的原始文献，为每一篇建一条任务",
       bal_store_shared: "任务库位于 Hub：{root} —— 下面这四个数字属于该 Hub 下的全部课题，不只是当前工作区。",
       bal_store_local: "任务库位于本工作区：{root}",
-      bal_badge_hub: "Hub 级",
+      scope_badge_hub: "Hub 级",
       bal_init_writes_hub: "在 Hub 根目录建库，该 Hub 下所有课题共用",
       bal_ready_label: "可执行",
       bal_ready_sub: "可直接启动的任务",
@@ -264,6 +264,8 @@
       ops_scope: "以下操作作用于：{name}",
       ops_scope_none: "先在上方选一个知识库。",
       ops_badge_global: "全机生效",
+      ingest_run_caption: "把队列里的全部抓下来、转换、跑校验 · 此步不会写入知识库",
+      ingest_commit_caption: "把已批准的条目移入 raw/ 并编译 · 这一步才真正写入知识库",
       doctor_scope: "工具与路径是全机的；「本工作区」相关的几行说的是：{name}",
       metric_not_applicable: "未建库",
       hint_dest_tab: "点击跳转到「{name}」标签页 · 不执行任何命令",
@@ -696,7 +698,7 @@
       bal_backlog_sync_desc: "Scan raw/ for sources with no compiled reference card yet, and open one task per source",
       bal_store_shared: "Task store lives at the hub: {root} — the four numbers below cover every topic under it, not just this workspace.",
       bal_store_local: "Task store lives in this workspace: {root}",
-      bal_badge_hub: "hub-level",
+      scope_badge_hub: "hub-level",
       bal_init_writes_hub: "Creates the store at the hub root, shared by every topic under it",
       bal_ready_label: "Ready",
       bal_ready_sub: "Actionable tasks",
@@ -805,6 +807,8 @@
       ops_scope: "These act on: {name}",
       ops_scope_none: "Pick a knowledge base above first.",
       ops_badge_global: "machine-wide",
+      ingest_run_caption: "Fetches and converts everything queued, then gate-checks it · nothing reaches the library yet",
+      ingest_commit_caption: "Moves approved items into raw/ and compiles them · this is the step that writes to the library",
       doctor_scope: "Tools and paths are machine-wide. Rows that say \"this workspace\" mean: {name}",
       metric_not_applicable: "no store",
       hint_dest_tab: "Opens the {name} tab · runs nothing",
@@ -2347,7 +2351,8 @@
         // and this row is where most people meet it first.
         if (entry && entry.scope === "global" && labelEl) {
           labelEl.insertAdjacentHTML("beforeend",
-            ` <span class="badge badge-muted op-scope-badge">${escapeHtml(t("ops_badge_global"))}</span>`);
+            ` <span class="badge badge-muted op-scope-badge">${escapeHtml(
+              t(entry.badge_i18n || "ops_badge_global"))}</span>`);
         }
       } else {
         const dest = document.createElement("div");
@@ -3597,7 +3602,7 @@
         // it cannot read as a local action here and a global one there.
         go.innerHTML =
           `<span>${escapeHtml(t("btn_danger_pm_init"))}</span>` +
-          ` <span class="badge badge-muted op-scope-badge">${escapeHtml(t("bal_badge_hub"))}</span>`;
+          ` <span class="badge badge-muted op-scope-badge">${escapeHtml(t("scope_badge_hub"))}</span>`;
         go.title = t("bal_init_writes_hub");
         go.addEventListener("click", () => {
           launchJob("pm-init", t("btn_danger_pm_init"), null, { stay: true });
@@ -4805,7 +4810,7 @@
       b.title = t(tipKey);
       if (hubLevel) {
         b.insertAdjacentHTML("beforeend",
-          ` <span class="badge badge-muted op-scope-badge">${escapeHtml(t("bal_badge_hub"))}</span>`);
+          ` <span class="badge badge-muted op-scope-badge">${escapeHtml(t("scope_badge_hub"))}</span>`);
       }
       // A decision restored from the server disables its row's actions the
       // same way a fresh one does — otherwise reloading mid-triage makes every
@@ -5152,17 +5157,19 @@
       // A global op does not touch the selected workspace — it touches the
       // machine. `pm-init` reads as "set up tasks here" and is not; setup and
       // migrate sit beside workspace-scoped actions looking identical.
-      if (entry.scope === "global") {
+      // "machine-wide" on `pm-init` overstated it and disagreed with the same
+      // op's badge on the Balthasar tab. The op names its own word.
+      const badge = entry.scope === "global"
+        ? t(entry.badge_i18n || "ops_badge_global") : null;
+      if (badge) {
         btn.classList.add("op-global");
         const label = btn.querySelector(".op-label");
         if (label) {
           label.insertAdjacentHTML("beforeend",
-            ` <span class="badge badge-muted op-scope-badge">${t("ops_badge_global")}</span>`);
+            ` <span class="badge badge-muted op-scope-badge">${escapeHtml(badge)}</span>`);
         }
       }
-      btn.title = entry.scope === "global"
-        ? `${t("ops_badge_global")} — ${entry.argv.join(" ")}`
-        : entry.argv.join(" ");
+      btn.title = badge ? `${badge} — ${entry.argv.join(" ")}` : entry.argv.join(" ");
       if (entry.danger) {
         btn.className = "btn btn-danger danger-action-btn";
         btn.addEventListener("click", () => openDangerConfirm(entry));

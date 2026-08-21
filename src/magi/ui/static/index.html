@@ -630,10 +630,16 @@
           <span class="card-subtitle" data-i18n="ingest_undecided_sub">Converted, nothing in the library yet</span>
         </div>
         <div class="card radar-actions">
-          <button class="btn btn-primary" id="btn-ingest-run" data-i18n="btn_ingest_run">Run the Queue</button>
+          <button class="btn btn-primary" id="btn-ingest-run"
+                  data-i18n-title="ingest_run_caption"
+                  data-i18n="btn_ingest_run">Run the Queue</button>
+          <span class="btn-caption" data-i18n="ingest_run_caption">Fetches and converts everything queued, then gate-checks it · nothing reaches the library yet</span>
           <div class="radar-actions-row">
-            <button class="btn btn-secondary btn-sm" id="btn-ingest-commit" data-i18n="btn_ingest_commit">Commit Approved</button>
+            <button class="btn btn-secondary btn-sm" id="btn-ingest-commit"
+                    data-i18n-title="ingest_commit_caption"
+                    data-i18n="btn_ingest_commit">Commit Approved</button>
           </div>
+          <span class="btn-caption" data-i18n="ingest_commit_caption">Moves approved items into raw/ and compiles them · this is the step that writes to the library</span>
         </div>
       </div>
 
