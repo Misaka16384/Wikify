@@ -12,6 +12,7 @@ from pathlib import Path
 
 from magi.core.arxiv_id import ARXIV_ID_RE, abs_url, normalize_arxiv_id
 from magi.core.config_loader import load_config, get as cfg_get
+from magi.ingest.convert_result import ConversionResult
 
 def extract_title(tex_content):
     match = re.search(r'\\title\{([^}]+)\}', tex_content)
@@ -278,31 +279,35 @@ def handle_figures(md_content, tex_content, tex_dir, output_dir, slug):
     md_content = html_re.sub(html_repl, md_content)
 
     # Safety net: figures that vanished during conversion (neither markdown
-    # nor HTML output) would otherwise disappear silently.
+    # nor HTML output) would otherwise disappear silently. Measured on a real
+    # submission (arXiv 2401.00506): 6 referenced, 0 survived, while the run
+    # still reported success. Returned as well as printed now, because a print
+    # inside a captured subprocess is not a signal anyone downstream can act on.
     n_tex_figs = len(re.findall(r'\\includegraphics', tex_content))
     n_seen = stats["ok"] + stats["missing"]
-    if n_tex_figs > n_seen:
+    n_dropped = max(0, n_tex_figs - n_seen)
+    if n_dropped:
         print(f"  [fig] WARNING: TeX source references {n_tex_figs} figure(s) but only "
               f"{n_seen} survived conversion — some figures were dropped by Pandoc; "
               "check the output against the original PDF")
 
-    return md_content, stats["ok"], stats["missing"]
+    return md_content, stats["ok"], stats["missing"], n_dropped
 
 
-def main(argv=None):
-    parser = argparse.ArgumentParser(prog="magi ingest tex", description="Convert TeX/arXiv tar.gz to Markdown using Pandoc.")
-    parser.add_argument("input_path", help="Path to the .tex or .tar.gz file.")
-    parser.add_argument("-o", "--output_dir", required=True, help="Output directory for the raw Markdown file.")
-    args = parser.parse_args(argv)
+def convert(input_path, output_dir) -> ConversionResult:
+    """Convert a .tex or arXiv source archive to Markdown.
 
-    input_path = args.input_path
+    Returns a result instead of calling sys.exit, so a caller running this
+    in-process can see *what* went wrong. `main` keeps the old stdout and exit
+    code exactly, so nothing invoking `magi ingest tex` notices the change.
+    """
     # Pandoc runs with cwd=tex_dir, so a relative output dir would make it
     # write the temp file somewhere we would never find it again.
-    output_dir = os.path.abspath(args.output_dir)
+    output_dir = os.path.abspath(output_dir)
 
     if not os.path.isfile(input_path):
         print(f"Error: File '{input_path}' not found.")
-        sys.exit(1)
+        return ConversionResult.failed(f"File '{input_path}' not found.")
 
     base_name = os.path.basename(input_path)
     slug = _archive_slug(base_name)
@@ -332,7 +337,9 @@ def main(argv=None):
         tex_path = find_main_tex(extract_dir, slug=slug)
         if not tex_path:
             print("Error: Could not find main .tex file in the archive.")
-            sys.exit(1)
+            temp_dir_obj.cleanup()
+            return ConversionResult.failed(
+                "Could not find main .tex file in the archive.")
         tex_dir = os.path.dirname(tex_path)
     else:
         tex_path = input_path
@@ -452,7 +459,10 @@ def main(argv=None):
             print(result.stderr)
             if os.path.exists(temp_md_path):
                 os.remove(temp_md_path)
-            sys.exit(1)
+            # Old TeX is a real failure mode here: measured, pandoc dies on a
+            # plain-TeX primitive like \vskip 0.3truein and produces nothing.
+            return ConversionResult.failed(
+                "Pandoc conversion failed.", result.stderr.strip())
 
         with open(temp_md_path, 'r', encoding='utf-8') as f:
             md_content = f.read()
@@ -461,7 +471,7 @@ def main(argv=None):
 
         # Copy/convert figures into output_dir/images/ and rewrite links.
         # MUST run before the temp dir (containing the extracted figures) is cleaned up.
-        md_content, n_fig_ok, n_fig_missing = handle_figures(
+        md_content, n_fig_ok, n_fig_missing, n_fig_dropped = handle_figures(
             md_content, tex_content, tex_dir, output_dir, slug)
         print(f"Figures: {n_fig_ok} embedded into images/, {n_fig_missing} unresolved")
 
@@ -490,11 +500,41 @@ def main(argv=None):
                 print(f"Warning: could not preserve citation asset ({exc})")
 
         print(f"Successfully converted and saved to {output_path}")
+
+        outcome = ConversionResult(
+            success=True,
+            markdown_path=str(output_path),
+            images_dir=os.path.join(output_dir, "images"),
+            pages_processed=0,          # not a paginated route
+        )
+        if n_fig_dropped:
+            outcome.flag(
+                "figure-count-mismatch",
+                f"TeX references {n_fig_dropped + n_fig_ok + n_fig_missing} figure(s); "
+                f"{n_fig_dropped} were dropped by Pandoc and are absent from the output",
+            )
+        if n_fig_missing:
+            outcome.flag(
+                "figure-unresolved",
+                f"{n_fig_missing} figure reference(s) could not be resolved to a file",
+            )
+        return outcome
     finally:
         if inlined_tex_path and not temp_dir_obj and os.path.exists(inlined_tex_path):
             os.remove(inlined_tex_path)
         if temp_dir_obj:
             temp_dir_obj.cleanup()
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi ingest tex", description="Convert TeX/arXiv tar.gz to Markdown using Pandoc.")
+    parser.add_argument("input_path", help="Path to the .tex or .tar.gz file.")
+    parser.add_argument("-o", "--output_dir", required=True, help="Output directory for the raw Markdown file.")
+    args = parser.parse_args(argv)
+
+    result = convert(args.input_path, args.output_dir)
+    return 0 if result.success else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

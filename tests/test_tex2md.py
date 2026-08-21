@@ -7,6 +7,7 @@ on a real bundle is as likely to be the supplement as the paper.
 """
 
 import os
+import shutil
 import tarfile
 
 import pytest
@@ -138,6 +139,68 @@ def test_selection_is_deterministic(tmp_path):
 
     picks = {tex2md.find_main_tex(str(tmp_path)) for _ in range(5)}
     assert len(picks) == 1
+
+
+# --------------------------------------------------------------------------
+# The two forms round-trip through a real archive
+# --------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------
+# convert() reports instead of exiting
+# --------------------------------------------------------------------------
+
+def test_a_missing_input_is_a_result_not_an_exit(tmp_path):
+    """The route used to sys.exit(1) here, which a caller cannot inspect."""
+    result = tex2md.convert(str(tmp_path / "nope.tex"), str(tmp_path / "out"))
+    assert result.success is False
+    assert any("not found" in e for e in result.errors)
+
+
+def test_an_archive_with_no_tex_reports_rather_than_exits(tmp_path):
+    src = tmp_path / "notes.txt"
+    src.write_text("no tex here", encoding="utf-8")
+    archive = tmp_path / "2608.16520.tar.gz"
+    with tarfile.open(archive, "w:gz") as tar:
+        tar.add(src, arcname="notes.txt")
+
+    result = tex2md.convert(str(archive), str(tmp_path / "out"))
+    assert result.success is False
+    assert any("main .tex" in e for e in result.errors)
+
+
+def test_main_still_exits_1_on_failure(tmp_path, capsys):
+    """The CLI contract is unchanged: same stdout, same exit code."""
+    code = tex2md.main([str(tmp_path / "nope.tex"), "-o", str(tmp_path / "out")])
+    assert code == 1
+    assert "not found" in capsys.readouterr().out
+
+
+@pytest.mark.skipif(shutil.which("pandoc") is None, reason="pandoc not installed")
+def test_a_real_conversion_reports_unresolved_figures_as_a_finding(tmp_path):
+    """Figure loss used to be a print swallowed by the calling subprocess."""
+    src = tmp_path / "src"
+    src.mkdir()
+    _write(src, "main.tex",
+           r"\documentclass{article}" "\n"
+           r"\title{A Small Paper}" "\n"
+           r"\begin{document}\maketitle\section{Intro}" "\n"
+           r"Energy is $E = mc^2$." "\n"
+           r"\includegraphics{missingfig}" "\n"
+           r"\end{document}")
+
+    archive = tmp_path / "2608.16520.tar.gz"
+    with tarfile.open(archive, "w:gz") as tar:
+        tar.add(src / "main.tex", arcname="main.tex")
+
+    result = tex2md.convert(str(archive), str(tmp_path / "out"))
+
+    assert result.success is True
+    assert os.path.isfile(result.markdown_path)
+    codes = {f.code for f in result.findings}
+    assert "figure-unresolved" in codes
+    # Identity rides in on the filename and must reach the frontmatter.
+    body = open(result.markdown_path, encoding="utf-8").read()
+    assert "arxiv_id: '2608.16520'" in body
 
 
 # --------------------------------------------------------------------------

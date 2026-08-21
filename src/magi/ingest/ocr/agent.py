@@ -28,6 +28,10 @@ from magi.ingest.ocr.markdown_builder import MarkdownBuilder, MarkdownCleaner
 from magi.ingest.ocr.figure_extractor import extract_figures, inject_figures
 from magi.core.arxiv_id import abs_url, normalize_arxiv_id
 from magi.core.config_loader import load_config, get as cfg_get
+# Relocated so tex2md and mineru can share it without importing from inside the
+# ocr subpackage. Re-exported here: this module's callers still do
+# `from magi.ingest.ocr.agent import ConversionResult`.
+from magi.ingest.convert_result import ConversionResult, Finding  # noqa: F401
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
@@ -35,16 +39,6 @@ from rich.panel import Panel
 from rich.table import Table
 
 console = Console()
-
-
-@dataclass
-class ConversionResult:
-    """转换结果"""
-    success: bool
-    markdown_path: str
-    images_dir: str
-    pages_processed: int
-    errors: List[str]
 
 
 class PDF2MarkdownAgent:

@@ -9,27 +9,29 @@ from datetime import datetime
 import requests
 import yaml
 
+from magi.core.arxiv_id import abs_url, normalize_arxiv_id
 from magi.core.config_loader import load_config, get as cfg_get
 from magi.core.wiki_common import atomic_write
+from magi.ingest.convert_result import ConversionResult
 
-def main(argv=None):
-    parser = argparse.ArgumentParser(prog="magi ingest mineru", description="Convert PDF to Markdown using MinerU Cloud API.")
-    parser.add_argument("input_path", help="Path to the .pdf file.")
-    parser.add_argument("-o", "--output_dir", required=True, help="Output directory for the raw Markdown file.")
-    args = parser.parse_args(argv)
 
-    input_path = args.input_path
-    output_dir = args.output_dir
+def convert(input_path, output_dir) -> ConversionResult:
+    """Convert a PDF to Markdown via the MinerU cloud API.
 
+    Returns a result instead of calling sys.exit — there were twelve exit
+    points in here, which meant a caller running this in-process could not
+    learn whether it failed on a missing token, a timeout, or a bad zip.
+    `main` keeps the old stdout and exit code exactly.
+    """
     if not os.path.isfile(input_path):
         print(f"Error: File '{input_path}' not found.")
-        sys.exit(1)
+        return ConversionResult.failed(f"File '{input_path}' not found.")
 
     _cfg = load_config()
     api_token = cfg_get(_cfg, "ocr.mineru_api_token", "")
     if not api_token:
         print("Error: mineru_api_token not configured in config.yaml")
-        sys.exit(1)
+        return ConversionResult.failed("mineru_api_token not configured in config.yaml")
 
     # Unset proxy to avoid SSLEOFError
     os.environ.pop("http_proxy", None)
@@ -60,17 +62,17 @@ def main(argv=None):
         body = res.json()
     except ValueError:
         print(f"Error: upload-URL response was not JSON (status {res.status_code}): {res.text}")
-        sys.exit(1)
+        return ConversionResult.failed(f"upload-URL response was not JSON (status {res.status_code})")
     if res.status_code != 200 or body.get("code") != 0:
         print("Error getting upload URL:", res.text)
-        sys.exit(1)
+        return ConversionResult.failed(f"getting upload URL failed: {res.text}")
 
     result_data = body.get("data") or {}
     batch_id = result_data.get("batch_id")
     file_urls = result_data.get("file_urls") or []
     if not batch_id or not file_urls:
         print(f"Error: unexpected upload-URL response shape: {body}")
-        sys.exit(1)
+        return ConversionResult.failed(f"unexpected upload-URL response shape: {body}")
     upload_url = file_urls[0]
 
     print(f"Uploading {base_name}...")
@@ -78,7 +80,7 @@ def main(argv=None):
         res_upload = requests.put(upload_url, data=f, timeout=(10, 300))
         if res_upload.status_code != 200:
             print("Upload failed:", res_upload.status_code)
-            sys.exit(1)
+            return ConversionResult.failed(f"upload failed with status {res_upload.status_code}")
 
     print("Upload complete. Waiting for extraction task to process (this may take a few minutes)...")
     
@@ -95,7 +97,7 @@ def main(argv=None):
     while True:
         if time.monotonic() - start > POLL_DEADLINE_S:
             print("Error: MinerU extraction timed out after 30 minutes.", file=sys.stderr)
-            sys.exit(1)
+            return ConversionResult.failed("MinerU extraction timed out after 30 minutes.")
         time.sleep(10)
         res_poll = requests.get(poll_url, headers=poll_headers, timeout=(10, 60))
         if res_poll.status_code != 200:
@@ -105,7 +107,7 @@ def main(argv=None):
             poll_data = res_poll.json()
         except ValueError:
             print(f"Error: poll response was not JSON (status {res_poll.status_code}): {res_poll.text}")
-            sys.exit(1)
+            return ConversionResult.failed(f"poll response was not JSON (status {res_poll.status_code})")
         if poll_data.get("code") != 0:
             print("Poll error code:", poll_data)
             continue
@@ -124,17 +126,17 @@ def main(argv=None):
             break
         elif state == "failed":
             print("MinerU Processing failed:", extract_result.get("err_msg"))
-            sys.exit(1)
+            return ConversionResult.failed(f"MinerU processing failed: {extract_result.get('err_msg')}")
 
     if not zip_url:
         print("Error: Could not retrieve zip URL.")
-        sys.exit(1)
+        return ConversionResult.failed("Could not retrieve zip URL.")
 
     print("Downloading extraction results...")
     zip_res = requests.get(zip_url, timeout=(10, 300))
     if zip_res.status_code != 200:
         print("Failed to download zip:", zip_res.status_code)
-        sys.exit(1)
+        return ConversionResult.failed(f"failed to download zip: {zip_res.status_code}")
 
     md_content = ""
     images_dir = os.path.join(output_dir, "images")
@@ -152,7 +154,7 @@ def main(argv=None):
 
         if not md_filename:
             print("Error: No markdown file found in result zip.")
-            sys.exit(1)
+            return ConversionResult.failed("No markdown file found in result zip.")
             
         md_content = z.read(md_filename).decode('utf-8', errors='ignore')
         
@@ -213,11 +215,34 @@ def main(argv=None):
         "tags": [],
         "summary": "Converted from PDF via MinerU Cloud API.",
     }
+    # The tex and OCR routes both recover the arXiv id from the filename; this
+    # one did not, so a paper ingested through MinerU stayed invisible to the
+    # radar's library fingerprint and kept being re-surfaced as a candidate.
+    found_id = normalize_arxiv_id(base_name)
+    if found_id:
+        fm_dict["arxiv_id"] = found_id
+        fm_dict["arxiv_url"] = abs_url(found_id)
     frontmatter = "---\n" + yaml.safe_dump(fm_dict, allow_unicode=True, sort_keys=False, default_flow_style=False) + "---\n"
 
     atomic_write(output_path, frontmatter + "\n" + md_content, encoding='utf-8')
 
     print(f"Successfully converted and saved to {output_path}")
+    return ConversionResult(
+        success=True,
+        markdown_path=str(output_path),
+        images_dir=os.path.join(output_dir, "images"),
+    )
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="magi ingest mineru", description="Convert PDF to Markdown using MinerU Cloud API.")
+    parser.add_argument("input_path", help="Path to the .pdf file.")
+    parser.add_argument("-o", "--output_dir", required=True, help="Output directory for the raw Markdown file.")
+    args = parser.parse_args(argv)
+
+    result = convert(args.input_path, args.output_dir)
+    return 0 if result.success else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())
