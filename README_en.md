@@ -169,7 +169,7 @@ The Windows `pandoc-crossref.exe` is vendored in `vendor/windows/` (add to PATH 
 
 ### 2.4 Installing the skills (teaching your agent)
 
-All 19 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command inside your workspace** installs them into every agent CLI on your machine — no repo clone needed:
+All 20 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command inside your workspace** installs them into every agent CLI on your machine — no repo clone needed:
 
 ```powershell
 cd <your topic workspace>
@@ -249,6 +249,7 @@ Trigger via slash commands in your agent (namespaced `magi:` under the Claude Co
 | Setup | `wiki_hub_init` / `wiki_init` | scaffold the hub / a topic workspace |
 | Ingest | `wiki_ingest` | PDF/LaTeX/URL → Markdown (MinerU cloud or native vision; put your MinerU token in the workspace `config.yaml` under `ocr.mineru_api_token`) |
 | Ingest | `wiki_ingest_ocr` | fully local OCR route (Ollama `glm-ocr`) |
+| Ingest | `wiki_inbox` | links / DOIs / citations / screenshots -> queued through the deterministic pipeline, output waits for your approval (`magi ingest url` + `batch-*`) |
 | Compile | `wiki_compile` | raw sources → reference + concept cards (closes the bd loop: `magi pm backlog-sync`'s `magi-compile` label) |
 | Compile | `wiki_enrich` | deep-scan compiled sources for missed theorems/concepts |
 | Link | `wiki_semantic_link` | Ollama-embedding semantic wikilinks + auto-merge of near-duplicates (`magi link`) |

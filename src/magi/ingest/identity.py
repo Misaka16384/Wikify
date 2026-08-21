@@ -25,7 +25,13 @@ from magi.core.http import http_json, retry_429
 
 S2_BASE = "https://api.semanticscholar.org/graph/v1/paper"
 S2_BATCH = f"{S2_BASE}/batch"
-S2_BATCH_LIMIT = 500          # documented cap, and the whole point of using it
+
+# The documented cap is 500 ids per request. The *anonymous* rate limit is a
+# different thing, and measured against a real library it turns down a batch of
+# 295 outright. 100 goes through, so that is the number: still a hundredfold
+# saving over asking one id at a time, without spending the whole run in backoff.
+S2_BATCH_LIMIT = 100
+S2_DOCUMENTED_LIMIT = 500
 
 # A DOI as it appears in the wild. Deliberately loose on the suffix — publishers
 # put almost anything there — but strict on the 10.NNNN/ prefix.
@@ -118,11 +124,14 @@ def _titles_match(ours: str | None, theirs: str | None) -> bool:
     if not ours or not theirs:
         return True          # nothing to contradict; the DOI is the evidence
     norm = lambda s: re.sub(r"[^a-z0-9 ]+", " ", s.lower()).split()
-    a, b = norm(ours), norm(theirs)
+    a, b = set(norm(ours)), set(norm(theirs))
     if not a or not b:
         return True
-    overlap = len(set(a) & set(b))
-    return overlap >= max(3, min(len(a), len(b)) // 2)
+    # Proportion of the *shorter* title that survives in the other. An absolute
+    # floor cannot work here: a one-word title like "Fractons" can never produce
+    # three overlapping words, so a fixed threshold of 3 rejected titles that
+    # were character-for-character identical and quietly cost real coverage.
+    return len(a & b) / min(len(a), len(b)) >= 0.6
 
 
 def resolve_dois(dois: Iterable[str], titles: dict[str, str] | None = None,
@@ -137,11 +146,16 @@ def resolve_dois(dois: Iterable[str], titles: dict[str, str] | None = None,
     unique = list(dict.fromkeys(d.lower() for d in dois if d))
     resolved: dict[str, Identity] = {}
 
-    for start in range(0, len(unique), S2_BATCH_LIMIT):
+    n_chunks = (len(unique) + S2_BATCH_LIMIT - 1) // S2_BATCH_LIMIT
+    for n, start in enumerate(range(0, len(unique), S2_BATCH_LIMIT), 1):
         chunk = unique[start:start + S2_BATCH_LIMIT]
+        if n_chunks > 1:
+            print(f"[identity] batch {n}/{n_chunks} ({len(chunk)} DOIs)")
         try:
             found = _batch_lookup(chunk, timeout=timeout)
         except Exception as exc:  # noqa: BLE001 — a lookup failure is not fatal
+            # Losing a lookup costs coverage, not the import: these items simply
+            # fall back to whatever file is already on disk.
             print(f"[identity] Semantic Scholar lookup failed for "
                   f"{len(chunk)} DOI(s): {exc}")
             found = {}

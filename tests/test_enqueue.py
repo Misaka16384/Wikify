@@ -96,10 +96,51 @@ def test_queueing_makes_no_network_call(ws, monkeypatch):
 # Details that travel
 # --------------------------------------------------------------------------
 
-def test_the_chosen_library_is_recorded(ws):
-    """This is what the extension's picker sets."""
-    enqueue.main(["2608.16520", "--library", "MindPalace"])
-    assert ledger.pending(ws)[0].library == "MindPalace"
+def test_a_named_library_routes_there_not_to_the_current_directory(ws, tmp_path,
+                                                                   monkeypatch):
+    """--library is what both the extension's picker and the inbox skill set.
+
+    It used to be recorded and then ignored, so everything landed in whatever
+    directory you happened to be standing in.
+    """
+    other = tmp_path / "other-kb"
+    (other / "raw" / "papers").mkdir(parents=True)
+    monkeypatch.setattr("magi.kb_registry.load_registry",
+                        lambda: {"kbs": {"Physics": {"path": str(other)}}})
+
+    enqueue.main(["2608.16520", "--library", "Physics"])
+
+    assert ledger.pending(other)[0].value == "2608.16520"
+    assert ledger.pending(ws) == []
+
+
+def test_the_library_name_is_matched_forgivingly(ws, tmp_path, monkeypatch):
+    other = tmp_path / "kb"
+    other.mkdir()
+    monkeypatch.setattr("magi.kb_registry.load_registry",
+                        lambda: {"kbs": {"My-Physics": {"path": str(other)}}})
+
+    assert enqueue.main(["2608.16520", "--library", "my_physics"]) == 0
+    assert len(ledger.pending(other)) == 1
+
+
+def test_an_unknown_library_fails_and_names_the_real_ones(ws, monkeypatch, capsys):
+    """A closed world: you pick from what exists, you do not invent a destination."""
+    monkeypatch.setattr("magi.kb_registry.load_registry",
+                        lambda: {"kbs": {"Physics": {"path": "/tmp/x"}}})
+
+    assert enqueue.main(["2608.16520", "--library", "Nope"]) == 1
+    assert "Physics" in capsys.readouterr().err
+    assert ledger.pending(ws) == []
+
+
+def test_several_targets_are_queued_in_one_call(ws):
+    """An agent that just found eight papers should not shell out eight times."""
+    enqueue.main(["2608.16520", "10.1103/PhysRevB.108.014301",
+                  "https://example.com/paper"])
+
+    kinds = [e.source_type for e in ledger.pending(ws)]
+    assert kinds == ["arxiv", "doi", "url"]
 
 
 def test_a_known_title_is_carried_through(ws):
@@ -108,12 +149,14 @@ def test_a_known_title_is_carried_through(ws):
 
 
 def test_json_output_reports_what_was_queued(ws, capsys):
-    enqueue.main(["2608.16520", "--json"])
+    """The shape a skill reads back to tell the user what it did."""
+    enqueue.main(["2608.16520", "cond-mat/0506438", "--json"])
     data = json.loads(capsys.readouterr().out)
 
-    assert data["status"] == "queued"
-    assert data["value"] == "2608.16520"
-    assert data["req_id"].startswith("req-")
+    assert data["pending"] == 2
+    assert [q["value"] for q in data["queued"]] == ["2608.16520", "cond-mat/0506438"]
+    assert all(q["req_id"].startswith("req-") for q in data["queued"])
+    assert data["workspace"]
 
 
 def test_queueing_the_same_paper_twice_is_allowed(ws):

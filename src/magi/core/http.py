@@ -137,17 +137,23 @@ def http_download(url: str, dest: Path | str, timeout: int = 120,
     return dest
 
 
-def retry_429(fn, *, retries: int = 1, backoff: float = 5.0):
-    """Call ``fn``, retrying only on a rate-limit response.
+def retry_429(fn, *, retries: int = 3, backoff: float = 2.0):
+    """Call ``fn``, retrying only on a rate-limit response, backing off each time.
 
-    Any other failure is raised immediately: a 404 will not become a 404 by
+    Any other failure is raised immediately: a 404 will not become a 200 by
     waiting, and burning the retry budget on it delays the caller for nothing.
+
+    Backoff doubles (2s, 4s, 8s). One flat retry was not enough in practice —
+    Semantic Scholar's anonymous limit turns down a large batch on the first
+    two tries and accepts it on the third.
     """
+    delay = backoff
     for attempt in range(retries + 1):
         try:
             return fn()
         except Exception as exc:  # noqa: BLE001 — urllib raises a family of these
             if attempt < retries and "429" in str(exc):
-                time.sleep(backoff)
+                time.sleep(delay)
+                delay *= 2
                 continue
             raise

@@ -40,6 +40,8 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("ingest", "assemble"): "把逐页转写结果拼接成一份完整文档",
     ("ingest", "mineru"): "用 MinerU 云端 OCR 把 PDF 转成 Markdown",
     ("ingest", "url"): "把 URL / DOI / arXiv 号排进摄入队列（不联网、不落库）",
+    ("ingest", "zotero-dirs"): "列出本机的 Zotero 库并选定一个",
+    ("ingest", "zotero"): "把某个 Zotero 分类排进队列（优先 arXiv 源码而非本地 PDF）",
     ("ingest", "batch-run"): "跑队列：获取、转换、跑验收检查，产物进暂存区待审",
     ("ingest", "batch-list"): "查看待人工审批的批次",
     ("ingest", "batch-decide"): "对某一条批次条目通过 / 拒绝 / 撤销",

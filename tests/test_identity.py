@@ -64,24 +64,33 @@ def test_empty_input_is_handled():
 # The batch endpoint
 # --------------------------------------------------------------------------
 
-def test_the_whole_library_is_one_request(monkeypatch):
-    """500 ids per call is the documented cap and the reason to use this at all."""
+def test_a_whole_library_is_a_handful_of_requests_not_hundreds(monkeypatch):
+    """The entire reason to use the batch endpoint.
+
+    351 DOIs one at a time, at the 1.1 s politeness this repo already keeps,
+    is a quarter of an hour. Batched it is four requests.
+    """
     calls = []
 
     def fake_json(url, payload=None, timeout=60, throttle=None):
-        calls.append(payload["ids"])
+        calls.append(len(payload["ids"]))
         return [{"externalIds": {"ArXiv": "1303.4301"}, "title": "T"}
                 for _ in payload["ids"]]
 
     monkeypatch.setattr(ident, "http_json", fake_json)
-    dois = [f"10.1103/PhysRevB.{i}" for i in range(351)]
-    ident.resolve_dois(dois)
+    ident.resolve_dois([f"10.1103/PhysRevB.{i}" for i in range(351)])
 
-    assert len(calls) == 1
-    assert len(calls[0]) == 351
+    assert len(calls) == 4
+    assert sum(calls) == 351
 
 
-def test_more_than_the_cap_is_split_into_batches(monkeypatch):
+def test_the_batch_size_stays_under_the_rate_limit_not_the_documented_cap(monkeypatch):
+    """500 per request is documented and 500 per request gets a 429.
+
+    Measured against a real library: a batch of 295 was refused outright, and
+    100 goes through. The cap that matters is the anonymous rate limit, not the
+    number in the API reference.
+    """
     calls = []
 
     def fake_json(url, payload=None, timeout=60, throttle=None):
@@ -89,9 +98,10 @@ def test_more_than_the_cap_is_split_into_batches(monkeypatch):
         return [None] * len(payload["ids"])
 
     monkeypatch.setattr(ident, "http_json", fake_json)
-    ident.resolve_dois([f"10.1/{i}" for i in range(1200)])
+    ident.resolve_dois([f"10.1/{i}" for i in range(250)])
 
-    assert calls == [500, 500, 200]
+    assert calls == [100, 100, 50]
+    assert max(calls) <= ident.S2_BATCH_LIMIT < ident.S2_DOCUMENTED_LIMIT
 
 
 def test_dois_are_sent_with_the_doi_prefix(monkeypatch):
@@ -196,6 +206,35 @@ def test_no_local_title_means_the_doi_is_trusted(monkeypatch):
 
     got = ident.resolve_dois(["10.1/a"])
     assert got["10.1/a"].arxiv_id == "1234.5678"
+
+
+@pytest.mark.parametrize("ours,theirs", [
+    ("Fractons", "Fractons"),                       # one word, identical
+    ("Fractons", "fractons"),                       # case only
+    ("Anyons", "Anyons."),                          # trailing punctuation
+    ("Quantum Hall", "Quantum Hall"),               # two words
+])
+def test_a_short_title_that_matches_exactly_is_accepted(monkeypatch, ours, theirs):
+    """A fixed overlap floor cannot work: a one-word title can never produce
+    three matching words, so identical short titles were rejected outright and
+    quietly cost coverage on every paper with a terse name."""
+    monkeypatch.setattr(
+        ident, "http_json",
+        lambda url, payload=None, timeout=60, throttle=None: [
+            {"externalIds": {"ArXiv": "1234.5678"}, "title": theirs}])
+
+    got = ident.resolve_dois(["10.1/a"], {"10.1/a": ours})
+    assert got["10.1/a"].arxiv_id == "1234.5678"
+
+
+def test_a_short_title_that_differs_is_still_rejected(monkeypatch):
+    monkeypatch.setattr(
+        ident, "http_json",
+        lambda url, payload=None, timeout=60, throttle=None: [
+            {"externalIds": {"ArXiv": "1234.5678"}, "title": "Anyons"}])
+
+    got = ident.resolve_dois(["10.1/a"], {"10.1/a": "Fractons"})
+    assert got["10.1/a"].arxiv_id is None
 
 
 def test_a_zotero_title_with_a_leaked_journal_name_still_matches(monkeypatch):

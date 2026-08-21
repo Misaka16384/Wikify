@@ -225,7 +225,7 @@ magi skills uninstall            # take them back out
 The skill files ship with the CLI — **no repo clone, no network**.
 
 > [!WARN]
-> **The default is this workspace, not your whole machine.** All 19 skills revolve around one research workspace — ingest into its `raw/`, compile into its `wiki/`, query its graph — so a machine-wide install makes every unrelated project carry them for nothing. If you really want that: `magi skills install --scope global` (it warns once).
+> **The default is this workspace, not your whole machine.** All 20 skills revolve around one research workspace — ingest into its `raw/`, compile into its `wiki/`, query its graph — so a machine-wide install makes every unrelated project carry them for nothing. If you really want that: `magi skills install --scope global` (it warns once).
 > Installing into the workspace has a second benefit: the files travel with the repo, so a collaborator who clones it gets them.
 
 | Host | Global | Project | How it fires |
@@ -490,10 +490,45 @@ magi ingest auto paper.pdf    # or one named file
 
 It picks the route by file type — LaTeX source for arXiv bundles, cloud OCR for PDFs when you have a token, local OCR otherwise — and finalises for you. Reach for the specific commands below only when you need a page range, want to force a route, or are fighting a difficult scan.
 
-### Four routes, and how to pick one {#ingest-routes}
+### Have a link instead of a file? Queue it {#ingest-queue}
+
+When you have an arXiv link, a DOI, or a journal page rather than a PDF on disk,
+don't download anything. Hand it over and let MAGI pick the route:
+
+```powershell
+magi ingest url "https://arxiv.org/abs/2608.16520"   # or a DOI, or several at once
+magi ingest batch-run                                 # fetch + convert, unattended
+magi ingest batch-list                                # see what came out
+magi ingest batch-decide --item <ID> --decision approve
+magi ingest batch-commit                              # only now does anything enter raw/
+```
+
+`--library <NAME>` queues into a registered knowledge base by name, so you don't
+have to be standing in it (`magi kb list` shows the names).
+
+Two things about this worth knowing:
+
+**It tries the best source first.** arXiv publishes its own LaTeXML rendering of
+most papers, and every formula in it carries the original LaTeX verbatim — no
+recognition involved. That is tried before the source tarball, which is tried
+before any PDF route.
+
+**Nothing reaches your library until you say so.** `batch-run` writes into a
+staging area and stops. `batch-commit` refuses outright while any item in a batch
+is still undecided. Rejecting an item isn't discarding it — it comes back on the
+next route down, in the next batch, so "this conversion is bad, try another way"
+costs one command.
+
+Your agent can drive all of this for you: the **wiki_inbox** skill takes links,
+citations, or even a screenshot, works out what each one is, and runs the
+commands above.
+
+### Routes, and how to pick one {#ingest-routes}
 
 | Command | Best for | Dependencies | Quality |
 |---|---|---|---|
+| `magi ingest url` → `batch-run` | Anything you have a link, DOI, or arXiv id for | Pandoc | **Best available** — picks the highest-fidelity route that works |
+| `magi ingest arxiv-html` | One arXiv paper, directly | Pandoc | **Best** — the original LaTeX arrives verbatim inside the HTML |
 | `magi ingest tex` | arXiv source packages (`.tar.gz`) or `.tex` | Pandoc | **Best** — formulas, citations, and numbering stay natively faithful |
 | `magi ingest mineru` | General PDFs (including scans) | MinerU cloud token | Good, strong layout/formula recognition |
 | `magi ingest ocr` | General PDFs, fully offline | Ollama + poppler | Moderate, page-by-page visual transcription |

@@ -225,7 +225,7 @@ magi skills uninstall            # 撤掉
 技能文件随 CLI 一起分发，**不需要 clone 仓库、不需要联网**。
 
 > [!WARN]
-> **默认只装进当前工作区，不装全局。** 这 19 个技能都是围着某个研究工作区转的（往 `raw/` 摄入、编译进 `wiki/`、查这个库的图谱），装到全局意味着你打开任何一个无关项目，agent 都要背着它们。真想全机可用：`magi skills install --scope global`（命令会提醒你一次）。
+> **默认只装进当前工作区，不装全局。** 这 20 个技能都是围着某个研究工作区转的（往 `raw/` 摄入、编译进 `wiki/`、查这个库的图谱），装到全局意味着你打开任何一个无关项目，agent 都要背着它们。真想全机可用：`magi skills install --scope global`（命令会提醒你一次）。
 > 装在工作区里还有个好处：这些文件跟着仓库走，同事 clone 下来就有。
 
 | 宿主 | 全局位置 | 项目位置 | 怎么触发 |
@@ -489,10 +489,41 @@ magi ingest auto paper.pdf    # 或者指定一个文件
 
 它按文件类型自己选路线（arXiv 源码包走 LaTeX、PDF 有 token 走云端 OCR 否则本地 OCR），并自动 finalize。只有在需要指定页码、想强制走某条路线、或者对付难搞的扫描件时，才用下面那些具体命令。
 
-### 四条路线，怎么选 {#ingest-routes}
+### 手上是链接不是文件？排队就行 {#ingest-queue}
+
+有 arXiv 链接、DOI 或者期刊页面，而不是本地 PDF 的时候，**不要自己去下载**。
+交给它，让它自己挑路线：
+
+```powershell
+magi ingest url "https://arxiv.org/abs/2608.16520"   # 也可以是 DOI，可以一次给多个
+magi ingest batch-run                                 # 抓取 + 转换，无人值守
+magi ingest batch-list                                # 看看转出来什么样
+magi ingest batch-decide --item <ID> --decision approve
+magi ingest batch-commit                              # 到这一步才真的进 raw/
+```
+
+`--library <名字>` 可以按名字排进某个已注册的知识库，不用非得站在那个目录里
+（`magi kb list` 看名字）。
+
+两件值得知道的事：
+
+**它先试最好的源。** arXiv 自己为绝大多数论文发布 LaTeXML 渲染的 HTML，
+里面**每个公式都原样带着作者写的 LaTeX**——不涉及任何识别。这条排在源码 tar 包之前，
+tar 包又排在所有 PDF 路线之前。
+
+**不点头，什么都进不了你的库。** `batch-run` 只写进暂存区就停下；只要批次里还有
+一条没决定，`batch-commit` 就**直接拒绝**。而「拒绝」不等于丢弃——它会自动落到
+**下一档路线**、出现在下一批里，所以「这份转得不行，换个法子」只要一条命令。
+
+这一整套你的 agent 可以替你跑：**wiki_inbox** 技能接受链接、引文、甚至一张截图，
+自己判断每个是什么，然后执行上面这些命令。
+
+### 路线，怎么选 {#ingest-routes}
 
 | 命令 | 适用 | 依赖 | 质量 |
 |---|---|---|---|
+| `magi ingest url` → `batch-run` | 任何有链接 / DOI / arXiv 号的东西 | Pandoc | **当前可用的最好一条**——自动挑保真度最高且跑得通的 |
+| `magi ingest arxiv-html` | 直接抓某一篇 arXiv 论文 | Pandoc | **最好**——原始 LaTeX 就在 HTML 里逐字带着 |
 | `magi ingest tex` | arXiv 源码包（`.tar.gz`）或 `.tex` | Pandoc | **最好**——公式、引文、编号原生保真 |
 | `magi ingest mineru` | 一般 PDF（含扫描件） | MinerU 云端 token | 好，版面/公式识别强 |
 | `magi ingest ocr` | 一般 PDF，要求全离线 | Ollama + poppler | 中等，逐页视觉转录 |

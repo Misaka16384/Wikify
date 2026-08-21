@@ -48,6 +48,8 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("ingest", "assemble"): ("magi.ingest.assemble", [], "Stitch per-page transcriptions into one document"),
     ("ingest", "mineru"): ("magi.ingest.mineru", [], "PDF -> Markdown via MinerU cloud OCR"),
     ("ingest", "url"): ("magi.ingest.enqueue", [], "Queue a URL/DOI/arXiv id for acquisition"),
+    ("ingest", "zotero-dirs"): ("magi.ingest.zotero", [], "List Zotero libraries and choose one"),
+    ("ingest", "zotero"): ("magi.ingest.zotero_import", [], "Queue a Zotero collection for ingest"),
     ("ingest", "batch-run"): ("magi.ingest.batch", ["run"], "Acquire, convert and gate-check the queue"),
     ("ingest", "batch-list"): ("magi.ingest.batch", ["list"], "Review batches awaiting approval"),
     ("ingest", "batch-decide"): ("magi.ingest.batch", ["decide"], "Approve/reject/reset one batch item"),

@@ -168,7 +168,7 @@ Windows 的 `pandoc-crossref.exe` 已内置于 `vendor/windows/`（加入 PATH �
 
 ### 2.4 Skills 安装（教 agent 用 MAGI）
 
-19 个 skill 随 CLI 一起分发（`magi/skills/*/SKILL.md`，在 wheel 里），**在工作区里一条命令**装进你机器上所有 agent CLI，不需要 clone 仓库：
+20 个 skill 随 CLI 一起分发（`magi/skills/*/SKILL.md`，在 wheel 里），**在工作区里一条命令**装进你机器上所有 agent CLI，不需要 clone 仓库：
 
 ```powershell
 cd <你的主题工作区>
@@ -247,6 +247,7 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 | 基建 | `wiki_hub_init` / `wiki_init` | 建 hub / 建主题工作区 |
 | 摄入 | `wiki_ingest` | PDF/LaTeX/URL → Markdown（MinerU 云端或原生视觉转录；MinerU Token 填入工作区 `config.yaml` 的 `ocr.mineru_api_token`） |
 | 摄入 | `wiki_ingest_ocr` | 完全本地离线 OCR 路线（Ollama `glm-ocr`） |
+| 摄入 | `wiki_inbox` | 链接 / DOI / 引文 / 截图 → 排队走确定性管线，产物待你审批（`magi ingest url` + `batch-*`） |
 | 编译 | `wiki_compile` | raw 文献 → 文献卡片 + 概念卡片（与 bd 任务闭环：`magi pm backlog-sync` 的 `magi-compile` 标签） |
 | 编译 | `wiki_enrich` | 深扫已编译文献，补挖遗漏的定理/概念 |
 | 关联 | `wiki_semantic_link` | Ollama 向量语义双链 + 高相似度自动去重合并（`magi link`） |
