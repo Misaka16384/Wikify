@@ -1452,7 +1452,11 @@ def test_danger_zone_uses_the_shared_glass_recipe(client):
     assert "backdrop-filter: blur(var(--glass-blur))" in block, (
         "the danger card was the one panel that missed the liquid-glass pass"
     )
-    assert "var(--glass-alpha)" in block, "it must follow the tuner like every other panel"
+    # Following the tuner now means referencing --glass-scale, which folds in
+    # the alpha, the floor and the per-theme weight. Accept either spelling:
+    # the requirement is that it moves with the slider, not which token says so.
+    assert ("var(--glass-scale)" in block or "var(--glass-alpha)" in block), (
+        "it must follow the tuner like every other panel")
     assert "255, 74, 87" in block, "and keep its red identity"
 
 
