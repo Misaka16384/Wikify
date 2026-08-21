@@ -47,6 +47,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("ingest", "add"): ("magi.ingest.helper", [], "Normalize + file an inbox document into raw/"),
     ("ingest", "assemble"): ("magi.ingest.assemble", [], "Stitch per-page transcriptions into one document"),
     ("ingest", "mineru"): ("magi.ingest.mineru", [], "PDF -> Markdown via MinerU cloud OCR"),
+    ("ingest", "arxiv-html"): ("magi.ingest.arxiv_html", [], "arXiv's LaTeXML HTML -> Markdown (best fidelity)"),
     ("ingest", "tex"): ("magi.ingest.tex2md", [], "LaTeX / arXiv source -> Markdown (pandoc)"),
     ("ingest", "ocr"): ("magi.ingest.ocr.agent", [], "PDF -> Markdown via local Ollama OCR"),
     ("ingest", "crop"): ("magi.ingest.pdf_math_crop", [], "Crop a PDF region to PNG for visual math checks"),

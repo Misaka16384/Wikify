@@ -1,0 +1,343 @@
+"""Contracts for the arXiv HTML route.
+
+The two rejection cases below are not hypothetical — both were produced by
+fetching real papers while measuring coverage, and a naive status-code check
+counted both as successes.
+"""
+
+import pytest
+
+from magi.ingest import arxiv_html as ah
+
+
+# A compact stand-in for a real LaTeXML rendering. The real thing runs 150 KB
+# to 1.3 MB; what matters structurally is the alttext/annotation pair.
+def _rendering(formulas=("E=mc^{2}", r"\frac{\hbar^{2}k^{2}}{2m}"), title="Some Real Paper"):
+    maths = "\n".join(
+        f'<math id="m{i}" class="ltx_Math" alttext="{f}" display="inline">'
+        f"<semantics><mrow/>"
+        f'<annotation encoding="application/x-tex">{f}</annotation>'
+        f"</semantics></math>"
+        for i, f in enumerate(formulas)
+    )
+    padding = "<p>body text</p>" * 2000      # clear the error-page size floor
+    return (f"<html><head><title>[2608.16520] {title}</title></head>"
+            f"<body>{maths}{padding}</body></html>").encode("utf-8")
+
+
+ERROR_PAGE = (b"<!DOCTYPE html><html><head><title>arXiv error</title></head>"
+              b"<body>Page not found</body></html>")
+
+ABSTRACT_PAGE = (b"<html><head><title>[2608.20310] Signatures of a condensate</title>"
+                 b"</head><body>" + b"<p>abstract text</p>" * 2000 + b"</body></html>")
+
+
+# --------------------------------------------------------------------------
+# Telling a rendering from something that merely returned 200
+# --------------------------------------------------------------------------
+
+def test_a_real_rendering_is_accepted():
+    ok, why = ah._looks_like_a_paper(
+        _rendering(), "https://arxiv.org/html/2608.16520",
+        "https://arxiv.org/html/2608.16520")
+    assert ok, why
+
+
+def test_the_arxiv_error_page_is_rejected():
+    """A missing /html paper returns a full HTML error page, not an empty body."""
+    ok, why = ah._looks_like_a_paper(
+        ERROR_PAGE, "https://arxiv.org/html/2608.20310",
+        "https://arxiv.org/html/2608.20310")
+    assert not ok
+    assert "error page" in why
+
+
+def test_an_ar5iv_redirect_to_the_abstract_is_rejected():
+    """The false positive that inflated a coverage measurement.
+
+    ar5iv answers a paper it cannot render with HTTP 200 and a redirect to
+    arxiv.org/abs/<id>. The body is a real page — of the abstract — and carries
+    no math at all. Scoring on the status code counts it as coverage.
+    """
+    ok, why = ah._looks_like_a_paper(
+        ABSTRACT_PAGE, "https://ar5iv.labs.arxiv.org/html/2608.20310",
+        "https://arxiv.org/abs/2608.20310")
+    assert not ok
+    assert "abstract page" in why
+
+
+def test_a_rendering_without_alttext_is_rejected():
+    """A page about the right paper is still useless if the TeX is not in it."""
+    page = b"<html><body>" + b"<p>prose only</p>" * 3000 + b"</body></html>"
+    ok, why = ah._looks_like_a_paper(
+        page, "https://arxiv.org/html/x", "https://arxiv.org/html/x")
+    assert not ok
+    assert "alttext" in why
+
+
+# --------------------------------------------------------------------------
+# Getting the TeX back out
+# --------------------------------------------------------------------------
+
+def test_formulas_come_back_as_the_original_tex():
+    page = _rendering().decode("utf-8")
+    assert ah.extract_tex_formulas(page) == ["E=mc^{2}", r"\frac{\hbar^{2}k^{2}}{2m}"]
+
+
+def test_the_annotation_element_wins_over_the_escaped_attribute():
+    """alttext is HTML-escaped; the annotation element is not.
+
+    Reading the attribute means an unescaping round-trip that can mangle a
+    literal `<` or `\\&`. Prefer the element when both are present.
+    """
+    page = ('<math alttext="a &lt; b &amp; c">'
+            '<annotation encoding="application/x-tex">a &lt; b &amp; c</annotation>'
+            "</math>")
+    assert ah.extract_tex_formulas(page) == ["a < b & c"]
+
+
+def test_alttext_is_the_fallback_when_no_annotation_exists():
+    page = '<math alttext="x^{2}"><mrow/></math>'
+    assert ah.extract_tex_formulas(page) == ["x^{2}"]
+
+
+def test_no_math_yields_no_formulas():
+    assert ah.extract_tex_formulas("<html><body>prose</body></html>") == []
+
+
+# --------------------------------------------------------------------------
+# Title
+# --------------------------------------------------------------------------
+
+def test_the_arxiv_id_prefix_is_stripped_from_the_title():
+    page = "<html><head><title>[2608.16520] Maximal Torus Entropy</title></head></html>"
+    assert ah.page_title(page) == "Maximal Torus Entropy"
+
+
+def test_a_legacy_id_prefix_is_stripped_too():
+    page = "<html><head><title>[cond-mat/0506438] An Older Paper</title></head></html>"
+    assert ah.page_title(page) == "An Older Paper"
+
+
+def test_a_missing_title_is_none():
+    assert ah.page_title("<html><body>no head</body></html>") is None
+
+
+# --------------------------------------------------------------------------
+# Figure paths
+# --------------------------------------------------------------------------
+
+def test_relative_figure_paths_are_pointed_at_images():
+    """arXiv serves figures under {id}v{n}/; the rest of the pipeline wants images/."""
+    md, n, targets = ah._rewrite_image_paths(
+        "![A caption](2401.00506v2/sbs.jpg)\n", "2401.00506")
+    assert md == "![A caption](images/sbs.jpg)\n"
+    assert n == 1
+    assert targets == ["2401.00506v2/sbs.jpg"]
+
+
+def test_absolute_and_data_urls_are_left_alone():
+    src = "![x](https://example.com/a.png)\n![y](data:image/png;base64,AAA)\n"
+    md, n, targets = ah._rewrite_image_paths(src, "2401.00506")
+    assert md == src
+    assert n == 0 and targets == []
+
+
+def test_an_already_rewritten_path_is_not_rewritten_twice():
+    md, n, targets = ah._rewrite_image_paths("![a](images/fig.png)\n", "x")
+    assert md == "![a](images/fig.png)\n"
+    assert n == 0 and targets == []
+
+
+# --------------------------------------------------------------------------
+# Figures are actually fetched
+# --------------------------------------------------------------------------
+
+def test_figures_are_downloaded_next_to_the_markdown(tmp_path, monkeypatch):
+    """Rewriting a path without fetching the file leaves a broken link, which is
+    worse than the tarball route's silent drop, not better."""
+    monkeypatch.setattr(ah, "http_get",
+                        lambda url, timeout=60, throttle=None: (b"\x89PNG-bytes", "image/png", url))
+
+    ok, failures = ah.download_figures(
+        ["2401.00506v2/sbs.jpg", "2401.00506v2/disp.png"],
+        "https://arxiv.org/html/2401.00506v2", tmp_path / "images")
+
+    assert ok == 2 and failures == []
+    assert (tmp_path / "images" / "sbs.jpg").read_bytes() == b"\x89PNG-bytes"
+    assert (tmp_path / "images" / "disp.png").exists()
+
+
+def test_a_figure_is_fetched_once_even_if_referenced_twice(tmp_path, monkeypatch):
+    calls = []
+
+    def fake_get(url, timeout=60, throttle=None):
+        calls.append(url)
+        return b"x", "image/png", url
+
+    monkeypatch.setattr(ah, "http_get", fake_get)
+    ok, _ = ah.download_figures(["v2/a.png", "v2/a.png"],
+                                "https://arxiv.org/html/x", tmp_path / "images")
+    assert ok == 1 and len(calls) == 1
+
+
+def test_one_failed_figure_does_not_abort_the_rest(tmp_path, monkeypatch):
+    def fake_get(url, timeout=60, throttle=None):
+        if "bad" in url:
+            raise RuntimeError("HTTP Error 404: Not Found")
+        return b"ok", "image/png", url
+
+    monkeypatch.setattr(ah, "http_get", fake_get)
+    ok, failures = ah.download_figures(["v2/bad.png", "v2/good.png"],
+                                       "https://arxiv.org/html/x", tmp_path / "images")
+
+    assert ok == 1
+    assert len(failures) == 1 and "bad.png" in failures[0]
+    assert (tmp_path / "images" / "good.png").exists()
+
+
+def test_figure_urls_resolve_against_the_page_url(tmp_path, monkeypatch):
+    """The page URL ends in the paper id, which is a resource, not a directory.
+
+    Treating it as a directory doubles the id into the path and every figure
+    404s: .../html/2401.00506v2/2401.00506v2/sbs.jpg
+    """
+    seen = []
+
+    def fake_get(url, timeout=60, throttle=None):
+        seen.append(url)
+        return b"x", "image/png", url
+
+    monkeypatch.setattr(ah, "http_get", fake_get)
+    ah.download_figures(["2401.00506v2/sbs.jpg"],
+                        "https://arxiv.org/html/2401.00506v2", tmp_path / "images")
+
+    assert seen == ["https://arxiv.org/html/2401.00506v2/sbs.jpg"]
+
+
+def test_arxiv_site_chrome_is_not_mistaken_for_a_figure():
+    """The rendering also carries funder logos and UI glyphs as /static/... paths."""
+    src = ("![](/static/base/1.0.1/images/icons/smileybones-small.svg)\n"
+           "![Refer to caption](2608.20333v1/torus.png)\n")
+    md, n, targets = ah._rewrite_image_paths(src, "2608.20333")
+
+    assert n == 1
+    assert targets == ["2608.20333v1/torus.png"]
+    assert "/static/base/1.0.1/images/icons/smileybones-small.svg" in md
+    assert "![Refer to caption](images/torus.png)" in md
+
+
+def test_raw_html_img_tags_are_rewritten_too():
+    """Pandoc leaves a <figure>-wrapped image as raw HTML, which is what every
+    real arXiv figure is. Measured on 2608.20333: both figures came through as
+    <img> and only arXiv's own glyph became Markdown."""
+    src = '<img src="2608.20333v1/torus.png" id="S2.F1.g1" class="ltx_graphics"/>\n'
+    md, n, targets = ah._rewrite_image_paths(src, "2608.20333")
+
+    assert n == 1
+    assert targets == ["2608.20333v1/torus.png"]
+    assert 'src="images/torus.png"' in md
+    assert 'id="S2.F1.g1"' in md          # the rest of the tag is preserved
+
+
+def test_html_and_markdown_figures_are_both_counted():
+    src = ('![cap](2608.20333v1/a.png)\n'
+           '<img src="2608.20333v1/b.png" id="x"/>\n')
+    md, n, targets = ah._rewrite_image_paths(src, "2608.20333")
+
+    assert n == 2
+    assert set(targets) == {"2608.20333v1/a.png", "2608.20333v1/b.png"}
+    assert "![cap](images/a.png)" in md and 'src="images/b.png"' in md
+
+
+def test_html_chrome_images_are_left_alone_too():
+    src = '<img src="/static/base/1.0.1/images/funders/logo.png" class="ds-funder-logo"/>\n'
+    md, n, targets = ah._rewrite_image_paths(src, "2608.20333")
+    assert n == 0 and targets == []
+    assert md == src
+
+
+def test_a_relative_path_that_is_not_this_papers_figure_is_left_alone():
+    """Only {id}v{n}/... is this paper's figure directory."""
+    md, n, targets = ah._rewrite_image_paths(
+        "![x](someother/thing.png)\n", "2608.20333")
+    assert n == 0 and targets == []
+    assert md == "![x](someother/thing.png)\n"
+
+
+# --------------------------------------------------------------------------
+# align regrouping
+# --------------------------------------------------------------------------
+
+def test_consecutive_aligned_rows_are_folded_back_into_one_block():
+    """LaTeXML splits an align environment into table rows; pandoc keeps them
+    separate. MathJax then shows several equations instead of one aligned set."""
+    src = "$$\na &= b + c\n$$\n$$\n&\\quad + d\n$$\n"
+    md, runs = ah._regroup_align_tables(src)
+    assert runs == 1
+    assert r"\begin{aligned}" in md and r"\end{aligned}" in md
+    assert "a &= b + c" in md and r"&\quad + d" in md
+
+
+def test_unrelated_consecutive_equations_are_not_merged():
+    """Two display equations with no alignment anchors are two equations."""
+    src = "$$\nE = mc^2\n$$\n$$\nF = ma\n$$\n"
+    md, runs = ah._regroup_align_tables(src)
+    assert runs == 0
+    assert r"\begin{aligned}" not in md
+
+
+def test_a_lone_equation_is_untouched():
+    src = "$$\na &= b\n$$\n"
+    md, runs = ah._regroup_align_tables(src)
+    assert runs == 0
+    assert md == src
+
+
+# --------------------------------------------------------------------------
+# fetch() ordering
+# --------------------------------------------------------------------------
+
+def test_native_is_tried_before_ar5iv(monkeypatch):
+    seen = []
+
+    def fake_get(url, timeout=60, throttle=None):
+        seen.append(url)
+        return _rendering(), "text/html", url
+
+    monkeypatch.setattr(ah, "http_get", fake_get)
+    got = ah.fetch("2608.16520")
+
+    assert got.ok and got.endpoint == "arxiv"
+    assert seen == ["https://arxiv.org/html/2608.16520"]
+
+
+def test_ar5iv_is_used_when_native_has_no_rendering(monkeypatch):
+    def fake_get(url, timeout=60, throttle=None):
+        if "ar5iv" in url:
+            return _rendering(), "text/html", url
+        return ERROR_PAGE, "text/html", url
+
+    monkeypatch.setattr(ah, "http_get", fake_get)
+    got = ah.fetch("cond-mat/0506438")
+
+    assert got.ok and got.endpoint == "ar5iv"
+
+
+def test_missing_on_both_endpoints_reports_why(monkeypatch):
+    monkeypatch.setattr(ah, "http_get",
+                        lambda url, timeout=60, throttle=None: (ERROR_PAGE, "", url))
+    got = ah.fetch("2608.20310")
+
+    assert not got.ok
+    assert "ar5iv" in got.reason
+
+
+def test_a_non_identifier_fails_before_any_request(monkeypatch):
+    def explode(*a, **k):
+        raise AssertionError("should not have made a request")
+
+    monkeypatch.setattr(ah, "http_get", explode)
+    result = ah.convert("not-an-arxiv-id", "/tmp/whatever")
+
+    assert result.success is False
