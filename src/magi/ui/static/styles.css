@@ -4455,9 +4455,14 @@ details.advanced-sql > summary {
   margin: 0 0 0.6rem;
   line-height: 1.4;
 }
-.scope-note.scope-shared {
-  opacity: 1;
-  color: var(--accent-warning, #d9a441);
+/* Applied to the search info bar too, where the element is a .hint-note —
+   hence the standalone selector and the !important: .hint-note sets
+   color: var(--text-muted) at equal specificity and would win on order.
+   The token is --accent-amber; --accent-warning does not exist in this
+   sheet, so the first version of this rule silently fell back to grey. */
+.scope-shared {
+  opacity: 1 !important;
+  color: var(--accent-amber) !important;
 }
 
 /* A caption under a header button, for verbs whose object is not obvious from

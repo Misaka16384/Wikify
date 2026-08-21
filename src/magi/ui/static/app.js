@@ -189,6 +189,10 @@
       close_related: "相关",
       close_weak: "较远",
       badge_close_tip: "语义距离 {d}（越小越接近）。这只是提示，不会因此丢结果。",
+      search_scope_searched: "检索范围：{names}",
+      search_scope_skipped_here: "当前工作区「{name}」未被检索：它还没有建索引，下面没有一条结果来自这里。",
+      search_scope_skipped: "已跳过：{names}",
+      search_scope_this_one: "当前工作区",
       search_all_weak: "这次查询没有语义上贴近的内容——下面的结果都只是相对最接近的，未必真的相关。换个说法或用库里的术语再试试。",
       badge_rrf_tip: "综合排名分：把关键词排名和语义排名融合后的结果，越大越靠前。",
       badge_bm25_tip: "按关键词匹配，这条排第 {n}",
@@ -436,6 +440,7 @@
 
       // Search filters
       opt_scope_auto: "本库 + 其它已启用的库",
+      opt_scope_auto_n: "本库 + 另外 {n} 个已启用的库",
       opt_scope_local: "仅当前工作区",
       opt_coll_all: "全部集合",
       opt_coll_concepts: "concepts 概念卡",
@@ -716,6 +721,10 @@
       close_related: "related",
       close_weak: "distant",
       badge_close_tip: "Semantic distance {d} — lower is closer. This is a hint, not a filter; nothing is dropped.",
+      search_scope_searched: "Searched: {names}",
+      search_scope_skipped_here: "The workspace you are viewing, {name}, was NOT searched — it has no retrieval index, so none of these hits come from it.",
+      search_scope_skipped: "Skipped: {names}",
+      search_scope_this_one: "this workspace",
       search_all_weak: "Nothing in this library is semantically close to that query. The results below are only the nearest available, and may not be relevant — try different wording, or a term the library actually uses.",
       badge_rrf_tip: "Combined rank score: the keyword ranking and the meaning ranking fused into one. Higher is more relevant.",
       badge_bm25_tip: "Ranked #{n} by keyword match",
@@ -963,6 +972,7 @@
 
       // Search filters
       opt_scope_auto: "This library + other enabled ones",
+      opt_scope_auto_n: "This library + {n} other enabled",
       opt_scope_local: "This workspace only",
       opt_coll_all: "All collections",
       opt_coll_concepts: "concepts",
@@ -2049,7 +2059,11 @@
         loadBalthasar();
         break;
       case "casper":
-        // Search is on-demand
+        // Search is on-demand, but the scope label is not: the KB list loads
+        // before state.workspace settles, so rendering it once left "+ 4 other
+        // enabled" under a picker whose library was one of the four. Same
+        // shape of bug as the operations scope line.
+        refreshSearchScopeLabel();
         break;
       case "radar":
         loadRadar();
@@ -2198,6 +2212,7 @@
 
         renderWorkspaceSelect();
         renderKBTable(state.kbs);
+        refreshSearchScopeLabel();
       } catch (err) {
         console.error("Load KBs failed:", err);
       }
@@ -4284,6 +4299,65 @@
   // Tab 4: Casper (Retrieval)
   // ------------------------------------------------------------------------
 
+  // "This library + other enabled ones" names a set the reader cannot see from
+  // this tab — which ones are enabled lives in the SEARCHABLE column on the
+  // dashboard. Count them here so the default scope at least says how far it
+  // reaches before anyone presses Search.
+  function refreshSearchScopeLabel() {
+    const sel = document.getElementById("search-scope-select");
+    if (!sel) return;
+    const auto = [...sel.options].find((o) => o.value === "auto");
+    if (!auto) return;
+    // Match retrieval.searchable_kbs, which requires output/index.db to exist:
+    // counting merely-enabled libraries promised four and reached three, with
+    // the un-indexed one dropped without a trace.
+    const others = (state.kbs || [])
+      .filter((k) => k.enabled && k.exists && k.indexed && k.path !== state.workspace);
+    auto.textContent = others.length
+      ? t("opt_scope_auto_n", { n: others.length })
+      : t("opt_scope_auto");
+    auto.title = others.map((k) => k.name).join(", ");
+  }
+
+  // The response has always carried `kbs_searched` and `kbs_skipped`, and the
+  // panel showed neither. Searching UI-Check returned ten confident rows from
+  // four *other* libraries with `kbs_skipped: ["local"]` — the workspace named
+  // in the topbar was not searched at all, and the only trace of that was an
+  // absence the reader had to notice among four `kb:` badges. A silent skip
+  // presented as a clean result is the failure mode this whole release exists
+  // to remove.
+  function renderSearchScope(data) {
+    const searched = Array.isArray(data.kbs_searched) ? data.kbs_searched : [];
+    const skipped = Array.isArray(data.kbs_skipped) ? data.kbs_skipped : [];
+    if (!searched.length && !skipped.length) return;
+
+    const here = (state.kbs || []).find((k) => k.path === state.workspace);
+    const hereName = here ? here.name : null;
+    // `local` is how the backend names the workspace it was pointed at. That
+    // is an internal name; on screen it has to be the library the topbar is
+    // already naming, or the reader is left mapping one to the other.
+    const namesLocal = (n) => n === "local" || (hereName && n === hereName);
+    const display = (n) => (n === "local" && hereName ? hereName : n);
+    const skippedHere = skipped.some(namesLocal);
+
+    const line = document.createElement("div");
+    line.className = skippedHere ? "hint-note scope-shared" : "hint-note";
+    const parts = [];
+    if (searched.length) {
+      // The names are the count; "4 librar(ies)" is a plural nobody writes.
+      parts.push(t("search_scope_searched", { names: searched.map(display).join(", ") }));
+    }
+    if (skippedHere) {
+      parts.push(t("search_scope_skipped_here", { name: hereName || t("search_scope_this_one") }));
+    }
+    const others = skipped.filter((n) => !namesLocal(n));
+    if (others.length) {
+      parts.push(t("search_scope_skipped", { names: others.map(display).join(", ") }));
+    }
+    line.textContent = parts.join(" · ");
+    els.searchInfoBar.appendChild(line);
+  }
+
   async function executeSearch(query, mode, limit) {
     if (!state.workspace || !query.trim()) return;
     els.searchResultsList.innerHTML = `<p class="empty-note search-empty">${t("searching_text")}</p>`;
@@ -4314,6 +4388,7 @@
         bm25: data.bm25_hits || 0,
         vec: vecStatus,
       });
+      renderSearchScope(data);
       // Three different reasons land here as "no vectors", and they need three
       // different responses: you chose keyword-only, Ollama is busy, or it is
       // not set up. Telling a user who picked bm25 to go install Ollama is
@@ -5619,6 +5694,7 @@
     viewWorkspaceSet(state.workspace);
     updateBrowsingBadge();
     clearWorkspaceScopedViews();
+    refreshSearchScopeLabel();
     loadSyncRatio();
     loadTabData(state.activeTab);
   });
