@@ -248,6 +248,22 @@
       ingest_empty: "队列里还没有东西。",
       ingest_no_workspace: "先在上方选一个知识库，才能看它的摄入队列。",
       ingest_scope: "本工作区：{name}",
+      ops_scope: "以下操作作用于：{name}",
+      ops_scope_none: "先在上方选一个知识库。",
+      ops_badge_global: "全机生效",
+      op_desc_index: "重建检索索引，让 magi search 看到最新的 wiki",
+      op_desc_graph_build: "重新扫描 wikilink 和标签，刷新知识图谱",
+      op_desc_wiki_reindex: "重新生成每个 wiki 目录里的 _index.md 目录表",
+      op_desc_link: "用向量相似度给概念卡片之间建语义双链（需要 Ollama）",
+      op_desc_lint_fix: "就地修复死链和 frontmatter 问题",
+      op_desc_stats: "统计本工作区的卡片数、链接密度和缺口",
+      op_desc_backlog_sync: "把还没编译的原始文献变成 bd 任务",
+      op_desc_radar_harvest: "从 arXiv 和 Semantic Scholar 抓新的候选论文",
+      op_desc_radar_citation_gap: "侦察那些理应引用你却没引的新论文",
+      op_desc_ingest_batch_run: "抓取并转换队列里的所有条目——转完等你审批，不会进库",
+      op_desc_ingest_batch_commit: "把已批准的文档移进 raw/；只要还有没决定的就拒绝执行",
+      ingest_preview: "看看转出来的内容",
+      ingest_cannot_approve: "这条转换失败了，没有产物可批准——拒绝它，会自动改走下一档路线。",
       ingest_approve: "通过",
       ingest_reject: "拒绝",
       ingest_undo: "撤销",
@@ -751,6 +767,22 @@
       ingest_empty: "Nothing queued yet.",
       ingest_no_workspace: "Pick a knowledge base above to see its ingest queue.",
       ingest_scope: "This workspace: {name}",
+      ops_scope: "These act on: {name}",
+      ops_scope_none: "Pick a knowledge base above first.",
+      ops_badge_global: "machine-wide",
+      op_desc_index: "Rebuild the search index so magi search sees the current wiki",
+      op_desc_graph_build: "Re-scan wikilinks and tags into the knowledge graph",
+      op_desc_wiki_reindex: "Regenerate the _index.md contents table in each wiki folder",
+      op_desc_link: "Link semantically related concept cards by vector similarity (needs Ollama)",
+      op_desc_lint_fix: "Repair broken links and frontmatter in place",
+      op_desc_stats: "Count this workspace’s cards, link density and gaps",
+      op_desc_backlog_sync: "Turn raw sources that are not compiled yet into bd tasks",
+      op_desc_radar_harvest: "Fetch new candidate papers from arXiv and Semantic Scholar",
+      op_desc_radar_citation_gap: "Scout recent papers that arguably should cite yours",
+      op_desc_ingest_batch_run: "Fetch and convert everything queued — output waits for your approval, nothing enters the library",
+      op_desc_ingest_batch_commit: "Move approved documents into raw/; refuses while anything is still undecided",
+      ingest_preview: "Look at what came out",
+      ingest_cannot_approve: "This conversion failed — there is nothing to approve. Reject it and it retries on the next route down.",
       ingest_approve: "Approve",
       ingest_reject: "Reject",
       ingest_undo: "Undo",
@@ -2010,7 +2042,9 @@
         loadIngest();
         break;
       case "operations":
-        // Terminal stays persistent
+        // Terminal stays persistent; the scope line is not — it has to follow
+        // the picker like everything else.
+        refreshOpsScope();
         break;
       case "docs":
         loadDocs(currentDocKey());
@@ -4730,28 +4764,44 @@
   }
 
   function ingestRow(batchId, item) {
-    // Findings are the pipeline saying what it is unsure about. An item with
-    // none is one you can wave through; an identity-mismatch is one to read.
+    const decided = !!item.decision;
+    const title = item.title || item.source_value || item.item_id;
+    const flags = (item.findings || []).filter((f) => f.severity !== "info");
+    // A conversion that produced nothing cannot be approved, so Approve must
+    // not look like the thing to do. Three states, three different defaults:
+    // failed -> reject; flagged -> read it first; clean -> wave it through.
+    const state = item.error ? "failed" : flags.length ? "flagged" : "clean";
+
+    // The code alone is jargon. "6 figures dropped" is what a reviewer decides
+    // on, and burying it in a title attribute means nobody reads it.
     const findings = (item.findings || [])
       .map((f) => {
         const tone = f.severity === "info" ? "badge-muted" : "badge-terracotta";
-        return `<span class="badge ${tone}" title="${escapeHtml(f.detail || "")}">${escapeHtml(f.code)}</span>`;
+        return `<div class="ingest-finding"><span class="badge ${tone}">${escapeHtml(f.code)}</span>` +
+          `<span class="ingest-finding-detail">${escapeHtml(f.detail || "")}</span></div>`;
       })
-      .join(" ");
+      .join("");
     const err = item.error
       ? `<div class="ingest-error">${escapeHtml(item.error)}</div>`
       : "";
-    const decided = !!item.decision;
-    const title = item.title || item.source_value || item.item_id;
-    return `<div class="action-row ingest-item" data-item="${escapeHtml(item.item_id)}" data-decision="${escapeHtml(item.decision || "")}">
+    const preview = item.preview
+      ? `<details class="ingest-preview"><summary>${t("ingest_preview")}</summary>` +
+        `<pre>${escapeHtml(item.preview.slice(0, 4000))}</pre></details>`
+      : "";
+
+    const approveClass = state === "clean" ? "btn-primary" : "btn-secondary";
+    const rejectClass = state === "failed" ? "btn-primary" : "btn-secondary";
+    return `<div class="action-row ingest-item ingest-${state}" data-item="${escapeHtml(item.item_id)}" data-decision="${escapeHtml(item.decision || "")}">
       <div class="row-main">
         <div class="row-title">${escapeHtml(title)}</div>
-        <div class="row-meta"><code>${escapeHtml(item.route || "")}</code> ${findings}</div>
+        <div class="row-meta"><code>${escapeHtml(item.route || "")}</code></div>
+        ${findings}
         ${err}
+        ${preview}
       </div>
       <div class="row-btns">
-        <button class="btn btn-sm btn-primary" data-act="approve"${decided ? " disabled" : ""}>${t("ingest_approve")}</button>
-        <button class="btn btn-sm btn-secondary" data-act="reject"${decided ? " disabled" : ""}>${t("ingest_reject")}</button>
+        <button class="btn btn-sm ${approveClass}" data-act="approve"${decided || item.error ? " disabled" : ""} title="${item.error ? escapeHtml(t("ingest_cannot_approve")) : ""}">${t("ingest_approve")}</button>
+        <button class="btn btn-sm ${rejectClass}" data-act="reject"${decided ? " disabled" : ""}>${t("ingest_reject")}</button>
         <button class="btn btn-sm btn-ghost" data-act="reset">${t("ingest_undo")}</button>
       </div>
     </div>`;
@@ -4851,17 +4901,58 @@
     } catch (_) {}
   }
 
+  // Which library the workspace-scoped operations will act on. Every other
+  // panel follows the picker at the top, and a grid of verbs with no stated
+  // target is the one place you can run something against a library you are
+  // not looking at.
+  //
+  // Its own function because the ops catalog loads before the workspace is
+  // known: rendering the grid once left this reading "pick a knowledge base"
+  // under a topbar that was already naming one.
+  function refreshOpsScope() {
+    const scopeNote = document.getElementById("ops-scope");
+    if (!scopeNote) return;
+    const kb = (state.kbs || []).find((k) => k.path === state.workspace);
+    scopeNote.textContent = state.workspace
+      ? t("ops_scope", { name: kb ? kb.name : state.workspace })
+      : t("ops_scope_none");
+  }
+
   function renderOpsPanels() {
     const common = document.getElementById("ops-common-grid");
     const danger = document.getElementById("ops-danger-grid");
     if (!common || !danger) return;
     common.innerHTML = "";
     danger.innerHTML = "";
+    refreshOpsScope();
+
     OPS_CATALOG.forEach((entry) => {
       const btn = document.createElement("button");
       btn.setAttribute("data-i18n", entry.label_i18n);
-      btn.textContent = t(entry.label_i18n);
-      btn.title = entry.argv.join(" ");
+      // Label, what it does, and the exact command it runs. A three-word verb
+      // asks the reader to infer "Reindex Wiki Tables" from three words; the
+      // Suggested Actions panel already shows the command and is the clearest
+      // thing on the dashboard, so do the same here.
+      btn.innerHTML =
+        `<span class="op-label">${escapeHtml(t(entry.label_i18n))}</span>` +
+        (entry.desc_i18n
+          ? `<span class="op-desc">${escapeHtml(t(entry.desc_i18n))}</span>` : "") +
+        // /api/ops already prepends "magi" to argv — see api.py's ops handler.
+        `<code class="op-cmd">${escapeHtml(entry.argv.join(" "))}</code>`;
+      // A global op does not touch the selected workspace — it touches the
+      // machine. `pm-init` reads as "set up tasks here" and is not; setup and
+      // migrate sit beside workspace-scoped actions looking identical.
+      if (entry.scope === "global") {
+        btn.classList.add("op-global");
+        const label = btn.querySelector(".op-label");
+        if (label) {
+          label.insertAdjacentHTML("beforeend",
+            ` <span class="badge badge-muted op-scope-badge">${t("ops_badge_global")}</span>`);
+        }
+      }
+      btn.title = entry.scope === "global"
+        ? `${t("ops_badge_global")} — ${entry.argv.join(" ")}`
+        : entry.argv.join(" ");
       if (entry.danger) {
         btn.className = "btn btn-danger danger-action-btn";
         btn.addEventListener("click", () => openDangerConfirm(entry));

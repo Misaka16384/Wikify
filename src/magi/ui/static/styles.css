@@ -4370,3 +4370,76 @@ details.advanced-sql > summary {
   color: #17222F;
   box-shadow: 0 4px 18px rgba(23, 40, 60, 0.25);
 }
+
+/* --------------------------------------------------------------------------
+   Ingest queue rows
+   A batch review is scanned, not read: the eye should land on the item that
+   needs a decision, not on whichever row happens to be first. Three states
+   carry three different weights.
+   -------------------------------------------------------------------------- */
+.ingest-batch { margin-bottom: 0.5rem; }
+.ingest-batch > summary { cursor: pointer; padding: 0.35rem 0; }
+.ingest-items { padding-left: 0.5rem; }
+
+.ingest-item { border-left: 3px solid transparent; padding-left: 0.6rem; }
+.ingest-item.ingest-clean { border-left-color: var(--accent-sage); }
+.ingest-item.ingest-flagged { border-left-color: var(--accent-amber); }
+.ingest-item.ingest-failed { border-left-color: var(--accent-danger); }
+.ingest-item[data-decision="approve"] { opacity: 0.55; }
+.ingest-item[data-decision="reject"] { opacity: 0.55; }
+
+/* The code is jargon; the detail is the thing being decided on. Show both. */
+.ingest-finding { display: flex; gap: 0.5rem; align-items: baseline; margin-top: 0.2rem; }
+.ingest-finding-detail { font-size: 0.8rem; color: var(--text-secondary); }
+.ingest-error {
+  margin-top: 0.3rem;
+  font-size: 0.82rem;
+  color: var(--accent-danger);
+  font-family: var(--font-mono);
+}
+.ingest-preview { margin-top: 0.4rem; }
+.ingest-preview > summary { cursor: pointer; font-size: 0.8rem; color: var(--text-secondary); }
+.ingest-preview pre {
+  max-height: 16rem;
+  overflow: auto;
+  font-size: 0.75rem;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  padding: 0.6rem;
+  white-space: pre-wrap;
+}
+
+/* The scope label and the filter were colliding on one line. */
+.ingest-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+/* One field and one button should fill their row, not huddle at the left. */
+.ingest-add-row { display: flex; gap: 0.5rem; align-items: center; }
+.ingest-add-row .text-input { flex: 1 1 auto; min-width: 0; }
+.ingest-add-row .btn { flex: 0 0 auto; }
+
+/* A machine-wide operation sitting in a grid of workspace-scoped ones is the
+   easiest way to run something against more than you meant to. */
+.op-scope-badge { margin-left: 0.4rem; font-size: 0.62rem; vertical-align: middle; }
+.op-task-btn.op-global { border-style: dashed; }
+
+/* An operation button states what it does and what it runs. Guessing from a
+   three-word verb is how someone runs the wrong thing. */
+.op-task-btn, .danger-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  text-align: left;
+  height: auto;
+  padding: 0.55rem 0.7rem;
+  white-space: normal;
+}
+.op-label { font-weight: 600; }
+.op-desc { font-size: 0.74rem; opacity: 0.85; line-height: 1.35; }
+.op-cmd { font-size: 0.68rem; opacity: 0.6; font-family: var(--font-mono); }

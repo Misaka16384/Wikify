@@ -625,7 +625,7 @@
 
       <div class="card">
         <label class="field-label" for="ingest-add-url" data-i18n="ingest_add_label">Add a paper by link, DOI, or arXiv id</label>
-        <div class="radar-actions-row">
+        <div class="ingest-add-row">
           <input type="text" id="ingest-add-url" class="text-input" placeholder="https://arxiv.org/abs/2608.16520">
           <button class="btn btn-secondary btn-sm" id="btn-ingest-add" data-i18n="btn_ingest_add">Queue it</button>
         </div>
@@ -633,9 +633,11 @@
       </div>
 
       <div class="card">
-        <div class="digest-actions">
-          <h3 data-i18n="ingest_batches_title">Batches</h3>
-          <span class="card-subtitle" id="ingest-scope"></span>
+        <div class="ingest-toolbar">
+          <div>
+            <h3 data-i18n="ingest_batches_title">Batches</h3>
+            <span class="card-subtitle" id="ingest-scope"></span>
+          </div>
           <label class="inline-check"><input type="checkbox" id="ingest-hide-decided"> <span data-i18n="ingest_hide_decided">Hide decided</span></label>
         </div>
         <div id="ingest-batches"><p class="empty-note" data-i18n="ingest_empty">Nothing queued yet.</p></div>
@@ -648,6 +650,7 @@
         <div class="card">
           <div class="card-header">
             <h3 class="card-title" data-i18n="ops_common_title">Common Maintenance Operations</h3>
+          <span class="card-subtitle" id="ops-scope"></span>
             <span class="card-subtitle" data-i18n="ops_common_sub">Non-destructive routines</span>
           </div>
           <!-- Buttons rendered from GET /api/ops — the server-side whitelist

@@ -26,21 +26,28 @@ class JobConflict(Exception):
 OPS: dict[str, dict] = {
     # kb-scoped maintenance
     "index": {"argv": ["index"], "scope": "kb", "danger": False,
-              "label_i18n": "op_rebuild_index"},
+              "label_i18n": "op_rebuild_index",
+              "desc_i18n": "op_desc_index"},
     "graph-build": {"argv": ["graph", "build"], "scope": "kb", "danger": False,
-                    "label_i18n": "op_build_graph"},
+                    "label_i18n": "op_build_graph",
+                    "desc_i18n": "op_desc_graph_build"},
     "wiki-reindex": {"argv": ["wiki", "reindex"], "scope": "kb", "danger": False,
-                     "label_i18n": "op_reindex_wiki"},
+                     "label_i18n": "op_reindex_wiki",
+                     "desc_i18n": "op_desc_wiki_reindex"},
     "link": {"argv": ["link"], "scope": "kb", "danger": False,
-             "label_i18n": "op_semantic_link"},
+             "label_i18n": "op_semantic_link",
+             "desc_i18n": "op_desc_link"},
     "lint-fix": {"argv": ["lint", "--fix"], "scope": "kb", "danger": False,
-                 "label_i18n": "op_lint_fix"},
+                 "label_i18n": "op_lint_fix",
+                 "desc_i18n": "op_desc_lint_fix"},
     # `magi stats` alone is ambiguous (three different reports); the button
     # means "summarize this workspace".
     "stats": {"argv": ["stats", "wiki-summary"], "scope": "kb", "danger": False,
-              "label_i18n": "op_stats"},
+              "label_i18n": "op_stats",
+              "desc_i18n": "op_desc_stats"},
     "backlog-sync": {"argv": ["pm", "backlog-sync"], "scope": "kb", "danger": False,
-                     "label_i18n": "op_backlog_sync"},
+                     "label_i18n": "op_backlog_sync",
+                     "desc_i18n": "op_desc_backlog_sync"},
     # Additive and idempotent — `magi pm init` checks for .beads/metadata.json
     # and no-ops if it is there. It was in the Danger Zone behind a
     # type-the-exact-name modal, next to genuine deletions, while being the
@@ -49,7 +56,8 @@ OPS: dict[str, dict] = {
     "pm-init": {"argv": ["pm", "init"], "scope": "global", "danger": False,
                 "label_i18n": "btn_danger_pm_init", "desc_i18n": "danger_pm_init_desc"},
     "radar-harvest": {"argv": ["radar", "harvest"], "scope": "kb", "danger": False,
-                      "label_i18n": "btn_radar_harvest"},
+                      "label_i18n": "btn_radar_harvest",
+                      "desc_i18n": "op_desc_radar_harvest"},
     # Both are long-running and subprocess-heavy, so they want the SSE log
     # stream and the concurrency gate this machinery already provides. Neither
     # is destructive: batch-run writes only into staging, and batch-commit
@@ -59,15 +67,18 @@ OPS: dict[str, dict] = {
         "scope": "kb",
         "danger": False,
         "label_i18n": "op_ingest_batch_run",
+        "desc_i18n": "op_desc_ingest_batch_run",
     },
     "ingest-batch-commit": {
         "argv": ["ingest", "batch-commit"],
         "scope": "kb",
         "danger": False,
         "label_i18n": "op_ingest_batch_commit",
+        "desc_i18n": "op_desc_ingest_batch_commit",
     },
     "radar-citation-gap": {"argv": ["radar", "citation-gap"], "scope": "kb", "danger": False,
-                           "label_i18n": "btn_radar_citation_gap"},
+                           "label_i18n": "btn_radar_citation_gap",
+                           "desc_i18n": "op_desc_radar_citation_gap"},
     # danger zone (server re-verifies confirm == op id)
     "setup": {"argv": ["setup"], "scope": "global", "danger": True,
               "label_i18n": "btn_danger_setup", "desc_i18n": "danger_setup_desc"},
@@ -86,10 +97,6 @@ OPS: dict[str, dict] = {
                                "params": {"uninstall": "--uninstall"}},
 }
 
-# Archive limits (decision: persist job history, but hard-cap total size)
-# One SSE client's backlog. Mirrors the server-side log buffer: a browser that
-# has stopped draining — a backgrounded tab, a stalled connection, a laptop
-# that slept — must not be able to grow this without bound.
 def _terminate_tree(proc, kill: bool = False) -> None:
     """Stop a job and everything it started.
 
@@ -121,6 +128,12 @@ def _terminate_tree(proc, kill: bool = False) -> None:
             proc.kill() if kill else proc.terminate()
         except Exception:  # noqa: BLE001
             pass
+
+
+# Archive limits (decision: persist job history, but hard-cap total size)
+# One SSE client's backlog. Mirrors the server-side log buffer: a browser that
+# has stopped draining — a backgrounded tab, a stalled connection, a laptop
+# that slept — must not be able to grow this without bound.
 
 
 LISTENER_QUEUE_MAX = 2000
