@@ -10,6 +10,7 @@ import yaml
 from datetime import datetime
 from pathlib import Path
 
+from magi.core.arxiv_id import ARXIV_ID_RE, abs_url, normalize_arxiv_id
 from magi.core.config_loader import load_config, get as cfg_get
 
 def extract_title(tex_content):
@@ -18,22 +19,123 @@ def extract_title(tex_content):
         return match.group(1).strip()
     return None
 
-def find_main_tex(directory):
-    # Find the main tex file by looking for \documentclass
+# Archive suffixes arXiv actually serves. Kept as one predicate used at every
+# decision point: this used to be tested twice with two different expressions
+# (`.tar.gz` for the slug, `.tar.gz` again for whether to extract), so a .tgz —
+# which auto.py's TEX_SUFFIXES happily routes here — passed routing, failed the
+# extract test, and got handed to pandoc as raw gzip.
+_TAR_SUFFIXES = ('.tar.gz', '.tgz', '.tar.bz2', '.tbz2', '.tar.xz', '.txz', '.tar')
+
+
+def _is_tar_archive(path):
+    return str(path).lower().endswith(_TAR_SUFFIXES)
+
+
+def _archive_slug(base_name):
+    """Filename stem, with multi-part archive suffixes removed whole."""
+    lowered = base_name.lower()
+    for suffix in _TAR_SUFFIXES:
+        if lowered.endswith(suffix):
+            return base_name[:-len(suffix)]
+    if lowered.endswith('.tex'):
+        return base_name[:-4]
+    return os.path.splitext(base_name)[0]
+
+
+# \input{foo} / \include{foo} / plain-TeX \input foo — the .tex is usually omitted.
+_INPUT_RE = re.compile(r'\\(?:input|include)\s*(?:\{([^}]+)\}|([A-Za-z0-9_./-]+))')
+
+# An arXiv bundle routinely carries more than one \documentclass: supplementary
+# material, a response-to-referee letter, a \documentclass{standalone} TikZ
+# figure. Names that betray a non-paper role.
+_NOT_MAIN_HINTS = ("supp", "si_", "_si", "appendix", "response", "referee",
+                   "cover", "letter", "reply", "readme", "diff")
+_MAIN_HINTS = ("main", "paper", "ms", "manuscript", "article", "root")
+
+
+def _tex_files(directory):
     for root, _, files in os.walk(directory):
-        for file in files:
-            if file.endswith('.tex'):
-                path = os.path.join(root, file)
-                with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-                    content = f.read()
-                    if r'\documentclass' in content:
-                        return path
-    # Fallback to any .tex if no documentclass is found
-    for root, _, files in os.walk(directory):
-        for file in files:
-            if file.endswith('.tex'):
-                return os.path.join(root, file)
-    return None
+        for name in files:
+            if name.lower().endswith('.tex'):
+                yield os.path.join(root, name)
+
+
+def _read_text(path):
+    try:
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+def _included_stems(text):
+    """Bare stems this file pulls in via \\input / \\include."""
+    stems = set()
+    for m in _INPUT_RE.finditer(text):
+        target = (m.group(1) or m.group(2) or "").strip()
+        if not target:
+            continue
+        stem = os.path.basename(target)
+        if stem.lower().endswith('.tex'):
+            stem = stem[:-4]
+        if stem:
+            stems.add(stem.lower())
+    return stems
+
+
+def find_main_tex(directory, slug=None):
+    """Pick the main .tex of an unpacked source bundle.
+
+    First-match-wins on the literal string ``\\documentclass`` picks whichever
+    file ``os.walk`` happens to reach first, which on a real submission is as
+    likely to be the supplement or a standalone figure as the paper. Rank
+    instead: a file that another file \\input's is by definition not the root,
+    a shallower file beats a nested one, and the filename itself is evidence.
+    """
+    candidates = []
+    included = set()
+    for path in _tex_files(directory):
+        text = _read_text(path)
+        included |= _included_stems(text)
+        if r'\documentclass' in text:
+            candidates.append((path, text))
+
+    if not candidates:
+        # No \documentclass anywhere: fall back to any .tex, deterministically.
+        anything = sorted(_tex_files(directory),
+                          key=lambda p: (p.count(os.sep), len(p), p.lower()))
+        return anything[0] if anything else None
+
+    slug_stem = (os.path.basename(slug).lower() if slug else None)
+
+    def score(item):
+        path, text = item
+        stem = os.path.splitext(os.path.basename(path))[0].lower()
+        rel_depth = os.path.relpath(path, directory).count(os.sep)
+        s = 0
+        # Being \input by something else disqualifies a file as the root.
+        if stem in included:
+            s -= 100
+        # A real paper has a body; a standalone figure wrapper usually does not.
+        if r'\begin{document}' in text:
+            s += 50
+        if slug_stem and stem == slug_stem:
+            s += 30
+        if any(h == stem or stem.startswith(h) for h in _MAIN_HINTS):
+            s += 20
+        if any(h in stem for h in _NOT_MAIN_HINTS):
+            s -= 40
+        # A standalone/subfiles class is a figure or fragment, not the paper.
+        if re.search(r'\\documentclass[^\n]*\{(standalone|subfiles)\}', text):
+            s -= 60
+        s -= rel_depth * 5
+        return s
+
+    # Sort by score, then by the deterministic tie-breaks the docstring promises.
+    ranked = sorted(candidates,
+                    key=lambda it: (-score(it), it[0].count(os.sep),
+                                    len(it[0]), it[0].lower()))
+    return ranked[0][0]
 
 # Figure extensions we can resolve from a \includegraphics target.
 _IMG_EXTS = (".pdf", ".eps", ".ps", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".svg")
@@ -203,19 +305,16 @@ def main(argv=None):
         sys.exit(1)
 
     base_name = os.path.basename(input_path)
-    if base_name.endswith('.tar.gz'):
-        slug = base_name[:-7]
-    elif base_name.endswith('.tex'):
-        slug = base_name[:-4]
-    else:
-        slug = os.path.splitext(base_name)[0]
+    slug = _archive_slug(base_name)
 
     temp_dir_obj = None
-    if input_path.endswith('.tar.gz'):
+    if _is_tar_archive(input_path):
         temp_dir_obj = tempfile.TemporaryDirectory()
         extract_dir = temp_dir_obj.name
-        print(f"Extracting tar.gz to {extract_dir}...")
-        with tarfile.open(input_path, "r:gz") as tar:
+        print(f"Extracting {base_name} to {extract_dir}...")
+        # "r:*" not "r:gz": arXiv serves .tgz and the occasional uncompressed
+        # .tar, and guessing the compression by suffix is how this broke before.
+        with tarfile.open(input_path, "r:*") as tar:
             # Safe extraction: prevent path traversal (CVE-2007-4559)
             norm_extract = os.path.realpath(extract_dir)
             for member in tar.getmembers():
@@ -230,7 +329,7 @@ def main(argv=None):
                 # Python < 3.12 fallback
                 safe_members = [m for m in tar.getmembers() if m.isreg() or m.isdir()]
                 tar.extractall(path=extract_dir, members=safe_members)
-        tex_path = find_main_tex(extract_dir)
+        tex_path = find_main_tex(extract_dir, slug=slug)
         if not tex_path:
             print("Error: Could not find main .tex file in the archive.")
             sys.exit(1)
@@ -369,10 +468,12 @@ def main(argv=None):
         fm_data = {"title": title, "source": input_path, "type": doc_type, "ingested": today, "tags": [], "summary": "Converted from LaTeX/arXiv source."}
         # Preserve the arXiv identity (usually in the downloaded filename) so
         # the literature radar can recognize this paper as library-owned.
-        arxiv_m = re.search(r"\b(\d{4}\.\d{4,5})(?:v\d+)?\b", base_name)
-        if arxiv_m:
-            fm_data["arxiv_id"] = arxiv_m.group(1)
-            fm_data["arxiv_url"] = f"https://arxiv.org/abs/{arxiv_m.group(1)}"
+        # Legacy ids (cond-mat/0506438) matter here: a real physics library has
+        # them, and the pattern this replaced only knew the modern form.
+        found_id = normalize_arxiv_id(base_name)
+        if found_id:
+            fm_data["arxiv_id"] = found_id
+            fm_data["arxiv_url"] = abs_url(found_id)
         frontmatter = "---\n" + yaml.safe_dump(fm_data, allow_unicode=True, sort_keys=False, default_flow_style=False) + "---\n"
 
         with open(output_path, 'w', encoding='utf-8') as f:

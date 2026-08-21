@@ -36,10 +36,14 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+# ARXIV_ID_RE is re-exported here so a test that patches radar.ARXIV_ID_RE keeps
+# working. The local copy it replaced knew only the modern 2405.00208 form, so a
+# library holding cond-mat/0506438 was invisible to both the seed list and the
+# already-have dedup.
+from magi.core.arxiv_id import ARXIV_ID_RE
 from magi.core.config_loader import load_config, get as cfg_get
 from magi.core.workspace import find_workspace_root
 
-ARXIV_ID_RE = re.compile(r"\b(\d{4}\.\d{4,5})(?:v\d+)?\b")
 USER_AGENT = "magi-radar/0.1 (research workspace tool)"
 
 # Per own-paper cap on citation-gap neighbour lookups. Each one is a separate

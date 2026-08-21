@@ -26,6 +26,7 @@ from magi.ingest.ocr.ocr_engine import OCREngine, OCRResult
 from magi.ingest.ocr.image_handler import ImageHandler, ExtractedImage
 from magi.ingest.ocr.markdown_builder import MarkdownBuilder, MarkdownCleaner
 from magi.ingest.ocr.figure_extractor import extract_figures, inject_figures
+from magi.core.arxiv_id import abs_url, normalize_arxiv_id
 from magi.core.config_loader import load_config, get as cfg_get
 
 from rich.console import Console
@@ -338,10 +339,10 @@ class PDF2MarkdownAgent:
             # 注入 YAML Frontmatter
             fm = {"title": title, "source": pdf_path.name, "type": "papers", "ingested": today_str, "tags": [], "summary": ""}
             # 从文件名提取 arXiv ID，供文献雷达识别库内论文
-            arxiv_m = re.search(r"\b(\d{4}\.\d{4,5})(?:v\d+)?\b", pdf_path.name)
-            if arxiv_m:
-                fm["arxiv_id"] = arxiv_m.group(1)
-                fm["arxiv_url"] = f"https://arxiv.org/abs/{arxiv_m.group(1)}"
+            found_id = normalize_arxiv_id(pdf_path.name)
+            if found_id:
+                fm["arxiv_id"] = found_id
+                fm["arxiv_url"] = abs_url(found_id)
             yaml_frontmatter = "---\n" + yaml.safe_dump(fm, allow_unicode=True, sort_keys=False, default_flow_style=False) + "---\n\n"
             final_content = yaml_frontmatter + markdown_content
 
