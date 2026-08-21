@@ -460,6 +460,9 @@
 
     <!-- Tab 3: Balthasar -->
     <section id="tab-balthasar" class="tab-panel">
+      <!-- Filled in when this feature is switched off: the panel below greys
+           out rather than vanishing, so nobody has to wonder where it went. -->
+      <div class="feature-gate" id="gate-balthasar" hidden></div>
       <div class="card">
         <div class="card-header">
           <div>
@@ -553,6 +556,9 @@
 
     <!-- Tab 5: Literature Radar -->
     <section id="tab-radar" class="tab-panel">
+      <!-- Filled in when this feature is switched off: the panel below greys
+           out rather than vanishing, so nobody has to wonder where it went. -->
+      <div class="feature-gate" id="gate-radar" hidden></div>
       <div class="grid-3">
         <!-- Papers waiting, not files waiting: the count you act on. -->
         <div class="card metric-box">
@@ -665,6 +671,19 @@
     </section>
 
     <section id="tab-operations" class="tab-panel">
+      <!-- Optional components. Machine-wide, and deliberately here rather than
+           scattered across the panels each one happens to affect: this is the
+           page you open when something is missing. -->
+      <div class="card" id="optional-components">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="opt_title">Optional components</h3>
+            <p class="card-subtitle" data-i18n="opt_sub">Everything here is machine-wide, and MAGI runs without all of it. Untick anything you do not want and it stops being mentioned.</p>
+          </div>
+        </div>
+        <div id="optional-list"></div>
+      </div>
+
       <div class="grid-2">
         <!-- Common Tasks Panel -->
         <div class="card">

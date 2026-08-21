@@ -3014,6 +3014,74 @@ details.advanced-sql > summary {
 }
 
 
+/* One optional component. Reads top-down: do I want it, is it here, what
+   does it buy me, and what can I actually do about it. */
+.opt-row {
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--border-subtle, #262b36);
+}
+.opt-row:last-child { border-bottom: none; }
+.opt-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.opt-name { font-weight: 600; }
+.opt-what, .opt-hint {
+  font-size: 0.76rem;
+  opacity: 0.8;
+  line-height: 1.45;
+  margin-top: 0.25rem;
+  max-width: 72ch;
+}
+.opt-hint { opacity: 0.62; }
+.opt-row .gate-actions { margin-top: 0.5rem; }
+
+/* A feature you switched off. Not an error state and not a missing panel —
+   the tab stays where it was, the content behind it goes quiet, and the way
+   back is the first thing on the page. */
+.feature-gate {
+  border: 1px dashed var(--border-strong, #3a4150);
+  border-radius: 8px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+  background: var(--accent-amber-wash);
+}
+.feature-gate .gate-title {
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+.feature-gate .gate-body {
+  font-size: 0.82rem;
+  opacity: 0.85;
+  line-height: 1.5;
+  max-width: 70ch;
+}
+.feature-gate .gate-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+.feature-gate .gate-note {
+  font-size: 0.74rem;
+  opacity: 0.7;
+  margin-top: 0.5rem;
+}
+
+/* Everything the switched-off feature drives. Dimmed and inert, rather than
+   removed: a control that vanishes is one the reader cannot find again to
+   understand why it went. pointer-events keeps a greyed button from firing. */
+/* Every direct child except the gate itself — enumerating class names meant
+   the radar's <details> and split-pane stayed bright behind a grey gate. */
+.tab-panel.feature-off > *:not(.feature-gate) {
+  opacity: 0.38;
+  pointer-events: none;
+  filter: saturate(0.4);
+}
+
 /* MAGI mode chamfers every box; the legend is a box. */
 [data-theme="eva"] .graph-map-legend {
   border-radius: 0;
@@ -4505,3 +4573,4 @@ details.advanced-sql > summary {
   color: var(--text-muted, #8a8f98);
   letter-spacing: 0.04em;
 }
+

@@ -264,6 +264,48 @@
       ops_scope: "以下操作作用于：{name}",
       ops_scope_none: "先在上方选一个知识库。",
       ops_badge_global: "全机生效",
+      feature_off_quiet: "这个功能已关闭。",
+      opt_title: "可选组件",
+      opt_sub: "这一整块都是全机生效的，缺哪个 MAGI 都能跑，只是少一项能力。不想要的取消勾选，它就不再被提起。",
+      opt_unknown: "读不到组件状态。",
+      feature_label_radar: "文献雷达",
+      feature_label_tasks: "任务追踪",
+      opt_unlocks_ollama: "语义（向量）检索，以及本地离线 PDF OCR",
+      opt_unlocks_pandoc: "LaTeX 与 arXiv-HTML 摄入路线——保真度最高的入库方式",
+      opt_unlocks_poppler: "本地 OCR 的页面渲染（要和 Ollama 一起用）",
+      opt_unlocks_latex: "深度数学校验——真去编译一遍公式看它成不成立",
+      opt_unlocks_mineru: "云端 PDF 转换，公式和版面都很强",
+      opt_hint_ollama: "装好之后，magi setup 会帮你把嵌入模型拉下来",
+      opt_hint_poppler: "Windows 构建：https://github.com/oschwartz10612/poppler-windows/releases",
+      opt_hint_mineru: "注册后把 token 填进 config.yaml 的 ocr.mineru_api_token",
+      feature_what_radar: "会盯着 arXiv 和 Semantic Scholar 找你这个方向的新论文，排好队等你分诊",
+      feature_what_tasks: "把你的待读、待编译变成一张带依赖关系的任务图",
+      opt_unlocks: "解锁：{unlocks}",
+      opt_present: "已安装",
+      opt_absent: "未安装",
+      opt_service: "在线服务",
+      opt_want_tip: "勾上表示你想要 {name}；取消勾选后体检表不再把它列成待办。这不会安装或卸载任何东西。",
+      opt_wanted_toast: "已记下：你想要 {name}。",
+      opt_declined_toast: "已记下：不需要 {name}，之后不再提。",
+      metric_feature_off: "已关闭",
+      feature_off_title: "「{name}」已关闭",
+      feature_off_body: "打开之后：{what}。关着的时候这一页不会有任何动作，已有数据也不会被删。",
+      feature_turn_on: "打开{name}",
+      feature_turn_on_plain: "只改一个全机开关，不装任何东西，也不动工作区里的文件。",
+      feature_turn_on_installs: "打开开关，并安装它依赖的 {needs}（联网，约一分钟）。",
+      feature_will_install: "需要 {needs}——MAGI 会自己装，不用你操心。",
+      feature_on_toast: "「{name}」已打开。",
+      tool_open_site: "打开 {name} 官网 ↗",
+      tool_recheck: "我装好了，重新检测",
+      tool_recheck_tip: "重新在这台机器上找 {name}。MAGI 装不了它——它是另一个项目的安装器。",
+      tool_found: "找到 {name} 了。",
+      tool_still_missing: "还是没找到 {name}。装完可能要开一个新终端，或者重启 MAGI 服务。",
+      op_install_tasks: "安装任务库",
+      op_pull_models: "拉取 Ollama 模型",
+      op_desc_install_tasks: "打开任务追踪，并安装它用的 bd 任务库",
+      op_desc_pull_models: "拉取 MAGI 用到的 Ollama 模型（需要先装好 Ollama）",
+      btn_install_tasks: "安装任务库",
+      btn_pull_models: "拉取 Ollama 模型",
       ingest_run_caption: "把队列里的全部抓下来、转换、跑校验 · 此步不会写入知识库",
       ingest_commit_caption: "把已批准的条目移入 raw/ 并编译 · 这一步才真正写入知识库",
       doctor_scope: "工具与路径是全机的；「本工作区」相关的几行说的是：{name}",
@@ -807,6 +849,48 @@
       ops_scope: "These act on: {name}",
       ops_scope_none: "Pick a knowledge base above first.",
       ops_badge_global: "machine-wide",
+      feature_off_quiet: "This feature is turned off.",
+      opt_title: "Optional components",
+      opt_sub: "All of this is machine-wide, and MAGI runs without any of it — each one just turns on a specific capability. Untick what you do not want and it stops being mentioned.",
+      opt_unknown: "Could not read component status.",
+      feature_label_radar: "Literature radar",
+      feature_label_tasks: "Task tracking",
+      opt_unlocks_ollama: "semantic (vector) search, and local offline OCR for PDFs",
+      opt_unlocks_pandoc: "the LaTeX and arXiv-HTML ingest routes — the best-fidelity way in",
+      opt_unlocks_poppler: "local OCR page rendering (needed alongside Ollama)",
+      opt_unlocks_latex: "deep math validation — checks a formula actually compiles",
+      opt_unlocks_mineru: "cloud PDF conversion, strong on formulas and layout",
+      opt_hint_ollama: "after installing, magi setup pulls the embedding model for you",
+      opt_hint_poppler: "Windows builds: https://github.com/oschwartz10612/poppler-windows/releases",
+      opt_hint_mineru: "sign up, then put the token in config.yaml under ocr.mineru_api_token",
+      feature_what_radar: "watches arXiv and Semantic Scholar for new papers in your area, and queues them for you to triage",
+      feature_what_tasks: "turns your reading and compiling backlog into a dependency-aware task graph",
+      opt_unlocks: "Unlocks: {unlocks}",
+      opt_present: "installed",
+      opt_absent: "not installed",
+      opt_service: "hosted service",
+      opt_want_tip: "Ticked means you want {name}; unticking stops the doctor listing it as outstanding. This installs and uninstalls nothing.",
+      opt_wanted_toast: "Noted: you want {name}.",
+      opt_declined_toast: "Noted: {name} is not wanted, and will not be raised again.",
+      metric_feature_off: "off",
+      feature_off_title: "{name} is turned off",
+      feature_off_body: "Turned on it {what}. While it is off this tab does nothing, and nothing already on disk is deleted.",
+      feature_turn_on: "Turn on {name}",
+      feature_turn_on_plain: "Flips one machine-wide switch. Installs nothing and touches no workspace files.",
+      feature_turn_on_installs: "Flips the switch and installs {needs}, which it needs (network, about a minute).",
+      feature_will_install: "Needs {needs} — MAGI installs that one itself.",
+      feature_on_toast: "{name} is on.",
+      tool_open_site: "Open the {name} site \u2197",
+      tool_recheck: "I installed it — check again",
+      tool_recheck_tip: "Look for {name} on this machine again. MAGI cannot install it — it is another project's installer.",
+      tool_found: "Found {name}.",
+      tool_still_missing: "Still cannot find {name}. A fresh install may need a new terminal, or a restart of the MAGI server.",
+      op_install_tasks: "Install the task store",
+      op_pull_models: "Pull Ollama models",
+      op_desc_install_tasks: "Turn task tracking on and install the bd task store it uses",
+      op_desc_pull_models: "Pull the Ollama models MAGI uses (needs Ollama installed first)",
+      btn_install_tasks: "Install the task store",
+      btn_pull_models: "Pull Ollama models",
       ingest_run_caption: "Fetches and converts everything queued, then gate-checks it · nothing reaches the library yet",
       ingest_commit_caption: "Moves approved items into raw/ and compiles them · this is the step that writes to the library",
       doctor_scope: "Tools and paths are machine-wide. Rows that say \"this workspace\" mean: {name}",
@@ -1205,6 +1289,11 @@
     workspace: "",
     serverWorkspace: "",
     kbs: [],
+    // Machine-wide, not per-workspace: which optional features are on, and
+    // which external tools are present. null means "not read yet", which is
+    // deliberately different from "off" — an unread answer must never grey a
+    // working panel out.
+    features: null,
     activeTab: "dashboard",
     activeDoc: "guide",
     graphView: "map",
@@ -2078,6 +2167,7 @@
         loadGraphBrowse(state.graphView);
         break;
       case "balthasar":
+        applyFeatureGates();
         loadBalthasar();
         break;
       case "casper":
@@ -2088,6 +2178,7 @@
         refreshSearchScopeLabel();
         break;
       case "radar":
+        applyFeatureGates();
         loadRadar();
         break;
       case "ingest":
@@ -2097,6 +2188,7 @@
         // Terminal stays persistent; the scope line is not — it has to follow
         // the picker like everything else.
         refreshOpsScope();
+        renderOptionalComponents();
         break;
       case "docs":
         loadDocs(currentDocKey());
@@ -2196,6 +2288,9 @@
       state.serverWorkspace = status.active_workspace || "";
 
       await loadKBRegistry();
+      // Before any tab renders: a panel that is switched off has to come up
+      // grey, not come up live and grey itself a moment later.
+      await loadFeatures();
 
       // Restore this browser's last viewed workspace (session-level concept)
       const savedView = viewWorkspaceGet();
@@ -3571,6 +3666,8 @@
 
   async function loadBalthasar() {
     if (!state.workspace) return;
+    const tasks = featureByKey("tasks");
+    if (tasks && !tasks.enabled) return;
     try {
       const pm = await apiFetch(`/api/workspace/pm?workspace=${encodeURIComponent(state.workspace)}`);
       const engineReady = (pm.task_engine_ready !== undefined ? pm.task_engine_ready : pm.beads_available);
@@ -4437,6 +4534,14 @@
           ? t("vec_degraded_hint")
           : t("vec_unavailable_hint");
         els.searchInfoBar.appendChild(note);
+        // Missing Ollama is felt here, so the way to fix it belongs here —
+        // not three tabs away in a list the reader has no reason to open.
+        // MAGI cannot install it, so the offer is the page and a re-check.
+        const ollama = toolByKey("ollama");
+        if (ollama && !ollama.installed) {
+          els.searchInfoBar.appendChild(
+            toolActions("ollama", () => executeSearch(query, mode, limit)));
+        }
       }
 
       if (!data.results.length) {
@@ -4512,8 +4617,348 @@
     }
   }
 
+
+  // ------------------------------------------------------------------------
+  // Optional features
+  //
+  // Two of MAGI's workflows can be switched off — the literature radar and
+  // task tracking. Off is a choice, not a fault, so the panel greys out with
+  // a way back rather than disappearing from the tab bar: a tab that vanishes
+  // is a tab you cannot find again.
+  //
+  // Everything here is machine-wide. None of it varies by workspace, which is
+  // why the gate says so out loud next to a topbar that names one.
+  // ------------------------------------------------------------------------
+
+
+  // The CLI has one language and the WebUI has two, so these strings are
+  // translated here and the API text is only the fallback. Spelled out as a
+  // map rather than built as "opt_unlocks_" + key: a concatenated key is
+  // invisible to the test that checks every t() key exists.
+  const TOOL_UNLOCKS = {
+    ollama: "opt_unlocks_ollama", pandoc: "opt_unlocks_pandoc",
+    poppler: "opt_unlocks_poppler", latex: "opt_unlocks_latex",
+    mineru: "opt_unlocks_mineru",
+  };
+  const TOOL_HINTS = {
+    ollama: "opt_hint_ollama", poppler: "opt_hint_poppler",
+    mineru: "opt_hint_mineru",
+  };
+  const FEATURE_WHAT = {
+    radar: "feature_what_radar", tasks: "feature_what_tasks",
+  };
+  const FEATURE_LABEL = {
+    radar: "feature_label_radar", tasks: "feature_label_tasks",
+  };
+
+  function toolUnlocks(tool) {
+    return TOOL_UNLOCKS[tool.key] ? t(TOOL_UNLOCKS[tool.key]) : tool.unlocks;
+  }
+
+  function toolHint(tool) {
+    if (TOOL_HINTS[tool.key]) return t(TOOL_HINTS[tool.key]);
+    return tool.hint || "";
+  }
+
+  function featureWhat(feat) {
+    return FEATURE_WHAT[feat.key] ? t(FEATURE_WHAT[feat.key]) : feat.what;
+  }
+
+  // The label lands inside a translated sentence ("「{name}」已关闭"), so an
+  // English label there is not a proper noun left alone, it is a sentence in
+  // two languages.
+  function featureLabel(feat) {
+    return FEATURE_LABEL[feat.key] ? t(FEATURE_LABEL[feat.key]) : feat.label;
+  }
+
+  async function loadFeatures() {
+    try {
+      state.features = await apiFetch("/api/features");
+    } catch (_) {
+      // Unknown is not off. A failed read must never grey out a working panel.
+      state.features = null;
+    }
+    applyFeatureGates();
+  }
+
+  function featureByKey(key) {
+    if (!state.features || !Array.isArray(state.features.features)) return null;
+    return state.features.features.find((f) => f.key === key) || null;
+  }
+
+  function toolByKey(key) {
+    if (!state.features || !Array.isArray(state.features.tools)) return null;
+    return state.features.tools.find((t) => t.key === key) || null;
+  }
+
+  function applyFeatureGates() {
+    renderFeatureGate("radar", "gate-radar", "tab-radar");
+    renderFeatureGate("tasks", "gate-balthasar", "tab-balthasar");
+  }
+
+  function renderFeatureGate(key, gateId, panelId) {
+    const gate = document.getElementById(gateId);
+    const panel = document.getElementById(panelId);
+    if (!gate || !panel) return;
+    const feat = featureByKey(key);
+
+    // No answer yet, or the feature is on: nothing to say.
+    if (!feat || feat.enabled) {
+      gate.hidden = true;
+      gate.innerHTML = "";
+      panel.classList.remove("feature-off");
+      return;
+    }
+
+    panel.classList.add("feature-off");
+    gate.hidden = false;
+    gate.innerHTML = "";
+    // The loaders below the gate return early, which leaves whatever
+    // placeholder the markup shipped with — a permanent "Loading digests..."
+    // behind a panel that has explicitly stopped. Dimmed or not, a panel must
+    // not claim to be doing something it is not.
+    quietPanel(panelId);
+
+    const title = document.createElement("div");
+    title.className = "gate-title";
+    title.textContent = t("feature_off_title", { name: featureLabel(feat) });
+    gate.appendChild(title);
+
+    const body = document.createElement("div");
+    body.className = "gate-body";
+    body.textContent = t("feature_off_body", { what: featureWhat(feat) });
+    gate.appendChild(body);
+
+    const row = document.createElement("div");
+    row.className = "gate-actions";
+
+    const on = document.createElement("button");
+    on.className = "btn btn-primary btn-sm";
+    on.innerHTML =
+      `<span>${escapeHtml(t("feature_turn_on", { name: featureLabel(feat) }))}</span>` +
+      ` <span class="badge badge-muted op-scope-badge">${escapeHtml(t("ops_badge_global"))}</span>`;
+    // Says what the click will do before it does it, including the install,
+    // which is the part that takes a minute and touches the machine.
+    on.title = feat.can_install && !feat.needs_installed
+      ? t("feature_turn_on_installs", { needs: feat.needs })
+      : t("feature_turn_on_plain");
+    on.addEventListener("click", () => turnFeatureOn(feat));
+    row.appendChild(on);
+    gate.appendChild(row);
+
+    if (feat.can_install && !feat.needs_installed) {
+      const note = document.createElement("div");
+      note.className = "gate-note";
+      note.textContent = t("feature_will_install", { needs: feat.needs });
+      gate.appendChild(note);
+    }
+  }
+
+  // What a switched-off panel would otherwise keep claiming. `blocks` are
+  // regions whose markup ships a "Loading…" placeholder that nothing will ever
+  // replace once the loader returns early; `metrics` are display numbers whose
+  // markup default is 0 — a confident zero for a count nobody took.
+  const QUIET_TARGETS = {
+    "tab-radar": {
+      blocks: ["digest-files-list", "digest-viewer", "digest-triage"],
+      metrics: ["radar-pending-count", "radar-last-harvest"],
+    },
+    "tab-balthasar": {
+      blocks: [],
+      metrics: ["task-ready-val", "task-progress-val", "task-blocked-val", "task-open-val"],
+    },
+  };
+
+  function quietPanel(panelId) {
+    const targets = QUIET_TARGETS[panelId] || { blocks: [], metrics: [] };
+    (targets.blocks || []).forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = `<p class="empty-note pad-1">${escapeHtml(t("feature_off_quiet"))}</p>`;
+    });
+    (targets.metrics || []).forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = t("metric_feature_off");
+      el.classList.add("metric-empty");
+    });
+  }
+
+
+  // One row per optional component: what it unlocks, whether this machine has
+  // it, a tick for whether you want it at all, and the only action that is
+  // honest for it. MAGI installs none of these, so no row offers to — the
+  // exception is Ollama, where MAGI can pull the models once Ollama itself is
+  // there, and that button only appears when it is.
+  function renderOptionalComponents() {
+    const list = document.getElementById("optional-list");
+    if (!list) return;
+    list.innerHTML = "";
+    const tools = (state.features && state.features.tools) || [];
+    if (!tools.length) {
+      list.innerHTML = `<p class="empty-note">${escapeHtml(t("opt_unknown"))}</p>`;
+      return;
+    }
+
+    tools.forEach((tool) => {
+      const row = document.createElement("div");
+      row.className = "opt-row";
+
+      const head = document.createElement("div");
+      head.className = "opt-head";
+
+      const tick = document.createElement("label");
+      tick.className = "inline-check";
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.checked = !!tool.wanted;
+      box.title = t("opt_want_tip", { name: tool.label });
+      box.addEventListener("change", async () => {
+        try {
+          await apiFetch("/api/features", {
+            method: "POST",
+            body: JSON.stringify({ key: tool.key, enabled: box.checked, kind: "tool" }),
+          });
+          showToast(box.checked ? t("opt_wanted_toast", { name: tool.label })
+                                : t("opt_declined_toast", { name: tool.label }), "success");
+          await loadFeatures();
+          renderOptionalComponents();
+        } catch (err) {
+          box.checked = !box.checked;      // put the tick back where it was
+          showToast(err.message, "error");
+        }
+      });
+      tick.appendChild(box);
+      const name = document.createElement("span");
+      name.className = "opt-name";
+      name.textContent = tool.label;
+      tick.appendChild(name);
+      head.appendChild(tick);
+
+      // `installed: null` is MinerU: a hosted service, where "installed" is
+      // not a question with an answer.
+      const badge = document.createElement("span");
+      if (tool.installed === null) {
+        badge.className = "badge badge-muted";
+        badge.textContent = t("opt_service");
+      } else if (tool.installed) {
+        badge.className = "badge badge-sage";
+        badge.textContent = t("opt_present");
+      } else {
+        badge.className = "badge badge-muted";
+        badge.textContent = t("opt_absent");
+      }
+      head.appendChild(badge);
+      row.appendChild(head);
+
+      const what = document.createElement("div");
+      what.className = "opt-what";
+      what.textContent = t("opt_unlocks", { unlocks: toolUnlocks(tool) });
+      row.appendChild(what);
+
+      const hintText = toolHint(tool);
+      if (hintText) {
+        const hint = document.createElement("div");
+        hint.className = "opt-hint";
+        hint.textContent = hintText;
+        row.appendChild(hint);
+      }
+
+      // Only attach the strip if it actually holds a control — an empty
+      // flex row still takes vertical space and reads as a missing button.
+      const actions = toolActions(tool.key, () => renderOptionalComponents());
+      if (actions.childElementCount) row.appendChild(actions);
+      list.appendChild(row);
+    });
+  }
+
+  async function turnFeatureOn(feat) {
+    try {
+      await apiFetch("/api/features", {
+        method: "POST",
+        body: JSON.stringify({ key: feat.key, enabled: true, kind: "feature" }),
+      });
+    } catch (err) {
+      showToast(err.message, "error");
+      return;
+    }
+    // The switch is the whole job for the radar. Task tracking also needs its
+    // store on disk, and that is a job with output worth watching.
+    if (feat.op && feat.can_install && !feat.needs_installed) {
+      launchJob(feat.op, t("feature_turn_on", { name: featureLabel(feat) }), null, { stay: true });
+    } else {
+      showToast(t("feature_on_toast", { name: featureLabel(feat) }), "success");
+    }
+    invalidateCoalesced();
+    await loadFeatures();
+    loadSyncRatio();
+    loadTabData(state.activeTab);
+  }
+
+  // A tool MAGI cannot install. The only honest offer is the page it lives on
+  // and a way to look again afterwards — a button labelled "install" that
+  // opens a browser tab is a button that lied.
+  function toolActions(key, onRecheck) {
+    const tool = toolByKey(key);
+    const row = document.createElement("div");
+    row.className = "gate-actions";
+    if (!tool) return row;
+
+    // Already here: the download page and a re-check are both answers to a
+    // question nobody is asking. Only the follow-up action below is useful.
+    if (tool.installed !== true) {
+      const open = document.createElement("a");
+      open.className = "btn btn-secondary btn-sm";
+      open.href = tool.url;
+      open.target = "_blank";
+      open.rel = "noopener noreferrer";
+      open.textContent = t("tool_open_site", { name: tool.label });
+      row.appendChild(open);
+    }
+
+    // `installed === null` is a hosted service. "I installed it" is not a
+    // thing you can do to a website, and there is nothing on this machine to
+    // look for — its readiness is a token in config.yaml, not a binary.
+    if (tool.installed === false) {
+      const again = document.createElement("button");
+      again.className = "btn btn-quiet btn-sm";
+      again.textContent = t("tool_recheck");
+      again.title = t("tool_recheck_tip", { name: tool.label });
+      again.addEventListener("click", async () => {
+        await loadFeatures();
+        const now = toolByKey(key);
+        if (now && now.installed) {
+          showToast(t("tool_found", { name: tool.label }), "success");
+          if (typeof onRecheck === "function") onRecheck(now);
+        } else {
+          showToast(t("tool_still_missing", { name: tool.label }), "warn");
+        }
+      });
+      row.appendChild(again);
+    }
+
+    // The one thing MAGI *can* do once the tool itself is present.
+    // Spelled out rather than built as "op_" + id: a concatenated key is
+    // invisible to the test that checks every t() key exists, which is how a
+    // typo here would reach the browser as the literal word "undefined".
+    const OP_LABELS = { "pull-models": "op_pull_models",
+                        "install-tasks": "op_install_tasks" };
+    if (tool.op && tool.installed && OP_LABELS[tool.op]) {
+      const run = document.createElement("button");
+      run.className = "btn btn-secondary btn-sm";
+      run.textContent = t(OP_LABELS[tool.op]);
+      run.addEventListener("click", () =>
+        launchJob(tool.op, t(OP_LABELS[tool.op]), null, { stay: true }));
+      row.appendChild(run);
+    }
+    return row;
+  }
+
   async function loadRadar() {
     if (!state.workspace) return;
+    // The gate is drawn from cached state; the fetches below are what would
+    // otherwise repopulate a panel the user switched off.
+    const radar = featureByKey("radar");
+    if (radar && !radar.enabled) return;
     try {
       await refreshTaskStoreState();
       if (els.radarSettingsBody) loadConfigCard(els.radarSettingsBody, "radar");
