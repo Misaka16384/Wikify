@@ -261,8 +261,15 @@ def test_describe_distinguishes_a_live_library_from_a_stale_one(library):
 
 @pytest.fixture
 def isolated(tmp_path, monkeypatch):
-    """No real drives. A discovery test must never find the developer's own library."""
+    """Every discovery route pointed somewhere empty.
+
+    A discovery test must never find the developer's own library. Each new way
+    of locating one has to be closed off here too — adding the prefs.js reader
+    reopened this the moment it landed.
+    """
     monkeypatch.setattr(zotero, "SEARCH_DRIVES", ())
+    monkeypatch.setattr(zotero, "_PROFILE_ROOTS", {})
+    monkeypatch.setattr(zotero, "_PROFILE_ROOTS_DEFAULT", [tmp_path / "no-profile"])
     monkeypatch.setattr(zotero.Path, "home", staticmethod(lambda: tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
     return tmp_path
@@ -271,6 +278,93 @@ def isolated(tmp_path, monkeypatch):
 def test_a_directory_without_a_database_is_not_a_candidate(isolated):
     (isolated / "Zotero").mkdir()
     assert zotero.candidate_data_dirs() == []
+
+
+# --------------------------------------------------------------------------
+# prefs.js — the authoritative answer, and the only cross-platform one
+# --------------------------------------------------------------------------
+
+def _write_profile(root, data_dir_literal):
+    profile = root / "Profiles" / "abc123.default"
+    profile.mkdir(parents=True)
+    (profile / "prefs.js").write_text(
+        '// Zotero prefs\n'
+        'user_pref("extensions.zotero.autoSync", true);\n'
+        f'user_pref("extensions.zotero.dataDir", "{data_dir_literal}");\n',
+        encoding="utf-8")
+    return profile
+
+
+@pytest.mark.parametrize("platform", ["win32", "darwin", "linux"])
+def test_the_data_dir_is_read_from_prefs_on_every_platform(tmp_path, monkeypatch,
+                                                           platform, library):
+    """Zotero records where its library actually is. Guessing cannot find one
+    someone moved to an external drive or a NAS; this can."""
+    root = tmp_path / "profile-root"
+    root.mkdir()
+    _write_profile(root, str(library).replace("\\", "\\\\"))
+
+    monkeypatch.setattr(zotero.sys, "platform", platform)
+    monkeypatch.setattr(zotero, "_PROFILE_ROOTS", {platform: [root]})
+    monkeypatch.setattr(zotero, "_PROFILE_ROOTS_DEFAULT", [root])
+
+    assert zotero.data_dir_from_prefs() == [library]
+
+
+def test_a_windows_path_in_prefs_is_unescaped(tmp_path, monkeypatch):
+    """prefs.js is JavaScript source, so backslashes arrive doubled."""
+    root = tmp_path / "r"
+    root.mkdir()
+    _write_profile(root, "D:\\\\Research\\\\Zotero")
+    monkeypatch.setattr(zotero, "_PROFILE_ROOTS", {zotero.sys.platform: [root]})
+    monkeypatch.setattr(zotero, "_PROFILE_ROOTS_DEFAULT", [root])
+
+    assert str(zotero.data_dir_from_prefs()[0]).endswith("Zotero")
+    assert "\\\\" not in str(zotero.data_dir_from_prefs()[0])
+
+
+def test_a_profile_without_the_pref_is_skipped(tmp_path, monkeypatch):
+    root = tmp_path / "r"
+    profile = root / "Profiles" / "x.default"
+    profile.mkdir(parents=True)
+    (profile / "prefs.js").write_text(
+        'user_pref("extensions.zotero.autoSync", true);\n', encoding="utf-8")
+    monkeypatch.setattr(zotero, "_PROFILE_ROOTS", {zotero.sys.platform: [root]})
+    monkeypatch.setattr(zotero, "_PROFILE_ROOTS_DEFAULT", [root])
+
+    assert zotero.data_dir_from_prefs() == []
+
+
+def test_no_profile_at_all_is_not_an_error(tmp_path, monkeypatch):
+    monkeypatch.setattr(zotero, "_PROFILE_ROOTS", {zotero.sys.platform: [tmp_path / "nope"]})
+    monkeypatch.setattr(zotero, "_PROFILE_ROOTS_DEFAULT", [tmp_path / "nope"])
+    assert zotero.data_dir_from_prefs() == []
+
+
+def test_prefs_is_preferred_over_a_guess(tmp_path, monkeypatch, library):
+    """What Zotero itself records outranks anywhere we thought to look."""
+    root = tmp_path / "r"
+    root.mkdir()
+    _write_profile(root, str(library).replace("\\", "\\\\"))
+    monkeypatch.setattr(zotero, "SEARCH_DRIVES", ())
+    monkeypatch.setattr(zotero, "_PROFILE_ROOTS", {zotero.sys.platform: [root]})
+    monkeypatch.setattr(zotero, "_PROFILE_ROOTS_DEFAULT", [root])
+    monkeypatch.setattr(zotero.Path, "home", staticmethod(lambda: tmp_path))
+
+    assert zotero.candidate_data_dirs()[0] == library
+
+
+def test_windows_drive_sweep_does_not_run_off_windows(monkeypatch):
+    """C:/D:/E: are meaningless on macOS and Linux."""
+    import importlib
+
+    monkeypatch.setattr("sys.platform", "darwin")
+    reloaded = importlib.reload(zotero)
+    try:
+        assert reloaded.SEARCH_DRIVES == ()
+    finally:
+        monkeypatch.undo()
+        importlib.reload(zotero)
 
 
 def test_a_directory_with_a_database_is_found(isolated, library):

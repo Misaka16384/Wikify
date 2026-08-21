@@ -17,6 +17,7 @@ All Zotero SQL lives here. Nowhere else in MAGI knows this schema.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import sqlite3
 import sys
@@ -68,11 +69,52 @@ class ZoteroItem(NamedTuple):
 # Finding the data directory
 # --------------------------------------------------------------------------
 
-# Zotero's own default is under the home directory, but people move it — a
-# second drive is the usual reason. Kept as a module constant so a test can
-# empty it: scanning real drives from a test would find the developer's own
-# library, which is exactly what a test about someone's private data must not do.
-SEARCH_DRIVES: tuple[str, ...] = ("C:", "D:", "E:")
+# Extra drives to sweep, Windows only, for the common case of a library moved
+# off C:. Kept as a module constant so a test can empty it: sweeping real drives
+# from a test finds the developer's own library, which is exactly what a test
+# about someone's private data must not do.
+SEARCH_DRIVES: tuple[str, ...] = ("C:", "D:", "E:") if sys.platform == "win32" else ()
+
+# Where Zotero keeps its Firefox-style profile. The profile is not the library,
+# but prefs.js inside it records where the library actually is — which beats
+# guessing, and is the only thing that finds a library somebody moved.
+_PROFILE_ROOTS = {
+    "win32": [Path(os.environ.get("APPDATA", "")) / "Zotero" / "Zotero"],
+    "darwin": [Path.home() / "Library" / "Application Support" / "Zotero"],
+}
+_PROFILE_ROOTS_DEFAULT = [Path.home() / ".zotero" / "zotero",
+                          Path.home() / ".zotero"]
+
+_DATA_DIR_PREF = re.compile(
+    r'user_pref\(\s*["\']extensions\.zotero\.dataDir["\']\s*,\s*["\'](.+?)["\']\s*\)')
+
+
+def _profile_roots() -> list[Path]:
+    roots = _PROFILE_ROOTS.get(sys.platform, list(_PROFILE_ROOTS_DEFAULT))
+    return [r for r in roots if str(r) and r.is_dir()]
+
+
+def data_dir_from_prefs() -> list[Path]:
+    """Data directories Zotero itself records in prefs.js.
+
+    Authoritative when present: it is where the running application looks. A
+    library moved to an external drive or a NAS is invisible to any amount of
+    guessing and obvious here.
+    """
+    found: list[Path] = []
+    for root in _profile_roots():
+        for prefs in root.glob("Profiles/*/prefs.js"):
+            try:
+                text = prefs.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            m = _DATA_DIR_PREF.search(text)
+            if not m:
+                continue
+            # prefs.js is JS source, so a Windows path arrives escaped.
+            raw = m.group(1).replace("\\\\", "\\")
+            found.append(Path(raw).expanduser())
+    return found
 
 
 def candidate_data_dirs(extra: Iterable[str] = ()) -> list[Path]:
@@ -83,12 +125,28 @@ def candidate_data_dirs(extra: Iterable[str] = ()) -> list[Path]:
     frozen years ago while looking like it worked.
     """
     home = Path.home()
-    guesses = [
+    guesses = list(data_dir_from_prefs())
+    guesses += [Path(p) for p in extra]
+    # Zotero's default on every platform is ~/Zotero; the rest are places people
+    # actually move it to.
+    guesses += [
         home / "Zotero",
         home / "Documents" / "Zotero",
-        Path(os.environ.get("USERPROFILE", str(home))) / "Zotero",
+        home / "OneDrive" / "Zotero",
     ]
-    guesses += [Path(p) for p in extra]
+    if sys.platform == "darwin":
+        guesses += [Path("/Volumes") / "Zotero",
+                    home / "Library" / "CloudStorage"]
+        guesses += [p / "Zotero" for p in Path("/Volumes").glob("*")
+                    if p.is_dir()] if Path("/Volumes").is_dir() else []
+    elif sys.platform != "win32":
+        guesses += [home / ".zotero" / "data"]
+        for mount in (Path("/mnt"), Path("/media")):
+            if mount.is_dir():
+                guesses += [p / "Zotero" for p in mount.glob("*/*") if p.is_dir()]
+                guesses += [p / "Zotero" for p in mount.glob("*") if p.is_dir()]
+    else:
+        guesses.append(Path(os.environ.get("USERPROFILE", str(home))) / "Zotero")
     for drive in SEARCH_DRIVES:
         guesses.append(Path(f"{drive}/Zotero"))
         guesses.append(Path(f"{drive}/OneDrive/Zotero"))
