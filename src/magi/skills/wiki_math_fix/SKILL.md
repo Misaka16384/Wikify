@@ -9,7 +9,7 @@ commands:
 
 > **CLI (read first):** This skill drives the `magi` CLI (MAGI research workspace tool, assumed installed on PATH). If unsure of your surroundings, run `magi sync` first to locate the workspace. For the full syntax of any command: `magi <command> --help`.
 
-> **Tooling (framework-agnostic):** Where this says *file-read tool* / *file-edit tool*, use your agent's equivalent (`Read` / `Edit` in Claude Code, `view_file` / `edit_file` in Antigravity). Shell commands run via your framework's shell tool.
+> **Tooling (framework-agnostic):** Where this says *file-read tool* / *file-edit tool*, use your agent's equivalent (`Read` / `Edit` in Claude Code, `view_file` / `edit_file` in Antigravity). Shell commands run via your framework's shell tool. Where a step says to **ask the user**, use your agent's question tool (`AskUserQuestion` in Claude Code) or simply ask in your reply and wait — never assume an answer and carry on.
 
 Ingestion turns PDFs into markdown, and the maths does not always survive. A
 `$$` loses its closing pair and swallows a page of prose; a subscript brace

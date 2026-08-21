@@ -571,8 +571,16 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             body = ("---\n" + yaml.safe_dump(fm, allow_unicode=True, sort_keys=False)
                     + "---\n\n" + f"# {cand['title']}\n\n"
                     + (f"{url}\n\n" if url else "")
-                    + f"Accepted from {req.file} via WebUI radar review — "
-                      "download the PDF/source into inbox/ and run the wiki_ingest skill.\n")
+                    + f"Accepted from {req.file} via WebUI radar review.\n\n"
+                    # This line used to read "download the PDF/source into
+                    # inbox/ and run the wiki_ingest skill" — an instruction to
+                    # an agent, which one duly improvised its way through into a
+                    # per-page vision transcription. A command is not an
+                    # invitation to improvise.
+                    + "Ingest it with:\n\n"
+                    + f"    magi ingest url {url or cand['id']}\n"
+                    + "    magi ingest batch-run\n\n"
+                    + "Then review and approve the batch: `magi ingest batch-list`.\n")
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(body, encoding="utf-8")
             if cand.get("id"):

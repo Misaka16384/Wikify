@@ -11,7 +11,7 @@ commands:
 
 This skill handles "gap-filling" for concept extraction. Due to token limits, initial compilations might miss secondary theorems, lemmas, or physics corollaries. This skill ensures high concept density.
 
-> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Map each capability to your own agent's tool — *read-file* (`Read` in Claude Code, `view_file` in Antigravity), *sub-agent / parallel task* (`Task`/`Agent` in Claude Code, `invoke_subagent` in Antigravity), *shell* (`Bash`/`PowerShell`). Use the closest equivalent your framework provides; if a parallel sub-agent tool is unavailable, mine the chunks sequentially yourself.
+> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Map each capability to your own agent's tool — *read-file* (`Read` in Claude Code, `view_file` in Antigravity), *sub-agent / parallel task* (`Task`/`Agent` in Claude Code, `invoke_subagent` in Antigravity), *ask-user* (`AskUserQuestion` in Claude Code, or simply asking in your reply and waiting — never assume an answer), *shell* (`Bash`/`PowerShell`). Use the closest equivalent your framework provides; if a parallel sub-agent tool is unavailable, mine the chunks sequentially yourself.
 
 When the user asks to enrich, deep-dive, or查漏补缺 (fill gaps) on a paper:
 0.  **Pre-enrichment Placeholder Fill (Main Agent)**:

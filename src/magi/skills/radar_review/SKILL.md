@@ -11,7 +11,7 @@ commands:
 
 The deterministic radar (`magi radar harvest`, usually run nightly by the scheduler) collects candidate papers into `inbox/radar/YYYY-MM-DD-digest.md` and `output/radar/candidates.jsonl`. **Your job is the judgment layer**: decide which candidates matter for THIS workspace, and convert decisions into durable state (bd issues, ingestion queue). Never let a digest rot in `pending-review`.
 
-> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Where it says *file-read tool*, use your agent's equivalent (`Read` in Claude Code, `view_file` in Antigravity). Shell commands run via `Bash`/`PowerShell` or your framework's shell tool.
+> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Where it says *file-read tool*, use your agent's equivalent (`Read` in Claude Code, `view_file` in Antigravity). Shell commands run via `Bash`/`PowerShell` or your framework's shell tool. Where a step says to **ask the user**, use your agent's question tool (`AskUserQuestion` in Claude Code) or simply ask in your reply and wait — never assume an answer and carry on.
 
 **Cold start (fresh workspace):** On a fresh workspace run `magi index` before step 3 so `magi search` has an index to query. If `output/graph.db` is missing, treat the wiki as empty and skip the concept query in step 2. On an empty wiki, judge candidates against the scope statement in `config.md` instead of concept cards — do not skip-all.
 

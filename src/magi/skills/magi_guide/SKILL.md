@@ -13,7 +13,7 @@ MAGI ships its own operating manual inside the package — twelve scenario chapt
 
 **The rule this skill exists to enforce: never answer a MAGI usage question from memory.** Flags change between versions; the manual on disk describes *this* installation. Look it up, quote it, then act.
 
-> **Tooling (framework-agnostic):** Where this says *file-read tool*, use your agent's equivalent (`Read` in Claude Code, `view_file` in Antigravity). Shell commands run via `Bash`/`PowerShell` or your framework's shell tool.
+> **Tooling (framework-agnostic):** Where this says *file-read tool*, use your agent's equivalent (`Read` in Claude Code, `view_file` in Antigravity). Shell commands run via `Bash`/`PowerShell` or your framework's shell tool. Where a step says to **ask the user**, use your agent's question tool (`AskUserQuestion` in Claude Code) or simply ask in your reply and wait — never assume an answer and carry on.
 
 ## The command surface
 
