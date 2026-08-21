@@ -59,6 +59,7 @@
       graph_legend_claim: "断言",
       graph_legend_ghost: "断链（指向不存在的卡片）",
       graph_legend_tag: "标签",
+      graph_legend_other: "未分类（{kinds}）",
       graph_legend_size: "点越大 = 连接越多",
       graph_needs_build: "这个库还没建知识图谱。建完之后才能浏览概念之间的连接。",
       running_jobs_tooltip: "正在运行的后台任务（本机全部工作区）——点击查看实时日志。",
@@ -357,13 +358,13 @@
       danger_modal_title: "确认操作",
       danger_modal_default_desc: "确定要继续执行此操作吗？",
       danger_setup_title: "环境一键配置",
-      danger_setup_desc: "为当前环境重新配置任务引擎、Ollama 模型与 Claude 插件。",
+      danger_setup_desc: "为当前环境重新配置：任务引擎、Ollama 模型，检测已装的 agent CLI（Claude Code / Codex / Antigravity / opencode），并注册 Claude Code 插件（这一步只有 Claude Code 有对应机制）。",
       danger_migrate_title: "工作区结构迁移",
       danger_migrate_desc: "将旧版工作区布局迁移至 MAGI 标准规范。",
       danger_pm_init_title: "初始化任务工作流",
       danger_pm_init_desc: "在 Hub 目录初始化科研任务追踪数据库。",
       danger_remove_legacy_title: "清理旧版历史文件",
-      danger_remove_legacy_desc: "永久清理 ~/.claude/skills 与 ~/.gemini/skills 中的旧版脚本。",
+      danger_remove_legacy_desc: "永久删除 ~/.claude/skills 与 ~/.gemini/skills 里的旧版 Wikify 脚本。只有这两个目录，因为旧版 Wikify 早于 Codex / Antigravity / opencode 支持——不是偏袒某一家。",
       danger_modal_prefix: "危险操作确认",
       warning_label: "警告",
       cmd_to_execute: "即将执行命令",
@@ -644,6 +645,7 @@
       graph_legend_claim: "claim",
       graph_legend_ghost: "dangling link",
       graph_legend_tag: "tag",
+      graph_legend_other: "unclassified ({kinds})",
       graph_legend_size: "bigger dot = more links",
       graph_needs_build: "No knowledge graph for this library yet. Build it to browse how concepts connect.",
       running_jobs_tooltip: "Background jobs running right now, across every workspace on this machine. Click to watch the log.",
@@ -942,13 +944,13 @@
       danger_modal_title: "Confirm Action",
       danger_modal_default_desc: "Are you sure you want to proceed with this operation?",
       danger_setup_title: "Environment Setup",
-      danger_setup_desc: "Re-provision task engine, Ollama models, and Claude plugins for the current environment.",
+      danger_setup_desc: "Re-provisions this environment: the task engine, Ollama models, a scan for installed agent CLIs (Claude Code / Codex / Antigravity / opencode), and Claude Code plugin registration — that last step exists only for Claude Code.",
       danger_migrate_title: "Migrate Workspace",
       danger_migrate_desc: "Migrate old workspace layouts and files to the MAGI standard.",
       danger_pm_init_title: "Initialize Task Tracking",
       danger_pm_init_desc: "Initialize the task tracking database in the hub directory.",
       danger_remove_legacy_title: "Remove Legacy Copies",
-      danger_remove_legacy_desc: "Permanently delete old pre-MAGI scripts in ~/.claude/skills and ~/.gemini/skills.",
+      danger_remove_legacy_desc: "Permanently deletes pre-MAGI Wikify scripts from ~/.claude/skills and ~/.gemini/skills. Only those two, because legacy Wikify predates Codex / Antigravity / opencode support — not a preference for one vendor.",
       danger_modal_prefix: "Danger Confirmation",
       warning_label: "Warning",
       cmd_to_execute: "Command to be executed",
@@ -3055,14 +3057,22 @@
     const cs = getComputedStyle(document.documentElement);
     const v = (name, fb) => cs.getPropertyValue(name).trim() || fb;
     graphMap.colorsKey = themeKey;
+    // Its own palette, not the semantic accents. `topic` and `thesis` both
+    // resolved to --accent-sage, so two legend entries drew the identical dot
+    // — and there is no spare semantic accent to give thesis, because those
+    // encode meaning (danger is destructive) rather than category.
     graphMap.colors = {
-      concept: v("--accent-primary", "#34597E"),
-      reference: v("--accent-blue", "#3E7CB1"),
-      topic: v("--accent-sage", "#6A8E5A"),
-      thesis: v("--accent-sage", "#6A8E5A"),
-      claim: v("--accent-amber", "#B98A2F"),
-      tag: v("--text-subtle", "#9A968C"),
-      ghost: v("--text-subtle", "#9A968C"),
+      concept: v("--graph-concept", "#2F5D8C"),
+      reference: v("--graph-reference", "#1F7A6E"),
+      topic: v("--graph-topic", "#5C7C34"),
+      thesis: v("--graph-thesis", "#7A4A9E"),
+      claim: v("--graph-claim", "#B5761B"),
+      tag: v("--graph-tag", "#9AA0A8"),
+      ghost: v("--graph-tag", "#9AA0A8"),
+      // Anything the graph does not have a kind for. It used to fall back to
+      // the concept colour, so 67 of 87 nodes in one real library drew as
+      // concepts; a node whose kind we do not know must look unknown.
+      other: v("--graph-other", "#C0554A"),
       label: v("--text-secondary", "#4A463E"),
       edge: v("--text-subtle", "#C8C4B8"),
       family: getComputedStyle(document.body).fontFamily || "sans-serif",
@@ -3078,6 +3088,11 @@
     if (!box) return;
     const col = graphMapColors();
     const kinds = ["concept", "reference", "topic", "thesis", "claim", "ghost"];
+    // A node kind the palette does not have. Nothing should land here now
+    // that the directory decides the type, but if something does, the legend
+    // has to name it rather than let it pass as whatever colour it landed on.
+    const known = new Set([...kinds, "tag"]);
+    const strays = graphMap.nodes.filter((n) => !known.has(n.type));
     box.innerHTML = "";
     kinds.forEach((k) => {
       if (k === "ghost" && !graphMap.nodes.some((n) => n.type === "ghost")) return;
@@ -3097,6 +3112,17 @@
       dot.style.background = col.tag;
       item.appendChild(dot);
       item.appendChild(document.createTextNode(t("graph_legend_tag")));
+      box.appendChild(item);
+    }
+    if (strays.length) {
+      const item = document.createElement("span");
+      item.className = "legend-item";
+      const dot = document.createElement("i");
+      dot.style.background = col.other;
+      item.appendChild(dot);
+      const kinds_ = [...new Set(strays.map((n) => n.type))].sort().join(", ");
+      item.appendChild(document.createTextNode(
+        t("graph_legend_other", { kinds: kinds_ })));
       box.appendChild(item);
     }
     const size = document.createElement("span");
@@ -3162,7 +3188,7 @@
       const isHover = hover && n.id === hover.id;
       const isNeigh = neigh && neigh.has(n.id);
       ctx.globalAlpha = hover ? (isHover || isNeigh ? 1 : 0.14) : n.type === "ghost" ? 0.55 : 0.92;
-      ctx.fillStyle = col[n.type] || col.concept;
+      ctx.fillStyle = col[n.type] || col.other;
       ctx.beginPath();
       ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
       if (n.type === "ghost") {
@@ -3175,7 +3201,7 @@
       }
       if (isHover) {
         ctx.lineWidth = 2 / graphMap.k;
-        ctx.strokeStyle = col[n.type] || col.concept;
+        ctx.strokeStyle = col[n.type] || col.other;
         ctx.beginPath();
         ctx.arc(n.x, n.y, r + 3 / graphMap.k, 0, Math.PI * 2);
         ctx.stroke();

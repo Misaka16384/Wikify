@@ -12,7 +12,24 @@ import magi.setup_cmd as setup
 
 
 @pytest.fixture
-def bare(monkeypatch):
+def isolated_settings(tmp_path, monkeypatch):
+    """Global settings in a throwaway dir, never the machine's own.
+
+    `wanted_optionals` is stubbed below, but `choose_optionals` reads
+    `load_settings()` directly and so walked straight past the stub to the
+    real file. That went unnoticed only while no settings file existed on
+    this machine; the moment one appeared — as it does for anyone who has
+    answered the setup questions once — the non-interactive test started
+    reading somebody's actual choices and failing on them.
+    """
+    home = tmp_path / "cfg"
+    home.mkdir()
+    monkeypatch.setenv("MAGI_CONFIG_HOME", str(home))
+    return home
+
+
+@pytest.fixture
+def bare(monkeypatch, isolated_settings):
     """A machine with none of the optional tools installed."""
     monkeypatch.setattr(setup, "_which", lambda name: None)
     monkeypatch.setattr(setup, "agent_cli_rows", lambda _ws=None: [])
@@ -20,7 +37,7 @@ def bare(monkeypatch):
 
 
 @pytest.fixture
-def loaded(monkeypatch):
+def loaded(monkeypatch, isolated_settings):
     """A machine with everything installed."""
     monkeypatch.setattr(setup, "_which", lambda name: f"/usr/bin/{name}")
     monkeypatch.setattr(setup, "agent_cli_rows", lambda _ws=None: [])

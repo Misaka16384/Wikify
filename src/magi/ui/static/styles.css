@@ -68,6 +68,17 @@
   --accent-amber: #A97C24;
   --accent-amber-wash: rgba(169, 124, 36, 0.12);
 
+  /* Graph node palette — six hues that must be told apart as 6px dots.
+     Not the semantic accents: those encode meaning, and there is no spare
+     one for `thesis`, which is why it used to share `topic`'s green. */
+  --graph-concept: #2F5D8C;   /* deep blue      */
+  --graph-reference: #1F7A6E; /* teal           */
+  --graph-topic: #5C7C34;     /* olive green    */
+  --graph-thesis: #7A4A9E;    /* violet         */
+  --graph-claim: #B5761B;     /* amber          */
+  --graph-tag: #9AA0A8;       /* grey           */
+  --graph-other: #C0554A;     /* unclassified   */
+
   --border-default: #DDDACE;
   --border-subtle: #E9E6DC;
   --shadow-sm: 0 1px 2px rgba(29, 33, 38, 0.05), 0 1px 1px rgba(29, 33, 38, 0.03);
@@ -146,6 +157,14 @@
   --accent-amber: #D3A44E;
   --accent-amber-wash: rgba(211, 164, 78, 0.14);
 
+  --graph-concept: #7FA8CE;
+  --graph-reference: #5FC6B5;
+  --graph-topic: #A8C77A;
+  --graph-thesis: #B98FE0;
+  --graph-claim: #D3A44E;
+  --graph-tag: #6C737D;
+  --graph-other: #E0796C;
+
   --border-default: #30353D;
   --border-subtle: #262B32;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.32);
@@ -191,6 +210,14 @@
   /* Alert amber */
   --accent-amber: #FFA51E;
   --accent-amber-wash: rgba(255, 165, 30, 0.14);
+
+  --graph-concept: #46B6FF;
+  --graph-reference: #35EFD0;
+  --graph-topic: #35EF7E;
+  --graph-thesis: #C77BFF;
+  --graph-claim: #FFA51E;
+  --graph-tag: #5A6B84;
+  --graph-other: #FF4A57;
 
   --border-default: #1D2536;
   --border-subtle: #141A28;

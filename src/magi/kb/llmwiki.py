@@ -22,6 +22,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+# The node kinds the graph map draws and the legend names. Anything outside
+# this set has no colour of its own, so it must not reach `nodes.type` — see
+# the classification note where a card's type is decided.
+NODE_TYPES = frozenset({"concept", "reference", "topic", "thesis", "claim", "tag"})
+
 
 def wash_windows_path(path_str: str) -> str:
     if os.name != "nt":
@@ -2642,19 +2647,28 @@ def run_graph(args: argparse.Namespace) -> int:
             # Use relative path as node_id to avoid collisions across subdirectories
             node_id = str(rel).replace("\\", "/").removesuffix(".md")
             title = str(fm.get("title") or md_file.stem)
-            node_type = str(fm.get("type") or "")
-            if not node_type:
-                # Fall back to the containing directory so concept/reference
-                # nodes get a non-empty `type` even when frontmatter omits it.
-                # Use the singular canonical form so it lines up with `category`
-                # (e.g. concepts/foo.md -> "concept"). Frontmatter still wins.
-                parent_name = md_file.parent.name
-                node_type = {
-                    "concepts": "concept",
-                    "references": "reference",
-                    "theses": "thesis",
-                    "topics": "topic",
-                }.get(parent_name, parent_name)
+            # `type:` in frontmatter answers a different question than this
+            # column does. On a reference card it names the *kind of source*
+            # — papers, articles, book — while `nodes.type` is the kind of
+            # *node*. Letting the frontmatter win outright meant every paper
+            # card landed in the graph typed "papers", which is not a node
+            # kind the map knows, so all of them drew in the concept colour:
+            # 67 of 87 nodes in one real library, 17 in another.
+            #
+            # So the directory decides, and frontmatter only wins when it
+            # names a node kind the graph actually has.
+            parent_name = md_file.parent.name
+            from_dir = {
+                "concepts": "concept",
+                "references": "reference",
+                "theses": "thesis",
+                "topics": "topic",
+            }.get(parent_name)
+            declared = str(fm.get("type") or "").strip().lower()
+            if from_dir:
+                node_type = declared if declared in NODE_TYPES else from_dir
+            else:
+                node_type = declared or parent_name
             category = str(fm.get("category") or "")
             if not category:
                 # Fall back to the containing wiki subdir so `category`
