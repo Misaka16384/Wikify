@@ -120,10 +120,10 @@ Sync ratio is a weighted average of the three cores' readiness (only cores that 
 Installing is one command:
 
 ```powershell
-uv tool install magi-research
+pipx install magi-research      # or: uv tool install magi-research
 ```
 
-That is the whole thing — no Python to install first, no git required. Everything below is for other package managers, upgrading, per-project installs, and the optional external tools some ingestion routes need.
+That is the whole thing — no git required, and MAGI never calls pipx or uv again after the install. Use **pipx** if you already have Python 3.10+; use **uv** if you would rather not think about Python at all, since it brings its own 3.12. Everything below is upgrading, per-project installs, and the optional external tools some ingestion routes need.
 
 ### One-line install (recommended) {#install-oneline}
 

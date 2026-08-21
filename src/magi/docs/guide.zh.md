@@ -120,10 +120,10 @@ magi sync --fix --dry-run   # 先看会跑哪几条
 安装就一条命令：
 
 ```powershell
-uv tool install magi-research
+pipx install magi-research      # 或者：uv tool install magi-research
 ```
 
-就这些——不需要先装 Python，也不需要 git。下面是别的包管理器、升级、按项目安装，以及某些摄入路线才用得上的外部工具。
+就这些——不需要 git，而且装完之后 MAGI 再也不会调用 pipx 或 uv。机器上已经有 Python 3.10+ 就用 **pipx**；不想操心 Python 就用 **uv**，它自带 3.12。下面是升级、按项目安装，以及某些摄入路线才用得上的外部工具。
 
 ### 一键安装（推荐）{#install-oneline}
 

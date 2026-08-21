@@ -19,7 +19,7 @@ Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 ## Start here
 
 ```powershell
-uv tool install magi-research        # install
+pipx install magi-research           # install  (or: uv tool install magi-research)
 magi hub init                        # in the folder that will hold your topics
 cd topics/my-topic && magi init      # one topic
 magi ingest auto                     # after dropping PDFs into inbox/
@@ -131,10 +131,13 @@ The last four doctor rows are the agent CLIs on your machine (claude / codex / a
 <details>
 <summary>Expand manual steps</summary>
 
-**CLI** (Python 3.10+, uv or pipx):
+**CLI** (pipx or uv — either is enough; MAGI never calls them again after install):
 
 ```powershell
-uv tool install magi-research        # or: pipx install magi-research / pip install magi-research
+pipx install magi-research              # needs a Python 3.10+ already on the machine
+pipx upgrade magi-research              # upgrade
+
+uv tool install magi-research           # uv instead — brings its own Python 3.12
 uv tool install --force magi-research   # upgrade
 # unreleased changes: uv tool install --force git+https://github.com/Misaka16384/magi
 # or local dev: git clone ... && cd magi && uv tool install .

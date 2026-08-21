@@ -215,8 +215,14 @@ def doctor_rows() -> list[tuple[str, bool, str]]:
     rows: list[tuple[str, bool, str]] = []
     rows.append(("magi", True, f"v{__import__('magi').__version__}"))
     rows.append(("python", True, sys.version.split()[0]))
+    # uv is an *installer*, not a dependency: nothing in MAGI ever executes it.
+    # `pipx install magi-research` is equally supported, so a machine without uv
+    # is not a machine with a problem — reporting it red told pipx users their
+    # setup was broken when it was not.
+    uv_path = _which("uv")
+    rows.append(("uv", True, uv_path or
+                 "not installed — only ever used to install magi (pipx works too)"))
     for tool, hint in (
-        ("uv", "https://docs.astral.sh/uv/"),
         ("bd", "work-state tracking (magi setup installs it)"),
         ("ollama", "vector search + local OCR (optional)"),
         ("pandoc", "needed for 'magi ingest tex'"),

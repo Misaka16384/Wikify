@@ -19,7 +19,7 @@
 ## 先跑起来
 
 ```powershell
-uv tool install magi-research        # 装
+pipx install magi-research           # 装（或者 uv tool install magi-research）
 magi hub init                        # 在将来放所有课题的那个目录
 cd topics/my-topic && magi init      # 建一个课题
 magi ingest auto                     # 把 PDF 丢进 inbox/ 之后
@@ -130,10 +130,13 @@ magi setup --check
 <details>
 <summary>展开手动步骤</summary>
 
-**CLI**（Python 3.10+，uv 或 pipx）：
+**CLI**（pipx 或 uv，任选其一即可——装完之后 MAGI 再也不会调用它们）：
 
 ```powershell
-uv tool install magi-research        # 或 pipx install magi-research / pip install magi-research
+pipx install magi-research              # 需要机器上已有 Python 3.10+
+pipx upgrade magi-research              # 升级
+
+uv tool install magi-research           # 或者用 uv——它自带 Python 3.12
 uv tool install --force magi-research   # 升级
 # 尝鲜未发布的改动: uv tool install --force git+https://github.com/Misaka16384/magi
 # 本地开发: git clone … && cd magi && uv tool install .
