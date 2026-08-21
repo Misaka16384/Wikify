@@ -30,7 +30,20 @@ uv tool update-shell >/dev/null 2>&1 || true
 export PATH="$HOME/.local/bin:$PATH"
 
 echo "[3/3] Provisioning the environment (magi setup)..."
-magi setup || echo "magi setup reported issues - run 'magi setup' again later."
+# `curl … | sh` hands this script to the shell on stdin, so every child process
+# inherits a pipe that is already at EOF. `magi setup` asks which optional
+# components you want, and with no terminal to ask on it silently takes the
+# defaults — in exactly the situation where a fresh machine most needs the
+# questions. Reconnect stdin to the controlling terminal when there is one.
+if [ -r /dev/tty ]; then
+    magi setup < /dev/tty || echo "magi setup reported issues - run 'magi setup' again later."
+else
+    # No terminal at all (CI, a container, a provisioning script). Take the
+    # defaults quietly and say how to answer the questions later.
+    magi setup --yes || echo "magi setup reported issues - run 'magi setup' again later."
+    echo "note: no terminal available, so the optional-components questions were"
+    echo "      skipped. Run 'magi setup --optionals' to answer them."
+fi
 
 echo ""
 echo "MAGI installed. If 'magi' is not found, open a new shell (PATH refresh)."

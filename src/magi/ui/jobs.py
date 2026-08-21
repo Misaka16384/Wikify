@@ -90,6 +90,39 @@ OPS: dict[str, dict] = {
 # One SSE client's backlog. Mirrors the server-side log buffer: a browser that
 # has stopped draining — a backgrounded tab, a stalled connection, a laptop
 # that slept — must not be able to grow this without bound.
+def _terminate_tree(proc, kill: bool = False) -> None:
+    """Stop a job and everything it started.
+
+    Cancel used to call ``proc.terminate()``, which reaches the ``magi``
+    process and nothing below it. A job is mostly a launcher — batch-run shells
+    out to pandoc, ingest to MinerU, index to Ollama — so the work carried on
+    with nothing watching it, still holding a cloud token or a GPU.
+
+    The child is spawned into its own group, so signalling the group reaches
+    the whole tree. Falls back to the single process if that fails, which is
+    still better than nothing.
+    """
+    import signal
+
+    try:
+        if os.name == "nt":
+            # CTRL_BREAK is the only signal a new process group accepts on
+            # Windows, and only a group leader can be sent it.
+            if not kill:
+                proc.send_signal(signal.CTRL_BREAK_EVENT)
+                return
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                           capture_output=True, timeout=10)
+            return
+        pgid = os.getpgid(proc.pid)
+        os.killpg(pgid, signal.SIGKILL if kill else signal.SIGTERM)
+    except Exception:  # noqa: BLE001 — the process may already be gone
+        try:
+            proc.kill() if kill else proc.terminate()
+        except Exception:  # noqa: BLE001
+            pass
+
+
 LISTENER_QUEUE_MAX = 2000
 
 
@@ -354,6 +387,13 @@ class TaskManager:
         env["PYTHONIOENCODING"] = "utf-8"
         env["PYTHONUNBUFFERED"] = "1"
 
+        # Its own process group, so Cancel can reach the whole tree. A magi job
+        # is mostly a launcher: batch-run shells out to pandoc, ingest to
+        # MinerU, index to Ollama. Terminating only the direct child leaves
+        # those running, still holding a token or a GPU, with nothing left
+        # watching them. Same convention as core/ollama.py's start().
+        group = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+                 if os.name == "nt" else {"start_new_session": True})
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -365,6 +405,7 @@ class TaskManager:
                 encoding="utf-8",
                 errors="replace",
                 env=env,
+                **group,
             )
             with job._lock:
                 job.process = proc
@@ -422,12 +463,12 @@ class TaskManager:
 
         if proc:
             try:
-                proc.terminate()
+                _terminate_tree(proc)
                 # Give it a moment to terminate gracefully before kill
                 try:
                     proc.wait(timeout=2)
                 except subprocess.TimeoutExpired:
-                    proc.kill()
+                    _terminate_tree(proc, kill=True)
             except Exception:
                 pass
 

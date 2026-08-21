@@ -163,7 +163,7 @@ Run `magi setup` and it asks about each one, with the official download link. Sa
 | **pdflatex** | deep math validation — checks a formula actually compiles; falls back to `pylatexenc` when absent | https://www.tug.org/texlive/ |
 | **MinerU** (a hosted service, not a binary) | cloud PDF conversion, strong on layout and formulas | https://mineru.net/ |
 
-The Windows `pandoc-crossref.exe` is vendored in `vendor/windows/` (add to PATH or set `tools.pandoc_crossref_path` in config.yaml). A MinerU token goes in your workspace's config.yaml under `ocr.mineru_api_token`.
+`pandoc-crossref` is optional — without it cross-references degrade, nothing fails. If you installed from a source checkout, the Windows build is in `vendor/windows/`: add it to PATH or set `tools.pandoc_crossref_path` in config.yaml. A pipx or uv install does not carry it (a 19 MB Windows binary has no business shipping to every platform); get it from https://github.com/lierdakil/pandoc-crossref/releases when you want it. A MinerU token goes in your workspace's config.yaml under `ocr.mineru_api_token`.
 
 (The historic ripgrep dependency is gone.)
 

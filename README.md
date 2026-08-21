@@ -162,7 +162,7 @@ uv tool install --force magi-research   # 升级
 | **pdflatex** | 公式深度校验（真去编译一遍）；缺失时回退 `pylatexenc` 轻量校验 | https://www.tug.org/texlive/ |
 | **MinerU**（云服务，非本地程序） | 云端 PDF 转换，版面与公式识别强 | https://mineru.net/ |
 
-Windows 的 `pandoc-crossref.exe` 已内置于 `vendor/windows/`（加入 PATH 或在 config.yaml 的 `tools.pandoc_crossref_path` 指定）。MinerU 的 token 填在工作区 config.yaml 的 `ocr.mineru_api_token`。
+`pandoc-crossref` 是可选的（缺了只是交叉引用降级，不影响转换）。从源码仓库装的话，Windows 版已放在 `vendor/windows/`——加入 PATH，或在 config.yaml 的 `tools.pandoc_crossref_path` 指定。用 pipx / uv 装的话它不在包里（一个 19MB 的 Windows 二进制不该发给所有平台），需要时从 https://github.com/lierdakil/pandoc-crossref/releases 自取。MinerU 的 token 填在工作区 config.yaml 的 `ocr.mineru_api_token`。
 
 （历史依赖 ripgrep 已不再需要。）
 

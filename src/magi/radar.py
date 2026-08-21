@@ -1079,15 +1079,21 @@ def cmd_install_schedule(args: argparse.Namespace) -> int:
         return proc.returncode
     elif sys.platform == "darwin":
         hh, mm = args.time.split(":")
+        # Escape before interpolating: a workspace path is user text going into
+        # XML, and an ampersand in a directory name — "Papers & Notes" is an
+        # ordinary folder — produces a plist launchd refuses to parse, so the
+        # schedule silently never runs.
+        from xml.sax.saxutils import escape as _xml
+
         plist = f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>{label}</string>
+  <key>Label</key><string>{_xml(str(label))}</string>
   <key>ProgramArguments</key><array>
-    <string>{magi_exe}</string><string>radar</string><string>harvest</string>
-    <string>--topic-dir</string><string>{topic}</string>
+    <string>{_xml(str(magi_exe))}</string><string>radar</string><string>harvest</string>
+    <string>--topic-dir</string><string>{_xml(str(topic))}</string>
   </array>
-  <key>WorkingDirectory</key><string>{topic}</string>
+  <key>WorkingDirectory</key><string>{_xml(str(topic))}</string>
   <key>StartCalendarInterval</key><dict>
     <key>Hour</key><integer>{int(hh)}</integer><key>Minute</key><integer>{int(mm)}</integer>
   </dict>
@@ -1102,8 +1108,12 @@ def cmd_install_schedule(args: argparse.Namespace) -> int:
         return 0
     else:
         hh, mm = (args.time.split(":") + ["0"])[:2]
-        print(f"add to crontab: {int(mm)} {int(hh)} * * * "
-              f"cd {topic} && {magi_exe} radar harvest --topic-dir {topic}")
+        # Quoted, like the schtasks branch above already is. cron runs the line
+        # through a shell, so an unquoted path breaks at the first space — and
+        # "~/My Papers" is an ordinary place to keep a workspace. The failure is
+        # silent: cron just runs `cd ~/My` every night.
+        print(f'add to crontab: {int(mm)} {int(hh)} * * * '
+              f'cd "{topic}" && "{magi_exe}" radar harvest --topic-dir "{topic}"')
         return 0
 
 

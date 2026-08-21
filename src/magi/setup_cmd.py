@@ -317,6 +317,14 @@ def choose_optionals(interactive: bool) -> dict:
     chosen = dict(settings.get("optional_features") or {})
 
     if not interactive:
+        # Say so, rather than silently taking defaults. The common way to land
+        # here is `curl … | sh`, where stdin is the installer script and the
+        # user is sitting right there watching — they should not have to guess
+        # why nothing was asked.
+        missing = [t for t in OPTIONAL_TOOLS if not _which(t.binary)]
+        if missing and sys.stdout.isatty():
+            print(f"\n[setup] {len(missing)} optional component(s) are not installed. "
+                  "Run 'magi setup --optionals' to choose which you want.")
         return chosen
 
     missing = [t for t in OPTIONAL_TOOLS if not _which(t.binary)]
@@ -411,8 +419,8 @@ def doctor_rows() -> list[DoctorRow]:
     if _which("pandoc") and not _which("pandoc-crossref"):
         rows.append(DoctorRow(
             "pandoc-crossref", "optional",
-            "not installed — cross-references degrade; Windows binary is vendored "
-            "in the repo's vendor/windows/"))
+            "not installed — cross-references degrade, conversion still works",
+            "https://github.com/lierdakil/pandoc-crossref/releases"))
     rows.extend(agent_cli_rows())
     return rows
 

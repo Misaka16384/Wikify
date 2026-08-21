@@ -292,7 +292,7 @@ ollama pull qwen3-embedding:0.6b     # vector search (~640MB)
 ollama pull glm-ocr                  # local OCR (optional)
 ```
 
-Windows's `pandoc-crossref.exe` already ships in the repo under `vendor/windows/`: add it to PATH, or point to it in the workspace's `config.yaml` under `tools.pandoc_crossref_path`.
+`pandoc-crossref` is optional; without it cross-references degrade but conversion still works. From a source checkout the Windows build sits in `vendor/windows/` — add it to PATH or set `tools.pandoc_crossref_path` in the workspace's `config.yaml`. A pipx or uv install does not include it (a 19 MB Windows-only binary has no business shipping to macOS and Linux users); download it from https://github.com/lierdakil/pandoc-crossref/releases if you want it.
 
 The last four rows of the health check are the agent CLIs on your machine (claude / codex / agy / opencode): whether each is installed, and how many skills it has. If any are missing, it prints the command to fix that.
 

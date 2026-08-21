@@ -29,6 +29,9 @@ try { uv tool update-shell | Out-Null } catch {}
 $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
 
 Write-Host "[3/3] Provisioning the environment (magi setup)..."
+# Unlike `curl | sh`, `irm | iex` runs in the current console session, so child
+# processes inherit the real console handles and `magi setup` can ask its
+# optional-components questions normally. Nothing to reconnect here.
 try { magi setup } catch { Write-Host "magi setup reported issues - run 'magi setup' again later." -ForegroundColor Yellow }
 
 Write-Host ""

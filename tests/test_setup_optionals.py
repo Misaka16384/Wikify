@@ -153,6 +153,33 @@ def test_the_chooser_never_prompts_when_not_interactive(bare, monkeypatch):
     assert setup.choose_optionals(interactive=False) == {}
 
 
+def test_a_skipped_prompt_says_so_rather_than_going_quiet(bare, monkeypatch, capsys):
+    """`curl … | sh` hands the installer script to the shell on stdin, so every
+    child inherits a pipe at EOF and the questions cannot be asked — in exactly
+    the situation where a fresh machine most needs them. The user is watching;
+    tell them how to answer later instead of silently taking defaults.
+    """
+    monkeypatch.setattr("builtins.input", lambda *a, **k: pytest.fail("must not prompt"))
+    monkeypatch.setattr("sys.stdout.isatty", lambda: True, raising=False)
+
+    class Tty:
+        def __init__(self, inner): self._inner = inner
+        def isatty(self): return True
+        def __getattr__(self, name): return getattr(self._inner, name)
+
+    import sys as _sys
+    monkeypatch.setattr(_sys, "stdout", Tty(_sys.stdout))
+    setup.choose_optionals(interactive=False)
+
+    assert "magi setup --optionals" in capsys.readouterr().out
+
+
+def test_nothing_is_said_when_there_is_nothing_to_install(loaded, monkeypatch, capsys):
+    monkeypatch.setattr("builtins.input", lambda *a, **k: pytest.fail("must not prompt"))
+    setup.choose_optionals(interactive=False)
+    assert "--optionals" not in capsys.readouterr().out
+
+
 def test_declining_at_the_prompt_is_remembered(bare, monkeypatch, tmp_path):
     saved = {}
     monkeypatch.setattr(setup, "_which", lambda name: None)
