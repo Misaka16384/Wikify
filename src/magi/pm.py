@@ -154,6 +154,110 @@ def bd_status_summary(cwd: Path) -> dict | None:
         return summary
 
 
+# --------------------------------------------------------------------------
+# listing and acting on tasks
+# --------------------------------------------------------------------------
+
+# `magi pm backlog-sync` and the radar's "create reading task" both stamp the
+# workspace onto every issue they open. That label is what makes a hub-wide
+# store answerable per workspace — without it the only honest thing the panel
+# could say was "17, and some of them are not yours".
+TOPIC_LABEL = "topic:"
+
+
+def topic_label(workspace: Path) -> str:
+    return f"{TOPIC_LABEL}{Path(workspace).name}"
+
+
+def list_tasks(workspace: Path, scope: str = "workspace",
+               include_closed: bool = False) -> list[dict] | None:
+    """Open issues in this workspace's store. None when there is no store.
+
+    `scope="workspace"` filters to issues labelled for this topic; "hub"
+    returns everything under the shared root. The default is the narrow one:
+    a panel under a picker naming one library should answer for that library.
+    """
+    root = find_beads_root(Path(workspace))
+    if root is None or not bd_available():
+        return None
+    args = ["list", "--json"]
+    if include_closed:
+        args.append("--all")
+    if scope == "workspace":
+        args += ["--label", topic_label(workspace)]
+    try:
+        proc = _run_bd(args, cwd=root)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    try:
+        rows = json.loads(proc.stdout or "[]")
+    except json.JSONDecodeError:
+        return None
+    return [_task_row(r, workspace) for r in rows] if isinstance(rows, list) else []
+
+
+def _task_row(raw: dict, workspace: Path) -> dict:
+    """One issue, reduced to what a panel can render and act on.
+
+    The title carries a `[Topic]` prefix because the store is shared and a
+    terminal listing has no other way to say which library an issue belongs
+    to. On a panel already filtered to that library it is noise, so it moves
+    into its own field.
+    """
+    title = str(raw.get("title") or "")
+    labels = [str(x) for x in (raw.get("labels") or [])]
+    topic = next((l[len(TOPIC_LABEL):] for l in labels if l.startswith(TOPIC_LABEL)), None)
+    if topic and title.startswith(f"[{topic}]"):
+        title = title[len(topic) + 2:].strip()
+    return {
+        "id": str(raw.get("id") or ""),
+        "title": title,
+        "description": str(raw.get("description") or ""),
+        "status": str(raw.get("status") or "open"),
+        "priority": raw.get("priority"),
+        "issue_type": str(raw.get("issue_type") or ""),
+        "topic": topic,
+        # Whether this issue belongs to the workspace being viewed. A hub-scope
+        # listing mixes libraries, and the rows have to say which is which.
+        "is_here": topic == Path(workspace).name if topic else False,
+        "labels": [l for l in labels if not l.startswith(TOPIC_LABEL)],
+        "blocked_by": int(raw.get("dependency_count") or 0),
+        "blocks": int(raw.get("dependent_count") or 0),
+        "updated_at": str(raw.get("updated_at") or ""),
+    }
+
+
+#: What the WebUI may do to an issue. A closed set, for the same reason the
+#: ops table is a closed set: the endpoint takes an action name off the wire.
+TASK_ACTIONS = ("start", "close", "reopen")
+
+
+def act_on_task(workspace: Path, task_id: str, action: str) -> tuple[bool, str]:
+    """Run one whitelisted action. Returns (ok, message)."""
+    if action not in TASK_ACTIONS:
+        return False, f"unknown action: {action}"
+    root = find_beads_root(Path(workspace))
+    if root is None:
+        return False, "no task store for this workspace"
+    args = {
+        # --claim is idempotent and sets assignee + in_progress in one step,
+        # which is what "start" means to a person.
+        "start": ["update", task_id, "--claim"],
+        "close": ["close", task_id],
+        "reopen": ["reopen", task_id],
+    }[action]
+    try:
+        proc = _run_bd(args, cwd=root)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"{type(exc).__name__}"
+    bd_cache_clear()          # the counts above the list are now stale
+    if proc.returncode != 0:
+        return False, (proc.stderr or proc.stdout or "").strip()[-300:]
+    return True, (proc.stdout or "").strip()[-300:]
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     root = Path(args.path).resolve() if args.path else (find_hub_root() or find_workspace_root() or Path.cwd())
     if not bd_available():

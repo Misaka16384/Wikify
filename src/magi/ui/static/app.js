@@ -154,6 +154,7 @@
       bal_engine_not_ready: "科研任务追踪引擎未就绪或未安装。请运行 <code>magi setup</code> 初始化工作流引擎。",
       bal_no_db_initialized: "本工作区（或所属 Hub）还没有任务追踪库。这一步是可选的——不想用任务追踪就不必初始化。",
       bal_backlog_sync_desc: "扫描 raw/ 里还没编译成参考卡片的原始文献，为每一篇建一条任务",
+      bal_store_at: "任务库文件位于 {root}（该 Hub 下各课题共用一份；下面的数字只算当前工作区）。",
       bal_store_shared: "任务库位于 Hub：{root} —— 下面这四个数字属于该 Hub 下的全部课题，不只是当前工作区。",
       bal_store_local: "任务库位于本工作区：{root}",
       scope_badge_hub: "Hub 级",
@@ -266,6 +267,48 @@
       ops_scope_none: "先在上方选一个知识库。",
       ops_badge_global: "全机生效",
       feature_off_quiet: "这个功能已关闭。",
+      cfg_get_one: "去哪儿拿 ↗",
+      cfg_secret_set: "已保存（不回显；填新的可覆盖）",
+      cfg_secret_unset: "尚未设置",
+      cfg_secret_empty: "空的不保存——留空不会清除已存的 key。",
+      cfg_provider_ollama: "Ollama（本机）",
+      cfg_provider_openai: "云端（OpenAI 兼容接口）",
+      cfg_f_mineru_token: "MinerU 的 API token，云端 PDF 转换要用",
+      cfg_f_embedding_provider: "向量从哪儿来：本机 Ollama，还是任何 OpenAI 兼容的云端接口",
+      cfg_f_embedding_base_url: "云端接口地址，要带 /v1（例：https://api.siliconflow.com/v1）",
+      cfg_f_embedding_model: "云端的模型名（例：BAAI/bge-m3）。留空则沿用 models.embedding",
+      cfg_f_embedding_api_key: "云端接口的 key。也可以放进环境变量 MAGI_EMBEDDING_API_KEY——环境变量优先",
+      embed_help_open: "不想装 Ollama？",
+      embed_help_title: "不装 Ollama 也能做语义检索",
+      embed_help_body: "语义检索需要一个「嵌入模型」把文字变成向量。默认走本机 Ollama，但任何**OpenAI 兼容**的 `/v1/embeddings` 接口都可以，改 `embedding.provider` 为 `openai` 即可。\n\n下面几家都实测过接口形状，也都有免费额度或极低价格。具体额度以各家页面为准——它们变得很勤。\n\n| 服务 | base_url | 模型 | 备注 |\n|---|---|---|---|\n| 硅基流动 SiliconFlow | `https://api.siliconflow.com/v1` | `BAAI/bge-m3`、`Qwen/Qwen3-Embedding-0.6B` | 中英都强，有免费模型；注册可能需要国内手机号 |\n| Jina AI | `https://api.jina.ai/v1` | `jina-embeddings-v3` | 接口就是照 OpenAI 抄的，多语言，注册送额度 |\n| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-embedding-001` | 用 Google 账号，免费额度在 AI Studio 里看 |\n| DeepInfra | `https://api.deepinfra.com/v1/openai` | `BAAI/bge-m3` | 没有免费额度，但每百万 token 只要几分钱 |\n\n**Cohere、Voyage、智谱**的接口不是 OpenAI 形状，现在还接不了。\n\n> 换模型会改变向量维度，旧索引装不下。换完要跑 `magi index --rebuild`。",
+      cfg_f_ocr_mineru_token: "MinerU token",
+      tasks_title: "任务清单",
+      tasks_loading: "正在读取任务…",
+      tasks_show_hub: "显示该 Hub 下所有课题的任务",
+      tasks_show_closed: "包含已关闭",
+      tasks_no_store: "还没有任务库。",
+      tasks_all_here: "{here} 条任务，全部属于「{name}」。",
+      tasks_split: "「{name}」有 {here} 条；同一个任务库里另有 {elsewhere} 条属于 {root} 下的其它课题。",
+      tasks_none: "没有待办任务。",
+      tasks_none_here: "这个工作区没有任务。勾上上面那个可以看其它课题的。",
+      task_status_open: "待办",
+      task_status_in_progress: "进行中",
+      task_status_blocked: "被阻塞",
+      task_status_closed: "已关闭",
+      task_blocked_by: "被 {n} 条挡住",
+      task_blocks: "挡住 {n} 条",
+      task_start: "开始",
+      task_start_tip: "认领这条任务并标为进行中。",
+      task_close: "关闭",
+      task_close_tip: "标记完成。可以再打开，不会删除。",
+      task_reopen: "重新打开",
+      task_reopen_tip: "把这条已关闭的任务放回待办。",
+      task_done_start: "已开始 {id}。",
+      task_done_close: "已关闭 {id}。",
+      task_done_reopen: "已重新打开 {id}。",
+      scope_help_open: "这三个词是什么关系？",
+      scope_help_title: "Hub、工作区、知识库——到底谁是谁",
+      scope_help_body: "**工作区**（也叫课题）是一个研究方向的目录，里面有 wiki/、raw/、output/，用 `magi init` 建。\n\n**Hub** 是装着若干个工作区的上级目录，用 `magi hub init` 建。任务库放在 Hub 根目录，所以同一个 Hub 下的所有课题共用一份任务库——每条任务都带着它属于哪个工作区的标签。\n\n**知识库**不是第四种东西：它就是一个「已经注册进全局注册表」的工作区，注册之后检索才能跨库找到它。顶栏那个下拉框列的就是这些。",
       opt_title: "可选组件",
       opt_sub: "这一整块都是全机生效的，缺哪个 MAGI 都能跑，只是少一项能力。不想要的取消勾选，它就不再被提起。",
       opt_unknown: "读不到组件状态。",
@@ -740,6 +783,7 @@
       bal_engine_not_ready: "Task tracking engine is not ready or not installed. Run <code>magi setup</code> to initialize workflow engine.",
       bal_no_db_initialized: "No task-tracking database in this workspace or its hub. This step is optional — skip it if you do not want task tracking.",
       bal_backlog_sync_desc: "Scan raw/ for sources with no compiled reference card yet, and open one task per source",
+      bal_store_at: "The task store file lives at {root}, shared by the topics under it — the counts and list below are just this workspace's.",
       bal_store_shared: "Task store lives at the hub: {root} — the four numbers below cover every topic under it, not just this workspace.",
       bal_store_local: "Task store lives in this workspace: {root}",
       scope_badge_hub: "hub-level",
@@ -852,6 +896,48 @@
       ops_scope_none: "Pick a knowledge base above first.",
       ops_badge_global: "machine-wide",
       feature_off_quiet: "This feature is turned off.",
+      cfg_get_one: "where to get one \u2197",
+      cfg_secret_set: "saved (never shown again; type a new one to replace)",
+      cfg_secret_unset: "not set",
+      cfg_secret_empty: "Nothing to save — leaving it blank does not clear a stored key.",
+      cfg_provider_ollama: "Ollama (this machine)",
+      cfg_provider_openai: "Cloud (any OpenAI-compatible endpoint)",
+      cfg_f_mineru_token: "MinerU API token, for cloud PDF conversion",
+      cfg_f_embedding_provider: "Where vectors come from: local Ollama, or any OpenAI-compatible cloud endpoint",
+      cfg_f_embedding_base_url: "Cloud endpoint, including /v1 (e.g. https://api.siliconflow.com/v1)",
+      cfg_f_embedding_model: "Model id at that endpoint (e.g. BAAI/bge-m3). Blank falls back to models.embedding",
+      cfg_f_embedding_api_key: "Key for the cloud endpoint. $MAGI_EMBEDDING_API_KEY works too and wins over this",
+      embed_help_open: "Would rather not install Ollama?",
+      embed_help_title: "Semantic search without installing Ollama",
+      embed_help_body: "Semantic search needs an embedding model to turn text into vectors. The default is a local Ollama, but any **OpenAI-compatible** `/v1/embeddings` endpoint works — set `embedding.provider` to `openai`.\n\nThese four were checked against their own live docs for endpoint shape, and each has a free tier or is very cheap. Treat the specific allowances as provisional; providers change them often.\n\n| Service | base_url | Model | Notes |\n|---|---|---|---|\n| SiliconFlow | `https://api.siliconflow.com/v1` | `BAAI/bge-m3`, `Qwen/Qwen3-Embedding-0.6B` | Strong on both English and Chinese, several free models; signup may want a Chinese phone number |\n| Jina AI | `https://api.jina.ai/v1` | `jina-embeddings-v3` | Schema is modelled on OpenAI's, multilingual, free trial tokens |\n| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-embedding-001` | Ordinary Google account; free allowance shown in AI Studio |\n| DeepInfra | `https://api.deepinfra.com/v1/openai` | `BAAI/bge-m3` | No free tier, but cents per million tokens |\n\n**Cohere, Voyage and Zhipu** are not OpenAI-shaped and are not supported yet.\n\n> Changing model changes the vector width, which an existing index cannot hold. Run `magi index --rebuild` afterwards.",
+      cfg_f_ocr_mineru_token: "MinerU token",
+      tasks_title: "Tasks",
+      tasks_loading: "Reading tasks…",
+      tasks_show_hub: "Show every topic under the hub",
+      tasks_show_closed: "Include closed",
+      tasks_no_store: "No task store yet.",
+      tasks_all_here: "{here} task(s), all of them in {name}.",
+      tasks_split: "{here} in {name}; the same store holds {elsewhere} more belonging to other topics under {root}.",
+      tasks_none: "No open tasks.",
+      tasks_none_here: "No tasks in this workspace. Tick the box above to see the other topics'.",
+      task_status_open: "open",
+      task_status_in_progress: "in progress",
+      task_status_blocked: "blocked",
+      task_status_closed: "closed",
+      task_blocked_by: "blocked by {n}",
+      task_blocks: "blocks {n}",
+      task_start: "Start",
+      task_start_tip: "Claim this task and mark it in progress.",
+      task_close: "Close",
+      task_close_tip: "Mark it done. Reopenable, and nothing is deleted.",
+      task_reopen: "Reopen",
+      task_reopen_tip: "Put this closed task back on the list.",
+      task_done_start: "Started {id}.",
+      task_done_close: "Closed {id}.",
+      task_done_reopen: "Reopened {id}.",
+      scope_help_open: "What are these three words?",
+      scope_help_title: "Hub, workspace, library — which is which",
+      scope_help_body: "A **workspace** (also called a topic) is one research subject's directory, holding wiki/, raw/ and output/. You make one with `magi init`.\n\nA **hub** is the parent directory holding several workspaces, made with `magi hub init`. The task store lives at the hub root, so every topic under one hub shares a single store — and each task carries a label saying which workspace it belongs to.\n\nA **library** is not a fourth thing: it is a workspace that has been registered in the global registry, which is what lets search reach across it. The dropdown in the topbar lists those.",
       opt_title: "Optional components",
       opt_sub: "All of this is machine-wide, and MAGI runs without any of it — each one just turns on a specific capability. Untick what you do not want and it stops being mentioned.",
       opt_unknown: "Could not read component status.",
@@ -3567,7 +3653,12 @@
     "radar.seed_arxiv_ids": "cfg_f_radar_seed_arxiv_ids",
     "radar.own_arxiv_ids": "cfg_f_radar_own_arxiv_ids",
     "ocr.use_mineru": "cfg_f_ocr_use_mineru",
+    "ocr.mineru_api_token": "cfg_f_mineru_token",
     "models.embedding": "cfg_f_models_embedding",
+    "embedding.provider": "cfg_f_embedding_provider",
+    "embedding.base_url": "cfg_f_embedding_base_url",
+    "embedding.model": "cfg_f_embedding_model",
+    "embedding.api_key": "cfg_f_embedding_api_key",
   };
 
   // `only` picks which keys a card shows: the Dashboard keeps the general
@@ -3575,6 +3666,17 @@
   // next to the numbers that make you want to change them. Noticing that the
   // relevance threshold is wrong and then hunting for it on another tab is
   // how a knob stays untouched forever.
+  // Where a token comes from. Verified against each provider's own live page.
+  const CFG_SIGNUP = {
+    "ocr.mineru_api_token": "https://mineru.net/",
+    "embedding.api_key": "https://docs.siliconflow.com/",
+  };
+
+  const CFG_CHOICE_LABEL = {
+    "embedding.provider=ollama": "cfg_provider_ollama",
+    "embedding.provider=openai": "cfg_provider_openai",
+  };
+
   async function loadConfigCard(box, only) {
     box = box || document.getElementById("config-fields");
     if (!box || !state.workspace) return;
@@ -3602,18 +3704,49 @@
         label.appendChild(desc);
         row.appendChild(label);
 
+        // Where to go and get one. A token field with no link is a dead end:
+        // the reader knows what to paste and not where it comes from.
+        if (CFG_SIGNUP[f.key]) {
+          const link = document.createElement("a");
+          link.className = "cfg-signup";
+          link.href = CFG_SIGNUP[f.key];
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          link.textContent = t("cfg_get_one");
+          desc.appendChild(document.createTextNode(" "));
+          desc.appendChild(link);
+        }
+
         let input;
         if (f.type === "bool") {
           input = document.createElement("input");
           input.type = "checkbox";
           input.checked = !!f.value;
+        } else if (f.choices) {
+          input = document.createElement("select");
+          input.className = "select-input cfg-input";
+          f.choices.forEach((c) => {
+            const opt = document.createElement("option");
+            opt.value = c;
+            opt.textContent = t(CFG_CHOICE_LABEL[`${f.key}=${c}`] || c) || c;
+            if (String(f.value) === c) opt.selected = true;
+            input.appendChild(opt);
+          });
         } else {
           input = document.createElement("input");
-          input.type = "text";
+          input.type = f.type === "secret" ? "password" : "text";
           input.className = "text-input cfg-input";
           if (f.type === "list") {
             input.value = (f.value || []).join(", ");
             input.placeholder = t("cfg_list_hint");
+          } else if (f.type === "secret") {
+            // The server never sends a key back, so there is nothing to
+            // prefill. Say whether one is stored instead — an empty box that
+            // means "already set" and an empty box that means "not set" have
+            // to look different.
+            input.value = "";
+            input.placeholder = t(f.is_set ? "cfg_secret_set" : "cfg_secret_unset");
+            input.autocomplete = "off";
           } else {
             input.value = (f.value === null || f.value === undefined) ? "" : String(f.value);
           }
@@ -3637,6 +3770,11 @@
             if (value !== null && isNaN(value)) { showToast(`${f.key}: invalid number`, "error"); return; }
           } else {
             value = input.value.trim();
+            // Saving an untouched password box would blank a stored key.
+            if (f.type === "secret" && value === "") {
+              showToast(t("cfg_secret_empty"), "warn");
+              return;
+            }
           }
           try {
             await apiFetch("/api/workspace/config", {
@@ -3644,6 +3782,11 @@
               body: JSON.stringify({ key: f.key, value, workspace: state.workspace }),
             });
             showToast(t("toast_cfg_saved", { key: f.key }), "success");
+            if (f.type === "secret") {
+              input.value = "";
+              input.placeholder = t("cfg_secret_set");
+            }
+            if (f.key === "embedding.provider") loadConfigCard(box, only);
           } catch (_) {}
         });
         row.appendChild(save);
@@ -3669,9 +3812,19 @@
       note.classList.remove("scope-shared");
       return;
     }
-    note.textContent = t(pm.shared_with_siblings ? "bal_store_shared" : "bal_store_local",
-                         { root: pm.store_root });
-    note.classList.toggle("scope-shared", !!pm.shared_with_siblings);
+    note.textContent = t("bal_store_at", { root: pm.store_root });
+    // Not a warning any more. The counts and the list below are both scoped
+    // to this workspace, so there is nothing to warn about — only a fact
+    // about where the file lives, and three words worth explaining.
+    note.classList.remove("scope-shared");
+    // Three words for two-and-a-half things is genuinely confusing, and this
+    // line is where a reader meets all three at once.
+    const help = document.createElement("button");
+    help.className = "btn btn-quiet btn-sm scope-help-btn";
+    help.textContent = t("scope_help_open");
+    help.addEventListener("click", () => openScopeHelp());
+    note.appendChild(document.createTextNode(" "));
+    note.appendChild(help);
   }
 
   // With no task store there is nothing to count, which is not the same as
@@ -3688,6 +3841,188 @@
       el.textContent = absent ? t("metric_not_applicable") : String(v);
       el.classList.toggle("metric-empty", absent);
     });
+  }
+
+
+  // ------------------------------------------------------------------------
+  // The task list
+  //
+  // The panel used to show four numbers over a store shared by every topic
+  // under the hub, so "17 ready" was a count the reader could neither open
+  // nor attribute. Every issue MAGI opens carries a `topic:<workspace>`
+  // label, which is what lets one shared store answer per library — and the
+  // answer is usually unambiguous: all 17 here belong to one workspace.
+  // ------------------------------------------------------------------------
+
+  // A short prose explainer in a modal. The body is markdown because these
+  // texts want bold and paragraphs; renderMarkdown is what the doc preview
+  // already uses, so the styling is the one readers have seen.
+  function showInfoModal(title, markdown) {
+    const modal = document.getElementById("info-modal");
+    const head = document.getElementById("info-modal-title");
+    const body = document.getElementById("info-modal-body");
+    if (!modal || !head || !body) return;
+    head.textContent = title;
+    // marked.parse, the same renderer the docs tab uses. These strings are
+    // ours, from the i18n dictionary — never user input — so there is nothing
+    // to sanitise beyond what marked already does.
+    body.innerHTML = window.marked ? window.marked.parse(markdown)
+                                   : escapeHtml(markdown);
+    modal.classList.add("open");
+  }
+
+  function openScopeHelp() {
+    showInfoModal(t("scope_help_title"), t("scope_help_body"));
+  }
+
+  async function loadTasks() {
+    const list = document.getElementById("task-list");
+    const note = document.getElementById("tasks-scope-note");
+    if (!list) return;
+    if (!state.workspace) { list.innerHTML = ""; return; }
+
+    const hub = document.getElementById("tasks-show-hub");
+    const closed = document.getElementById("tasks-show-closed");
+    const scope = hub && hub.checked ? "hub" : "workspace";
+    const qs = `workspace=${encodeURIComponent(state.workspace)}&scope=${scope}`
+      + `&include_closed=${closed && closed.checked ? "true" : "false"}`;
+
+    list.innerHTML = `<p class="empty-note">${escapeHtml(t("tasks_loading"))}</p>`;
+    let data;
+    try {
+      data = await apiFetch(`/api/workspace/tasks?${qs}`);
+    } catch (err) {
+      list.innerHTML = `<p class="empty-note">${escapeHtml(err.message)}</p>`;
+      return;
+    }
+    state.tasks = data;
+
+    // The sentence that used to read "these numbers cover every topic under
+    // the hub, not just this workspace" — true, but it left the reader to
+    // work out which of the 17 were theirs. Both numbers, plainly.
+    if (note) {
+      const kb = (state.kbs || []).find((k) => k.path === state.workspace);
+      const name = kb ? kb.name : state.workspace;
+      if (!data.store_root) {
+        note.textContent = t("tasks_no_store");
+      } else if (data.elsewhere) {
+        note.textContent = t("tasks_split", {
+          here: data.here, name, elsewhere: data.elsewhere, root: data.store_root,
+        });
+      } else {
+        note.textContent = t("tasks_all_here", { here: data.here, name });
+      }
+    }
+
+    setTaskCounts(countTasks(data.tasks));
+
+    if (!data.tasks.length) {
+      list.innerHTML = `<p class="empty-note">${escapeHtml(
+        data.elsewhere ? t("tasks_none_here") : t("tasks_none"))}</p>`;
+      return;
+    }
+    list.innerHTML = "";
+    data.tasks.forEach((task) => list.appendChild(taskRow(task)));
+  }
+
+  // The same rows the list renders, so the numbers above it cannot disagree
+  // with what is under them. `bd status` answers for the whole hub, which is
+  // a different question from the one the panel is asking.
+  function countTasks(tasks) {
+    const live = tasks.filter((x) => x.status !== "closed");
+    return {
+      ready: live.filter((x) => x.status === "open" && !x.blocked_by).length,
+      in_progress: live.filter((x) => x.status === "in_progress").length,
+      blocked: live.filter((x) => x.blocked_by > 0).length,
+      open: live.length,
+    };
+  }
+
+  function taskRow(task) {
+    const row = document.createElement("div");
+    row.className = "task-row";
+    if (task.status === "closed") row.classList.add("task-closed");
+
+    const main = document.createElement("div");
+    main.className = "task-main";
+
+    const head = document.createElement("div");
+    head.className = "task-head";
+    const status = document.createElement("span");
+    status.className = `badge ${TASK_STATUS_CLASS[task.status] || "badge-muted"}`;
+    status.textContent = t(TASK_STATUS_LABEL[task.status] || "task_status_open");
+    head.appendChild(status);
+    const title = document.createElement("span");
+    title.className = "task-title";
+    title.textContent = task.title || task.id;
+    head.appendChild(title);
+    main.appendChild(head);
+
+    const meta = document.createElement("div");
+    meta.className = "task-meta";
+    const bits = [task.id];
+    // Only worth saying when the list is mixing libraries; on a filtered list
+    // every row would repeat the name in the header above it.
+    if (state.tasks && state.tasks.scope === "hub" && task.topic) bits.push(task.topic);
+    if (task.blocked_by) bits.push(t("task_blocked_by", { n: task.blocked_by }));
+    if (task.blocks) bits.push(t("task_blocks", { n: task.blocks }));
+    meta.textContent = bits.join(" · ");
+    main.appendChild(meta);
+
+    if (task.description) {
+      const desc = document.createElement("div");
+      desc.className = "task-desc";
+      desc.textContent = task.description;
+      main.appendChild(desc);
+    }
+    row.appendChild(main);
+
+    const btns = document.createElement("div");
+    btns.className = "task-btns";
+    const actions = task.status === "closed"
+      ? [["reopen", "task_reopen", "btn-secondary", "task_reopen_tip"]]
+      : [["start", "task_start", "btn-secondary", "task_start_tip"],
+         ["close", "task_close", "btn-quiet", "task_close_tip"]];
+    actions.forEach(([action, key, cls, tip]) => {
+      const b = document.createElement("button");
+      b.className = `btn ${cls} btn-sm`;
+      b.textContent = t(key);
+      b.title = t(tip);
+      b.addEventListener("click", () => actOnTask(task, action, b));
+      btns.appendChild(b);
+    });
+    row.appendChild(btns);
+    return row;
+  }
+
+  const TASK_STATUS_CLASS = {
+    open: "badge-muted", in_progress: "badge-primary",
+    blocked: "badge-danger", closed: "badge-sage",
+  };
+  const TASK_STATUS_LABEL = {
+    open: "task_status_open", in_progress: "task_status_in_progress",
+    blocked: "task_status_blocked", closed: "task_status_closed",
+  };
+
+  async function actOnTask(task, action, btn) {
+    btn.disabled = true;
+    try {
+      await apiFetch("/api/workspace/tasks/act", {
+        method: "POST",
+        body: JSON.stringify({
+          task_id: task.id, action, workspace: state.workspace,
+        }),
+      });
+      showToast(t(`task_done_${action}`, { id: task.id }), "success");
+    } catch (err) {
+      showToast(err.message, "error");
+      btn.disabled = false;
+      return;
+    }
+    invalidateCoalesced();
+    await loadTasks();
+    loadBalthasar();          // the counts above the list just changed
+    loadSyncRatio();
   }
 
   async function loadBalthasar() {
@@ -3743,6 +4078,7 @@
       els.taskStatusBanner.innerHTML = "";
       setTaskCounts(pm.counts);
     } catch (_) {}
+    loadTasks();
   }
 
   // ------------------------------------------------------------------------
@@ -4565,8 +4901,17 @@
         // MAGI cannot install it, so the offer is the page and a re-check.
         const ollama = toolByKey("ollama");
         if (ollama && !ollama.installed) {
-          els.searchInfoBar.appendChild(
-            toolActions("ollama", () => executeSearch(query, mode, limit)));
+          const row = toolActions("ollama", () => executeSearch(query, mode, limit));
+          // Installing Ollama is not the only way out of this, and for a lot
+          // of people it is the one they least want. Any OpenAI-compatible
+          // endpoint does the same job with nothing to install.
+          const alt = document.createElement("button");
+          alt.className = "btn btn-quiet btn-sm";
+          alt.textContent = t("embed_help_open");
+          alt.addEventListener("click", () =>
+            showInfoModal(t("embed_help_title"), t("embed_help_body")));
+          row.appendChild(alt);
+          els.searchInfoBar.appendChild(row);
         }
       }
 
@@ -6226,6 +6571,11 @@
     });
   }
 
+  ["tasks-show-hub", "tasks-show-closed"].forEach((id) => {
+    const box = document.getElementById(id);
+    if (box) box.addEventListener("change", () => loadTasks());
+  });
+
   // Workspace selector change (browsing choice — persisted per browser)
   els.workspaceSelect.addEventListener("change", (e) => {
     state.workspace = e.target.value;
@@ -6405,6 +6755,12 @@
 
   // Doctor check modal
   els.doctorBtn.addEventListener("click", openDoctorModal);
+  const infoClose = document.getElementById("info-modal-close");
+  if (infoClose) {
+    infoClose.addEventListener("click", () =>
+      document.getElementById("info-modal").classList.remove("open"));
+  }
+
   els.doctorModalClose.addEventListener("click", () => {
     els.doctorModal.classList.remove("open");
   });

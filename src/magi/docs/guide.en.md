@@ -581,23 +581,58 @@ ollama:
   base_url: http://127.0.0.1:11434
   autostart: true                 # start a stopped local Ollama on demand
 
+embedding:                  # only needed if you would rather not run Ollama
+  provider: ollama          # ollama | openai  ("openai" = any OpenAI-compatible endpoint)
+  base_url: ""              # e.g. https://api.siliconflow.com/v1  — include the /v1
+  model: ""                 # e.g. BAAI/bge-m3 ; blank falls back to models.embedding
+  api_key: ""               # or set $MAGI_EMBEDDING_API_KEY, which wins over this
+
 tools:                      # only needed if these programs aren't on PATH
   pandoc_path: ""
   pandoc_crossref_path: ""
   pdftoppm_path: ""
 ```
 
-These six environment variables — `OLLAMA_HOST` / `PANDOC_PATH` / `PANDOC_CROSSREF_PATH` / `PDFTOPPM_PATH` / `PDFIMAGES_PATH` / `MAGI_NO_OLLAMA_AUTOSTART` — **take priority over `config.yaml`**; every other key can only be changed by editing the file.
+#### Semantic search without a local Ollama {#embedding-cloud}
+
+Semantic search needs an embedding model. The default is a local Ollama, but
+any endpoint speaking OpenAI's `/v1/embeddings` schema works — set
+`embedding.provider: openai` and fill in the three fields above, or set them
+from the WebUI's Workspace Config card, where the key field is masked.
+
+Four that were checked against their own live documentation for endpoint shape:
+
+| Service | `base_url` | Model | Notes |
+|---|---|---|---|
+| SiliconFlow | `https://api.siliconflow.com/v1` | `BAAI/bge-m3`, `Qwen/Qwen3-Embedding-0.6B` | Strong in English and Chinese, several models free; signing up may want a Chinese phone number |
+| Jina AI | `https://api.jina.ai/v1` | `jina-embeddings-v3` | Schema modelled on OpenAI's, multilingual, free trial tokens |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-embedding-001` | Ordinary Google account; the free allowance is shown in AI Studio |
+| DeepInfra | `https://api.deepinfra.com/v1/openai` | `BAAI/bge-m3` | No free tier, but cents per million tokens |
+
+Treat the specific free allowances as provisional — providers change them
+often, and the numbers were not all confirmable from a static page. The
+endpoint shapes were.
+
+**Cohere, Voyage AI and Zhipu are not supported.** Their APIs are not
+OpenAI-shaped, so each would need a client of its own.
 
 > [!WARN]
-> **A malformed YAML file fails silently.** If the auto-discovered `config.yaml` doesn't parse, the program silently falls back to its built-in defaults — no message at all. After editing, verify it with this:
-> ```bash
-> python -c "import yaml;yaml.safe_load(open('config.yaml',encoding='utf-8'))"
-> ```
+> Changing the embedding model changes the vector width, and an existing
+> index cannot hold vectors of a different size. Run `magi index --rebuild`
+> after switching — it deletes the index and builds it again from `wiki/` and
+> `raw/`, which is derived data, so nothing of yours is lost.
 
-> [!NOTE]
-> The `ocr.use_mineru` key **only matters to the agent** — it's a routing hint the `wiki_ingest` skill reads. When you type `magi ingest mineru` directly in the terminal, it ignores this key and just checks whether the token is configured. Likewise, `pdf.quality` and `output.encoding` currently do nothing — changing them has no effect.
-> There's also a set of keys that aren't in the template `magi init` generates, but that the code does read: the entire `tools:`, `pdf:`, and `output:` sections, plus `radar.min_relevance` / `radar.own_arxiv_ids` / `radar.citation_gap.*`. Add them yourself when you need them.
+> [!EXPECT]
+> `magi index` prints the same per-file progress as before, and `magi search`
+> reports `semantic search: on`.
+
+> [!FIX]
+> - **`no API key is set`**: `embedding.provider` is `openai` but neither
+>   `embedding.api_key` nor `$MAGI_EMBEDDING_API_KEY` has one.
+> - **`this index holds N-dimension vectors`**: you changed model without
+>   rebuilding. `magi index --rebuild`.
+> - **401 or 403 from the endpoint**: the key is wrong, or it has no quota
+>   left. Every provider above shows remaining quota on its dashboard.
 
 ### Running it {#ingest-run}
 

@@ -100,6 +100,19 @@ class IngestEnqueueRequest(BaseModel):
     title: Optional[str] = None
 
 
+class TaskActionRequest(BaseModel):
+    """One whitelisted action on one issue.
+
+    Same shape of guarantee as the ops table: the action name arrives off the
+    wire, so the set of things it can name is closed and lives in pm.py beside
+    the `bd` calls it maps to.
+    """
+
+    task_id: str = Field(..., min_length=1)
+    action: str = Field(..., min_length=1)
+    workspace: Optional[str] = None
+
+
 class FeatureRequest(BaseModel):
     """Turn one optional feature on or off, machine-wide.
 
@@ -1121,6 +1134,51 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             "count": count,
         }
 
+    @app.get("/api/workspace/tasks")
+    def get_workspace_tasks(workspace: Optional[str] = Query(None),
+                            scope: str = Query("workspace", pattern="^(workspace|hub)$"),
+                            include_closed: bool = Query(False)) -> dict:
+        """The issues themselves, not just how many there are.
+
+        The panel used to show four counts and nothing else, over a store
+        shared by every topic under the hub — so "17 ready" was a number the
+        reader could neither open nor attribute. Every issue MAGI opens is
+        labelled with its workspace, so the same store answers per library.
+        """
+        from magi.pm import find_beads_root, list_tasks
+
+        ws = _resolve_workspace(workspace)
+        rows = list_tasks(ws, scope=scope, include_closed=include_closed)
+        root = find_beads_root(ws)
+        if rows is None:
+            return {"workspace": str(ws), "store_root": None, "scope": scope,
+                    "tasks": [], "here": 0, "elsewhere": 0}
+        # Both numbers, always: "0 here" is only informative next to "17 under
+        # the hub" — otherwise an empty panel looks like a broken one.
+        every = list_tasks(ws, scope="hub", include_closed=include_closed) or []
+        here = sum(1 for r in every if r["is_here"])
+        return {
+            "workspace": str(ws),
+            "store_root": str(root) if root else None,
+            "scope": scope,
+            "tasks": rows,
+            "here": here,
+            "elsewhere": len(every) - here,
+        }
+
+    @app.post("/api/workspace/tasks/act")
+    def post_task_action(req: TaskActionRequest) -> dict:
+        from magi.pm import TASK_ACTIONS, act_on_task
+
+        if req.action not in TASK_ACTIONS:
+            raise HTTPException(status_code=400,
+                                detail=f"Unknown action: {req.action}")
+        ws = _resolve_workspace(req.workspace)
+        ok, msg = act_on_task(ws, req.task_id, req.action)
+        if not ok:
+            raise HTTPException(status_code=409, detail=msg or "task action failed")
+        return {"task_id": req.task_id, "action": req.action, "output": msg}
+
     @app.get("/api/workspace/pm")
     def get_workspace_pm(workspace: Optional[str] = Query(None)) -> dict:
         from magi.pm import find_beads_root
@@ -1215,8 +1273,32 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         "radar.seed_arxiv_ids": {"type": "list"},
         "radar.own_arxiv_ids": {"type": "list"},
         "ocr.use_mineru": {"type": "bool"},
+        # Tokens are the reason people go back to a text editor. They are
+        # `secret`, which the WebUI renders masked and never echoes back once
+        # set — the value is write-only from the browser's point of view.
+        "ocr.mineru_api_token": {"type": "secret"},
         "models.embedding": {"type": "str"},
+        "embedding.provider": {"type": "str", "choices": ["ollama", "openai"]},
+        "embedding.base_url": {"type": "str", "nullable": True},
+        "embedding.model": {"type": "str", "nullable": True},
+        "embedding.api_key": {"type": "secret"},
     }
+
+    #: Marked secret so the reader never leaves with someone else's key on
+    #: screen — GET returns whether one is set, never what it is.
+    SECRET_FIELDS = {k for k, v in CONFIG_FIELDS.items() if v.get("type") == "secret"}
+
+    def _redact_secrets(raw: str) -> str:
+        """Mask the value of any secret key in a raw config dump.
+
+        Matches on the leaf name, because the dump is a flat text file and the
+        endpoint has no parsed position to work from. Over-masking a comment
+        that happens to mention a token is harmless; under-masking is not.
+        """
+        leaves = {k.split(".")[-1] for k in SECRET_FIELDS}
+        pattern = re.compile(
+            rf"^(\s*(?:{'|'.join(map(re.escape, leaves))})\s*:\s*)(\S.*)$", re.MULTILINE)
+        return pattern.sub(lambda m: m.group(1) + "********", raw)
 
     def _config_field_value(data: dict, dotted: str):
         cur = data
@@ -1237,10 +1319,21 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             data = yaml.safe_load(raw) or {}
         except yaml.YAMLError:
             data = {}
-        fields = [{"key": k, **spec, "value": _config_field_value(data, k)}
-                  for k, spec in CONFIG_FIELDS.items()]
+        fields = []
+        for k, spec in CONFIG_FIELDS.items():
+            value = _config_field_value(data, k)
+            if k in SECRET_FIELDS:
+                # Say whether it is set, never what it is. A dashboard on a
+                # shared screen should not be a way to read somebody's key.
+                fields.append({"key": k, **spec, "value": None,
+                               "is_set": bool(str(value or "").strip())})
+            else:
+                fields.append({"key": k, **spec, "value": value})
+        # `raw` is the whole file, which for a config holding a token would
+        # hand it straight back. Blank the secret lines in that copy too.
         return {"workspace": str(ws), "config_path": str(cfg_path),
-                "exists": cfg_path.is_file(), "fields": fields, "raw": raw}
+                "exists": cfg_path.is_file(), "fields": fields,
+                "raw": _redact_secrets(raw)}
 
     @app.post("/api/workspace/config")
     def post_workspace_config(payload: dict = Body(...)) -> dict:
@@ -1253,6 +1346,11 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=f"Config key not editable: {key}")
 
         ftype = spec["type"]
+        choices = spec.get("choices")
+        if choices and value is not None and value not in choices:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{key} must be one of: {', '.join(map(str, choices))}")
         if value is None:
             if not spec.get("nullable"):
                 raise HTTPException(status_code=400, detail=f"{key} cannot be null")
@@ -1264,6 +1362,14 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=f"{key} expects true/false")
         elif ftype == "str" and not isinstance(value, str):
             raise HTTPException(status_code=400, detail=f"{key} expects a string")
+        elif ftype == "secret":
+            if not isinstance(value, str):
+                raise HTTPException(status_code=400, detail=f"{key} expects a string")
+            # The browser renders a masked field; submitting it untouched must
+            # not overwrite a real key with the mask.
+            if set(value.strip()) == {"*"}:
+                raise HTTPException(status_code=400,
+                                    detail=f"{key}: that is the mask, not a key")
         elif ftype == "list":
             if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
                 raise HTTPException(status_code=400, detail=f"{key} expects a list of strings")

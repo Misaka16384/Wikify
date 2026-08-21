@@ -576,11 +576,51 @@ ollama:
   base_url: http://127.0.0.1:11434
   autostart: true                 # 本机 Ollama 停着时按需拉起
 
+embedding:                  # 不想装 Ollama 才需要这一段
+  provider: ollama          # ollama | openai （openai = 任何 OpenAI 兼容接口）
+  base_url: ""              # 例：https://api.siliconflow.com/v1 —— 要带 /v1
+  model: ""                 # 例：BAAI/bge-m3；留空则沿用 models.embedding
+  api_key: ""               # 也可以放进环境变量 MAGI_EMBEDDING_API_KEY，环境变量优先
+
 tools:                      # 只有在这些程序不在 PATH 上时才需要填
   pandoc_path: ""
   pandoc_crossref_path: ""
   pdftoppm_path: ""
 ```
+
+#### 不装 Ollama 也能做语义检索 {#embedding-cloud}
+
+语义检索需要一个嵌入模型。默认走本机 Ollama，但任何说 OpenAI `/v1/embeddings`
+这套协议的接口都可以：把 `embedding.provider` 设成 `openai`，填上面三个字段即可；
+也可以在 WebUI 的「工作区配置」卡片里填，key 那一栏是遮蔽输入。
+
+下面四家的接口形状都对着各自官方文档实际查过：
+
+| 服务 | `base_url` | 模型 | 备注 |
+|---|---|---|---|
+| 硅基流动 SiliconFlow | `https://api.siliconflow.com/v1` | `BAAI/bge-m3`、`Qwen/Qwen3-Embedding-0.6B` | 中英都强，有免费模型；注册可能需要国内手机号 |
+| Jina AI | `https://api.jina.ai/v1` | `jina-embeddings-v3` | 接口照 OpenAI 的形状设计，多语言，注册送额度 |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-embedding-001` | 普通 Google 账号即可；免费额度在 AI Studio 里看 |
+| DeepInfra | `https://api.deepinfra.com/v1/openai` | `BAAI/bge-m3` | 没有免费额度，但每百万 token 只要几分钱 |
+
+**免费额度请以各家页面为准**——它们变得很勤，而且上面几个数字并非全都能从静态页面确认；
+能确认的是接口形状。
+
+**Cohere、Voyage AI、智谱不支持**：它们的 API 不是 OpenAI 形状，每家都得单写一个客户端。
+
+> [!WARN]
+> 换嵌入模型会改变向量维度，旧索引装不下不同宽度的向量。换完要跑
+> `magi index --rebuild`——它会删掉索引重建。索引是从 `wiki/`、`raw/` 推导出来的
+> 派生数据，删了不会丢你的东西。
+
+> [!EXPECT]
+> `magi index` 照常打印逐文件进度，`magi search` 报 `语义检索：已启用`。
+
+> [!FIX]
+> - **提示 `no API key is set`**：`embedding.provider` 是 `openai`，但
+>   `embedding.api_key` 和环境变量 `MAGI_EMBEDDING_API_KEY` 都没有值。
+> - **提示 `this index holds N-dimension vectors`**：换了模型没重建。跑 `magi index --rebuild`。
+> - **接口返回 401 / 403**：key 不对，或者额度用完了。上面几家都能在自己的控制台看余额。
 
 `OLLAMA_HOST` / `PANDOC_PATH` / `PANDOC_CROSSREF_PATH` / `PDFTOPPM_PATH` / `PDFIMAGES_PATH` / `MAGI_NO_OLLAMA_AUTOSTART` 这六个环境变量**优先级高于 config.yaml**，其余所有键都只能改文件。
 

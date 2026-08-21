@@ -3041,6 +3041,51 @@ details.advanced-sql > summary {
 }
 
 
+/* "where to get one" beside a token field. Inline with the description so
+   it reads as part of the sentence, not as another control. */
+.cfg-signup { font-size: 0.72rem; white-space: nowrap; }
+.cfg-input.select-input { min-width: 14rem; }
+
+/* One task. The title has to survive being long, the id and dependency
+   counts sit under it, and the two buttons stay put at the right rather than
+   moving as titles change length. */
+.task-row {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.task-row:last-child { border-bottom: none; }
+.task-main { flex: 1 1 auto; min-width: 0; }
+.task-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.task-title { font-weight: 600; overflow-wrap: anywhere; }
+.task-meta {
+  font-size: 0.72rem;
+  opacity: 0.62;
+  font-family: var(--font-mono);
+  margin-top: 0.2rem;
+}
+.task-desc {
+  font-size: 0.76rem;
+  opacity: 0.78;
+  margin-top: 0.3rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.task-btns { display: flex; gap: 0.35rem; flex: 0 0 auto; }
+/* A closed task stays on the list when you ask for it, but must not compete
+   with the open ones for attention. */
+.task-row.task-closed .task-title { text-decoration: line-through; opacity: 0.6; }
+.task-row.task-closed { opacity: 0.7; }
+
+.scope-help-btn { padding: 0.1rem 0.4rem; font-size: 0.7rem; }
+
 /* One optional component. Reads top-down: do I want it, is it here, what
    does it buy me, and what can I actually do about it. */
 .opt-row {

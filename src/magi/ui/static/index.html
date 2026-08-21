@@ -504,6 +504,28 @@
           </div>
         </div>
       </div>
+
+      <!-- The tasks themselves. Four counts over a store shared by every topic
+           under the hub left "17 ready" unopenable and unattributable. -->
+      <div class="card" id="task-list-card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="tasks_title">Tasks</h3>
+            <p class="card-subtitle" id="tasks-scope-note"></p>
+          </div>
+          <div class="card-actions">
+            <label class="inline-check">
+              <input type="checkbox" id="tasks-show-hub">
+              <span data-i18n="tasks_show_hub">Show every topic under the hub</span>
+            </label>
+            <label class="inline-check">
+              <input type="checkbox" id="tasks-show-closed">
+              <span data-i18n="tasks_show_closed">Include closed</span>
+            </label>
+          </div>
+        </div>
+        <div id="task-list"></div>
+      </div>
     </section>
 
     <!-- Tab 4: Casper -->
@@ -771,6 +793,18 @@
   </div>
 
   <!-- Doctor Modal -->
+  <!-- A short prose explainer. Generic on purpose: the first thing that
+       needed one was "hub vs workspace vs library", and there will be more. -->
+  <div class="modal-backdrop" id="info-modal">
+    <div class="modal-window">
+      <h3 class="modal-header" id="info-modal-title"></h3>
+      <div class="modal-body markdown-body" id="info-modal-body"></div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" id="info-modal-close" data-i18n="btn_doc_close">Close</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="doctor-modal">
     <div class="modal-window wide">
       <h3 class="modal-header" data-i18n="doc_modal_title">Environment Doctor Report</h3>

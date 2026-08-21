@@ -168,6 +168,22 @@ def ensure_schema(conn: sqlite3.Connection, dims: int | None, vec_loaded: bool =
         )
         conn.commit()
     if dims and vec_loaded:
+        # Changing embedding model changes the vector width, and the table is
+        # CREATE IF NOT EXISTS — so a switch from a 1024-dim model to a
+        # 1536-dim one would keep the old table and start writing rows that do
+        # not fit it. Refuse, and name the one command that fixes it, rather
+        # than letting search quietly return nonsense.
+        prior = conn.execute("SELECT value FROM meta WHERE key='dims'").fetchone()
+        if prior and _has_vec_table(conn, vec_loaded):
+            try:
+                prior_dims = int(prior[0])
+            except (TypeError, ValueError):
+                prior_dims = None
+            if prior_dims and prior_dims != dims:
+                raise SearchError(
+                    f"this index holds {prior_dims}-dimension vectors but the "
+                    f"configured embedding model produces {dims}",
+                    "the embedding model changed — rebuild with 'magi index --rebuild'")
         conn.execute(
             f"CREATE VIRTUAL TABLE IF NOT EXISTS chunks_vec USING vec0(embedding float[{dims}])"
         )
@@ -255,13 +271,46 @@ def _wrap_transport(exc: Exception) -> Exception:
     return exc
 
 
+def _embedding_api_key(cfg: dict) -> str:
+    """The key for a cloud embedding provider.
+
+    An env var is offered first and named in the docs, because a key pasted
+    into config.yaml is a secret sitting in a file people put in git. Reading
+    it from config is still supported — refusing would just push people to
+    hardcode it somewhere worse — but the env var wins when both are set.
+    """
+    import os
+
+    env_name = cfg_get(cfg, "embedding.api_key_env", "MAGI_EMBEDDING_API_KEY")
+    if env_name:
+        from_env = os.environ.get(str(env_name), "")
+        if from_env.strip():
+            return from_env.strip()
+    return str(cfg_get(cfg, "embedding.api_key", "") or "").strip()
+
+
 class Embedder:
     """Lazy Ollama embedding client; flips to disabled on first failure."""
 
     def __init__(self) -> None:
         cfg = load_config()
-        self.base_url = cfg_get(cfg, "ollama.base_url", "http://127.0.0.1:11434").rstrip("/")
-        self.model = cfg_get(cfg, "models.embedding", "qwen3-embedding:0.6b")
+        # Two providers, one interface. `ollama` is a local install; `openai`
+        # is any service speaking OpenAI's /v1/embeddings — which is what
+        # SiliconFlow, Jina, Gemini's compat layer, DeepInfra, Together and
+        # OpenAI itself all speak, so one code path serves the lot. Providers
+        # with a bespoke schema (Cohere, Voyage, Zhipu) are deliberately not
+        # here: each would be its own client for one model.
+        self.provider = str(cfg_get(cfg, "embedding.provider", "ollama") or "ollama").lower()
+        if self.provider == "openai":
+            self.base_url = str(
+                cfg_get(cfg, "embedding.base_url", "https://api.openai.com/v1")).rstrip("/")
+            self.model = (cfg_get(cfg, "embedding.model", None)
+                          or cfg_get(cfg, "models.embedding", "text-embedding-3-small"))
+            self.api_key = _embedding_api_key(cfg)
+        else:
+            self.base_url = cfg_get(cfg, "ollama.base_url", "http://127.0.0.1:11434").rstrip("/")
+            self.model = cfg_get(cfg, "models.embedding", "qwen3-embedding:0.6b")
+            self.api_key = ""
         self.available: bool | None = None  # unknown until first call
         self._preflighted = False
         self._disabled_at = 0.0
@@ -284,6 +333,15 @@ class Embedder:
         if self._preflighted:
             return self.available is not False
         self._preflighted = True
+        if self.provider == "openai":
+            if not self.api_key:
+                self.available = False
+                self._disabled_at = time.monotonic()
+                print("note: embedding.provider is 'openai' but no API key is set — "
+                      "put one in embedding.api_key, or in $MAGI_EMBEDDING_API_KEY",
+                      file=sys.stderr)
+                return False
+            return True
         from magi.core import ollama as ollama_svc
 
         state, _ = ollama_svc.ensure_model(self.base_url, self.model)
@@ -380,6 +438,30 @@ class Embedder:
         # An interactive caller passes its own, much shorter, ceiling.
         if timeout is None:
             timeout = 60 + 10 * len(payload)
+
+        if self.provider == "openai":
+            try:
+                resp = self._http().post(
+                    f"{self.base_url}/embeddings",
+                    json={"model": self.model, "input": payload},
+                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    timeout=timeout,
+                )
+            except Exception as exc:
+                raise _wrap_transport(exc) from exc
+            resp.raise_for_status()
+            # OpenAI's response is not guaranteed to come back in request
+            # order; it carries an index per row and the docs say to use it.
+            rows = resp.json().get("data") or []
+            if len(rows) != len(payload):
+                raise ValueError(
+                    f"asked for {len(payload)} embeddings, got {len(rows)}")
+            ordered = sorted(rows, key=lambda r: r.get("index", 0))
+            vecs = [r.get("embedding") for r in ordered]
+            if not all(vecs):
+                raise ValueError("empty embedding in batch")
+            self.available = True
+            return vecs
 
         if self._batch_api is not False:
             try:
@@ -527,6 +609,13 @@ def cmd_index(args: argparse.Namespace) -> int:
     if root is None:
         return _die("no workspace found (run from a topic directory or pass --topic-dir)")
     db_path = root / "output" / "index.db"
+    # The one honest remedy for a changed embedding model: the vector table is
+    # created with a fixed width and cannot be widened in place, so the file
+    # has to go. Nothing else in the workspace is touched — the index is
+    # derived data, rebuilt from wiki/ and raw/ every time.
+    if getattr(args, "rebuild", False) and db_path.exists():
+        db_path.unlink()
+        print(f"magi index: removed {db_path} — rebuilding from scratch")
     opened = open_db(db_path, create=True)
     assert opened is not None
     conn, vec_loaded = opened
@@ -953,6 +1042,10 @@ def main(argv: list[str] | None = None) -> int:
     p_index = sub.add_parser("index", help="Build/refresh the hybrid retrieval index")
     p_index.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
     p_index.add_argument("--no-vectors", action="store_true", help="Skip embeddings (BM25 only)")
+    p_index.add_argument("--rebuild", action="store_true",
+                         help="Delete the index and build it again — needed after "
+                              "changing the embedding model, whose vector width "
+                              "an existing index cannot change")
     p_index.add_argument("--quiet", action="store_true",
                          help="Suppress embedding progress lines (final summary still prints)")
     p_index.set_defaults(func=cmd_index)
