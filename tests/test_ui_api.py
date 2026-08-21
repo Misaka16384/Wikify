@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import pathlib
 import shutil
 import sqlite3
 import tempfile
@@ -495,6 +496,69 @@ def test_pm_task_engine_abstraction(client):
     assert "task_engine_ready" in data
     assert "beads_available" in data
     assert data["task_engine_ready"] == data["beads_available"]
+
+
+def test_pm_counts_use_the_names_the_panel_reads(client, monkeypatch):
+    """The Balthasar panel and the sync report must read one set of names.
+
+    `bd status --json` names its fields `ready_issues`/`open_issues`;
+    sync.balthasar_status renames them to `ready`/`open` for the core cards.
+    The panel read the renamed names off the raw payload, got undefined for
+    all four, and `|| 0` rendered a confident zero — a workspace with 17 ready
+    tasks showed READY 0 directly beneath a core card reading "17 ready".
+    """
+    import magi.ui.api as api_mod
+
+    raw = {"ready_issues": 17, "in_progress_issues": 2, "blocked_issues": 1,
+           "open_issues": 20, "total_issues": 25, "closed_issues": 5}
+    monkeypatch.setattr(api_mod, "bd_available", lambda: True)
+    monkeypatch.setattr(api_mod, "bd_status_summary", lambda _cwd: raw)
+
+    data = client.get(f"/api/workspace/pm?workspace={client.test_workspace}").json()
+    assert data["counts"] == {"ready": 17, "in_progress": 2, "blocked": 1, "open": 20}
+    # The raw payload stays available; it is simply not what the panel reads.
+    assert data["summary"]["ready_issues"] == 17
+
+
+def test_balthasar_panel_reads_counts_not_summary():
+    """Static guard on the drift itself, not just on the endpoint.
+
+    The endpoint can be right while the panel keeps reading the old name, which
+    is exactly the state this bug shipped in. Assert app.js reaches for the
+    normalised block.
+    """
+    app_js = (pathlib.Path(__file__).resolve().parents[1]
+              / "src" / "magi" / "ui" / "static" / "app.js").read_text(encoding="utf-8")
+    for dead in ("pm.summary.ready", "pm.summary.open",
+                 "pm.summary.in_progress", "pm.summary.blocked"):
+        assert dead not in app_js, (
+            f"{dead} is always undefined — bd names that field "
+            f"{dead.rsplit('.', 1)[1]}_issues. Read pm.counts instead."
+        )
+    assert "pm.counts" in app_js
+
+
+def test_pm_reports_where_the_task_store_lives(client, monkeypatch):
+    """A hub-scoped number under a workspace picker has to say it is hub-scoped.
+
+    `bd` walks up to find its database, so every topic under one hub reports
+    identical counts. The panel needs the root to tell the reader that.
+    """
+    import magi.ui.api as api_mod
+
+    monkeypatch.setattr(api_mod, "bd_available", lambda: True)
+    monkeypatch.setattr(api_mod, "bd_status_summary", lambda _cwd: {"open_issues": 3})
+
+    hub = client.test_workspace.parent
+    (hub / ".beads").mkdir(parents=True, exist_ok=True)
+    (hub / ".beads" / "metadata.json").write_text("{}", encoding="utf-8")
+    try:
+        data = client.get(f"/api/workspace/pm?workspace={client.test_workspace}").json()
+        assert data["store_root"] == str(hub)
+        assert data["shared_with_siblings"] is True
+    finally:
+        (hub / ".beads" / "metadata.json").unlink()
+        (hub / ".beads").rmdir()
 
 
 def test_readme_docs_edge_cases(client):

@@ -4443,3 +4443,56 @@ details.advanced-sql > summary {
 .op-label { font-weight: 600; }
 .op-desc { font-size: 0.74rem; opacity: 0.85; line-height: 1.35; }
 .op-cmd { font-size: 0.68rem; opacity: 0.6; font-family: var(--font-mono); }
+
+/* Where a panel's numbers actually come from. The task store lives at the
+   nearest ancestor holding one, so every topic under a hub reads the same
+   counts — a fact the reader cannot infer from a picker naming one workspace.
+   Shared scope is tinted; workspace-local scope is not, so the tint means
+   "wider than what the topbar says" and nothing else. */
+.scope-note {
+  font-size: 0.74rem;
+  opacity: 0.75;
+  margin: 0 0 0.6rem;
+  line-height: 1.4;
+}
+.scope-note.scope-shared {
+  opacity: 1;
+  color: var(--accent-warning, #d9a441);
+}
+
+/* A caption under a header button, for verbs whose object is not obvious from
+   the verb. "Sync Backlog to Tasks" does not say what a backlog is. */
+.btn-with-caption {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+.btn-caption {
+  font-size: 0.72rem;
+  opacity: 0.7;
+  line-height: 1.35;
+  max-width: 40ch;
+  text-align: right;
+}
+
+/* The second line of a banner whose button reaches outside this workspace. */
+.banner-sub {
+  font-size: 0.72rem;
+  opacity: 0.75;
+  flex-basis: 100%;
+}
+
+/* A suggested-action row that navigates instead of running. It gets prose,
+   not a <code> line: a monospace command under a button that does not run it
+   reads as a promise the button does not keep. */
+.row-dest { font-size: 0.72rem; opacity: 0.7; line-height: 1.35; }
+
+/* A metric with no store behind it is not the number zero. Rendered at
+   display size in a tone colour, a placeholder reads as a value; drop both so
+   it reads as "nothing to count here". */
+.metric-value.metric-empty {
+  font-size: 0.9rem;
+  color: var(--text-muted, #8a8f98);
+  letter-spacing: 0.04em;
+}

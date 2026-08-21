@@ -42,9 +42,9 @@
       dash_kb_label: "知识库",
       dash_kb_subtitle: "本机可检索的库；当前正在看的那个见顶栏",
       dash_radar_label: "待分流文献",
-      dash_radar_subtitle: "文献雷达追踪",
+      dash_radar_subtitle: "文献雷达 · 仅本工作区",
       dash_task_label: "可开始的任务",
-      dash_task_subtitle: "没有被依赖挡住的任务",
+      dash_task_subtitle: "没有被依赖挡住的任务 · 统计范围是所属 Hub，非单个工作区",
 
       // Three-core status band
       core_role_mel: "认知状态",
@@ -152,6 +152,11 @@
       btn_backlog_sync: "待办文献转任务",
       bal_engine_not_ready: "科研任务追踪引擎未就绪或未安装。请运行 <code>magi setup</code> 初始化工作流引擎。",
       bal_no_db_initialized: "本工作区（或所属 Hub）还没有任务追踪库。这一步是可选的——不想用任务追踪就不必初始化。",
+      bal_backlog_sync_desc: "扫描 raw/ 里还没编译成参考卡片的原始文献，为每一篇建一条任务",
+      bal_store_shared: "任务库位于 Hub：{root} —— 下面这四个数字属于该 Hub 下的全部课题，不只是当前工作区。",
+      bal_store_local: "任务库位于本工作区：{root}",
+      bal_badge_hub: "Hub 级",
+      bal_init_writes_hub: "在 Hub 根目录建库，该 Hub 下所有课题共用",
       bal_ready_label: "可执行",
       bal_ready_sub: "可直接启动的任务",
       bal_progress_label: "进行中",
@@ -251,13 +256,16 @@
       ops_scope: "以下操作作用于：{name}",
       ops_scope_none: "先在上方选一个知识库。",
       ops_badge_global: "全机生效",
+      metric_not_applicable: "未建库",
+      hint_dest_tab: "点击跳转到「{name}」标签页 · 不执行任何命令",
+      hint_dest_docs: "点击跳转到「{name}」中对应的章节 · 不执行任何命令",
       op_desc_index: "重建检索索引，让 magi search 看到最新的 wiki",
       op_desc_graph_build: "重新扫描 wikilink 和标签，刷新知识图谱",
       op_desc_wiki_reindex: "重新生成每个 wiki 目录里的 _index.md 目录表",
       op_desc_link: "用向量相似度给概念卡片之间建语义双链（需要 Ollama）",
       op_desc_lint_fix: "就地修复死链和 frontmatter 问题",
       op_desc_stats: "统计本工作区的卡片数、链接密度和缺口",
-      op_desc_backlog_sync: "把还没编译的原始文献变成 bd 任务",
+      op_desc_backlog_sync: "为 raw/ 里每一篇还没编译成参考卡片的原始文献建一条任务",
       op_desc_radar_harvest: "从 arXiv 和 Semantic Scholar 抓新的候选论文",
       op_desc_radar_citation_gap: "侦察那些理应引用你却没引的新论文",
       op_desc_ingest_batch_run: "抓取并转换队列里的所有条目——转完等你审批，不会进库",
@@ -561,9 +569,9 @@
       dash_kb_label: "Libraries",
       dash_kb_subtitle: "Searchable on this machine — the one you are viewing is named in the topbar",
       dash_radar_label: "Papers to Triage",
-      dash_radar_subtitle: "Literature radar",
+      dash_radar_subtitle: "Literature radar · this workspace only",
       dash_task_label: "Tasks Ready",
-      dash_task_subtitle: "Not blocked by anything else",
+      dash_task_subtitle: "Not blocked by anything else · counted across the hub, not this workspace alone",
 
       // Three-core status band
       core_role_mel: "Cognitive state",
@@ -671,6 +679,11 @@
       btn_backlog_sync: "Sync Backlog to Tasks",
       bal_engine_not_ready: "Task tracking engine is not ready or not installed. Run <code>magi setup</code> to initialize workflow engine.",
       bal_no_db_initialized: "No task-tracking database in this workspace or its hub. This step is optional — skip it if you do not want task tracking.",
+      bal_backlog_sync_desc: "Scan raw/ for sources with no compiled reference card yet, and open one task per source",
+      bal_store_shared: "Task store lives at the hub: {root} — the four numbers below cover every topic under it, not just this workspace.",
+      bal_store_local: "Task store lives in this workspace: {root}",
+      bal_badge_hub: "hub-level",
+      bal_init_writes_hub: "Creates the store at the hub root, shared by every topic under it",
       bal_ready_label: "Ready",
       bal_ready_sub: "Actionable tasks",
       bal_progress_label: "In Progress",
@@ -770,13 +783,16 @@
       ops_scope: "These act on: {name}",
       ops_scope_none: "Pick a knowledge base above first.",
       ops_badge_global: "machine-wide",
+      metric_not_applicable: "no store",
+      hint_dest_tab: "Opens the {name} tab · runs nothing",
+      hint_dest_docs: "Opens the matching chapter in {name} · runs nothing",
       op_desc_index: "Rebuild the search index so magi search sees the current wiki",
       op_desc_graph_build: "Re-scan wikilinks and tags into the knowledge graph",
       op_desc_wiki_reindex: "Regenerate the _index.md contents table in each wiki folder",
       op_desc_link: "Link semantically related concept cards by vector similarity (needs Ollama)",
       op_desc_lint_fix: "Repair broken links and frontmatter in place",
       op_desc_stats: "Count this workspace’s cards, link density and gaps",
-      op_desc_backlog_sync: "Turn raw sources that are not compiled yet into bd tasks",
+      op_desc_backlog_sync: "Open one task per raw source that has no compiled reference card yet",
       op_desc_radar_harvest: "Fetch new candidate papers from arXiv and Semantic Scholar",
       op_desc_radar_citation_gap: "Scout recent papers that arguably should cite yours",
       op_desc_ingest_batch_run: "Fetch and convert everything queued — output waits for your approval, nothing enters the library",
@@ -2268,16 +2284,41 @@
       row.className = "action-row";
       const left = document.createElement("div");
       left.className = "row-main";
+      let labelEl = null;
       if (rule && rule.i18n) {
-        const label = document.createElement("div");
-        label.className = "row-title";
-        label.textContent = t(rule.i18n);
-        left.appendChild(label);
+        labelEl = document.createElement("div");
+        labelEl.className = "row-title";
+        labelEl.textContent = t(rule.i18n);
+        left.appendChild(labelEl);
       }
-      const code = document.createElement("code");
-      code.className = "row-code";
-      code.textContent = raw;
-      left.appendChild(code);
+      // The second line has to be what the button does, not what a terminal
+      // user would type. These hints are written once and serve both `magi
+      // sync` and this panel, so a navigation row was printing `bd ready`
+      // under a button that opens a tab — reading as "press Open to run
+      // this". Only a row whose button really runs a command shows one, and
+      // it shows the argv the button dispatches rather than the prose.
+      const runs = rule && rule.action && rule.action.type === "job";
+      if (runs || !rule || !rule.action) {
+        const entry = runs ? OPS_CATALOG.find((e) => e.op === rule.action.op) : null;
+        const code = document.createElement("code");
+        code.className = "row-code";
+        code.textContent = entry ? entry.argv.join(" ") : raw;
+        left.appendChild(code);
+        // The same op is badged machine-wide on the operations tab. `magi pm
+        // init` writes at the hub root, not in the workspace the topbar names,
+        // and this row is where most people meet it first.
+        if (entry && entry.scope === "global" && labelEl) {
+          labelEl.insertAdjacentHTML("beforeend",
+            ` <span class="badge badge-muted op-scope-badge">${escapeHtml(t("ops_badge_global"))}</span>`);
+        }
+      } else {
+        const dest = document.createElement("div");
+        dest.className = "row-dest";
+        dest.textContent = rule.action.type === "docs"
+          ? t("hint_dest_docs", { name: t("tab_docs") })
+          : t("hint_dest_tab", { name: t(`tab_${rule.action.tab}`) });
+        left.appendChild(dest);
+      }
       row.appendChild(left);
       if (rule && rule.action) {
         const btn = document.createElement("button");
@@ -2323,8 +2364,12 @@
       try {
         const pm = await apiFetch(`/api/workspace/pm?workspace=${encodeURIComponent(state.workspace)}`);
         const engineReady = (pm.task_engine_ready !== undefined ? pm.task_engine_ready : pm.beads_available);
-        if (pm.summary) {
-          els.dashTaskReady.textContent = String(pm.summary.ready || 0);
+        // Same wrong key as the Balthasar panel had: `summary` carries the
+        // engine's own `ready_issues`, so `.ready` was undefined and this card
+        // read 0 on a workspace with 17 ready tasks. `counts` is normalised.
+        const ready = pm.counts ? pm.counts.ready : undefined;
+        if (ready !== null && ready !== undefined) {
+          els.dashTaskReady.textContent = String(ready);
         } else {
           els.dashTaskReady.textContent = engineReady ? "0" : t("task_engine_offline");
         }
@@ -3447,24 +3492,56 @@
   // Tab 3: Balthasar (Tasks)
   // ------------------------------------------------------------------------
 
+  // Where the four numbers come from. `bd` walks up to find its database, so
+  // every topic under one hub reports the same counts — three sibling topics
+  // here all read 17/17 off one store at the hub root. Under a picker naming a
+  // single workspace, that is a number the reader would otherwise attribute to
+  // the workspace they are looking at.
+  function renderTaskScope(pm) {
+    const note = document.getElementById("task-scope");
+    if (!note) return;
+    if (!pm.store_root) {
+      note.textContent = "";
+      note.classList.remove("scope-shared");
+      return;
+    }
+    note.textContent = t(pm.shared_with_siblings ? "bal_store_shared" : "bal_store_local",
+                         { root: pm.store_root });
+    note.classList.toggle("scope-shared", !!pm.shared_with_siblings);
+  }
+
+  // With no task store there is nothing to count, which is not the same as
+  // counting and finding none — the panel used to print a confident 0. An
+  // em-dash at metric size in a tone colour reads as a decorative rule, so the
+  // placeholder drops the colour and the display size along with the number.
+  function setTaskCounts(counts) {
+    [[els.taskReadyVal, counts.ready],
+     [els.taskProgressVal, counts.in_progress],
+     [els.taskBlockedVal, counts.blocked],
+     [els.taskOpenVal, counts.open]].forEach(([el, v]) => {
+      if (!el) return;
+      const absent = (v === null || v === undefined);
+      el.textContent = absent ? t("metric_not_applicable") : String(v);
+      el.classList.toggle("metric-empty", absent);
+    });
+  }
+
   async function loadBalthasar() {
     if (!state.workspace) return;
     try {
       const pm = await apiFetch(`/api/workspace/pm?workspace=${encodeURIComponent(state.workspace)}`);
       const engineReady = (pm.task_engine_ready !== undefined ? pm.task_engine_ready : pm.beads_available);
+      renderTaskScope(pm);
       if (!engineReady) {
         els.taskStatusBanner.innerHTML = `
           <div class="banner-pill warning">
             ${t("bal_engine_not_ready")}
           </div>
         `;
-        els.taskReadyVal.textContent = "0";
-        els.taskProgressVal.textContent = "0";
-        els.taskBlockedVal.textContent = "0";
-        els.taskOpenVal.textContent = "0";
+        setTaskCounts({});
         return;
       }
-      if (!pm.summary) {
+      if (!pm.counts || pm.counts.open === null || pm.counts.open === undefined) {
         // The banner used to say "click below to initialize" with nothing
         // below it to click — the actual control lives on another tab and was
         // never named. Put the button in the banner and run it from here.
@@ -3476,24 +3553,29 @@
         pill.appendChild(msg);
         const go = document.createElement("button");
         go.className = "btn btn-primary btn-sm";
-        go.textContent = t("btn_danger_pm_init");
+        // This button does not create anything in the workspace named in the
+        // topbar — it creates the store at the hub root, for every topic under
+        // it. The same op carries a machine-wide badge on the operations tab;
+        // it cannot read as a local action here and a global one there.
+        go.innerHTML =
+          `<span>${escapeHtml(t("btn_danger_pm_init"))}</span>` +
+          ` <span class="badge badge-muted op-scope-badge">${escapeHtml(t("bal_badge_hub"))}</span>`;
+        go.title = t("bal_init_writes_hub");
         go.addEventListener("click", () => {
           launchJob("pm-init", t("btn_danger_pm_init"), null, { stay: true });
         });
         pill.appendChild(go);
+        const why = document.createElement("span");
+        why.className = "banner-sub";
+        why.textContent = t("bal_init_writes_hub");
+        pill.appendChild(why);
         els.taskStatusBanner.appendChild(pill);
-        els.taskReadyVal.textContent = "0";
-        els.taskProgressVal.textContent = "0";
-        els.taskBlockedVal.textContent = "0";
-        els.taskOpenVal.textContent = "0";
+        setTaskCounts({});
         return;
       }
 
       els.taskStatusBanner.innerHTML = "";
-      els.taskReadyVal.textContent = pm.summary.ready || 0;
-      els.taskProgressVal.textContent = pm.summary.in_progress || 0;
-      els.taskBlockedVal.textContent = pm.summary.blocked || 0;
-      els.taskOpenVal.textContent = pm.summary.open || 0;
+      setTaskCounts(pm.counts);
     } catch (_) {}
   }
 

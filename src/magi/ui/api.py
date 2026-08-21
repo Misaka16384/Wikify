@@ -1004,13 +1004,36 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
 
     @app.get("/api/workspace/pm")
     def get_workspace_pm(workspace: Optional[str] = Query(None)) -> dict:
+        from magi.pm import find_beads_root
+
         ws = _resolve_workspace(workspace)
         avail = bd_available()
         summary = bd_status_summary(ws) if avail else None
+        root = find_beads_root(ws) if avail else None
+        # The task engine names its fields `<thing>_issues`; the sync report
+        # (sync.balthasar_status) renames them to bare `ready`/`open`. The
+        # panel read the *renamed* names off the *raw* payload, got undefined
+        # for all four, and `|| 0` turned that into a confident zero: a
+        # workspace with 17 ready tasks rendered READY 0 directly under a core
+        # card that said "17 ready". Emit the normalised names here so the two
+        # readers of this number can no longer drift apart.
+        counts = {
+            "ready": (summary or {}).get("ready_issues"),
+            "in_progress": (summary or {}).get("in_progress_issues"),
+            "blocked": (summary or {}).get("blocked_issues"),
+            "open": (summary or {}).get("open_issues"),
+        }
         return {
             "workspace": str(ws),
             "task_engine_ready": avail,
             "beads_available": avail,
+            # The task store lives at the nearest ancestor that holds one, so
+            # every topic under a hub shares one set of counts. That is not a
+            # detail the panel can leave implicit while it sits under a picker
+            # naming a single workspace.
+            "store_root": str(root) if root else None,
+            "shared_with_siblings": bool(root and root.resolve() != ws.resolve()),
+            "counts": counts,
             "summary": summary,
         }
 

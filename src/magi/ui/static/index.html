@@ -467,9 +467,15 @@
             <p class="card-subtitle" data-i18n="bal_subtitle">Deterministic work graph and issue tracker</p>
           </div>
           <div class="card-actions">
-            <button class="btn btn-secondary btn-sm" id="btn-backlog-sync" data-i18n="btn_backlog_sync">Sync Backlog to Tasks</button>
+            <div class="btn-with-caption">
+              <button class="btn btn-secondary btn-sm" id="btn-backlog-sync"
+                      data-i18n-title="bal_backlog_sync_desc"
+                      data-i18n="btn_backlog_sync">Sync Backlog to Tasks</button>
+              <span class="btn-caption" data-i18n="bal_backlog_sync_desc">Scan raw/ for sources with no compiled reference card yet, and open one task per source</span>
+            </div>
           </div>
         </div>
+        <p class="scope-note" id="task-scope"></p>
         <div id="task-status-banner"></div>
 
         <div class="grid-4" id="task-metrics-grid">
