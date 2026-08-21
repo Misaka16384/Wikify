@@ -11,7 +11,18 @@ commands:
 
 This skill handles factual auditing, truth-seeking evaluations, and thesis-driven investigations across the compiled knowledge base. To prevent context window limits on large vaults, it strictly uses a Map-Reduce architecture.
 
-> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Map each capability to your own agent's tool — *read-file* (`Read` in Claude Code, `view_file` in Antigravity), *sub-agent / parallel task* (`Task`/`Agent` in Claude Code, `invoke_subagent` in Antigravity), *ask-user* (`AskUserQuestion` in Claude Code, or simply asking in your reply and waiting — never assume an answer), *shell* (`Bash`/`PowerShell`). Use the closest equivalent your framework provides; if a parallel sub-agent tool is unavailable, audit each file subset sequentially yourself.
+> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Map each capability to your own agent's tool — *read-file* (`Read` in Claude Code, `view_file` in Antigravity), *sub-agent / parallel task* (`Task`/`Agent` in Claude Code, `invoke_subagent` in Antigravity), *ask-user* (see the note below — **never assume an answer**), *shell* (`Bash`/`PowerShell`). Use the closest equivalent your framework provides; if a parallel sub-agent tool is unavailable, audit each file subset sequentially yourself.
+
+> **Asking the user (read before any step that says to):** stopping and asking in your
+> reply, then waiting, is the only mechanism that works on every host — use it by default.
+> A dedicated tool exists on some (`AskUserQuestion` in Claude Code, `request_user_input`
+> in Codex's Plan mode, `question` in opencode; Antigravity has none) and is fine to use
+> when you have one. Two limits matter more than the names:
+> **if you are a sub-agent, the tool will not reach the human** — put the question in the
+> report you return to whoever spawned you; and **in a headless or scheduled run nobody is
+> there**, where every host either denies the tool, errors on it, or hangs. So when there is
+> no answer to be had: do not guess and do not wait. Stop, and say plainly what you would
+> have asked and what you would need to proceed.
 
 When the user asks to perform an audit or truth check on their vault:
 

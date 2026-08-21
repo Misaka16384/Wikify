@@ -13,7 +13,18 @@ MAGI ships its own operating manual inside the package — twelve scenario chapt
 
 **The rule this skill exists to enforce: never answer a MAGI usage question from memory.** Flags change between versions; the manual on disk describes *this* installation. Look it up, quote it, then act.
 
-> **Tooling (framework-agnostic):** Where this says *file-read tool*, use your agent's equivalent (`Read` in Claude Code, `view_file` in Antigravity). Shell commands run via `Bash`/`PowerShell` or your framework's shell tool. Where a step says to **ask the user**, use your agent's question tool (`AskUserQuestion` in Claude Code) or simply ask in your reply and wait — never assume an answer and carry on.
+> **Tooling (framework-agnostic):** Where this says *file-read tool*, use your agent's equivalent (`Read` in Claude Code, `view_file` in Antigravity). Shell commands run via `Bash`/`PowerShell` or your framework's shell tool.
+
+> **Asking the user (read before any step that says to):** stopping and asking in your
+> reply, then waiting, is the only mechanism that works on every host — use it by default.
+> A dedicated tool exists on some (`AskUserQuestion` in Claude Code, `request_user_input`
+> in Codex's Plan mode, `question` in opencode; Antigravity has none) and is fine to use
+> when you have one. Two limits matter more than the names:
+> **if you are a sub-agent, the tool will not reach the human** — put the question in the
+> report you return to whoever spawned you; and **in a headless or scheduled run nobody is
+> there**, where every host either denies the tool, errors on it, or hangs. So when there is
+> no answer to be had: do not guess and do not wait. Stop, and say plainly what you would
+> have asked and what you would need to proceed.
 
 ## The command surface
 

@@ -9,7 +9,18 @@ commands:
 
 > **CLI (read first):** This skill drives the `magi` CLI (MAGI research workspace tool, assumed installed on PATH). If unsure of your surroundings, run `magi sync` first to locate the workspace. For the full syntax of any command: `magi <command> --help`.
 
-> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Map each capability to your own agent's tool — *read-file* (`Read` in Claude Code, `view_file` in Antigravity), *vision / image reading* (whatever lets you look at a screenshot the user pasted), *web-fetch* (`WebFetch` in Claude Code), *ask-user* (`AskUserQuestion` in Claude Code, or simply asking in your reply and waiting — never assume an answer), *shell* (`Bash`/`PowerShell`). Use the closest equivalent your framework provides.
+> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Map each capability to your own agent's tool — *read-file* (`Read` in Claude Code, `view_file` in Antigravity), *vision / image reading* (whatever lets you look at a screenshot the user pasted), *web-fetch* (`WebFetch` in Claude Code), *ask-user* (see the note below — **never assume an answer**), *shell* (`Bash`/`PowerShell`). Use the closest equivalent your framework provides.
+
+> **Asking the user (read before any step that says to):** stopping and asking in your
+> reply, then waiting, is the only mechanism that works on every host — use it by default.
+> A dedicated tool exists on some (`AskUserQuestion` in Claude Code, `request_user_input`
+> in Codex's Plan mode, `question` in opencode; Antigravity has none) and is fine to use
+> when you have one. Two limits matter more than the names:
+> **if you are a sub-agent, the tool will not reach the human** — put the question in the
+> report you return to whoever spawned you; and **in a headless or scheduled run nobody is
+> there**, where every host either denies the tool, errors on it, or hangs. So when there is
+> no answer to be had: do not guess and do not wait. Stop, and say plainly what you would
+> have asked and what you would need to proceed.
 
 **What this is for.** The user has found papers — a browser tab, a list of links, a citation pasted from an email, a screenshot of a reference list — and wants them in a library. Your job is to turn each one into an identifier, hand it to the deterministic pipeline, and report back.
 

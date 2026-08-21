@@ -13,6 +13,17 @@ This skill resolves the "vocabulary fragmentation" problem. Over time, different
 
 > **Tooling (framework-agnostic):** This skill is written tool-agnostic. Where it says *file-read tool*, use your agent's equivalent (`Read` in Claude Code, `view_file` in Antigravity). Shell commands run via `Bash`/`PowerShell` (Claude Code) or your framework's shell tool.
 
+> **Asking the user (read before any step that says to):** stopping and asking in your
+> reply, then waiting, is the only mechanism that works on every host — use it by default.
+> A dedicated tool exists on some (`AskUserQuestion` in Claude Code, `request_user_input`
+> in Codex's Plan mode, `question` in opencode; Antigravity has none) and is fine to use
+> when you have one. Two limits matter more than the names:
+> **if you are a sub-agent, the tool will not reach the human** — put the question in the
+> report you return to whoever spawned you; and **in a headless or scheduled run nobody is
+> there**, where every host either denies the tool, errors on it, or hangs. So when there is
+> no answer to be had: do not guess and do not wait. Stop, and say plainly what you would
+> have asked and what you would need to proceed.
+
 When the user asks to sync, reduce, deduplicate, or normalize tags and aliases:
 
 ### 1. Map Phase (Extraction)

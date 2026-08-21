@@ -11,7 +11,18 @@ commands:
 
 The deterministic radar (`magi radar harvest`, usually run nightly by the scheduler) collects candidate papers into `inbox/radar/YYYY-MM-DD-digest.md` and `output/radar/candidates.jsonl`. **Your job is the judgment layer**: decide which candidates matter for THIS workspace, and convert decisions into durable state (bd issues, ingestion queue). Never let a digest rot in `pending-review`.
 
-> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Where it says *file-read tool*, use your agent's equivalent (`Read` in Claude Code, `view_file` in Antigravity). Shell commands run via `Bash`/`PowerShell` or your framework's shell tool. Where a step says to **ask the user**, use your agent's question tool (`AskUserQuestion` in Claude Code) or simply ask in your reply and wait — never assume an answer and carry on.
+> **Tooling (framework-agnostic):** This skill is written tool-agnostic. Where it says *file-read tool*, use your agent's equivalent (`Read` in Claude Code, `view_file` in Antigravity). Shell commands run via `Bash`/`PowerShell` or your framework's shell tool.
+
+> **Asking the user (read before any step that says to):** stopping and asking in your
+> reply, then waiting, is the only mechanism that works on every host — use it by default.
+> A dedicated tool exists on some (`AskUserQuestion` in Claude Code, `request_user_input`
+> in Codex's Plan mode, `question` in opencode; Antigravity has none) and is fine to use
+> when you have one. Two limits matter more than the names:
+> **if you are a sub-agent, the tool will not reach the human** — put the question in the
+> report you return to whoever spawned you; and **in a headless or scheduled run nobody is
+> there**, where every host either denies the tool, errors on it, or hangs. So when there is
+> no answer to be had: do not guess and do not wait. Stop, and say plainly what you would
+> have asked and what you would need to proceed.
 
 **Cold start (fresh workspace):** On a fresh workspace run `magi index` before step 3 so `magi search` has an index to query. If `output/graph.db` is missing, treat the wiki as empty and skip the concept query in step 2. On an empty wiki, judge candidates against the scope statement in `config.md` instead of concept cards — do not skip-all.
 
