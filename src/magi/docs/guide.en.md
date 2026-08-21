@@ -262,17 +262,24 @@ The plugin and `magi skills install` coexist — one gives you `/magi:skill-name
 > - **To remove them**: `magi skills uninstall [--host X] [--scope project]`.
 > - `magi setup`, `magi migrate`, and `magi ui` **have no skill** — they are CLI-only commands.
 
-### External tools (as needed) {#install-tools}
+### External tools — all optional {#install-tools}
 
-| Tool | Who needs it | What happens without it |
-|---|---|---|
-| **Beads** (`bd`) | Task tracking | Task features degrade; everything else is unaffected |
-| **Ollama** + `qwen3-embedding:0.6b` | Semantic search, semantic linking, radar relevance scoring | Search automatically falls back to keyword matching; `magi link` errors out |
-| **Ollama** + `glm-ocr` | Fully local OCR ingestion | You're limited to cloud OCR or the LaTeX route |
-| **Pandoc** | `magi ingest tex` | Can't process arXiv source packages |
-| **Poppler** (`pdftoppm`) | Rendering pages for local OCR | Local OCR errors out directly |
-| **pdflatex** | Deep verification of math formulas | Automatically falls back to lightweight `pylatexenc` verification |
-| **Ghostscript** | Converting EPS figures in LaTeX source to raster images | EPS files are copied as-is and won't display in markdown |
+**Start here:** run `magi setup`. It asks you about each one, tells you what it
+unlocks, and hands you the official download link. Say no to anything you don't
+want and it stops being mentioned — `magi setup --check` will not report it as a
+problem, because a tool you chose not to install is not a fault in your machine.
+Changed your mind? `magi setup --optionals`.
+
+| Tool | What it unlocks | What happens without it | Where to get it |
+|---|---|---|---|
+| **Beads** (`bd`) | Task tracking | Task features degrade; everything else is unaffected | `magi setup` installs it |
+| **Ollama** + `qwen3-embedding:0.6b` | Semantic search, semantic linking, radar relevance scoring | Search falls back to keyword matching; `magi link` errors out | https://ollama.com/download |
+| **Ollama** + `glm-ocr` | Fully local OCR ingestion | You're limited to cloud OCR, the LaTeX route, or arXiv HTML | https://ollama.com/download |
+| **Pandoc** | `magi ingest arxiv-html` and `magi ingest tex` — the two best-fidelity routes | Can't process arXiv HTML or source packages | https://pandoc.org/installing.html |
+| **Poppler** (`pdftoppm`) | Rendering pages for local OCR | Local OCR errors out directly | https://poppler.freedesktop.org/ |
+| **pdflatex** | Deep verification of math formulas | Falls back to lightweight `pylatexenc` verification | https://www.tug.org/texlive/ |
+| **Ghostscript** | Converting EPS figures in LaTeX source to raster images | EPS files are copied as-is and won't display in markdown | https://www.ghostscript.com/ |
+| **MinerU** (hosted, not a binary) | Cloud PDF conversion, strong on layout and formulas | Use local OCR, or the LaTeX/HTML routes | https://mineru.net/ |
 
 > [!NOTE]
 > You never need to run `ollama serve` yourself. If Ollama is installed but not

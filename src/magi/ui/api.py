@@ -341,7 +341,10 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         rows = doctor_rows()
         legacy = find_legacy_copies()
         return {
-            "doctor": [{"tool": name, "ok": ok, "detail": detail} for name, ok, detail in rows],
+            # `ok` stays for older clients; `status` is what distinguishes a
+            # real problem from an optional component nobody installed.
+            "doctor": [{"tool": r.name, "ok": r.ok, "status": r.status,
+                        "detail": r.detail, "url": r.url} for r in rows],
             "legacy": [str(p) for p in legacy],
         }
 

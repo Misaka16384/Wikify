@@ -262,17 +262,22 @@ claude plugin install <本地仓库目录>      # 本地开发模式
 > - **想卸载**：`magi skills uninstall [--host X] [--scope project]`。
 > - `magi setup`、`magi migrate`、`magi ui` **没有对应技能**——纯 CLI 命令，直接敲。
 
-### 外部工具（按需）{#install-tools}
+### 外部工具——全都是可选的 {#install-tools}
 
-| 工具 | 谁需要它 | 缺了会怎样 |
-|---|---|---|
-| **Beads**（`bd`） | 任务待办 | 任务功能降级，其余不受影响 |
-| **Ollama** + `qwen3-embedding:0.6b` | 语义检索、语义连边、雷达相关度打分 | 检索自动退回关键词匹配；`magi link` 直接报错退出 |
-| **Ollama** + `glm-ocr` | 全本地 OCR 摄入 | 只能走云端 OCR 或 LaTeX 路线 |
-| **Pandoc** | `magi ingest tex` | 无法处理 arXiv 源码包 |
-| **Poppler**（`pdftoppm`） | 本地 OCR 渲染页面 | 本地 OCR 直接报错 |
-| **pdflatex** | 数学公式深度校验 | 自动回退 `pylatexenc` 轻量校验 |
-| **Ghostscript** | LaTeX 源码里的 EPS 插图转位图 | EPS 原样拷贝，markdown 里不显示 |
+**先做这个：** 跑 `magi setup`。它会逐个问你要不要，说明每个解锁什么功能，并给出官网地址。
+不想要的说「否」，以后就不再提——`magi setup --check` **不会把它标成问题**，因为
+你主动选择不装的东西不是你机器的故障。想重新选：`magi setup --optionals`。
+
+| 工具 | 解锁什么 | 缺了会怎样 | 官网 |
+|---|---|---|---|
+| **Beads**（`bd`） | 任务待办 | 任务功能降级，其余不受影响 | `magi setup` 会替你装 |
+| **Ollama** + `qwen3-embedding:0.6b` | 语义检索、语义连边、雷达相关度打分 | 检索退回关键词匹配；`magi link` 报错退出 | https://ollama.com/download |
+| **Ollama** + `glm-ocr` | 全本地 OCR 摄入 | 只能走云端 OCR、LaTeX 源码或 arXiv HTML | https://ollama.com/download |
+| **Pandoc** | `magi ingest arxiv-html` 和 `magi ingest tex`——保真度最高的两条路 | 无法处理 arXiv HTML 与源码包 | https://pandoc.org/installing.html |
+| **Poppler**（`pdftoppm`） | 本地 OCR 渲染页面 | 本地 OCR 直接报错 | https://poppler.freedesktop.org/ |
+| **pdflatex** | 数学公式深度校验 | 自动回退 `pylatexenc` 轻量校验 | https://www.tug.org/texlive/ |
+| **Ghostscript** | LaTeX 源码里的 EPS 插图转位图 | EPS 原样拷贝，markdown 里不显示 | https://www.ghostscript.com/ |
+| **MinerU**（云服务，不是本地程序） | 云端 PDF 转换，版面与公式识别强 | 改用本地 OCR，或走 LaTeX / HTML 路线 | https://mineru.net/ |
 
 > [!NOTE]
 > 不用自己 `ollama serve`。只要 Ollama 装了但没跑，MAGI 会在第一次要用到它时

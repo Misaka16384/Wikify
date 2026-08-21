@@ -149,13 +149,21 @@ uv tool install --force magi-research   # upgrade
 
 </details>
 
-### 2.3 System-level external tools (as needed; `magi setup --check` reports them)
+### 2.3 Optional external tools
 
-| Tool | Used by | Notes |
+**MAGI runs without any of these.** Each one turns on a specific feature; not having it is not a fault, and `magi setup --check` will not paint it red.
+
+Run `magi setup` and it asks about each one, with the official download link. Say no and it stops being mentioned. Change your mind later with `magi setup --optionals`.
+
+| Tool | What it unlocks | Where to get it |
 |---|---|---|
-| **Pandoc** | `magi ingest tex` (LaTeX → Markdown) | Windows `pandoc-crossref.exe` is vendored in `vendor/windows/` (add to PATH or set `tools.pandoc_crossref_path` in config.yaml) |
-| **Poppler** (`pdftoppm`/`pdfimages`) | local OCR pipeline PDF rendering | `scoop/choco/brew/apt install poppler` |
-| **pdflatex** (optional) | deep math validation | falls back to `pylatexenc` when absent |
+| **Ollama** | semantic (vector) search, and local offline OCR | https://ollama.com/download |
+| **Pandoc** | the LaTeX and arXiv-HTML ingest routes — the two best-fidelity ways in | https://pandoc.org/installing.html |
+| **Poppler** (`pdftoppm`) | local OCR page rendering (needed alongside Ollama) | https://poppler.freedesktop.org/ |
+| **pdflatex** | deep math validation — checks a formula actually compiles; falls back to `pylatexenc` when absent | https://www.tug.org/texlive/ |
+| **MinerU** (a hosted service, not a binary) | cloud PDF conversion, strong on layout and formulas | https://mineru.net/ |
+
+The Windows `pandoc-crossref.exe` is vendored in `vendor/windows/` (add to PATH or set `tools.pandoc_crossref_path` in config.yaml). A MinerU token goes in your workspace's config.yaml under `ocr.mineru_api_token`.
 
 (The historic ripgrep dependency is gone.)
 

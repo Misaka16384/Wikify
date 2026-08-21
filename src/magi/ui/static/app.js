@@ -312,6 +312,10 @@
       doctor_th_detail: "详情 / 路径",
       badge_ok: "正常",
       badge_missing: "缺失",
+      badge_optional: "可选",
+      badge_declined: "已跳过",
+      doctor_all_good: "没有任何问题。{count} 个可选组件未安装 —— MAGI 不装它们也能用。",
+      doctor_get_it: "下载",
       doctor_legacy_found: "检测到旧版冲突文件 ({count}):",
       doctor_legacy_hint: "您可在「运维与操作」>「危险操作区」>「清理旧版历史文件」中安全清理。",
       doctor_clean: "✓ 未检测到旧版冲突文件，环境处于良好状态。",
@@ -786,6 +790,10 @@
       doctor_th_detail: "Detail / Path",
       badge_ok: "OK",
       badge_missing: "Missing",
+      badge_optional: "Optional",
+      badge_declined: "Skipped",
+      doctor_all_good: "Nothing is broken. {count} optional component(s) are not installed — MAGI works without them.",
+      doctor_get_it: "Get it",
       doctor_legacy_found: "Legacy copies detected ({count}):",
       doctor_legacy_hint: "You can safely remove them in Operations > Danger Zone > Remove Legacy Copies.",
       doctor_clean: "✓ No legacy copies detected. Environment is healthy.",
@@ -5069,13 +5077,30 @@
       const legacy = data.legacy || [];
 
       let html = `<table class="data-table" style="margin-bottom: 1rem;"><thead><tr><th>${t("doctor_th_comp")}</th><th>${t("doctor_th_status")}</th><th>${t("doctor_th_detail")}</th></tr></thead><tbody>`;
+      // Only "missing" is a fault. An optional component nobody installed is
+      // not a broken environment, and painting it red said otherwise.
+      const BADGES = {
+        ok: ["badge-sage", "badge_ok"],
+        missing: ["badge-danger", "badge_missing"],
+        optional: ["badge-muted", "badge_optional"],
+        declined: ["badge-muted", "badge_declined"],
+      };
+      let optionalCount = 0;
       doc.forEach((row) => {
-        const mark = row.ok
-          ? `<span class="badge badge-sage">${t("badge_ok")}</span>`
-          : `<span class="badge badge-danger">${t("badge_missing")}</span>`;
-        html += `<tr><td><strong>${escapeHtml(row.tool)}</strong></td><td>${mark}</td><td><code style="font-size: 0.8rem;">${escapeHtml(row.detail)}</code></td></tr>`;
+        const status = row.status || (row.ok ? "ok" : "missing");
+        if (status === "optional" || status === "declined") optionalCount += 1;
+        const [cls, key] = BADGES[status] || BADGES.missing;
+        const mark = `<span class="badge ${cls}">${t(key)}</span>`;
+        const link = row.url
+          ? ` <a href="${escapeHtml(row.url)}" target="_blank" rel="noopener noreferrer">${t("doctor_get_it")} &rarr;</a>`
+          : "";
+        html += `<tr><td><strong>${escapeHtml(row.tool)}</strong></td><td>${mark}</td><td><code style="font-size: 0.8rem;">${escapeHtml(row.detail)}</code>${link}</td></tr>`;
       });
       html += `</tbody></table>`;
+
+      if (!doc.some((r) => (r.status || (r.ok ? "ok" : "missing")) === "missing") && optionalCount) {
+        html += `<p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.75rem;">${t("doctor_all_good", { count: optionalCount })}</p>`;
+      }
 
       if (legacy.length > 0) {
         html += `<div style="margin-top: 1rem;"><strong style="color: var(--accent-danger);">${t("doctor_legacy_found", { count: legacy.length })}</strong><ul style="margin: 0.5rem 0 0 1.25rem; font-size: 0.85rem; font-family: var(--font-mono);">`;

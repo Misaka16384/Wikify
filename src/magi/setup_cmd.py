@@ -26,10 +26,86 @@ import subprocess
 import sys
 import urllib.request
 from pathlib import Path
+from typing import NamedTuple
 
 EMBED_MODEL = "qwen3-embedding:0.6b"
 BEADS_REPO = "gastownhall/beads"
 PLUGIN_SOURCE = "Misaka16384/magi"
+
+
+class DoctorRow(NamedTuple):
+    """One line of the environment report.
+
+    ``status`` rather than a bool because "missing" and "optional and not
+    installed" are different facts and only one of them is a problem. Painting
+    an optional tool red told people their setup was broken when they had
+    simply chosen not to install something they do not need.
+    """
+
+    name: str
+    status: str          # "ok" | "missing" | "optional" | "declined"
+    detail: str
+    url: str | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.status == "ok"
+
+    @property
+    def is_problem(self) -> bool:
+        return self.status == "missing"
+
+
+class Optional_(NamedTuple):
+    """An external tool MAGI can use but cannot install for you."""
+
+    key: str
+    binary: str
+    label: str
+    unlocks: str
+    url: str
+    install_hint: str = ""
+
+
+# Everything here is genuinely optional: MAGI runs without any of it, with a
+# smaller feature set. Each carries the official download page, because
+# "install pandoc" is unhelpful and "here is where" is not.
+OPTIONAL_TOOLS: tuple[Optional_, ...] = (
+    Optional_(
+        key="ollama",
+        binary="ollama",
+        label="Ollama",
+        unlocks="semantic (vector) search, and local offline OCR for PDFs",
+        url="https://ollama.com/download",
+        install_hint="after installing: magi setup pulls the embedding model for you",
+    ),
+    Optional_(
+        key="pandoc",
+        binary="pandoc",
+        label="Pandoc",
+        unlocks="the LaTeX and arXiv-HTML ingest routes — the best-fidelity way in",
+        url="https://pandoc.org/installing.html",
+    ),
+    Optional_(
+        key="poppler",
+        binary="pdftoppm",
+        label="Poppler",
+        unlocks="local OCR page rendering (needed alongside Ollama)",
+        url="https://poppler.freedesktop.org/",
+        install_hint="Windows builds: https://github.com/oschwartz10612/poppler-windows/releases",
+    ),
+    Optional_(
+        key="latex",
+        binary="pdflatex",
+        label="LaTeX (TeX Live / MiKTeX)",
+        unlocks="deep math validation — checks a formula actually compiles",
+        url="https://www.tug.org/texlive/",
+    ),
+)
+
+# Not a binary, so it is not in the table above, but it belongs in the same
+# conversation: it is the other way to get good PDF conversion.
+MINERU_URL = "https://mineru.net/"
 
 
 def _which(name: str) -> str | None:
@@ -211,35 +287,128 @@ def _ollama_server_note() -> str:
     return f"server up, but {EMBED_MODEL} is not pulled — run: ollama pull {EMBED_MODEL}"
 
 
-def doctor_rows() -> list[tuple[str, bool, str]]:
-    rows: list[tuple[str, bool, str]] = []
-    rows.append(("magi", True, f"v{__import__('magi').__version__}"))
-    rows.append(("python", True, sys.version.split()[0]))
+def _ask_yes_no(question: str, default: bool = True) -> bool:
+    suffix = "[Y/n]" if default else "[y/N]"
+    try:
+        answer = input(f"  {question} {suffix} ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return default
+    if not answer:
+        return default
+    return answer in ("y", "yes")
+
+
+def choose_optionals(interactive: bool) -> dict:
+    """Ask which optional capabilities the user wants, and remember the answer.
+
+    MAGI cannot install any of these — they are other people's installers — so
+    the useful thing setup can do is explain what each one buys, hand over the
+    official link, and record a "no" so the doctor stops raising it forever
+    after. A tool you decided not to install is not a fault in your machine.
+    """
+    from magi.kb_registry import load_settings, save_settings
+
+    settings = load_settings()
+    chosen = dict(settings.get("optional_features") or {})
+
+    if not interactive:
+        return chosen
+
+    missing = [t for t in OPTIONAL_TOOLS if not _which(t.binary)]
+    if not missing:
+        print("[setup] every optional component is already installed.")
+        return chosen
+
+    print("\n=== Optional components ===")
+    print("  MAGI runs without all of these. Each one turns on a specific feature.")
+    print("  Say no to anything you do not want and it stops being mentioned.\n")
+
+    for tool in missing:
+        print(f"  {tool.label} — {tool.unlocks}")
+        print(f"    download: {tool.url}")
+        if tool.install_hint:
+            print(f"    note: {tool.install_hint}")
+        previous = chosen.get(tool.key)
+        default = True if previous is None else bool(previous)
+        chosen[tool.key] = _ask_yes_no(f"Do you want {tool.label}?", default=default)
+        print()
+
+    # MinerU is a hosted service, not a binary, so it is not in OPTIONAL_TOOLS —
+    # but it belongs in this conversation, because it is the other way to get
+    # good PDF conversion when you do not want a local model.
+    print("  MinerU — cloud PDF conversion, strong on formulas and layout.")
+    print(f"    sign up: {MINERU_URL}")
+    print("    then put the token in your workspace's config.yaml under "
+          "ocr.mineru_api_token")
+    chosen["mineru"] = _ask_yes_no("Do you plan to use MinerU?",
+                                   default=bool(chosen.get("mineru", False)))
+
+    settings["optional_features"] = chosen
+    save_settings(settings)
+
+    wanted = [t.label for t in OPTIONAL_TOOLS if chosen.get(t.key)]
+    if wanted:
+        print(f"\n[setup] noted. Install when you are ready: {', '.join(wanted)}")
+    declined = [t.label for t in OPTIONAL_TOOLS if chosen.get(t.key) is False]
+    if declined:
+        print(f"[setup] skipping for good: {', '.join(declined)} "
+              "(change your mind with 'magi setup --optionals')")
+    return chosen
+
+
+def wanted_optionals() -> dict:
+    """Which optional tools the user said they wanted, from `magi setup`.
+
+    An absent key means "never asked", which is reported the same as "wanted":
+    we show what it would unlock. An explicit false means they declined, and we
+    stop bringing it up.
+    """
+    from magi.kb_registry import load_settings
+    return dict(load_settings().get("optional_features") or {})
+
+
+def doctor_rows() -> list[DoctorRow]:
+    wanted = wanted_optionals()
+    rows: list[DoctorRow] = [
+        DoctorRow("magi", "ok", f"v{__import__('magi').__version__}"),
+        DoctorRow("python", "ok", sys.version.split()[0]),
+    ]
     # uv is an *installer*, not a dependency: nothing in MAGI ever executes it.
     # `pipx install magi-research` is equally supported, so a machine without uv
-    # is not a machine with a problem — reporting it red told pipx users their
-    # setup was broken when it was not.
+    # is not a machine with a problem.
     uv_path = _which("uv")
-    rows.append(("uv", True, uv_path or
-                 "not installed — only ever used to install magi (pipx works too)"))
-    for tool, hint in (
-        ("bd", "work-state tracking (magi setup installs it)"),
-        ("ollama", "vector search + local OCR (optional)"),
-        ("pandoc", "needed for 'magi ingest tex'"),
-        ("pdftoppm", "poppler; needed for local OCR"),
-        ("pdflatex", "optional deep math validation"),
-    ):
-        path = _which(tool)
-        if tool == "ollama" and path is not None:
-            # "installed" is the least useful thing to say about Ollama —
-            # every vector question is really about the server. Doctor reports;
-            # it does not start anything.
-            rows.append((tool, True, f"{path} — {_ollama_server_note()}"))
+    rows.append(DoctorRow("uv", "ok", uv_path or
+                          "not installed — only ever used to install magi (pipx works too)"))
+
+    bd_path = _which("bd")
+    rows.append(DoctorRow(
+        "bd", "ok" if bd_path else "optional",
+        bd_path or "work-state tracking — 'magi setup' installs it for you"))
+
+    for tool in OPTIONAL_TOOLS:
+        path = _which(tool.binary)
+        if path and tool.key == "ollama":
+            # "installed" is the least useful thing to say about Ollama — every
+            # vector question is really about the server. Doctor reports; it
+            # does not start anything.
+            rows.append(DoctorRow(tool.binary, "ok", f"{path} — {_ollama_server_note()}"))
             continue
-        rows.append((tool, path is not None, path or hint))
-    if not _which("pandoc-crossref"):
-        rows.append(("pandoc-crossref", False,
-                     "optional; Windows binary vendored in the repo's vendor/windows/"))
+        if path:
+            rows.append(DoctorRow(tool.binary, "ok", path))
+            continue
+        if wanted.get(tool.key) is False:
+            rows.append(DoctorRow(tool.binary, "declined",
+                                  f"not installed — you chose to skip {tool.label}"))
+            continue
+        rows.append(DoctorRow(tool.binary, "optional",
+                              f"not installed — unlocks {tool.unlocks}", tool.url))
+
+    if _which("pandoc") and not _which("pandoc-crossref"):
+        rows.append(DoctorRow(
+            "pandoc-crossref", "optional",
+            "not installed — cross-references degrade; Windows binary is vendored "
+            "in the repo's vendor/windows/"))
     rows.extend(agent_cli_rows())
     return rows
 
@@ -279,7 +448,8 @@ def agent_cli_rows() -> list[tuple[str, bool, str]]:
         found = host.detected()
         row = state.get(host.key)
         if not found:
-            rows.append((host.binary, False, f"{host.label} not installed (optional)"))
+            rows.append(DoctorRow(host.binary, "optional",
+                                  f"{host.label} not installed"))
             continue
         where = path or "config dir present"
         if row and row["installed"]:
@@ -290,15 +460,30 @@ def agent_cli_rows() -> list[tuple[str, bool, str]]:
             extra = "no skills in this workspace — 'magi skills install'"
         else:
             extra = "installed; skills go in per workspace ('magi skills install')"
-        rows.append((host.binary, True, f"{where} · {extra}"))
+        rows.append(DoctorRow(host.binary, "ok", f"{where} · {extra}"))
     return rows
+
+
+_MARKS = {"ok": "+", "missing": "-", "optional": " ", "declined": "."}
 
 
 def print_doctor() -> None:
     print("\n=== MAGI environment ===")
-    for name, ok, detail in doctor_rows():
-        mark = "+" if ok else "-"
-        print(f"  [{mark}] {name:<16} {detail}")
+    rows = doctor_rows()
+    for row in rows:
+        print(f"  [{_MARKS.get(row.status, '?')}] {row.name:<16} {row.detail}")
+        if row.url:
+            print(f"      {'':<16} -> {row.url}")
+    problems = [r for r in rows if r.is_problem]
+    if problems:
+        print(f"\n  {len(problems)} thing(s) need attention.")
+    else:
+        # Blank marks are not failures and the table should say so out loud,
+        # because a column of them still reads as a wall of red to a new user.
+        skipped = [r for r in rows if r.status in ("optional", "declined")]
+        if skipped:
+            print(f"\n  Nothing is broken. {len(skipped)} optional component(s) "
+                  "are not installed — MAGI works without them.")
 
 
 # --------------------------------------------------------------------------
@@ -308,6 +493,10 @@ def main(argv: list[str] | None = None) -> int:
         prog="magi setup", description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--check", action="store_true", help="Doctor only: report, change nothing")
+    parser.add_argument("--optionals", action="store_true",
+                        help="Just re-run the optional-components questions")
+    parser.add_argument("--yes", "-y", action="store_true",
+                        help="Never prompt; keep whatever was chosen before")
     parser.add_argument("--no-beads", action="store_true", help="Skip Beads installation")
     parser.add_argument("--no-models", action="store_true", help="Skip Ollama model pulls")
     parser.add_argument("--no-plugin", action="store_true", help="Skip Claude Code plugin registration")
@@ -335,11 +524,21 @@ def main(argv: list[str] | None = None) -> int:
         print("[setup] profile set to full")
     kb_only = settings.get("profile") == "kb-only"
 
+    # Prompting is for a person at a terminal. A CI run, a subprocess, or a
+    # WebUI job would hang on input(), so those keep whatever was chosen before.
+    interactive = (not args.yes) and sys.stdin.isatty() and sys.stdout.isatty()
+
+    if args.optionals:
+        choose_optionals(interactive)
+        print_doctor()
+        return 0
+
     results: list[tuple[str, str]] = []
     if args.check:
         results.append(("profile", settings.get("profile", "full")))
         results.append(("legacy", handle_legacy(remove=False)))
     else:
+        choose_optionals(interactive)
         if not args.no_beads and not kb_only:
             results.append(("beads", install_beads()))
         elif kb_only:

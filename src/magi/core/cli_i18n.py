@@ -39,6 +39,7 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("ingest", "add"): "规范化收件箱文档并归档进 raw/",
     ("ingest", "assemble"): "把逐页转写结果拼接成一份完整文档",
     ("ingest", "mineru"): "用 MinerU 云端 OCR 把 PDF 转成 Markdown",
+    ("ingest", "arxiv-html"): "抓 arXiv 官方 LaTeXML HTML 转 Markdown（保真度最高）",
     ("ingest", "tex"): "用 pandoc 把 LaTeX / arXiv 源码转成 Markdown",
     ("ingest", "ocr"): "用本地 Ollama OCR 把 PDF 转成 Markdown",
     ("ingest", "crop"): "裁剪 PDF 区域为 PNG，便于人工核对公式",

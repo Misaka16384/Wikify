@@ -148,13 +148,21 @@ uv tool install --force magi-research   # 升级
 
 </details>
 
-### 2.3 系统级外部工具（按需，`magi setup --check` 会体检）
+### 2.3 可选外部工具
 
-| 工具 | 用途 | 说明 |
+**一个都不装，MAGI 也能跑。** 每个只解锁一项具体功能，缺了不是故障——`magi setup --check` 不会把它们标红。
+
+直接运行 `magi setup`，它会逐个问你要不要，并给出官网地址；说「不要」的以后就不再提。想重新选：`magi setup --optionals`。
+
+| 工具 | 解锁什么 | 官网 |
 |---|---|---|
-| **Pandoc** | `magi ingest tex`（LaTeX → Markdown） | Windows 的 `pandoc-crossref.exe` 已内置于 `vendor/windows/`（加入 PATH 或在 config.yaml 的 `tools.pandoc_crossref_path` 指定） |
-| **Poppler**（`pdftoppm`/`pdfimages`） | 本地 OCR 管线渲染 PDF 页面 | `scoop/choco/brew/apt install poppler` |
-| **pdflatex**（可选） | 数学公式深度校验 | 缺失时自动回退 `pylatexenc` 轻量校验 |
+| **Ollama** | 语义（向量）检索、本地离线 OCR | https://ollama.com/download |
+| **Pandoc** | LaTeX 与 arXiv-HTML 摄入路线（保真度最高的两条） | https://pandoc.org/installing.html |
+| **Poppler**（`pdftoppm`） | 本地 OCR 渲染 PDF 页面（配合 Ollama） | https://poppler.freedesktop.org/ |
+| **pdflatex** | 公式深度校验（真去编译一遍）；缺失时回退 `pylatexenc` 轻量校验 | https://www.tug.org/texlive/ |
+| **MinerU**（云服务，非本地程序） | 云端 PDF 转换，版面与公式识别强 | https://mineru.net/ |
+
+Windows 的 `pandoc-crossref.exe` 已内置于 `vendor/windows/`（加入 PATH 或在 config.yaml 的 `tools.pandoc_crossref_path` 指定）。MinerU 的 token 填在工作区 config.yaml 的 `ocr.mineru_api_token`。
 
 （历史依赖 ripgrep 已不再需要。）
 
