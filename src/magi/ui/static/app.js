@@ -246,6 +246,8 @@
       ingest_batches_title: "批次",
       ingest_hide_decided: "隐藏已决定的",
       ingest_empty: "队列里还没有东西。",
+      ingest_no_workspace: "先在上方选一个知识库，才能看它的摄入队列。",
+      ingest_scope: "本工作区：{name}",
       ingest_approve: "通过",
       ingest_reject: "拒绝",
       ingest_undo: "撤销",
@@ -747,6 +749,8 @@
       ingest_batches_title: "Batches",
       ingest_hide_decided: "Hide decided",
       ingest_empty: "Nothing queued yet.",
+      ingest_no_workspace: "Pick a knowledge base above to see its ingest queue.",
+      ingest_scope: "This workspace: {name}",
       ingest_approve: "Approve",
       ingest_reject: "Reject",
       ingest_undo: "Undo",
@@ -1158,6 +1162,7 @@
     ingestPendingCount: document.getElementById("ingest-pending-count"),
     ingestUndecidedCount: document.getElementById("ingest-undecided-count"),
     ingestBatches: document.getElementById("ingest-batches"),
+    ingestScope: document.getElementById("ingest-scope"),
     ingestHideDecided: document.getElementById("ingest-hide-decided"),
     ingestAddUrl: document.getElementById("ingest-add-url"),
     tabPanels: document.querySelectorAll(".tab-panel"),
@@ -4649,12 +4654,33 @@
   // ------------------------------------------------------------------------
 
   async function loadIngest() {
-    if (!state.workspace) return;
+    // "0 waiting, nothing queued yet" is a confident answer, and with no
+    // workspace chosen it is not the true one — the truth is that we do not
+    // know which library to look at. This panel showed a reassuring zero over a
+    // workspace holding three items, which is the same shape of lie the sync
+    // ratio and the empty-workspace fault were fixed for in v1.10.1.
+    if (!state.workspace) {
+      els.ingestPendingCount.textContent = "—";
+      els.ingestUndecidedCount.textContent = "—";
+      els.ingestUndecidedCount.classList.remove("tone-amber");
+      els.ingestBatches.innerHTML =
+        `<p class="empty-note">${t("ingest_no_workspace")}</p>`;
+      return;
+    }
     try {
       const data = await apiFetch(
         `/api/workspace/ingest/queue?workspace=${encodeURIComponent(state.workspace)}`
       );
       state.ingest = data;
+      // Say which library these numbers are for. Everything on this page is
+      // scoped to the picker at the top, and a count with no owner is exactly
+      // how a number gets read against the wrong workspace.
+      if (els.ingestScope) {
+        const kb = (state.kbs || []).find((k) => k.path === state.workspace);
+        els.ingestScope.textContent = t("ingest_scope", {
+          name: kb ? kb.name : state.workspace,
+        });
+      }
       els.ingestPendingCount.textContent = (data.pending || []).length;
       const undecided = (data.batches || []).reduce((n, b) => n + b.undecided, 0);
       els.ingestUndecidedCount.textContent = undecided;
@@ -5361,30 +5387,58 @@
   // Ingest tab actions. Both long operations go through the job machinery, so
   // they stream into the terminal like every other one; `stay: true` keeps the
   // user on this tab, because the thing they are about to review is here.
-  on(els.ingestAddUrl && document.getElementById("btn-ingest-add"), "click", async () => {
-    const value = (els.ingestAddUrl.value || "").trim();
-    if (!value) return;
-    try {
-      const res = await apiFetch("/api/ingest/enqueue", {
-        method: "POST",
-        body: JSON.stringify({ value, library: null }),
-      });
-      els.ingestAddUrl.value = "";
-      showToast(t("ingest_queued", { kind: res.source_type, value: res.value }), "success");
-      loadIngest();
-    } catch (err) {
-      showToast(err.message, "error");
-    }
-  });
-  on(document.getElementById("btn-ingest-run"), "click", () =>
-    launchJob("ingest-batch-run", t("btn_ingest_run"), null, { stay: true })
-  );
-  on(document.getElementById("btn-ingest-commit"), "click", () =>
-    launchJob("ingest-batch-commit", t("btn_ingest_commit"), null, { stay: true })
-  );
-  on(els.ingestHideDecided, "change", () => {
-    document.querySelectorAll(".ingest-items").forEach(applyIngestFilter);
-  });
+  els.ingestAdd = document.getElementById("btn-ingest-add");
+  if (els.ingestAdd) {
+    els.ingestAdd.addEventListener("click", async () => {
+      const value = (els.ingestAddUrl.value || "").trim();
+      if (!value) return;
+      // Queue into the library the picker is showing, not whichever directory
+      // the server happens to have been started in. Everything else on this
+      // page is scoped to the selected workspace; a queue that quietly went
+      // somewhere else would be the "label names a different library than the
+      // numbers" bug all over again.
+      const kb = (state.kbs || []).find((k) => k.path === state.workspace);
+      if (!kb) {
+        showToast(t("ingest_no_workspace"), "error");
+        return;
+      }
+      try {
+        const res = await apiFetch("/api/ingest/enqueue", {
+          method: "POST",
+          body: JSON.stringify({ value, library: kb.name }),
+        });
+        els.ingestAddUrl.value = "";
+        showToast(t("ingest_queued", { kind: res.source_type, value: res.value }), "success");
+        loadIngest();
+      } catch (err) {
+        showToast(err.message, "error");
+      }
+    });
+    els.ingestAddUrl.addEventListener("keydown", (e) => {
+      // Enter in a one-field form should submit it.
+      if (e.key === "Enter") els.ingestAdd.click();
+    });
+  }
+
+  const ingestRunBtn = document.getElementById("btn-ingest-run");
+  if (ingestRunBtn) {
+    ingestRunBtn.addEventListener("click", () =>
+      launchJob("ingest-batch-run", t("btn_ingest_run"), null, { stay: true })
+    );
+  }
+
+  const ingestCommitBtn = document.getElementById("btn-ingest-commit");
+  if (ingestCommitBtn) {
+    ingestCommitBtn.addEventListener("click", () =>
+      launchJob("ingest-batch-commit", t("btn_ingest_commit"), null, { stay: true })
+    );
+  }
+
+  if (els.ingestHideDecided) {
+    els.ingestHideDecided.addEventListener("change", () => {
+      document.querySelectorAll(".ingest-items").forEach(applyIngestFilter);
+    });
+  }
 
   // Workspace selector change (browsing choice — persisted per browser)
   els.workspaceSelect.addEventListener("change", (e) => {
