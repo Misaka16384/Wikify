@@ -77,6 +77,26 @@ def test_a_long_document_is_judged_on_a_sample(tmp_path):
     assert got.usable and got.pages == 40
 
 
+def test_the_sample_is_spread_rather_than_taken_from_the_front(tmp_path):
+    """A paper's first pages are its least typical.
+
+    Measured failure: a 44-page economics paper whose literature review runs to
+    page 17 and whose only equation is on page 18. A front-of-document window
+    saw prose and nothing else.
+    """
+    doc = pymupdf.open()
+    for n in range(30):
+        page = doc.new_page()
+        if n >= 20:                       # content only in the back half
+            page.insert_textbox(pymupdf.Rect(50, 50, 550, 750),
+                                "Real content. " * 40, fontsize=10)
+    path = tmp_path / "backloaded.pdf"
+    doc.save(path)
+    doc.close()
+
+    assert textlayer.inspect(path).chars_per_page > 0
+
+
 # --------------------------------------------------------------------------
 # Is the text layer sufficient — the distinction that matters
 # --------------------------------------------------------------------------
@@ -89,10 +109,32 @@ def test_math_fonts_are_recognised_by_name():
         assert textlayer.MATH_FONT_RE.search(font), font
 
 
+def test_math_families_nobody_enumerated_are_caught_by_shape():
+    """An allowlist of families is structurally leaky.
+
+    A real 44-page economics paper set in kpfonts passed a CM/AMS-only list as
+    math-free, and its one display equation would have been flattened — its
+    summation sign arrives as the letter P. Every TeX math family names its
+    faces after the encodings (SY symbols, EX extensions, MI math italic), so
+    the shape catches the ones no list mentions.
+    """
+    for font in ("Kp--M-Sy-Regular", "Kp--M-Ex-Regular", "txsy", "pxexa",
+                 "LibertinusMath-Regular", "FiraMath-Regular", "KpMath-Regular"):
+        assert textlayer.MATH_FONT_RE.search(font), font
+
+
 def test_ordinary_text_fonts_are_not_math():
     for font in ("Helvetica", "TimesNewRoman", "NimbusRomNo9L-Regu",
-                 "ArialMT", "CMR10", "LiberationSerif", "SourceSansPro"):
+                 "ArialMT", "CMR10", "LiberationSerif", "SourceSansPro",
+                 "DejaVuSans", "SegoeUI", "Calibri", "Georgia",
+                 "NotoSerifCJKsc-Regular"):
         assert not textlayer.MATH_FONT_RE.search(font), font
+
+
+@pytest.mark.parametrize("font", ["Symbola", "Miami", "Exeter", "Semibold"])
+def test_words_that_merely_contain_the_encoding_letters_are_not_math(font):
+    """The shape rule has to be anchored, or half the type foundry reads as maths."""
+    assert not textlayer.MATH_FONT_RE.search(font), font
 
 
 def test_cmr_is_not_treated_as_math():

@@ -77,17 +77,33 @@ def parse_frontmatter(text: str) -> dict[str, Any]:
     return parse_frontmatter_text(parts[0])
 
 
-def slugify(value: str) -> str:
+#: Longest slug a filename may carry. Windows still enforces a 260-character
+#: MAX_PATH unless the machine has opted into long paths, which is off by
+#: default. A real paper title runs well past 200 characters, and the figure
+#: files are longer still (``<slug>-fig12.png`` under ``images/``), so an
+#: uncapped slug turns a workspace one directory too deep into a hard failure
+#: on Windows while working fine on macOS and Linux.
+SLUG_MAX = 80
+
+
+def slugify(value: str, max_length: int = SLUG_MAX) -> str:
     """Unicode-aware slug, matching ``llm-wiki.py``'s canonical slugify.
 
     Keeps CJK and accented word characters (so non-ASCII concept names produce
     valid, non-empty filenames) while stripping path separators and other
-    punctuation.
+    punctuation, and bounds the length so the result is a usable filename
+    everywhere.
     """
     value = value.lower().replace("_", "-")
     value = re.sub(r"\s+", "-", value)
     value = re.sub(r"[^\w-]", "", value, flags=re.UNICODE)
     value = re.sub(r"-+", "-", value).strip("-")
+    if max_length and len(value) > max_length:
+        # Cut on a word boundary when there is one nearby, so the truncation
+        # reads as a shortened title rather than a corrupted one.
+        cut = value[:max_length]
+        head, sep, _ = cut.rpartition("-")
+        value = (head if sep and len(head) >= max_length // 2 else cut).strip("-")
     return value
 
 

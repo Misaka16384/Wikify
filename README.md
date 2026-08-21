@@ -205,7 +205,7 @@ mkdir KnowledgeHub ; cd KnowledgeHub
 magi hub init                # 中央枢纽（wikis.json 注册表）
 magi pm init                 # beads + 六种科研 issue 类型（会 git-init 本目录）
 
-mkdir topics\quantum-toys ; cd topics\quantum-toys
+mkdir -p topics/quantum-toys && cd topics/quantum-toys
 magi init --name "Quantum Toys" --scope "玩具模型中的量子现象"
 # ↑ 自动注册进 hub；生成 CLAUDE.md / AGENTS.md（agent 入场协议）、config.yaml、scratch/
 magi skills install          # 把技能装进这个工作区（会问装给哪个 CLI）

@@ -134,8 +134,9 @@
     <button class="tab-btn" data-tab="balthasar" data-ch="02" data-i18n="tab_balthasar">Balthasar (Tasks)</button>
     <button class="tab-btn" data-tab="casper" data-ch="03" data-i18n="tab_casper">Casper (Retrieval)</button>
     <button class="tab-btn" data-tab="radar" data-ch="04" data-i18n="tab_radar">Literature Radar</button>
-    <button class="tab-btn" data-tab="operations" data-ch="05" data-i18n="tab_operations">Operations &amp; Danger Zone</button>
-    <button class="tab-btn" data-tab="docs" data-ch="06" data-i18n="tab_docs">Docs &amp; Help</button>
+    <button class="tab-btn" data-tab="ingest" data-ch="05" data-i18n="tab_ingest">Ingest Queue</button>
+    <button class="tab-btn" data-tab="operations" data-ch="06" data-i18n="tab_operations">Operations &amp; Danger Zone</button>
+    <button class="tab-btn" data-tab="docs" data-ch="07" data-i18n="tab_docs">Docs &amp; Help</button>
   </nav>
 
   <!-- Main Container -->
@@ -597,6 +598,49 @@
     </section>
 
     <!-- Tab 6: Operations & Danger Zone -->
+
+    <!-- Ingest queue.
+         The gate between "MAGI converted this" and "this is in my library".
+         Nothing here has entered raw/ yet; committing is the only thing that
+         does that, and it refuses while anything is still undecided. -->
+    <section id="tab-ingest" class="tab-panel">
+      <div class="grid-3">
+        <div class="card metric-box">
+          <span class="metric-label" data-i18n="ingest_waiting_label">Waiting in Queue</span>
+          <span class="metric-value tone-amber" id="ingest-pending-count">0</span>
+          <span class="card-subtitle" data-i18n="ingest_waiting_sub">Queued, not yet fetched</span>
+        </div>
+        <div class="card metric-box">
+          <span class="metric-label" data-i18n="ingest_undecided_label">Awaiting Your Approval</span>
+          <span class="metric-value" id="ingest-undecided-count">0</span>
+          <span class="card-subtitle" data-i18n="ingest_undecided_sub">Converted, nothing in the library yet</span>
+        </div>
+        <div class="card radar-actions">
+          <button class="btn btn-primary" id="btn-ingest-run" data-i18n="btn_ingest_run">Run the Queue</button>
+          <div class="radar-actions-row">
+            <button class="btn btn-secondary btn-sm" id="btn-ingest-commit" data-i18n="btn_ingest_commit">Commit Approved</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <label class="field-label" for="ingest-add-url" data-i18n="ingest_add_label">Add a paper by link, DOI, or arXiv id</label>
+        <div class="radar-actions-row">
+          <input type="text" id="ingest-add-url" class="text-input" placeholder="https://arxiv.org/abs/2608.16520">
+          <button class="btn btn-secondary btn-sm" id="btn-ingest-add" data-i18n="btn_ingest_add">Queue it</button>
+        </div>
+        <p class="card-subtitle" data-i18n="ingest_add_hint">Queuing fetches nothing. Run the queue, then approve what came out.</p>
+      </div>
+
+      <div class="card">
+        <div class="digest-actions">
+          <h3 data-i18n="ingest_batches_title">Batches</h3>
+          <label class="inline-check"><input type="checkbox" id="ingest-hide-decided"> <span data-i18n="ingest_hide_decided">Hide decided</span></label>
+        </div>
+        <div id="ingest-batches"><p class="empty-note" data-i18n="ingest_empty">Nothing queued yet.</p></div>
+      </div>
+    </section>
+
     <section id="tab-operations" class="tab-panel">
       <div class="grid-2">
         <!-- Common Tasks Panel -->

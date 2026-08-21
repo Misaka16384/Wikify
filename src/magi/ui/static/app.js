@@ -232,6 +232,27 @@
       ops_common_title: "常用维护操作",
       ops_common_sub: "非破坏性例行程序",
       op_rebuild_index: "重建检索索引",
+      tab_ingest: "摄入队列",
+      loading: "加载中…",
+      ingest_waiting_label: "队列中等待",
+      ingest_waiting_sub: "已排队，尚未抓取",
+      ingest_undecided_label: "等你审批",
+      ingest_undecided_sub: "已转换，但还没进库",
+      btn_ingest_run: "跑队列",
+      btn_ingest_commit: "提交已批准的",
+      btn_ingest_add: "排队",
+      ingest_add_label: "按链接 / DOI / arXiv 号加一篇",
+      ingest_add_hint: "排队不会抓任何东西。跑完队列，再审批转出来的结果。",
+      ingest_batches_title: "批次",
+      ingest_hide_decided: "隐藏已决定的",
+      ingest_empty: "队列里还没有东西。",
+      ingest_approve: "通过",
+      ingest_reject: "拒绝",
+      ingest_undo: "撤销",
+      ingest_badge_undecided: "{n} 条待决定",
+      ingest_badge_ready: "可提交",
+      ingest_requeued: "已拒绝，自动改走下一档：{route}（会出现在下一批）",
+      ingest_queued: "已排队（识别为 {kind}）：{value}",
       op_ingest_batch_run: "跑摄入队列",
       op_ingest_batch_commit: "提交已审批批次",
       op_build_graph: "构建知识图谱",
@@ -712,6 +733,27 @@
       ops_common_title: "Common Maintenance Operations",
       ops_common_sub: "Non-destructive routines",
       op_rebuild_index: "Rebuild Index",
+      tab_ingest: "Ingest Queue",
+      loading: "Loading…",
+      ingest_waiting_label: "Waiting in Queue",
+      ingest_waiting_sub: "Queued, not yet fetched",
+      ingest_undecided_label: "Awaiting Your Approval",
+      ingest_undecided_sub: "Converted, nothing in the library yet",
+      btn_ingest_run: "Run the Queue",
+      btn_ingest_commit: "Commit Approved",
+      btn_ingest_add: "Queue it",
+      ingest_add_label: "Add a paper by link, DOI, or arXiv id",
+      ingest_add_hint: "Queuing fetches nothing. Run the queue, then approve what came out.",
+      ingest_batches_title: "Batches",
+      ingest_hide_decided: "Hide decided",
+      ingest_empty: "Nothing queued yet.",
+      ingest_approve: "Approve",
+      ingest_reject: "Reject",
+      ingest_undo: "Undo",
+      ingest_badge_undecided: "{n} undecided",
+      ingest_badge_ready: "ready to commit",
+      ingest_requeued: "Rejected — retrying on the next route down: {route} (it appears in the next batch)",
+      ingest_queued: "Queued as {kind}: {value}",
       op_ingest_batch_run: "Run ingest queue",
       op_ingest_batch_commit: "Commit approved batches",
       op_build_graph: "Build Graph",
@@ -1113,6 +1155,11 @@
 
     // Tabs
     tabBtns: document.querySelectorAll(".tab-btn"),
+    ingestPendingCount: document.getElementById("ingest-pending-count"),
+    ingestUndecidedCount: document.getElementById("ingest-undecided-count"),
+    ingestBatches: document.getElementById("ingest-batches"),
+    ingestHideDecided: document.getElementById("ingest-hide-decided"),
+    ingestAddUrl: document.getElementById("ingest-add-url"),
     tabPanels: document.querySelectorAll(".tab-panel"),
 
     // Dashboard
@@ -1953,6 +2000,9 @@
         break;
       case "radar":
         loadRadar();
+        break;
+      case "ingest":
+        loadIngest();
         break;
       case "operations":
         // Terminal stays persistent
@@ -4589,6 +4639,146 @@
   }
 
   // ------------------------------------------------------------------------
+  // Tab 5: Ingest queue — the gate between "converted" and "in my library"
+  //
+  // Borrows the radar triage shape (a row per item, hide-decided, undo) because
+  // it is the same job: look at many things quickly and decide each. What is
+  // new is that these decisions are staged. Radar acts the instant you click;
+  // here nothing reaches raw/ until Commit, and Commit refuses while anything
+  // is undecided.
+  // ------------------------------------------------------------------------
+
+  async function loadIngest() {
+    if (!state.workspace) return;
+    try {
+      const data = await apiFetch(
+        `/api/workspace/ingest/queue?workspace=${encodeURIComponent(state.workspace)}`
+      );
+      state.ingest = data;
+      els.ingestPendingCount.textContent = (data.pending || []).length;
+      const undecided = (data.batches || []).reduce((n, b) => n + b.undecided, 0);
+      els.ingestUndecidedCount.textContent = undecided;
+      els.ingestUndecidedCount.classList.toggle("tone-amber", undecided > 0);
+      renderIngestBatches(data.batches || []);
+    } catch (err) {
+      els.ingestBatches.innerHTML = `<p class="empty-note">${escapeHtml(err.message)}</p>`;
+    }
+  }
+
+  function renderIngestBatches(batches) {
+    if (!batches.length) {
+      els.ingestBatches.innerHTML = `<p class="empty-note">${t("ingest_empty")}</p>`;
+      return;
+    }
+    els.ingestBatches.innerHTML = batches
+      .map((b) => {
+        const state_ = b.undecided
+          ? `<span class="badge badge-terracotta">${t("ingest_badge_undecided", { n: b.undecided })}</span>`
+          : `<span class="badge badge-sage">${t("ingest_badge_ready")}</span>`;
+        return `<details class="ingest-batch" data-batch="${escapeHtml(b.batch_id)}">
+          <summary><strong>${escapeHtml(b.batch_id)}</strong> — ${b.items} ${state_}</summary>
+          <div class="ingest-items"><p class="empty-note">${t("loading")}</p></div>
+        </details>`;
+      })
+      .join("");
+
+    els.ingestBatches.querySelectorAll("details.ingest-batch").forEach((el) => {
+      el.addEventListener("toggle", () => {
+        if (el.open) loadIngestBatch(el.dataset.batch, el.querySelector(".ingest-items"));
+      });
+    });
+  }
+
+  async function loadIngestBatch(batchId, host) {
+    try {
+      const data = await apiFetch(
+        `/api/workspace/ingest/batch?batch=${encodeURIComponent(batchId)}` +
+          `&workspace=${encodeURIComponent(state.workspace)}`
+      );
+      host.innerHTML = data.items.map((it) => ingestRow(batchId, it)).join("");
+      wireIngestRows(host, batchId);
+      applyIngestFilter(host);
+    } catch (err) {
+      host.innerHTML = `<p class="empty-note">${escapeHtml(err.message)}</p>`;
+    }
+  }
+
+  function ingestRow(batchId, item) {
+    // Findings are the pipeline saying what it is unsure about. An item with
+    // none is one you can wave through; an identity-mismatch is one to read.
+    const findings = (item.findings || [])
+      .map((f) => {
+        const tone = f.severity === "info" ? "badge-muted" : "badge-terracotta";
+        return `<span class="badge ${tone}" title="${escapeHtml(f.detail || "")}">${escapeHtml(f.code)}</span>`;
+      })
+      .join(" ");
+    const err = item.error
+      ? `<div class="ingest-error">${escapeHtml(item.error)}</div>`
+      : "";
+    const decided = !!item.decision;
+    const title = item.title || item.source_value || item.item_id;
+    return `<div class="action-row ingest-item" data-item="${escapeHtml(item.item_id)}" data-decision="${escapeHtml(item.decision || "")}">
+      <div class="row-main">
+        <div class="row-title">${escapeHtml(title)}</div>
+        <div class="row-meta"><code>${escapeHtml(item.route || "")}</code> ${findings}</div>
+        ${err}
+      </div>
+      <div class="row-btns">
+        <button class="btn btn-sm btn-primary" data-act="approve"${decided ? " disabled" : ""}>${t("ingest_approve")}</button>
+        <button class="btn btn-sm btn-secondary" data-act="reject"${decided ? " disabled" : ""}>${t("ingest_reject")}</button>
+        <button class="btn btn-sm btn-ghost" data-act="reset">${t("ingest_undo")}</button>
+      </div>
+    </div>`;
+  }
+
+  function wireIngestRows(host, batchId) {
+    host.querySelectorAll(".ingest-item").forEach((row) => {
+      row.querySelectorAll("[data-act]").forEach((btn) => {
+        btn.addEventListener("click", () =>
+          decideIngestItem(batchId, row, btn, btn.dataset.act)
+        );
+      });
+    });
+  }
+
+  async function decideIngestItem(batchId, row, btn, decision) {
+    btn.disabled = true;
+    try {
+      const res = await apiFetch("/api/workspace/ingest/decide", {
+        method: "POST",
+        body: JSON.stringify({
+          batch_id: batchId,
+          item_id: row.dataset.item,
+          decision,
+          workspace: state.workspace,
+        }),
+      });
+      row.dataset.decision = decision === "reset" ? "" : decision;
+      row.querySelectorAll('[data-act="approve"],[data-act="reject"]').forEach((b) => {
+        b.disabled = decision !== "reset";
+      });
+      // Rejecting is not discarding. Say where it went, or the user reasonably
+      // assumes the paper is gone.
+      if (res.requeued_on) {
+        showToast(t("ingest_requeued", { route: res.requeued_on }), "info");
+      }
+      applyIngestFilter(row.closest(".ingest-items"));
+      loadIngest();
+    } catch (err) {
+      showToast(err.message, "error");
+      btn.disabled = false;
+    }
+  }
+
+  function applyIngestFilter(host) {
+    if (!host) return;
+    const hide = els.ingestHideDecided && els.ingestHideDecided.checked;
+    host.querySelectorAll(".ingest-item").forEach((row) => {
+      row.style.display = hide && row.dataset.decision ? "none" : "";
+    });
+  }
+
+  // ------------------------------------------------------------------------
   // Tab 6: Operations & SSE Terminal
   // ------------------------------------------------------------------------
 
@@ -5166,6 +5356,34 @@
   // Tab switching
   els.tabBtns.forEach((btn) => {
     btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+  });
+
+  // Ingest tab actions. Both long operations go through the job machinery, so
+  // they stream into the terminal like every other one; `stay: true` keeps the
+  // user on this tab, because the thing they are about to review is here.
+  on(els.ingestAddUrl && document.getElementById("btn-ingest-add"), "click", async () => {
+    const value = (els.ingestAddUrl.value || "").trim();
+    if (!value) return;
+    try {
+      const res = await apiFetch("/api/ingest/enqueue", {
+        method: "POST",
+        body: JSON.stringify({ value, library: null }),
+      });
+      els.ingestAddUrl.value = "";
+      showToast(t("ingest_queued", { kind: res.source_type, value: res.value }), "success");
+      loadIngest();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  });
+  on(document.getElementById("btn-ingest-run"), "click", () =>
+    launchJob("ingest-batch-run", t("btn_ingest_run"), null, { stay: true })
+  );
+  on(document.getElementById("btn-ingest-commit"), "click", () =>
+    launchJob("ingest-batch-commit", t("btn_ingest_commit"), null, { stay: true })
+  );
+  on(els.ingestHideDecided, "change", () => {
+    document.querySelectorAll(".ingest-items").forEach(applyIngestFilter);
   });
 
   // Workspace selector change (browsing choice — persisted per browser)

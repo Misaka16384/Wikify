@@ -43,7 +43,7 @@ mkdir KnowledgeHub ; cd KnowledgeHub
 magi hub init                # hub (wikis.json registry)
 magi pm init                 # task system (git-inits this directory)
 
-mkdir topics\quantum-toys ; cd topics\quantum-toys
+mkdir -p topics/quantum-toys && cd topics/quantum-toys
 magi init --name "Quantum Toys" --scope "Quantum phenomena in toy models"
 magi skills install          # give this workspace's skills to your agent CLI (it asks which)
 
@@ -399,7 +399,7 @@ mkdir KnowledgeHub ; cd KnowledgeHub
 magi hub init          # Generates topics/, topics/.archive/, wikis.json, _index.md, log.md
 magi pm init           # Installs the task system at the hub root (runs git-init)
 
-mkdir topics\my-topic ; cd topics\my-topic
+mkdir -p topics/my-topic && cd topics/my-topic
 magi init --name "Display name" --scope "One line on what this library collects and what it does not"
 ```
 

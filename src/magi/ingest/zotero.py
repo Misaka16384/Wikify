@@ -208,7 +208,12 @@ class open_readonly:
                 shutil.copy2(src, Path(self._tmp.name) / src.name)
         if not target.is_file():
             raise FileNotFoundError(f"no zotero.sqlite in {self.data_dir}")
-        self._conn = sqlite3.connect(f"file:{target}?mode=ro", uri=True)
+        # as_uri(), not an f-string. SQLite parses this as a URI, so a literal
+        # '#' in the path truncates it at the fragment and silently opens a
+        # different, empty database — every query then returns nothing instead
+        # of failing. '%XX' percent-decodes into a path that does not exist.
+        # Temp directories carry the username, so neither is exotic.
+        self._conn = sqlite3.connect(target.as_uri() + "?mode=ro", uri=True)
         self._conn.row_factory = sqlite3.Row
         return self._conn
 

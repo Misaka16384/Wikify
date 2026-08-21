@@ -35,7 +35,7 @@ When the user asks to ingest PDFs using local OCR (or runs the command without a
         This script handles parsing/injecting standard YAML frontmatter, slugifying, and moving/copying the file.
         *Note: after `ingest add --move`, the inbox original no longer exists — pass the `raw/` destination path (printed by the command) as `"<ORIGINAL_FILE_PATH>"` to `magi ingest finalize` in Step 4. (If you pass the old inbox path instead, the `source already processed/moved - skipping inbox archival` notice is expected and harmless.)*
     *   **For `.tex` files (and arXiv `.tar.gz` source bundles)**: You **MUST** use the Pandoc conversion script instead of OCR. Run:
-        `magi ingest tex "<TEX_OR_TARGZ_PATH>" -o "<TOPIC_DIR>\raw\<type>"`
+        `magi ingest tex "<TEX_OR_TARGZ_PATH>" -o "<TOPIC_DIR>/raw/<type>"`
         *Note: This script automatically generates YAML frontmatter, writes the file, and extracts/converts referenced figures into `images/` (rasterising `.pdf`/`.eps` figures to PNG). Check the printed `Figures: N embedded, M unresolved` line; if any are unresolved, the source bundle may be missing those figure files.*
 4.  **Post-Processing Pipeline**: Extract the exact path of the generated Markdown file from the conversion script's output. Then, trigger the pipeline to handle moving and formatting (skipping global lint for now):
     ```bash
@@ -47,7 +47,7 @@ When the user asks to ingest PDFs using local OCR (or runs the command without a
     *   Do NOT guess the fix for semantic errors like `Double subscript` or `Unexpected end of stream`.
     *   You MUST use your file reading, search, or multimodal vision tools to read the **original source PDF** at the corresponding location to see the actual formula.
     *   **CRITICAL TOOL**: If you cannot easily infer the formula structure, you MUST use the provided PDF cropping tool to extract the exact region around the error as an image for your multimodal vision:
-        `magi ingest crop "<PDF_PATH>" --text "<search_text_near_error>" --out "<TOPIC_DIR>\scratch\crop.png"`
+        `magi ingest crop "<PDF_PATH>" --text "<search_text_near_error>" --out "<TOPIC_DIR>/scratch/crop.png"`
     *   View the generated `crop.png`, then manually edit the Markdown file to correct the semantic math errors based on the ground truth in the original paper, and re-run `magi math check <FILE>` to confirm all errors are gone.
     *   **After a batch of OCR runs**, sweep the whole workspace instead: `magi math check --json` lists every damaged formula, and the `wiki_math_fix` skill goes through them — OCR's signature failure is a `$$` that lost its closing pair and swallowed the paragraph after it, which parses as valid LaTeX and so passes every per-file check.
 

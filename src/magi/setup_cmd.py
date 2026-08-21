@@ -158,8 +158,12 @@ def install_beads() -> str:
                     f"https://github.com/{BEADS_REPO}#installation")
     else:
         if _which("curl"):
+            # scripts/install.sh, not install.sh: the repo root has no
+            # install.sh, so this fetched a GitHub 404 page and piped the HTML
+            # into bash. `bd` never installed on macOS or Linux.
             proc = _run(["bash", "-c",
-                         f"curl -fsSL https://raw.githubusercontent.com/{BEADS_REPO}/main/install.sh | bash"],
+                         f"curl -fsSL https://raw.githubusercontent.com/{BEADS_REPO}"
+                         "/main/scripts/install.sh | bash"],
                         timeout=600)
             if proc and proc.returncode == 0 and _which("bd"):
                 return "installed"

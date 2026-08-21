@@ -43,7 +43,7 @@ mkdir KnowledgeHub ; cd KnowledgeHub
 magi hub init                # 中央枢纽（wikis.json 注册表）
 magi pm init                 # 任务系统（会 git-init 本目录）
 
-mkdir topics\quantum-toys ; cd topics\quantum-toys
+mkdir -p topics/quantum-toys && cd topics/quantum-toys
 magi init --name "Quantum Toys" --scope "玩具模型中的量子现象"
 magi skills install          # 把技能装进这个工作区（会问你装给哪个 CLI）
 
@@ -398,7 +398,7 @@ mkdir KnowledgeHub ; cd KnowledgeHub
 magi hub init          # 生成 topics/、topics/.archive/、wikis.json、_index.md、log.md
 magi pm init           # 任务系统装在 hub 根（会 git-init）
 
-mkdir topics\my-topic ; cd topics\my-topic
+mkdir -p topics/my-topic && cd topics/my-topic
 magi init --name "显示名" --scope "一句话说清这个库收什么、不收什么"
 ```
 

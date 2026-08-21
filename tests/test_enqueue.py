@@ -71,12 +71,21 @@ def test_queueing_appends_exactly_one_line(ws):
     assert len(lines) == 1
 
 
-def test_queueing_writes_nothing_into_the_library(ws):
+def test_queueing_writes_nothing_outside_the_queue(ws):
+    """Everything it creates lives under output/ingest/, and raw/ and wiki/ are
+    untouched. That, not a single-file count, is the promise: the queue
+    directory also holds a lock file, because two writers at once is ordinary
+    here — the CLI, the WebUI job, and the extension all append to it."""
     before = {p for p in ws.rglob("*") if p.is_file()}
     enqueue.main(["2608.16520"])
     after = {p for p in ws.rglob("*") if p.is_file()}
 
-    assert after - before == {ledger.queue_path(ws)}
+    new = after - before
+    assert ledger.queue_path(ws) in new
+
+    ingest_dir = ledger.ingest_dir(ws).resolve()
+    for path in new:
+        assert path.resolve().is_relative_to(ingest_dir), f"escaped the queue: {path}"
 
 
 def test_queueing_makes_no_network_call(ws, monkeypatch):

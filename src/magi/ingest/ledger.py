@@ -68,9 +68,30 @@ def batch_path(topic, batch_id: str) -> Path:
 
 
 def _append(path: Path, record: dict) -> None:
+    """Add one line, safely against another process doing the same.
+
+    A plain append is not enough. POSIX ``O_APPEND`` makes the seek-and-write
+    one atomic step, but Windows does not, and a measured harness of six
+    concurrent writers loses and interleaves lines there. The queue is written
+    by the CLI, by the WebUI job, and by the browser extension's endpoint, so
+    two writers at once is ordinary rather than exotic — and a lost line is a
+    paper that silently never gets ingested.
+    """
+    from filelock import FileLock, Timeout
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    line = json.dumps(record, ensure_ascii=False) + "\n"
+    lock = FileLock(str(path.parent / LOCK_NAME), timeout=10)
+    try:
+        with lock:
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(line)
+    except Timeout:
+        # Better a duplicate than a dropped paper: the fold is last-write-wins
+        # on decisions and de-duplicates items by id, so an extra line is
+        # survivable in a way that a missing one is not.
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(line)
 
 
 def _read(path: Path) -> list[dict]:

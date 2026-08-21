@@ -206,7 +206,7 @@ mkdir KnowledgeHub ; cd KnowledgeHub
 magi hub init                # central hub (wikis.json registry)
 magi pm init                 # beads + research issue types (git-inits this directory)
 
-mkdir topics\quantum-toys ; cd topics\quantum-toys
+mkdir -p topics/quantum-toys && cd topics/quantum-toys
 magi init --name "Quantum Toys" --scope "quantum phenomena in toy models"
 # ↑ auto-registers in the hub; generates CLAUDE.md / AGENTS.md (agent entry
 #   protocol), config.yaml, scratch/

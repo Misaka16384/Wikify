@@ -191,8 +191,12 @@ def test_enqueue_queues_one_thing(client, monkeypatch):
     assert body["source_type"] == "arxiv" and body["value"] == "2608.16520"
 
 
-def test_enqueue_touches_nothing_but_the_queue(client, monkeypatch):
-    """The entire security argument for an unauthenticated endpoint."""
+def test_enqueue_touches_nothing_outside_the_queue(client, monkeypatch):
+    """The entire security argument for an unauthenticated endpoint.
+
+    Everything it creates stays inside output/ingest/ — the queue line and the
+    lock guarding concurrent appends to it. Nothing reaches raw/ or wiki/.
+    """
     from magi.ingest import ledger
 
     monkeypatch.chdir(client.ws)
@@ -200,8 +204,12 @@ def test_enqueue_touches_nothing_but_the_queue(client, monkeypatch):
 
     client.post("/api/ingest/enqueue", json={"value": "2608.16520"})
 
-    after = {p for p in client.ws.rglob("*") if p.is_file()}
-    assert after - before == {ledger.queue_path(client.ws)}
+    new = {p for p in client.ws.rglob("*") if p.is_file()} - before
+    assert ledger.queue_path(client.ws) in new
+
+    ingest_dir = ledger.ingest_dir(client.ws).resolve()
+    for path in new:
+        assert path.resolve().is_relative_to(ingest_dir), f"escaped the queue: {path}"
 
 
 def test_enqueue_cannot_reach_an_unregistered_library(client):

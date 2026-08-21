@@ -31,11 +31,28 @@ from typing import NamedTuple
 # LaTeX math fonts. Their presence means the document was typeset by TeX with
 # real mathematics in it; font-name sniffing for this is an established
 # technique and it is exact, not a heuristic over the text.
-MATH_FONT_RE = re.compile(
-    r"CMSY|CMEX|CMMI|CMBSY|CMMIB|MSAM|MSBM|EUFM|EUSM|"
+#
+# Two patterns, not one, because an allowlist of families is structurally
+# leaky: a real economics paper set in kpfonts (Kp--M-Sy-Regular) sailed through
+# an earlier CM/AMS-only list and would have had its one display equation
+# flattened. Every TeX math family, whoever ships it, names its faces after the
+# encodings — SY for symbols, EX for extensions, MI for math italic — so the
+# shape catches the ones nobody thought to enumerate.
+_KNOWN_MATH_FAMILIES = (
+    r"CMSY|CMEX|CMMI|CMBSY|CMMIB|MSAM|MSBM|EUFM|EUSM|EURM|rsfs|"
     r"latinmodern-math|LMMath|STIXMath|STIX.*Math|Asana-?Math|"
-    r"XITSMath|TeXGyre.*Math|NewCM.*Math|rsfs",
-    re.IGNORECASE)
+    r"XITSMath|TeXGyre.*Math|NewCM.*Math|Libertinus.*Math|"
+    r"Fira.*Math|Garamond-?Math|Concrete.*Math|MinionMath|"
+    r"KpMath|Kp-.*-(?:Sy|Ex|Mi)|txsy|txex|txmi|pxsy|pxex|pxmi"
+)
+
+# `<Family><Encoding><optional size>` — CMSY10, Kp--M-Sy-Regular, txexa, MSBM7.
+# Anchored on a separator or a case change so ordinary words cannot match: a
+# body face called "Symbola" or a name ending in "mi" must not read as maths.
+_TEX_MATH_SHAPE = r"(?:^|[\s\-_.])[A-Za-z]{1,8}[\-_]{0,2}(?:SY|EX|MI|BSY|MIB)[\-_]?\d{0,2}(?:$|[\s\-_.])"
+
+MATH_FONT_RE = re.compile(
+    rf"(?:{_KNOWN_MATH_FAMILIES})|(?i:math)|{_TEX_MATH_SHAPE}")
 
 # Producers that mean the "text layer" is itself OCR output, and therefore only
 # as good as whatever produced it. Corroborating evidence, never the decision.
@@ -48,7 +65,17 @@ TEX_PRODUCER_RE = re.compile(r"pdfTeX|XeTeX|LuaTeX|dvips|Overleaf|LaTeX",
                              re.IGNORECASE)
 
 # Title pages are sparse and unrepresentative, so never decide on page 1 alone.
-SAMPLE_PAGES = 5
+# Text and image sampling is spread across the document rather than taken from
+# the front: a paper's first pages are its least typical.
+SAMPLE_PAGES = 6
+
+# Fonts are enumerated across the WHOLE document, not the sample. An earlier
+# version looked only at the first five pages and passed a 44-page economics
+# paper as math-free — its literature review runs to page 17 and its one
+# display equation is on page 18. Long math-free front matter is an ordinary
+# shape in empirical work, so a front-window check is exactly wrong here.
+# Enumeration is cheap: measured under a second on a 115-page scan.
+FONT_SCAN_CAP = 200
 
 # Below this many characters per page, averaged, there is nothing to read.
 MIN_CHARS_PER_PAGE = 200
@@ -125,18 +152,21 @@ def inspect(pdf_path) -> TextLayer:
         producer = " ".join(str(doc.metadata.get(k) or "")
                             for k in ("producer", "creator"))
 
-        sample = min(SAMPLE_PAGES, pages)
-        total_chars = 0
-        full_page_images = 0
-        collected = []
+        # Spread the sample: first page, last page, and evenly in between.
+        sample_n = min(SAMPLE_PAGES, pages)
+        if pages <= sample_n:
+            indices = list(range(pages))
+        else:
+            step = (pages - 1) / (sample_n - 1)
+            indices = sorted({int(round(i * step)) for i in range(sample_n)})
+
+        # Fonts across the whole document — see FONT_SCAN_CAP. A paper whose
+        # equations start after its literature review must not read as prose.
+        font_pages = (range(pages) if pages <= FONT_SCAN_CAP
+                      else sorted({int(round(i * (pages - 1) / (FONT_SCAN_CAP - 1)))
+                                   for i in range(FONT_SCAN_CAP)}))
         fonts_seen: list[str] = []
-
-        for n in range(sample):
-            page = doc[n]
-            text = page.get_text() or ""
-            collected.append(text)
-            total_chars += len(text.strip())
-
+        for n in font_pages:
             try:
                 for font in doc.get_page_fonts(n):
                     # (xref, ext, type, basefont, name, encoding)
@@ -144,6 +174,16 @@ def inspect(pdf_path) -> TextLayer:
                         fonts_seen.append(str(font[3]))
             except Exception:  # noqa: BLE001 — font table is best effort
                 pass
+
+        total_chars = 0
+        full_page_images = 0
+        collected = []
+
+        for n in indices:
+            page = doc[n]
+            text = page.get_text() or ""
+            collected.append(text)
+            total_chars += len(text.strip())
 
             try:
                 page_area = abs(page.rect)
@@ -158,10 +198,10 @@ def inspect(pdf_path) -> TextLayer:
                 pass
 
         text = "\n".join(collected)
-        per_page = total_chars // max(sample, 1)
+        per_page = total_chars // max(len(indices), 1)
         has_math = bool(MATH_FONT_RE.search(" ".join(fonts_seen)))
 
-        if full_page_images >= max(1, sample // 2) and per_page < MIN_CHARS_PER_PAGE:
+        if full_page_images >= max(1, len(indices) // 2) and per_page < MIN_CHARS_PER_PAGE:
             return TextLayer(False, has_math,
                              "each page is one full-page image — this is a scan",
                              per_page, pages, producer)

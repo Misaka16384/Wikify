@@ -49,7 +49,7 @@ When the user asks to ingest documents (or runs the command without a path):
         This script handles parsing/injecting standard YAML frontmatter, slugifying, and moving/copying the file.
         *Note: after `ingest add --move`, the inbox original no longer exists — pass the `raw/` destination path (printed by the command) as `"<ORIGINAL_FILE_PATH>"` to `magi ingest finalize` in Step 5. (If you pass the old inbox path instead, the `source already processed/moved - skipping inbox archival` notice is expected and harmless.)*
     *   **For `.tex` files (and arXiv `.tar.gz` source bundles)**: You **MUST** use the Pandoc conversion script. Run:
-        `magi ingest tex "<TEX_OR_TARGZ_PATH>" -o "<TOPIC_DIR>\raw\<type>"`
+        `magi ingest tex "<TEX_OR_TARGZ_PATH>" -o "<TOPIC_DIR>/raw/<type>"`
         *Note: This script automatically generates YAML frontmatter (including `arxiv_id:` when the filename carries one), writes the file, and extracts referenced figures into `images/` (rasterising `.pdf`/`.eps` figures to PNG, prefixed with the doc slug). Skip Step 4. Check the printed `Figures: N embedded, M unresolved` line — and take any `figure(s) ... dropped by Pandoc` warning seriously: compare against the source PDF.*
         *Bibliography: if the bundle has a `.bib` it is used with citeproc; if it only ships a compiled `.bbl` (the arXiv norm), the tool inlines it automatically — citations then render as `[@key]` with a full References list. Either asset is preserved next to the markdown as `<slug>.bib`/`.bbl` (used later by `magi bib`). Do not hand-craft empty `.bib` files.*
 4.  **Assign Slug & YAML**: Write to `raw/<type>/YYYY-MM-DD-slug.md` with standard frontmatter:
@@ -74,7 +74,7 @@ When the user asks to ingest documents (or runs the command without a path):
         *   `Undefined control sequence` entries carrying the validator's *"may be a macro from a package this validator lacks"* note are usually **false positives** (obscure package macros). Spot-check ONE against the PDF; if the markdown matches the paper, leave the rest alone — do NOT rewrite valid macros.
         *   Structural errors (`Double subscript`, `Missing }`, `Unexpected end of stream`) are real. Do NOT guess their fix.
     *   For real errors, read the **original source PDF** at the corresponding location. If you cannot easily infer the formula structure, use the PDF cropping tool:
-        `magi ingest crop "<PDF_PATH>" --text "<search_text_near_error>" --out "<TOPIC_DIR>\scratch\crop.png"`
+        `magi ingest crop "<PDF_PATH>" --text "<search_text_near_error>" --out "<TOPIC_DIR>/scratch/crop.png"`
     *   View the generated `crop.png`, correct the Markdown from the ground truth, and re-run `magi math check <FILE>` until only annotated possible-macro entries remain.
     *   **Ingesting a batch?** Do not do this file by file. `magi math check --json` harvests every broken formula in the workspace at once, and the `wiki_math_fix` skill works that list — including the common case where one unclosed `$$` swallowed a page of prose.
 
