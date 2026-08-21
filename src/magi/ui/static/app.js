@@ -52,6 +52,14 @@
       core_role_cas: "文献检索",
       core_sync_label: "三核同步率",
       core_state_ok: "正常",
+      graph_legend_concept: "概念",
+      graph_legend_reference: "文献",
+      graph_legend_topic: "专题",
+      graph_legend_thesis: "论点",
+      graph_legend_claim: "断言",
+      graph_legend_ghost: "断链（指向不存在的卡片）",
+      graph_legend_tag: "标签",
+      graph_legend_size: "点越大 = 连接越多",
       graph_needs_build: "这个库还没建知识图谱。建完之后才能浏览概念之间的连接。",
       running_jobs_tooltip: "正在运行的后台任务（本机全部工作区）——点击查看实时日志。",
       claims_none_yet: "还没有断言",
@@ -172,6 +180,11 @@
       search_summary: "找到 {total} 条结果 · 关键词命中 {bm25} · 语义检索{vec}",
       search_lines: "行 {start}-{end}",
       vec_avail_yes: "已启用",
+      close_strong: "高度契合",
+      close_related: "相关",
+      close_weak: "较远",
+      badge_close_tip: "语义距离 {d}（越小越接近）。这只是提示，不会因此丢结果。",
+      search_all_weak: "这次查询没有语义上贴近的内容——下面的结果都只是相对最接近的，未必真的相关。换个说法或用库里的术语再试试。",
       badge_rrf_tip: "综合排名分：把关键词排名和语义排名融合后的结果，越大越靠前。",
       badge_bm25_tip: "按关键词匹配，这条排第 {n}",
       badge_vec_tip: "按语义相近，这条排第 {n}",
@@ -513,6 +526,14 @@
       core_role_cas: "Retrieval",
       core_sync_label: "Three-core sync",
       core_state_ok: "Nominal",
+      graph_legend_concept: "concept",
+      graph_legend_reference: "reference",
+      graph_legend_topic: "topic",
+      graph_legend_thesis: "thesis",
+      graph_legend_claim: "claim",
+      graph_legend_ghost: "dangling link",
+      graph_legend_tag: "tag",
+      graph_legend_size: "bigger dot = more links",
       graph_needs_build: "No knowledge graph for this library yet. Build it to browse how concepts connect.",
       running_jobs_tooltip: "Background jobs running right now, across every workspace on this machine. Click to watch the log.",
       claims_none_yet: "No claims recorded yet",
@@ -633,6 +654,11 @@
       search_summary: "Found {total} hit(s) · keyword hits: {bm25} · semantic search: {vec}",
       search_lines: "lines {start}-{end}",
       vec_avail_yes: "on",
+      close_strong: "close",
+      close_related: "related",
+      close_weak: "distant",
+      badge_close_tip: "Semantic distance {d} — lower is closer. This is a hint, not a filter; nothing is dropped.",
+      search_all_weak: "Nothing in this library is semantically close to that query. The results below are only the nearest available, and may not be relevant — try different wording, or a term the library actually uses.",
       badge_rrf_tip: "Combined rank score: the keyword ranking and the meaning ranking fused into one. Higher is more relevant.",
       badge_bm25_tip: "Ranked #{n} by keyword match",
       badge_vec_tip: "Ranked #{n} by meaning similarity",
@@ -947,6 +973,28 @@
         window.localStorage.setItem(key, value);
       }
     } catch (_) {}
+  }
+
+  // Which library you are LOOKING at is per-tab. The badge tooltip has always
+  // called it a session-level choice, but it lived in localStorage, so opening
+  // a second tab silently inherited whatever the first tab last picked — and
+  // changing it in one moved the other on its next reload.
+  //
+  // sessionStorage gives each tab its own, seeded once from the last choice
+  // this browser made, so reopening still lands where you left off.
+  function viewWorkspaceGet() {
+    try {
+      const s = window.sessionStorage && window.sessionStorage.getItem("magi-view-workspace");
+      if (s) return s;
+    } catch (_) {}
+    return safeStorageGet("magi-view-workspace");
+  }
+
+  function viewWorkspaceSet(value) {
+    try {
+      if (window.sessionStorage) window.sessionStorage.setItem("magi-view-workspace", value);
+    } catch (_) {}
+    safeStorageSet("magi-view-workspace", value);   // the default for a new tab
   }
 
   function safeStorageRemove(key) {
@@ -1996,7 +2044,7 @@
       await loadKBRegistry();
 
       // Restore this browser's last viewed workspace (session-level concept)
-      const savedView = safeStorageGet("magi-view-workspace");
+      const savedView = viewWorkspaceGet();
       if (savedView && savedView !== state.workspace &&
           state.kbs.some((kb) => kb.path === savedView)) {
         state.workspace = savedView;
@@ -2008,7 +2056,7 @@
       // screen.
       if (!state.workspace && els.workspaceSelect && els.workspaceSelect.value) {
         state.workspace = els.workspaceSelect.value;
-        safeStorageSet("magi-view-workspace", state.workspace);
+        viewWorkspaceSet(state.workspace);
       }
       // Re-render once state.workspace has settled, so the dropdown's selected
       // option is guaranteed to name the library the rest of the page is
@@ -2248,7 +2296,7 @@
       btn.addEventListener("click", () => {
         state.workspace = btn.dataset.path;
         els.workspaceSelect.value = state.workspace;
-        safeStorageSet("magi-view-workspace", state.workspace);
+        viewWorkspaceSet(state.workspace);
         updateBrowsingBadge();
         loadSyncRatio();
         loadTabData(state.activeTab);
@@ -2738,6 +2786,41 @@
     return graphMap.colors;
   }
 
+  // Built from the same colour map the canvas draws with, so it can never drift
+  // out of sync with what is actually on screen, and re-rendered on theme or
+  // language change like everything else.
+  function renderGraphLegend() {
+    const box = document.getElementById("graph-map-legend");
+    if (!box) return;
+    const col = graphMapColors();
+    const kinds = ["concept", "reference", "topic", "thesis", "claim", "ghost"];
+    box.innerHTML = "";
+    kinds.forEach((k) => {
+      if (k === "ghost" && !graphMap.nodes.some((n) => n.type === "ghost")) return;
+      if (k !== "ghost" && !graphMap.nodes.some((n) => n.type === k)) return;
+      const item = document.createElement("span");
+      item.className = "legend-item";
+      const dot = document.createElement("i");
+      dot.style.background = col[k];
+      item.appendChild(dot);
+      item.appendChild(document.createTextNode(t(`graph_legend_${k}`)));
+      box.appendChild(item);
+    });
+    if (graphMap.nodes.some((n) => n.type === "tag")) {
+      const item = document.createElement("span");
+      item.className = "legend-item";
+      const dot = document.createElement("i");
+      dot.style.background = col.tag;
+      item.appendChild(dot);
+      item.appendChild(document.createTextNode(t("graph_legend_tag")));
+      box.appendChild(item);
+    }
+    const size = document.createElement("span");
+    size.className = "legend-item legend-note";
+    size.textContent = t("graph_legend_size");
+    box.appendChild(size);
+  }
+
   function graphNodeRadius(n) {
     const r = Math.min(15, 3.5 + Math.sqrt(n.degree || 0) * 1.6);
     return n.type === "ghost" || n.type === "tag" ? Math.min(r, 9) * 0.8 : r;
@@ -2821,16 +2904,40 @@
     ctx.font = `${11 / graphMap.k}px ${col.family}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    for (const n of graphMap.nodes) {
+    // Draw the most-connected first and skip any label whose box would land on
+    // one already drawn. Without this the densest region — which is precisely
+    // the important one — stacked into an unreadable pile, so the view meant
+    // to orient you failed hardest exactly where orientation matters.
+    const placed = [];
+    const pad = 2 / graphMap.k;
+    const lineH = 12 / graphMap.k;
+    const ordered = graphMap.nodes.slice().sort((a, b) => {
+      const ah = hover && a.id === hover.id ? 2 : (neigh && neigh.has(a.id) ? 1 : 0);
+      const bh = hover && b.id === hover.id ? 2 : (neigh && neigh.has(b.id) ? 1 : 0);
+      if (ah !== bh) return bh - ah;
+      return (b.degree || 0) - (a.degree || 0);
+    });
+    for (const n of ordered) {
       const isHover = hover && n.id === hover.id;
       const isNeigh = neigh && neigh.has(n.id);
       const show = isHover || isNeigh || (!hover && (graphMap.k >= 1.25 || (n.degree || 0) >= 4));
       if (!show) continue;
-      const label = n.title || n.id;
+      const label = (n.title || n.id).length > 30
+        ? (n.title || n.id).slice(0, 29) + "…" : (n.title || n.id);
+      const w = ctx.measureText(label).width;
+      const x = n.x - w / 2;
+      const y = n.y + graphNodeRadius(n) + 3 / graphMap.k;
+      // The hovered neighbourhood is what you asked to see — it always wins.
+      const priority = isHover || isNeigh;
+      if (!priority) {
+        const clash = placed.some((b) =>
+          x < b.x + b.w + pad && x + w + pad > b.x && y < b.y + b.h + pad && y + lineH + pad > b.y);
+        if (clash) continue;
+      }
+      placed.push({ x, y, w, h: lineH });
       ctx.globalAlpha = isHover ? 1 : 0.72;
       ctx.fillStyle = col.label;
-      ctx.fillText(label.length > 30 ? label.slice(0, 29) + "…" : label,
-        n.x, n.y + graphNodeRadius(n) + 3 / graphMap.k);
+      ctx.fillText(label, n.x, y);
     }
     ctx.globalAlpha = 1;
   }
@@ -2852,7 +2959,7 @@
       if (graphMap.sim && graphMap.sim.alpha() > graphMap.sim.alphaMin()) {
         graphMap.sim.restart();
       }
-      renderGraphMapNote();
+      renderGraphMapChrome();
       scheduleGraphMapDraw();
       return;
     }
@@ -2899,6 +3006,11 @@
     return box;
   }
 
+  function renderGraphMapChrome() {
+    renderGraphLegend();
+    renderGraphMapNote();
+  }
+
   function renderGraphMapNote() {
     if (!els.graphMapNote) return;
     if (!graphMap.key) return;
@@ -2931,7 +3043,7 @@
     graphMap.k = 1;
     graphMap.hover = null;
     graphMap.truncated = !!res.truncated;
-    renderGraphMapNote();
+    renderGraphMapChrome();
     if (!graphMap.nodes.length) {
       scheduleGraphMapDraw();
       return;
@@ -3927,6 +4039,21 @@
     els.docPreviewLinksBtn.addEventListener("click", () => {
       const ref = preview.current && preview.current.ref;
       if (!ref || !ref.node) return;
+      // The card's own links are already in its sidebar. Closing the preview
+      // and jumping to another tab threw away the reading position and the
+      // drill-down stack to show something that was on screen the whole time.
+      const side = els.docPreviewSide;
+      const heading = side && [...side.querySelectorAll(".doc-preview-side-head")]
+        .find((h) => h.textContent === t("preview_out") || h.textContent === t("preview_in"));
+      if (heading) {
+        setPreviewSideVisible(true);
+        heading.scrollIntoView({ block: "start", behavior: "smooth" });
+        heading.classList.add("side-flash");
+        setTimeout(() => heading.classList.remove("side-flash"), 1200);
+        return;
+      }
+      // No links section (a cross-library card has no local graph) — the full
+      // browser is still the right destination.
       closeDocPreview();
       switchTab("melchior");
       openGraphLinks(ref.node);
@@ -4008,6 +4135,15 @@
       // different responses: you chose keyword-only, Ollama is busy, or it is
       // not set up. Telling a user who picked bm25 to go install Ollama is
       // troubleshooting copy applied to a deliberate choice.
+      // Ten uniformly-confident-looking rows for a query that matched nothing
+      // was the complaint. No cutoff can separate real from junk here (the
+      // baseline overlaps), so say it plainly instead of dropping results.
+      if (data.weak_semantic_match) {
+        const weak = document.createElement("div");
+        weak.className = "hint-note";
+        weak.textContent = t("search_all_weak");
+        els.searchInfoBar.appendChild(weak);
+      }
       if (!data.vector_available && data.mode !== "bm25") {
         const note = document.createElement("div");
         note.className = "hint-note";
@@ -4041,6 +4177,7 @@
                 <div class="search-hit-title">${escapeHtml(hit.heading || hit.path)}</div>
                 <div class="search-hit-badges">
                   ${kbBadge}${collBadge}
+                  ${hit.closeness ? `<span class="badge close-${hit.closeness}" title="${escapeHtml(t("badge_close_tip", { d: hit.distance }))}">${escapeHtml(closenessLabel(hit.closeness))}</span>` : ""}
                   <span class="badge badge-terracotta" title="${escapeHtml(t("badge_rrf_tip"))}">RRF ${hit.score}</span>
                   ${hit.bm25_rank ? `<span class="badge badge-blue" title="${escapeHtml(t("badge_bm25_tip", { n: hit.bm25_rank }))}">BM25 #${hit.bm25_rank}</span>` : ""}
                   ${hit.vector_rank ? `<span class="badge badge-sage" title="${escapeHtml(t("badge_vec_tip", { n: hit.vector_rank }))}">Vec #${hit.vector_rank}</span>` : ""}
@@ -4278,6 +4415,17 @@
   // nothing without calibration — on a real harvest every candidate scores
   // between 0.55 and 0.70 because they all arrived pre-filtered as physics —
   // so rank it within this harvest instead of showing the float bare.
+  // Written out rather than assembled from a prefix and a variable: i18n keys
+  // are never concatenated in this file, so the dictionary-completeness test
+  // can see every key that is actually used. (It scans comments too — a
+  // concatenated key quoted in prose trips it just as a real one would.)
+  function closenessLabel(kind) {
+    if (kind === "strong") return t("close_strong");
+    if (kind === "related") return t("close_related");
+    if (kind === "weak") return t("close_weak");
+    return "";
+  }
+
   function relevanceChip(c, all) {
     if (c.relevance === null || c.relevance === undefined) return null;
     const scores = all.map((x) => x.relevance).filter((v) => v !== null && v !== undefined);
@@ -4994,7 +5142,7 @@
   // Workspace selector change (browsing choice — persisted per browser)
   els.workspaceSelect.addEventListener("change", (e) => {
     state.workspace = e.target.value;
-    safeStorageSet("magi-view-workspace", state.workspace);
+    viewWorkspaceSet(state.workspace);
     updateBrowsingBadge();
     clearWorkspaceScopedViews();
     loadSyncRatio();

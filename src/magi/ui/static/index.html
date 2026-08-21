@@ -47,7 +47,7 @@
       </div>
       <div>
         <span class="brand-title">MAGI</span>
-        <span class="brand-badge" id="app-version">v1.10.1</span>
+        <span class="brand-badge" id="app-version">v1.10.2</span>
       </div>
       <span class="eva-clock" id="eva-clock" aria-hidden="true"></span>
     </div>
@@ -393,6 +393,9 @@
           <canvas id="graph-map-canvas"></canvas>
           <label class="graph-map-toggle"><input type="checkbox" id="graph-map-tags">
             <span data-i18n="graph_map_tags">Show tag nodes</span></label>
+          <!-- Node colour was the only type signal in the map and nothing on
+               screen said what any colour meant. -->
+          <div class="graph-map-legend" id="graph-map-legend"></div>
           <div class="graph-map-note" id="graph-map-note" style="display: none;"></div>
           <div class="graph-map-hint" data-i18n="graph_map_hint">Drag nodes · scroll to zoom · click a node to inspect its links</div>
         </div>

@@ -2509,7 +2509,27 @@ def run_stats(args: argparse.Namespace) -> int:
             "avg_density": round(total_wikilinks / max(total_files, 1), 1),
             "files": file_list,
         }
-        print(json.dumps(report, indent=2))
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2))
+            return 0
+        # Default to the summary a person asked for. This used to print the
+        # whole per-file array — 759 lines on a 124-card library — into the
+        # WebUI's terminal, where the six numbers anyone wanted scrolled off
+        # the top instantly. `--json` still gives the full structure.
+        print(f"wiki: {total_files} cards in {root}")
+        for name, count in sorted(dir_counts.items(), key=lambda kv: -kv[1]):
+            print(f"  {name:<14} {count}")
+        print(f"wikilinks: {total_wikilinks} total · {report['avg_density']} per card")
+        if files_without_sources:
+            print(f"cards with no `sources:` in frontmatter: {files_without_sources}")
+            worst = [f for f in file_list if not f["has_sources"]][:10]
+            for f in worst:
+                print(f"  {f['path']}")
+            if files_without_sources > len(worst):
+                print(f"  … and {files_without_sources - len(worst)} more "
+                      f"(run with --json for the full list)")
+        else:
+            print("every card cites at least one source")
         return 0
 
     raise SystemExit(f"unknown stats subcommand: {subcmd}")
@@ -2951,10 +2971,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     stats_verify.add_argument("file", help="Markdown file to check.")
 
-    stats_sub.add_parser(
+    stats_summary = stats_sub.add_parser(
         "wiki-summary",
         help="Produce a structural summary of the wiki directory.",
     )
+    stats_summary.add_argument(
+        "--json", action="store_true",
+        help="Full machine-readable report including the per-file array")
 
     stats.set_defaults(func=run_stats)
 

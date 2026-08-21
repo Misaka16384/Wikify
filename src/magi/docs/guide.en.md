@@ -8,6 +8,19 @@ Every chapter follows the same rhythm: **what to do → how to do it → what yo
 
 ## Get it running once {#start}
 
+From nothing to a library you can search — four commands and one sentence to your agent:
+
+```powershell
+uv tool install magi-research        # 1. install
+magi hub init                        # 2. in the folder that will hold your topics
+cd topics/my-topic && magi init      # 3. one topic
+magi ingest auto                     # 4. after dropping PDFs into inbox/
+```
+
+Then say to your agent, in Claude Code or Codex: **"compile the backlog"**. That is the one step no command can do — it reads the papers and writes the cards. When it finishes, `magi index` and you can search.
+
+The rest of this chapter is what those layers are and how to read the manual.
+
 MAGI has three layers, and their jobs don't overlap:
 
 | Layer | What it is | How you use it |
@@ -103,6 +116,14 @@ Sync ratio is a weighted average of the three cores' readiness (only cores that 
 ---
 
 ## Installation {#install}
+
+Installing is one command:
+
+```powershell
+uv tool install magi-research
+```
+
+That is the whole thing — no Python to install first, no git required. Everything below is for other package managers, upgrading, per-project installs, and the optional external tools some ingestion routes need.
 
 ### One-line install (recommended) {#install-oneline}
 
@@ -275,6 +296,14 @@ The last four rows of the health check are the agent CLIs on your machine (claud
 
 ## Migrating from Wikify {#migrate}
 
+Migrating is one command:
+
+```powershell
+magi migrate            # from the old repo root
+```
+
+It carries your old config across, flags stale project-level skills, initialises task tracking at the hub, and runs `magi sync --fix` in every topic. `raw/`, `wiki/` and `inbox/` formats are unchanged, so your data comes over as-is. Below: what each step touches, and the old-command-to-new-command table.
+
 MAGI is a rebuild of Wikify: the script collection becomes a unified CLI, task state moves out to Beads, and you get hybrid search, claim provenance, and a literature radar. **The `raw/`, `wiki/`, and `inbox/` formats haven't changed — your existing data is fully compatible.**
 
 ### Three commands {#migrate-steps}
@@ -341,6 +370,15 @@ cd topics\<your-topic> && magi skills install
 ---
 
 ## Setting up your library {#workspace}
+
+Two commands make a library:
+
+```powershell
+magi hub init           # once, in the folder that will hold all your topics
+magi init               # once per topic, inside its own folder
+```
+
+Start with a hub even for a single topic — it costs one extra command now and nothing later when you add a second. Below: what gets generated, how to manage topics, and how MAGI decides which workspace it is looking at.
 
 ### Hub or single topic {#workspace-shape}
 
@@ -435,6 +473,15 @@ Every command locates the workspace by **walking up from the current directory**
 ---
 
 ## Ingesting literature {#ingest}
+
+Ingesting is one command:
+
+```powershell
+magi ingest auto              # everything sitting in inbox/
+magi ingest auto paper.pdf    # or one named file
+```
+
+It picks the route by file type — LaTeX source for arXiv bundles, cloud OCR for PDFs when you have a token, local OCR otherwise — and finalises for you. Reach for the specific commands below only when you need a page range, want to force a route, or are fighting a difficult scan.
 
 ### Four routes, and how to pick one {#ingest-routes}
 
@@ -554,9 +601,19 @@ magi ingest finalize inbox/paper.pdf --topic-dir . --md-file raw/papers/2026-08-
 
 ## Compiling into the knowledge base {#compile}
 
-Ingestion just turns papers into Markdown. **Compiling** is what turns them into interlinked cards: reading a paper, extracting its concepts, deciding what belongs in your wiki, and writing it up as a structured card.
+Compiling is the one step with no command — you ask your agent:
 
-**There's no CLI command for this step** — `magi compile` doesn't exist. It's pure understanding work that only an agent can do, by running the `wiki_compile` skill. At this layer, the CLI only handles deterministic checking and repair.
+> "compile the backlog"
+
+It runs the `wiki_compile` skill: reads each ingested paper, extracts its concepts, decides what belongs in your wiki, and writes structured, interlinked cards. `magi compile` does not exist and will not; this is understanding work, and the CLI's job at this layer is only to check and repair what the agent produced.
+
+Afterwards, three commands tidy up:
+
+```powershell
+magi lint --fix         # structural problems, self-healing where it can
+magi link               # find concepts that should be linked or merged
+magi graph build        # refresh the graph with the new cards
+```
 
 > [!WARN]
 > `magi graph build` **still returns success** even when `wiki/` is empty — it just builds an empty graph. So "the graph is empty" usually doesn't mean the graph is broken; it means you haven't compiled yet. Confirm with:
@@ -661,6 +718,15 @@ fix the formulas.
 
 ## Knowledge graph {#graph}
 
+The graph is one command to build and one to look at:
+
+```powershell
+magi graph build              # after compiling new cards
+magi graph browse overview    # counts, tags, claims, broken links
+```
+
+The dashboard's graph view shows the same data if you would rather click than type. Below: every browse view, what to do when the graph looks wrong, and reading it in Obsidian.
+
 ### Building and browsing the graph {#graph-build}
 
 ```powershell
@@ -747,6 +813,15 @@ MAGI's wikilinks are Obsidian's wikilinks — you can use both at once: Obsidian
 
 ## Search {#search}
 
+Search is two commands:
+
+```powershell
+magi index                       # after you add or change cards
+magi search "kramers-wannier"    # find things
+```
+
+`index` is incremental and cheap to rerun; `search` blends keyword and meaning matching across this library and any others you have enabled. Below: the modes, the scopes, and what the score badges mean.
+
 ### Building the index {#search-index}
 
 ```powershell
@@ -813,6 +888,16 @@ magi kb unregister <name>      # Remove only the registry entry, files untouched
 ---
 
 ## Writing your paper {#writing}
+
+Day to day this is three commands, in this order:
+
+```powershell
+bd ready                # what is worth working on right now
+magi verify             # check every CLAIM has evidence behind it
+magi bib --fetch        # BibTeX for what you cited
+```
+
+The writing itself happens in `drafts/` with your agent, against the cards you compiled. Below: setting up task tracking, the drafting flow, and how claims get verified.
 
 ### Using tasks and to-dos {#writing-tasks}
 
@@ -898,7 +983,16 @@ magi validate wiki/theses/x.md --schema thesis         # structural validation o
 
 ## Literature radar {#radar}
 
-What the radar does: every day it deterministically harvests new paper candidates → writes them into a digest → next session, the `radar_review` skill scores them with an LLM → keepers go into the task database and the ingestion queue.
+Set it going once, then triage weekly:
+
+```powershell
+magi radar install-schedule     # once — harvests every night at 03:00
+magi radar harvest              # or run it by hand any time
+```
+
+New candidates land in `inbox/radar/<date>-digest.md`. Triage them in the dashboard's **Literature Radar** tab — skip / accept / make a reading task, one row per paper — or tell your agent "review the radar digest" and let the `radar_review` skill do the scoring.
+
+The harvest itself is deterministic: it never judges, it only collects. Everything below is configuration and tuning.
 
 ### Configuration {#radar-config}
 
@@ -983,6 +1077,14 @@ magi radar install-schedule --uninstall      # uninstall it
 
 ## Local dashboard {#webui}
 
+The dashboard is one command:
+
+```powershell
+magi ui                 # opens http://127.0.0.1:8737
+```
+
+Run it from a hub root to get every topic in one place, or from inside a topic for just that one. It is a view over the same files the CLI uses — nothing lives only in the browser.
+
 ```powershell
 magi ui                          # defaults to http://127.0.0.1:8737, opens a browser automatically
 magi ui --port 8080 --no-open    # use a specific port and don't auto-launch
@@ -1031,6 +1133,15 @@ The ◐ in the bottom-right corner is the material and backdrop panel: glass blu
 ---
 
 ## Troubleshooting quick reference {#troubleshoot}
+
+Two commands answer most of it:
+
+```powershell
+magi sync                          # what this workspace needs next, with the commands to fix it
+magi guide --symptoms              # look up an error message you actually saw
+```
+
+`magi sync --fix` runs the deterministic repairs itself. Below: the symptoms that need a human.
 
 Look things up by symptom — you don't need to remember which command belongs where. The same table is available in the terminal:
 

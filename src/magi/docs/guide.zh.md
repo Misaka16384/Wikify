@@ -8,6 +8,19 @@
 
 ## 先跑通一遍 {#start}
 
+从零到一个能检索的库——四条命令，加对 agent 说的一句话：
+
+```powershell
+uv tool install magi-research        # 1. 装
+magi hub init                        # 2. 在将来放所有课题的那个目录
+cd topics/my-topic && magi init      # 3. 建一个课题
+magi ingest auto                     # 4. 把 PDF 丢进 inbox/ 之后
+```
+
+然后在 Claude Code / Codex 里对 agent 说：**「把待编译的都编译了」**。这是唯一没有命令的一步——它要读论文、写卡片。跑完之后 `magi index`，就能检索了。
+
+本章剩下的部分讲这几层分别是什么、以及这本手册怎么读。
+
 MAGI 由三层组成，分工不重叠：
 
 | 层 | 是什么 | 你怎么用 |
@@ -103,6 +116,14 @@ magi sync --fix --dry-run   # 先看会跑哪几条
 ---
 
 ## 安装 {#install}
+
+安装就一条命令：
+
+```powershell
+uv tool install magi-research
+```
+
+就这些——不需要先装 Python，也不需要 git。下面是别的包管理器、升级、按项目安装，以及某些摄入路线才用得上的外部工具。
 
 ### 一键安装（推荐）{#install-oneline}
 
@@ -274,6 +295,14 @@ Windows 的 `pandoc-crossref.exe` 已内置于仓库 `vendor/windows/`：加入 
 
 ## 从 Wikify 迁移 {#migrate}
 
+迁移就一条命令：
+
+```powershell
+magi migrate            # 在旧仓库根目录跑
+```
+
+它会把旧配置搬过来、标出项目里过时的技能、在 hub 根初始化任务追踪，并对每个课题跑一遍 `magi sync --fix`。`raw/`、`wiki/`、`inbox/` 的格式没变，数据原样可用。下面是每一步具体动了什么，以及新旧命令对照表。
+
 MAGI 是 Wikify 的重构版：脚本集变成统一 CLI，任务状态外接 Beads，新增混合检索、命题溯源与文献雷达。**`raw/`、`wiki/`、`inbox/` 的格式没有变，你的数据完全兼容。**
 
 ### 三条命令 {#migrate-steps}
@@ -342,6 +371,15 @@ cd topics\<你的主题> && magi skills install
 ---
 
 ## 建立文献库 {#workspace}
+
+两条命令就能建好：
+
+```powershell
+magi hub init           # 一次，在将来放所有课题的那个目录
+magi init               # 每个课题一次，在它自己的目录里
+```
+
+哪怕只有一个课题也建议先建 hub——现在多敲一条命令，以后加第二个课题就零成本。下面是生成了什么、怎么管理课题、以及 MAGI 怎么判断"当前工作区"。
 
 ### Hub 还是单主题 {#workspace-shape}
 
@@ -436,6 +474,15 @@ magi each skills install --host codex
 ---
 
 ## 摄入文献 {#ingest}
+
+摄入就一条命令：
+
+```powershell
+magi ingest auto              # inbox/ 里的全部
+magi ingest auto paper.pdf    # 或者指定一个文件
+```
+
+它按文件类型自己选路线（arXiv 源码包走 LaTeX、PDF 有 token 走云端 OCR 否则本地 OCR），并自动 finalize。只有在需要指定页码、想强制走某条路线、或者对付难搞的扫描件时，才用下面那些具体命令。
 
 ### 四条路线，怎么选 {#ingest-routes}
 
@@ -555,9 +602,19 @@ magi ingest finalize inbox/paper.pdf --topic-dir . --md-file raw/papers/2026-08-
 
 ## 编译成知识库 {#compile}
 
-摄入只是把文献变成 Markdown。**编译**才是把它变成互链的卡片：读懂一篇论文、拆出概念、判断哪些属于本库范围、写成结构化卡片。
+编译是唯一没有命令的一步——你对 agent 说：
 
-**这一步没有 CLI 命令**——不存在 `magi compile`。它是纯粹的理解工作，只能由 agent 执行 `wiki_compile` 技能完成。CLI 在这一层只负责确定性的检查与修补。
+> 「把待编译的都编译了」
+
+它会执行 `wiki_compile` 技能：读懂每篇摄入进来的论文、拆出概念、判断哪些属于本库范围、写成结构化的互链卡片。`magi compile` 不存在、以后也不会有——这是理解工作，CLI 在这一层只负责检查和修补 agent 写出来的东西。
+
+编译完，三条命令收尾：
+
+```powershell
+magi lint --fix         # 结构问题，能自动修的直接修
+magi link               # 找出该互链或该合并的概念
+magi graph build        # 把新卡片刷进图谱
+```
 
 > [!WARN]
 > `magi graph build` 在 `wiki/` 空着的时候**照样返回成功**，只是建了一张空图。所以「图谱是空的」往往不是图谱坏了，而是还没编译。用这条确认：
@@ -653,6 +710,15 @@ magi math check --json              # 同上，但输出一张可逐条处理的
 
 ## 知识图谱 {#graph}
 
+图谱是一条命令建、一条命令看：
+
+```powershell
+magi graph build              # 编译出新卡片之后
+magi graph browse overview    # 节点/边数、标签、断言、断链
+```
+
+不想敲命令的话，看板的图谱视图看的是同一份数据。下面是全部 browse 视图、图谱不对劲时怎么办、以及在 Obsidian 里读它。
+
 ### 建图与浏览 {#graph-build}
 
 ```powershell
@@ -739,6 +805,15 @@ MAGI 的双链就是 Obsidian 的双链，两边可以同时用：Obsidian 负�
 
 ## 检索 {#search}
 
+检索是两条命令：
+
+```powershell
+magi index                       # 加了或改了卡片之后
+magi search "kramers-wannier"    # 找东西
+```
+
+`index` 是增量的，重跑很便宜；`search` 会把关键词匹配和语义匹配融合，范围是本库加上你启用的其它库。下面是各种模式、范围，以及结果上那些徽章是什么意思。
+
 ### 建索引 {#search-index}
 
 ```powershell
@@ -805,6 +880,16 @@ magi kb unregister <名字>      # 只删注册项，不动文件
 ---
 
 ## 写论文 {#writing}
+
+日常就这三条，按这个顺序：
+
+```powershell
+bd ready                # 现在值得做的是什么
+magi verify             # 检查每条 CLAIM 背后都有证据
+magi bib --fetch        # 把引用过的导成 BibTeX
+```
+
+写作本身发生在 `drafts/` 里，由你和 agent 对着编译好的卡片写。下面是任务追踪怎么配、起草流程、以及断言是怎么被核验的。
 
 ### 任务待办怎么用 {#writing-tasks}
 
@@ -890,7 +975,16 @@ magi validate wiki/theses/x.md --schema thesis       # 论断报告的结构校�
 
 ## 文献雷达 {#radar}
 
-雷达做的事：每天确定性地收割新论文候选 → 写成简报 → 下次会话由 `radar_review` 技能做 LLM 判分 → 保留的进任务库和摄入队列。
+设一次，之后每周分流：
+
+```powershell
+magi radar install-schedule     # 一次——之后每天凌晨 3 点自动收割
+magi radar harvest              # 或者随时手动跑一次
+```
+
+新候选落在 `inbox/radar/<日期>-digest.md`。在看板的**文献雷达**页里分流——跳过 / 收进 inbox / 建阅读任务，一行一篇；或者对 agent 说「审一下雷达简报」，让 `radar_review` 技能去判分。
+
+收割本身是确定性的：它只负责收，不做判断。下面全是配置和调优。
 
 ### 配置 {#radar-config}
 
@@ -975,6 +1069,14 @@ magi radar install-schedule --uninstall      # 卸载
 
 ## 本地看板 {#webui}
 
+看板就一条命令：
+
+```powershell
+magi ui                 # 打开 http://127.0.0.1:8737
+```
+
+在 hub 根跑就能在一个界面里看所有课题，在课题目录里跑就只看那一个。它读写的是 CLI 用的同一批文件——没有任何东西只存在于浏览器里。
+
 ```powershell
 magi ui                          # 默认 http://127.0.0.1:8737，自动开浏览器
 magi ui --port 8080 --no-open    # 指定端口且不自启
@@ -1022,6 +1124,15 @@ magi ui --reload                 # 改代码自动重载（开发用）
 ---
 
 ## 疑难速查 {#troubleshoot}
+
+两条命令能解决大部分问题：
+
+```powershell
+magi sync                          # 这个工作区接下来该做什么，连修复命令一起给出
+magi guide --symptoms              # 拿你真正看到的报错去查
+```
+
+`magi sync --fix` 会把其中确定性的那些直接跑掉。下面是需要人来判断的那些症状。
 
 按症状找，不用记命令归属。也可以直接在终端里查同一张表：
 

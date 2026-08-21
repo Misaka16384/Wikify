@@ -53,12 +53,12 @@ def test_chinese_and_english_bm25_hit(tmp_path):
     try:
         zh = argparse.Namespace(collection=None, mode="bm25",
                                 query="注意力如何降低复杂度", k=5)
-        _, zh_hits, _, _ = retrieval._search_one_db(conn, vec_loaded, zh, None, 10)
+        _, zh_hits, _, _, _ = retrieval._search_one_db(conn, vec_loaded, zh, None, 10)
         assert zh_hits >= 1, "Chinese BM25 query must hit the Chinese card"
 
         en = argparse.Namespace(collection=None, mode="bm25",
                                 query="attention kernel", k=5)
-        _, en_hits, _, _ = retrieval._search_one_db(conn, vec_loaded, en, None, 10)
+        _, en_hits, _, _, _ = retrieval._search_one_db(conn, vec_loaded, en, None, 10)
         assert en_hits >= 1, "English BM25 behaviour must be unchanged"
     finally:
         conn.close()
@@ -80,7 +80,7 @@ def test_path_glob_filter_and_boilerplate_skip(tmp_path):
         # --path narrows to one file
         q = argparse.Namespace(collection=None, mode="bm25", query="attention",
                                k=5, path="wiki/concepts/sparse-*")
-        ranks, hits, _, _ = retrieval._search_one_db(conn, vec_loaded, q, None, 10)
+        ranks, hits, _, _, _ = retrieval._search_one_db(conn, vec_loaded, q, None, 10)
         paths = {conn.execute("SELECT path FROM chunks WHERE id=?", (cid,)).fetchone()[0]
                  for cid in ranks}
         assert hits >= 1
@@ -136,3 +136,29 @@ def test_legacy_index_is_migrated_in_place(tmp_path):
     ).fetchone()[0]
     assert hits == 1, "migrated legacy rows must be searchable in Chinese"
     conn.close()
+
+
+def test_a_schemaless_index_reads_as_no_index(tmp_path):
+    """An interrupted `magi index` leaves a file with no tables in it.
+
+    SQLite creates the file on connect; the schema only lands at the first
+    commit. Such a file used to open cleanly and then explode on the first
+    query — and because search is federated, ONE of them anywhere in the
+    registry made every other library on the machine unsearchable with a raw
+    `no such table: chunks_fts`.
+    """
+    import sqlite3
+
+    from magi import retrieval
+
+    db = tmp_path / "index.db"
+    sqlite3.connect(db).close()          # exactly what an interrupted run leaves
+    assert db.is_file()
+    assert retrieval.open_db(db) is None
+
+    # ...while a real index still opens.
+    conn, _ = retrieval.open_db(db, create=True)
+    retrieval.ensure_schema(conn, None, False)
+    conn.commit()
+    conn.close()
+    assert retrieval.open_db(db) is not None

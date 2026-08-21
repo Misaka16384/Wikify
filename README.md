@@ -16,6 +16,27 @@
 
 ---
 
+## 先跑起来
+
+```powershell
+uv tool install magi-research        # 装
+magi hub init                        # 在将来放所有课题的那个目录
+cd topics/my-topic && magi init      # 建一个课题
+magi ingest auto                     # 把 PDF 丢进 inbox/ 之后
+```
+
+然后在 Claude Code / Codex 里对 agent 说：**「把待编译的都编译了」**。这是唯一没有命令的一步——它要读论文、写卡片。跑完之后：
+
+```powershell
+magi index                           # 让它可检索
+magi search "你想找的东西"
+magi ui                              # 或者直接在 http://127.0.0.1:8737 里翻
+```
+
+任何时候卡住：**`magi sync`** 会告诉你这个工作区接下来该做什么，并把修复命令一起给出。**`magi guide`** 是完整手册，就在终端里。
+
+---
+
 ## 🌟 项目展示
 
 ### MAGI MODE —— WebUI 战术主题

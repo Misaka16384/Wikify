@@ -61,6 +61,20 @@ def open_db(db_path: Path, create: bool = False,
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA journal_mode=WAL")
+    if not create:
+        # A file that exists but holds no schema is what an interrupted
+        # `magi index` leaves behind: SQLite creates the file on connect, and
+        # the tables only arrive at the first commit. Reporting it as "no
+        # index" is the truth and routes it to the caller's existing
+        # skip-this-KB path. Left alone it read as a healthy index right up
+        # until the first query, and because search is federated, ONE such
+        # file made every other library on the machine unsearchable with a raw
+        # `no such table: chunks_fts`.
+        row = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='chunks'").fetchone()
+        if row is None:
+            conn.close()
+            return None
     vec_loaded = False
     if not want_vectors:
         return conn, False
@@ -689,6 +703,7 @@ def _search_one_db(conn, vec_loaded, args, qvec, n):
         params.append(args.path)
 
     ranks: dict[int, dict[str, int]] = {}
+    dists: dict[int, float] = {}
     bm25_hits = vector_hits = 0
     vector_used = False
 
@@ -710,18 +725,46 @@ def _search_one_db(conn, vec_loaded, args, qvec, n):
         dims_row = conn.execute("SELECT value FROM meta WHERE key='dims'").fetchone()
         if dims_row and int(dims_row[0]) == len(qvec):
             rows = conn.execute(
-                "SELECT v.rowid FROM chunks_vec v JOIN chunks c ON c.id = v.rowid "
+                "SELECT v.rowid, v.distance FROM chunks_vec v JOIN chunks c ON c.id = v.rowid "
                 f"WHERE v.embedding MATCH ? AND k = ?{where} ORDER BY v.distance",
                 [_serialize(qvec), n, *params],
             ).fetchall()
             vector_used = True
             vector_hits = len(rows)
-            for r, (cid,) in enumerate(rows):
+            for r, (cid, dist) in enumerate(rows):
                 ranks.setdefault(cid, {})["vector"] = r + 1
+                dists[cid] = float(dist)
         else:
             print("note: index dims mismatch current embedding model — re-run 'magi index' there",
                   file=sys.stderr)
-    return ranks, bm25_hits, vector_hits, vector_used
+    return ranks, bm25_hits, vector_hits, vector_used, dists
+
+
+# Bands for the vector leg's L2 distance, chosen off a 40-query baseline on a
+# real 1371-chunk library (see docs: Search -> reading the result badges).
+#
+# These are LABELS, not a filter. A filter was the obvious idea and the data
+# killed it: across that baseline the worst real query ("tensor network
+# renormalization") had a best hit at 0.912 while the best junk query
+# ("🙂🙂🙂") reached 0.843, so real and junk overlap
+# and no cutoff separates them. Any threshold that caught the junk would also
+# have dropped true hits for exactly the broad, exploratory queries someone
+# types before they know a library's vocabulary. Showing how close a match is
+# lets the reader judge; guessing a boundary for them silently loses results.
+CLOSENESS_STRONG = 0.70
+CLOSENESS_RELATED = 0.88
+
+
+def closeness_label(distance: float | None) -> str | None:
+    """`strong` / `related` / `weak` for one vector hit, or None if it had no
+    vector leg (a pure keyword match carries no distance)."""
+    if distance is None:
+        return None
+    if distance <= CLOSENESS_STRONG:
+        return "strong"
+    if distance <= CLOSENESS_RELATED:
+        return "related"
+    return "weak"
 
 
 class SearchError(Exception):
@@ -792,12 +835,15 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
                                    collection=collection, path=path)
 
         merged = {}
+        distances: dict[tuple, float] = {}
         conns = {}
         bm25_hits = vector_hits = 0
         vector_available = False
         for name, conn, vec_loaded in opened_targets:
             conns[name] = conn
-            ranks, bh, vh, vused = _search_one_db(conn, vec_loaded, sargs, qvec, n)
+            ranks, bh, vh, vused, dmap = _search_one_db(conn, vec_loaded, sargs, qvec, n)
+            for cid, dv in dmap.items():
+                distances[(name, cid)] = dv
             bm25_hits += bh
             vector_hits += vh
             vector_available = vector_available or vused
@@ -831,11 +877,14 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
                 continue
             rpath, coll, heading, s, e, content = row
             snippet = " ".join(content.split())[:300]
+            dist = distances.get((name, cid))
             results.append({
                 "kb": name, "path": rpath, "collection": coll, "heading": heading,
                 "lines": [s, e], "score": round(score, 5),
                 "bm25_rank": merged[(name, cid)].get("bm25"),
                 "vector_rank": merged[(name, cid)].get("vector"),
+                "distance": round(dist, 4) if dist is not None else None,
+                "closeness": closeness_label(dist),
                 "snippet": snippet,
             })
 
@@ -846,6 +895,9 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
             "vector_available": vector_available,
             "vector_degraded": vector_degraded,
             "bm25_hits": bm25_hits, "vector_hits": vector_hits,
+            "best_distance": round(min(distances.values()), 4) if distances else None,
+            "weak_semantic_match": (
+                bool(distances) and min(distances.values()) > CLOSENESS_RELATED),
             "results": results,
         }
     finally:

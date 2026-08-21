@@ -2970,6 +2970,57 @@ details.advanced-sql > summary {
    EVA chrome: topbar, tabs, cards
    -------------------------------------------------------------------------- */
 
+/* Vector-hit closeness. Labels, not a filter — the baseline showed real and
+   junk queries overlap, so any cutoff would have silently dropped true hits
+   for broad exploratory searches. Showing the distance lets the reader judge. */
+.badge.close-strong { color: var(--accent-sage); border-color: currentColor; }
+.badge.close-related { color: var(--text-muted); border-color: currentColor; }
+.badge.close-weak { color: var(--accent-amber); border-color: currentColor; opacity: 0.85; }
+
+/* Graph map legend. Node colour was the only type signal and nothing said what
+   any colour meant — you had to click a node to find out what it was. */
+.graph-map-legend {
+  position: absolute;
+  top: 0.6rem;
+  left: 0.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.7rem;
+  max-width: calc(100% - 12rem);
+  padding: 0.35rem 0.55rem;
+  border-radius: 5px;
+  background: var(--bg-elevated, rgba(255, 255, 255, 0.72));
+  border: 1px solid var(--border-default);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  pointer-events: none;
+  z-index: 2;
+}
+.graph-map-legend .legend-item { display: inline-flex; align-items: center; gap: 0.28rem; }
+.graph-map-legend .legend-item i {
+  width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: 0 0 auto;
+}
+.graph-map-legend .legend-note { opacity: 0.75; font-style: italic; }
+
+/* Brief flash when the Links button brings you to the card's own link list,
+   so the jump is visible rather than the page appearing not to react. */
+.doc-preview-side-head.side-flash {
+  animation: side-flash 1.2s ease-out;
+  border-radius: 3px;
+}
+@keyframes side-flash {
+  0%, 40% { background: rgba(127, 127, 127, 0.22); }
+  100% { background: transparent; }
+}
+
+
+/* MAGI mode chamfers every box; the legend is a box. */
+[data-theme="eva"] .graph-map-legend {
+  border-radius: 0;
+  clip-path: polygon(5px 0, 100% 0, 100% calc(100% - 5px), calc(100% - 5px) 100%, 0 100%, 0 5px);
+}
+[data-theme="eva"] .doc-preview-side-head.side-flash { border-radius: 0; }
+
 [data-theme="eva"] .topbar {
   background-color: rgba(var(--eva-bg-rgb), max(var(--glass-floor), calc(0.42 * var(--glass-alpha))));
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.2)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));

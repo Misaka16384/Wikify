@@ -16,6 +16,27 @@ Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 
 ---
 
+## Start here
+
+```powershell
+uv tool install magi-research        # install
+magi hub init                        # in the folder that will hold your topics
+cd topics/my-topic && magi init      # one topic
+magi ingest auto                     # after dropping PDFs into inbox/
+```
+
+Then tell your agent, in Claude Code or Codex: **"compile the backlog"**. That is the one step no command can do — it reads the papers and writes the cards. When it finishes:
+
+```powershell
+magi index                           # make it searchable
+magi search "whatever you're after"
+magi ui                              # or browse it all at http://127.0.0.1:8737
+```
+
+Stuck at any point: **`magi sync`** tells you what this workspace needs next and gives you the command for it. **`magi guide`** is the full manual, in your terminal.
+
+---
+
 ## 🌟 Showcase
 
 ### MAGI MODE — the WebUI tactical theme
