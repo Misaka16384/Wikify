@@ -50,6 +50,22 @@ OPS: dict[str, dict] = {
                 "label_i18n": "btn_danger_pm_init", "desc_i18n": "danger_pm_init_desc"},
     "radar-harvest": {"argv": ["radar", "harvest"], "scope": "kb", "danger": False,
                       "label_i18n": "btn_radar_harvest"},
+    # Both are long-running and subprocess-heavy, so they want the SSE log
+    # stream and the concurrency gate this machinery already provides. Neither
+    # is destructive: batch-run writes only into staging, and batch-commit
+    # refuses any batch with an undecided item.
+    "ingest-batch-run": {
+        "argv": ["ingest", "batch-run"],
+        "scope": "kb",
+        "danger": False,
+        "label_i18n": "op_ingest_batch_run",
+    },
+    "ingest-batch-commit": {
+        "argv": ["ingest", "batch-commit"],
+        "scope": "kb",
+        "danger": False,
+        "label_i18n": "op_ingest_batch_commit",
+    },
     "radar-citation-gap": {"argv": ["radar", "citation-gap"], "scope": "kb", "danger": False,
                            "label_i18n": "btn_radar_citation_gap"},
     # danger zone (server re-verifies confirm == op id)

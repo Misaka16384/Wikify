@@ -79,6 +79,27 @@ class RadarCandidateRequest(BaseModel):
     workspace: Optional[str] = None
 
 
+class IngestDecideRequest(BaseModel):
+    batch_id: str
+    item_id: str
+    decision: str                     # approve | reject | reset
+    workspace: Optional[str] = None
+
+
+class IngestEnqueueRequest(BaseModel):
+    """The browser extension's entire vocabulary.
+
+    Deliberately tiny. This endpoint appends one line to a queue and can do
+    nothing else — it never spawns a job, never writes into raw/ or wiki/, and
+    what it queues stays inert until a human approves the batch it lands in.
+    That is what lets it exist without authentication.
+    """
+
+    value: str = Field(..., min_length=1)
+    library: Optional[str] = None
+    title: Optional[str] = None
+
+
 class JobCreateRequest(BaseModel):
     # Whitelisted operation id (see magi.ui.jobs.OPS) — raw argv is not accepted.
     op: str = Field(..., min_length=1)
@@ -519,6 +540,116 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             "candidates": cands,
             "triaged": sum(1 for c in cands if c["decision"]),
         }
+
+    # ----------------------------------------------------------------------
+    # Ingest queue and batch review
+    # ----------------------------------------------------------------------
+
+    @app.get("/api/workspace/ingest/queue")
+    def get_ingest_queue(workspace: Optional[str] = None) -> dict:
+        from magi.ingest import ledger
+
+        ws = _resolve_workspace(workspace)
+        batches = []
+        for batch_id in ledger.list_batches(ws):
+            items = ledger.load_batch(ws, batch_id)
+            if not items:
+                continue
+            batches.append({
+                "batch_id": batch_id,
+                "items": len(items),
+                "undecided": len([i for i in items if not i.decided]),
+                "committed": len([i for i in items if i.committed_path]),
+                "failed": len([i for i in items if i.error]),
+            })
+        return {
+            "workspace": str(ws),
+            "pending": [e._asdict() for e in ledger.pending(ws)],
+            "batches": list(reversed(batches)),
+        }
+
+    @app.get("/api/workspace/ingest/batch")
+    def get_ingest_batch(batch: str, workspace: Optional[str] = None) -> dict:
+        from magi.ingest import ledger
+
+        ws = _resolve_workspace(workspace)
+        if batch not in ledger.list_batches(ws):
+            raise HTTPException(status_code=404, detail=f"no such batch: {batch}")
+
+        items = []
+        for item in ledger.load_batch(ws, batch):
+            row = item._asdict()
+            # Inline a preview rather than the whole document: a reviewer is
+            # deciding whether the conversion worked, not reading the paper.
+            row["preview"] = ""
+            if item.staged_md:
+                staged = Path(item.staged_md)
+                # Containment: a staged path must live under this workspace's
+                # own staging area, the same guard the radar report reader uses.
+                try:
+                    staged.resolve().relative_to(ledger.ingest_dir(ws).resolve())
+                except (ValueError, OSError):
+                    row["preview"] = ""
+                else:
+                    if staged.is_file():
+                        row["preview"] = staged.read_text(
+                            encoding="utf-8", errors="replace")[:20_000]
+            items.append(row)
+        return {"workspace": str(ws), "batch_id": batch, "items": items,
+                "undecided": len([i for i in items if not i["decision"]])}
+
+    @app.post("/api/workspace/ingest/decide")
+    def post_ingest_decide(req: IngestDecideRequest) -> dict:
+        from magi.ingest import ledger
+
+        ws = _resolve_workspace(req.workspace)
+        if req.decision not in ("approve", "reject", "reset"):
+            raise HTTPException(status_code=400,
+                                detail=f"unknown decision: {req.decision}")
+        items = {i.item_id: i for i in ledger.load_batch(ws, req.batch_id)}
+        item = items.get(req.item_id)
+        if item is None:
+            raise HTTPException(status_code=404, detail=f"no such item: {req.item_id}")
+
+        ledger.record_decision(ws, req.batch_id, req.item_id, req.decision)
+
+        requeued = None
+        if req.decision == "reject":
+            nxt = ledger.next_rung(item.route)
+            if nxt:
+                ledger.enqueue(ws, source_type="arxiv", value=item.source_value,
+                               route=nxt, retry_of=item.item_id, title=item.title)
+                requeued = nxt
+        return {"item_id": req.item_id, "decision": req.decision,
+                "requeued_on": requeued}
+
+    @app.post("/api/ingest/enqueue")
+    def post_ingest_enqueue(req: IngestEnqueueRequest) -> dict:
+        """Add one thing to a library's queue. The browser extension's only door.
+
+        Its whole capability is appending a line to queue.jsonl. It imports no
+        subprocess, no converter, and no job manager, so it structurally cannot
+        do anything else — which is why it is safe without a token on a
+        loopback-only server. Everything it queues waits for a human.
+        """
+        from magi.ingest import ledger
+        from magi.ingest.enqueue import classify, resolve_library
+
+        if req.library:
+            target, err = resolve_library(req.library)
+            if err:
+                raise HTTPException(status_code=404, detail=err)
+        else:
+            target = _resolve_workspace(None)
+        if target is None:
+            raise HTTPException(status_code=400, detail="no workspace to queue into")
+
+        source_type, value = classify(req.value)
+        req_id = ledger.enqueue(target, source_type=source_type, value=value,
+                                library=req.library, title=req.title)
+        return {"req_id": req_id, "source_type": source_type, "value": value,
+                "workspace": str(target), "status": "queued",
+                "pending": len(ledger.pending(target))}
 
     @app.post("/api/workspace/radar/review")
     def post_radar_review(req: RadarReviewRequest) -> dict:
