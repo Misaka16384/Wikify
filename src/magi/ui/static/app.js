@@ -219,6 +219,10 @@
       radar_settings_title: "雷达设置",
       btn_radar_settings: "设置…",
       btn_dismiss: "跳过",
+      tip_dismiss: "只记一条「不感兴趣」的决定，不动任何文件。可用 Undo 撤销。",
+      tip_accept_inbox: "在本工作区 inbox/ 写一张卡片，里面是抓取这篇的命令。此刻不下载任何东西。",
+      tip_create_issue: "在 Hub 的任务库里建一条 survey 任务（该 Hub 下所有课题共用）。不下载、也不写 inbox/。",
+      tip_create_issue_no_store: "本工作区所属 Hub 还没有任务库——先到 Balthasar 标签页初始化。",
       btn_undo: "撤销",
       digest_source_title: "查看原始简报（{file}）",
       btn_radar_schedule: "定时扫描…",
@@ -260,6 +264,7 @@
       ops_scope: "以下操作作用于：{name}",
       ops_scope_none: "先在上方选一个知识库。",
       ops_badge_global: "全机生效",
+      doctor_scope: "工具与路径是全机的；「本工作区」相关的几行说的是：{name}",
       metric_not_applicable: "未建库",
       hint_dest_tab: "点击跳转到「{name}」标签页 · 不执行任何命令",
       hint_dest_docs: "点击跳转到「{name}」中对应的章节 · 不执行任何命令",
@@ -271,6 +276,9 @@
       op_desc_stats: "统计本工作区的卡片数、链接密度和缺口",
       op_desc_backlog_sync: "为 raw/ 里每一篇还没编译成参考卡片的原始文献建一条任务",
       op_desc_radar_harvest: "从 arXiv 和 Semantic Scholar 抓新的候选论文",
+      radar_harvest_caption: "联网从 arXiv 和 Semantic Scholar 拉新候选，写入本工作区 inbox/radar/ · 耗时数分钟",
+      radar_gap_caption: "引用缺口：找那些理应引用你却没引的新论文 · 设置：改雷达盯的关键词和作者",
+      radar_settings_tip: "编辑本工作区 config.yaml 里的 radar 配置",
       op_desc_radar_citation_gap: "侦察那些理应引用你却没引的新论文",
       op_desc_ingest_batch_run: "抓取并转换队列里的所有条目——转完等你审批，不会进库",
       op_desc_ingest_batch_commit: "把已批准的文档移进 raw/；只要还有没决定的就拒绝执行",
@@ -393,7 +401,8 @@
       hint_index: "检索索引缺失或已过期，需要重建",
       hint_backlog_sync: "有未编译文献尚未纳入任务追踪",
       hint_pm_init: "还没有任务追踪库（可选，不用任务追踪就可以忽略）",
-      hint_radar_review: "有文献雷达简报等待审阅",
+      hint_radar_review: "{pending} 份文献雷达简报等待审阅",
+      hint_radar_gaps: "{pending} 份引用缺口报告等待审阅",
       hint_claims_unverified: "有学术命题尚未验证（到 Melchior 面板查看）",
       hint_bd_ready: "有可直接开工的任务（到 Balthasar 面板查看）",
       hint_install_beads: "任务引擎 (beads) 未安装——见安装指引",
@@ -751,6 +760,10 @@
       radar_settings_title: "Radar settings",
       btn_radar_settings: "Settings…",
       btn_dismiss: "Skip",
+      tip_dismiss: "Records a 'not interested' decision. Touches no files, and Undo reverses it.",
+      tip_accept_inbox: "Writes a card into this workspace's inbox/ holding the command to fetch this paper. Downloads nothing now.",
+      tip_create_issue: "Opens a survey task in the task store at the hub, shared by every topic under it. No download, nothing written to inbox/.",
+      tip_create_issue_no_store: "The hub for this workspace has no task store yet — initialize it on the Balthasar tab.",
       btn_undo: "Undo",
       digest_source_title: "View digest source ({file})",
       btn_radar_schedule: "Schedule…",
@@ -792,6 +805,7 @@
       ops_scope: "These act on: {name}",
       ops_scope_none: "Pick a knowledge base above first.",
       ops_badge_global: "machine-wide",
+      doctor_scope: "Tools and paths are machine-wide. Rows that say \"this workspace\" mean: {name}",
       metric_not_applicable: "no store",
       hint_dest_tab: "Opens the {name} tab · runs nothing",
       hint_dest_docs: "Opens the matching chapter in {name} · runs nothing",
@@ -803,6 +817,9 @@
       op_desc_stats: "Count this workspace’s cards, link density and gaps",
       op_desc_backlog_sync: "Open one task per raw source that has no compiled reference card yet",
       op_desc_radar_harvest: "Fetch new candidate papers from arXiv and Semantic Scholar",
+      radar_harvest_caption: "Fetches new candidates from arXiv and Semantic Scholar into this workspace's inbox/radar/ · minutes, network",
+      radar_gap_caption: "Citation Gaps: recent papers that arguably should cite yours · Settings: which queries and authors the radar watches",
+      radar_settings_tip: "Edit this workspace's radar block in config.yaml",
       op_desc_radar_citation_gap: "Scout recent papers that arguably should cite yours",
       op_desc_ingest_batch_run: "Fetch and convert everything queued — output waits for your approval, nothing enters the library",
       op_desc_ingest_batch_commit: "Move approved documents into raw/; refuses while anything is still undecided",
@@ -925,7 +942,8 @@
       hint_index: "Retrieval index is missing or stale and needs a rebuild",
       hint_backlog_sync: "Uncompiled sources are not yet tracked as tasks",
       hint_pm_init: "No task-tracking database yet (optional — skip it if you do not want task tracking)",
-      hint_radar_review: "Literature radar digests are waiting for review",
+      hint_radar_review: "{pending} literature radar digest(s) waiting for review",
+      hint_radar_gaps: "{pending} citation-gap report(s) waiting for review",
       hint_claims_unverified: "Some claims are still unverified (see Melchior)",
       hint_bd_ready: "There is actionable work ready (see Balthasar)",
       hint_install_beads: "Task engine (beads) is not installed — see install guide",
@@ -2092,6 +2110,7 @@
   // showing the previous workspace's fully-scored hits, with nothing marking
   // them stale.
   function clearWorkspaceScopedViews() {
+    state.taskStore = null;
     if (els.searchResultsList) {
       els.searchResultsList.innerHTML =
         `<p class="empty-note center mt-3">${t("search_prompt")}</p>`;
@@ -2264,8 +2283,11 @@
     "index-stale": { i18n: "hint_index", action: { type: "job", op: "index", nameKey: "op_rebuild_index" } },
     "backlog-untracked": { i18n: "hint_backlog_sync", action: { type: "job", op: "backlog-sync", nameKey: "op_backlog_sync" } },
     "pm-uninit": { i18n: "hint_pm_init", action: { type: "job", op: "pm-init", nameKey: "btn_danger_pm_init" } },
+    // Two distinct codes carrying distinct counts, both rendered through one
+    // generic sentence: the panel showed the same row twice, identically
+    // worded, with identical buttons, and nothing to tell them apart.
     "radar-digests-pending": { i18n: "hint_radar_review", action: { type: "tab", tab: "radar" } },
-    "radar-gaps-pending": { i18n: "hint_radar_review", action: { type: "tab", tab: "radar" } },
+    "radar-gaps-pending": { i18n: "hint_radar_gaps", action: { type: "tab", tab: "radar" } },
     "claims-unverified": { i18n: "hint_claims_unverified", action: { type: "tab", tab: "melchior" } },
     "bd-ready": { i18n: "hint_bd_ready", action: { type: "tab", tab: "balthasar" } },
     // The panel says "click to run" and this was the one inert row — and the
@@ -2303,7 +2325,8 @@
       if (rule && rule.i18n) {
         labelEl = document.createElement("div");
         labelEl.className = "row-title";
-        labelEl.textContent = t(rule.i18n);
+        // The backend ships a count in `params`; the label used to drop it.
+        labelEl.textContent = t(rule.i18n, item.params || {});
         left.appendChild(labelEl);
       }
       // The second line has to be what the button does, not what a terminal
@@ -4471,9 +4494,23 @@
   // Tab 5: Literature Radar
   // ------------------------------------------------------------------------
 
+  // Whether this workspace's hub has a task store. The radar rows offer
+  // "Create reading task", which writes there; without it the click returns a
+  // 409 the reader can do nothing about from this tab.
+  async function refreshTaskStoreState() {
+    if (!state.workspace) { state.taskStore = null; return; }
+    try {
+      const pm = await apiFetch(`/api/workspace/pm?workspace=${encodeURIComponent(state.workspace)}`);
+      state.taskStore = { ready: !!pm.store_root, root: pm.store_root || null };
+    } catch (_) {
+      state.taskStore = null;   // unknown, so do not disable anything
+    }
+  }
+
   async function loadRadar() {
     if (!state.workspace) return;
     try {
+      await refreshTaskStoreState();
       if (els.radarSettingsBody) loadConfigCard(els.radarSettingsBody, "radar");
       const radar = await apiFetch(`/api/workspace/radar?workspace=${encodeURIComponent(state.workspace)}`);
       const files = (radar.pending_digests ? radar.pending_digests.length : 0)
@@ -4750,20 +4787,36 @@
 
     const btns = document.createElement("div");
     btns.className = "row-btns";
+    // Three verbs with three different blast radii, and nothing on screen
+    // separated them: Skip only records a decision, Accept writes a file into
+    // this workspace, and Create reading task writes into the task store at
+    // the hub — shared by every topic under it. The tooltip carries the full
+    // sentence; the badge carries the part you must not miss.
     const actions = [
-      ["dismiss", "btn_dismiss", "btn-quiet"],
-      ["accept-to-inbox", "btn_accept_inbox", "btn-secondary"],
-      ["create-issue", "btn_create_issue", "btn-secondary"],
+      ["dismiss", "btn_dismiss", "btn-quiet", "tip_dismiss", false],
+      ["accept-to-inbox", "btn_accept_inbox", "btn-secondary", "tip_accept_inbox", false],
+      ["create-issue", "btn_create_issue", "btn-secondary", "tip_create_issue", true],
     ];
-    actions.forEach(([action, key, cls]) => {
+    actions.forEach(([action, key, cls, tipKey, hubLevel]) => {
       const b = document.createElement("button");
       b.className = `btn ${cls} btn-sm`;
       b.textContent = t(key);
       b.dataset.action = action;
+      b.title = t(tipKey);
+      if (hubLevel) {
+        b.insertAdjacentHTML("beforeend",
+          ` <span class="badge badge-muted op-scope-badge">${escapeHtml(t("bal_badge_hub"))}</span>`);
+      }
       // A decision restored from the server disables its row's actions the
       // same way a fresh one does — otherwise reloading mid-triage makes every
       // decided row look actionable again.
       b.disabled = !!c.decision;
+      // Clicking this with no task store returns a 409 the reader can do
+      // nothing about from here. Say why it is off instead of failing later.
+      if (hubLevel && state.taskStore && !state.taskStore.ready) {
+        b.disabled = true;
+        b.title = t("tip_create_issue_no_store");
+      }
       b.addEventListener("click", () =>
         radarCandidateAction(data.file, c.index, action, b, row, applyFilter));
       btns.appendChild(b);
@@ -5540,11 +5593,18 @@
     els.doctorModal.classList.add("open");
     els.doctorModalBody.innerHTML = `<p class="empty-note">${t("doctor_running")}</p>`;
     try {
-      const data = await apiFetch("/api/doctor");
+      const data = await apiFetch(
+        `/api/doctor?workspace=${encodeURIComponent(state.workspace || "")}`);
       const doc = data.doctor || [];
       const legacy = data.legacy || [];
 
-      let html = `<table class="data-table" style="margin-bottom: 1rem;"><thead><tr><th>${t("doctor_th_comp")}</th><th>${t("doctor_th_status")}</th><th>${t("doctor_th_detail")}</th></tr></thead><tbody>`;
+      // Most of this table is about the machine; the agent-CLI rows are about
+      // one workspace, and they say "in this workspace" without naming it.
+      // Say which, up front, since the two scopes sit in one table.
+      const here = (state.kbs || []).find((k) => k.path === state.workspace);
+      let html = `<p class="scope-note">${escapeHtml(
+        t("doctor_scope", { name: here ? here.name : (state.workspace || "—") }))}</p>`;
+      html += `<table class="data-table" style="margin-bottom: 1rem;"><thead><tr><th>${t("doctor_th_comp")}</th><th>${t("doctor_th_status")}</th><th>${t("doctor_th_detail")}</th></tr></thead><tbody>`;
       // Only "missing" is a fault. An optional component nobody installed is
       // not a broken environment, and painting it red said otherwise.
       const BADGES = {

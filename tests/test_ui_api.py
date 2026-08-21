@@ -430,6 +430,29 @@ def test_docs_and_static(client):
     assert res_vendor.status_code == 200
 
 
+def test_i18n_dictionaries_have_no_duplicate_keys(client):
+    """A repeated key is legal JS that silently overrides the earlier one.
+
+    Adding `radar_settings_title` for a button tooltip, without noticing the
+    key already existed for a disclosure heading, changed that heading across
+    the whole app — no error, no warning. The symmetry test above compares
+    *sets*, so {"a", "a"} == {"a"} and it passed clean.
+    """
+    import collections
+    import re
+
+    js = client.get("/app.js").text
+    for lang in ("zh", "en"):
+        block = re.search(rf"{lang}:\s*\{{(.*?)^\s*\}},", js, re.DOTALL | re.MULTILINE)
+        assert block is not None, f"{lang} dictionary block not found"
+        keys = re.findall(r"^\s*([a-zA-Z0-9_]+)\s*:", block.group(1), re.MULTILINE)
+        dupes = [k for k, n in collections.Counter(keys).items() if n > 1]
+        assert not dupes, (
+            f"{lang} i18n dictionary defines these keys more than once, so the "
+            f"last definition silently wins everywhere: {sorted(dupes)}"
+        )
+
+
 def test_i18n_dictionary_symmetry_and_completeness(client):
     import re
     from pathlib import Path

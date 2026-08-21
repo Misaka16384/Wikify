@@ -568,18 +568,26 @@
           <span class="card-subtitle" id="radar-seen-count-sub" data-i18n="radar_seen_sub">Literature tracking ledger</span>
         </div>
         <div class="card radar-actions">
-          <button class="btn btn-primary" id="btn-radar-harvest" data-i18n="btn_radar_harvest">Run Radar Harvest</button>
+          <button class="btn btn-primary" id="btn-radar-harvest"
+                  data-i18n-title="op_desc_radar_harvest"
+                  data-i18n="btn_radar_harvest">Run Radar Harvest</button>
+          <span class="btn-caption" data-i18n="radar_harvest_caption">Fetches new candidates from arXiv and Semantic Scholar into inbox/radar/ · minutes, network</span>
           <div class="radar-actions-row">
-            <button class="btn btn-secondary btn-sm" id="btn-radar-citation-gap" data-i18n="btn_radar_citation_gap">Scout Citation Gaps</button>
-            <button class="btn btn-secondary btn-sm" id="btn-radar-settings" data-i18n="btn_radar_settings">Settings…</button>
+            <button class="btn btn-secondary btn-sm" id="btn-radar-citation-gap"
+                    data-i18n-title="op_desc_radar_citation_gap"
+                    data-i18n="btn_radar_citation_gap">Scout Citation Gaps</button>
+            <button class="btn btn-secondary btn-sm" id="btn-radar-settings"
+                    data-i18n-title="radar_settings_tip"
+                    data-i18n="btn_radar_settings">Settings…</button>
           </div>
+          <span class="btn-caption" data-i18n="radar_gap_caption">Citation Gaps: recent papers that arguably should cite yours · Settings: which queries and authors the radar watches</span>
         </div>
       </div>
 
       <!-- Radar settings live here, next to the numbers that make you want to
            change them — not on the Dashboard tab three panels down. -->
       <details class="card radar-settings" id="radar-settings">
-        <summary data-i18n="radar_settings_title">Radar settings</summary>
+        <summary data-i18n-title="radar_settings_tip" data-i18n="radar_settings_title">Radar settings</summary>
         <div class="radar-settings-body" id="radar-settings-body"></div>
       </details>
 

@@ -11,7 +11,7 @@ Every chapter follows the same rhythm: **what to do → how to do it → what yo
 From nothing to a library you can search — four commands and one sentence to your agent:
 
 ```powershell
-uv tool install magi-research        # 1. install
+pipx install magi-research           # 1. install (or: uv tool install magi-research)
 magi hub init                        # 2. in the folder that will hold your topics
 cd topics/my-topic && magi init      # 3. one topic
 magi ingest auto                     # 4. after dropping PDFs into inbox/

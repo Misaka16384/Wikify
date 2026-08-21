@@ -380,7 +380,14 @@ def wanted_optionals() -> dict:
     return dict(load_settings().get("optional_features") or {})
 
 
-def doctor_rows() -> list[DoctorRow]:
+def doctor_rows(workspace: Path | None = None) -> list[DoctorRow]:
+    """`workspace` names which library the per-workspace rows describe.
+
+    The WebUI asks about the library its picker names, which is not the
+    directory the server was started in — the report said "no skills in this
+    workspace" about a workspace the reader was not looking at. The CLI passes
+    nothing and keeps resolving from cwd, which is right there.
+    """
     wanted = wanted_optionals()
     rows: list[DoctorRow] = [
         DoctorRow("magi", "ok", f"v{__import__('magi').__version__}"),
@@ -421,11 +428,11 @@ def doctor_rows() -> list[DoctorRow]:
             "pandoc-crossref", "optional",
             "not installed — cross-references degrade, conversion still works",
             "https://github.com/lierdakil/pandoc-crossref/releases"))
-    rows.extend(agent_cli_rows())
+    rows.extend(agent_cli_rows(workspace))
     return rows
 
 
-def agent_cli_rows() -> list[tuple[str, bool, str]]:
+def agent_cli_rows(workspace: Path | None = None) -> list[tuple[str, bool, str]]:
     """One row per supported agent CLI, with its skill-install state.
 
     All of them or none: reporting only Claude Code would imply the others
@@ -442,11 +449,11 @@ def agent_cli_rows() -> list[tuple[str, bool, str]]:
     # workspace's own copy, anywhere else it is whatever is installed globally.
     from magi.skills_cmd import _is_workspace, workspace_anchor
 
-    anchor = workspace_anchor()
+    anchor = workspace_anchor(workspace)
     scope = "project" if _is_workspace(anchor) else "global"
 
     state = {}
-    for row in installed_state(skills):
+    for row in installed_state(skills, anchor if scope == "project" else None):
         if row["scope"] != scope:
             continue
         # A host can read from more than one directory; the best count wins.

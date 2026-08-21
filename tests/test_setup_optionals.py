@@ -15,7 +15,7 @@ import magi.setup_cmd as setup
 def bare(monkeypatch):
     """A machine with none of the optional tools installed."""
     monkeypatch.setattr(setup, "_which", lambda name: None)
-    monkeypatch.setattr(setup, "agent_cli_rows", lambda: [])
+    monkeypatch.setattr(setup, "agent_cli_rows", lambda _ws=None: [])
     monkeypatch.setattr(setup, "wanted_optionals", lambda: {})
 
 
@@ -23,7 +23,7 @@ def bare(monkeypatch):
 def loaded(monkeypatch):
     """A machine with everything installed."""
     monkeypatch.setattr(setup, "_which", lambda name: f"/usr/bin/{name}")
-    monkeypatch.setattr(setup, "agent_cli_rows", lambda: [])
+    monkeypatch.setattr(setup, "agent_cli_rows", lambda _ws=None: [])
     monkeypatch.setattr(setup, "wanted_optionals", lambda: {})
     monkeypatch.setattr(setup, "_ollama_server_note", lambda: "server stopped")
 
@@ -115,7 +115,7 @@ def test_pandoc_crossref_is_not_mentioned_without_pandoc(bare):
 def test_pandoc_crossref_is_mentioned_once_pandoc_is_present(monkeypatch):
     monkeypatch.setattr(setup, "_which",
                         lambda name: None if name == "pandoc-crossref" else f"/usr/bin/{name}")
-    monkeypatch.setattr(setup, "agent_cli_rows", lambda: [])
+    monkeypatch.setattr(setup, "agent_cli_rows", lambda _ws=None: [])
     monkeypatch.setattr(setup, "wanted_optionals", lambda: {})
     monkeypatch.setattr(setup, "_ollama_server_note", lambda: "n/a")
 

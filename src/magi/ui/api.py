@@ -358,10 +358,17 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         return {"name": name, "deleted": True}
 
     @app.get("/api/doctor")
-    def get_doctor() -> dict:
-        rows = doctor_rows()
+    def get_doctor(workspace: Optional[str] = Query(None)) -> dict:
+        # Most rows are about the machine, but the agent-CLI rows report which
+        # skills are installed *in a workspace* — and with no argument that
+        # resolved from the server's own working directory, so the modal said
+        # "no skills in this workspace" about a library the reader was not
+        # looking at. Report on the one the picker names.
+        ws = _resolve_workspace(workspace)
+        rows = doctor_rows(ws)
         legacy = find_legacy_copies()
         return {
+            "workspace": str(ws) if ws else None,
             # `ok` stays for older clients; `status` is what distinguishes a
             # real problem from an optional component nobody installed.
             "doctor": [{"tool": r.name, "ok": r.ok, "status": r.status,

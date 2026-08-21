@@ -11,7 +11,7 @@
 从零到一个能检索的库——四条命令，加对 agent 说的一句话：
 
 ```powershell
-uv tool install magi-research        # 1. 装
+pipx install magi-research           # 1. 装（或者：uv tool install magi-research）
 magi hub init                        # 2. 在将来放所有课题的那个目录
 cd topics/my-topic && magi init      # 3. 建一个课题
 magi ingest auto                     # 4. 把 PDF 丢进 inbox/ 之后

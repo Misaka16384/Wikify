@@ -4478,8 +4478,12 @@ details.advanced-sql > summary {
   opacity: 0.7;
   line-height: 1.35;
   max-width: 40ch;
-  text-align: right;
 }
+/* Right-aligned only where the button it explains is right-aligned, i.e. in a
+   card header. In the radar action stack the buttons are centred, and a
+   ragged-left caption under a centred button reads as a layout accident. */
+.btn-with-caption .btn-caption { text-align: right; }
+.radar-actions .btn-caption { text-align: center; align-self: center; }
 
 /* The second line of a banner whose button reaches outside this workspace. */
 .banner-sub {
