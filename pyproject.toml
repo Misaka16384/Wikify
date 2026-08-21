@@ -47,6 +47,12 @@ dependencies = [
 # list in the workflow.
 test = ["pytest>=8.0", "httpx2>=2.0"]
 
+# Reading a PDF's own text layer instead of OCR-ing it. Optional because it is
+# not free: pymupdf4llm pulls pymupdf_layout, which pulls onnxruntime. The
+# *detection* half — deciding whether a PDF even has a usable text layer, which
+# saves a MinerU token or a GPU minute — runs on PyMuPDF alone and is always on.
+textlayer = ["pymupdf4llm>=0.0.17"]
+
 [project.urls]
 Homepage = "https://github.com/Misaka16384/magi"
 Repository = "https://github.com/Misaka16384/magi"

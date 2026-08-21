@@ -37,6 +37,30 @@ def _cfg_get(cfg: dict, dotted: str, default=None):
     return cur
 
 
+def _text_layer_route(path: Path) -> Optional[Tuple[str, str]]:
+    """The text-layer route, when this PDF is the kind it suits.
+
+    Returns None on anything at all uncertain — a missing optional dependency,
+    an unreadable file, a maths paper. Silently taking a lossy shortcut would be
+    much worse than paying for OCR, so the bar to divert here is high.
+    """
+    try:
+        from magi.ingest import textlayer
+    except ImportError:
+        return None
+    try:
+        import pymupdf4llm  # noqa: F401 — presence check only
+    except ImportError:
+        return None
+    try:
+        verdict = textlayer.inspect(path)
+    except Exception:  # noqa: BLE001 — routing must never be the thing that fails
+        return None
+    if verdict.route_here:
+        return "textlayer", f"PDF — {verdict.reason}"
+    return None
+
+
 def classify(path: Path, cfg: dict) -> Tuple[str, str]:
     """(route, why) for one file. route is a subcommand name or 'skip'."""
     name = path.name.lower()
@@ -45,6 +69,14 @@ def classify(path: Path, cfg: dict) -> Tuple[str, str]:
             return "tex", "LaTeX source — best fidelity"
         return "skip", "LaTeX source, but pandoc is not installed"
     if name.endswith(".pdf"):
+        # Before spending a MinerU token or a GPU minute, ask whether this PDF
+        # needs either. A born-digital document with no mathematics can be read
+        # straight out of its own text layer — faster, free, and faithful. A
+        # maths paper cannot: its text reads perfectly and its formulas would
+        # arrive as flattened characters, so it goes to a model regardless.
+        text_route = _text_layer_route(path)
+        if text_route:
+            return text_route
         if _cfg_get(cfg, "ocr.mineru_api_token"):
             return "mineru", "PDF — MinerU token configured"
         if shutil.which("ollama"):

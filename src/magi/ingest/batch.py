@@ -78,8 +78,60 @@ def _run_route(route: str, entry, staging: Path) -> ConversionResult:
         return ConversionResult(success=True, markdown_path=str(produced[-1]))
 
     if route == "textlayer":
-        return ConversionResult.failed(
-            "the text-layer route is not implemented yet; reject to fall through")
+        from magi.ingest import textlayer
+
+        source = Path(entry.value)
+        if not source.is_file():
+            return ConversionResult.failed(
+                "the text-layer route needs a PDF on disk; this item has none")
+
+        # The gate is the cheap half and runs on PyMuPDF alone. It answers two
+        # separate questions — is there readable text, and is reading it enough —
+        # and a maths paper fails the second even when it sails through the first.
+        verdict = textlayer.inspect(source)
+        print(f"[textlayer] {verdict.reason}")
+        if not verdict.route_here:
+            return ConversionResult.failed(
+                f"not a text-layer document: {verdict.reason}")
+
+        try:
+            import pymupdf4llm
+        except ImportError:
+            return ConversionResult.failed(
+                "this PDF has a clean, math-free text layer and could be read "
+                "without OCR, but pymupdf4llm is not installed. "
+                "Install it with: pip install 'magi-research[textlayer]'")
+
+        staging.mkdir(parents=True, exist_ok=True)
+        images_dir = staging / "images"
+        try:
+            md = pymupdf4llm.to_markdown(
+                str(source), write_images=True, image_path=str(images_dir))
+        except Exception as exc:  # noqa: BLE001
+            return ConversionResult.failed(f"text-layer extraction failed: {exc}")
+
+        from datetime import datetime
+
+        import yaml
+
+        from magi.core.wiki_common import atomic_write, slugify
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        title = entry.title or source.stem.replace("_", " ").replace("-", " ").title()
+        fm = {"title": title, "source": str(source), "type": "papers",
+              "ingested": today, "tags": [],
+              "summary": "Converted from the PDF's own text layer (no OCR)."}
+        out = staging / f"{today}-{slugify(title)}.md"
+        atomic_write(out, "---\n" + yaml.safe_dump(
+            fm, allow_unicode=True, sort_keys=False, default_flow_style=False)
+            + "---\n\n" + md, encoding="utf-8")
+
+        outcome = ConversionResult(success=True, markdown_path=str(out),
+                                   images_dir=str(images_dir), pages_processed=verdict.pages)
+        outcome.flag("route-textlayer",
+                     f"read {verdict.pages} page(s) straight from the text layer, no OCR",
+                     severity="info")
+        return outcome
 
     return ConversionResult.failed(f"unknown route: {route}")
 
@@ -310,28 +362,57 @@ def cmd_commit(args) -> int:
 
 # --------------------------------------------------------------------------
 
-def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(
-        prog="magi ingest batch", description=__doc__.split("\n")[0])
-    parser.add_argument("verb", choices=["run", "list", "decide", "commit"])
-    parser.add_argument("--topic-dir", help="Workspace root (default: discovered)")
-    parser.add_argument("--batch", help="One batch id (list)")
-    parser.add_argument("--item", help="Item id (decide)")
-    parser.add_argument("--decision", choices=["approve", "reject", "reset"],
-                        help="What to do with it (decide)")
-    parser.add_argument("--limit", type=int, help="Process at most N queued items (run)")
-    parser.add_argument("--json", action="store_true", help="Machine-readable output")
-    args = parser.parse_args(argv)
+_VERBS = {
+    "run": ("magi ingest batch-run",
+            "Acquire, convert and gate-check everything in the queue."),
+    "list": ("magi ingest batch-list",
+             "Show batches awaiting approval, with findings."),
+    "decide": ("magi ingest batch-decide",
+               "Approve, reject or undo one item. Rejecting requeues it a rung down."),
+    "commit": ("magi ingest batch-commit",
+               "Move approved documents into raw/. Refuses a batch with undecided items."),
+}
 
-    if args.verb == "run":
-        return cmd_run(args)
-    if args.verb == "list":
-        return cmd_list(args)
-    if args.verb == "decide":
-        if not args.item or not args.decision:
-            parser.error("decide needs --item and --decision")
-        return cmd_decide(args)
-    return cmd_commit(args)
+
+def main(argv=None) -> int:
+    """Dispatch one verb.
+
+    The CLI table routes `magi ingest batch-run` here with "run" prepended, so
+    each verb gets a parser whose prog name is the command the user actually
+    typed. A single shared parser advertised `magi ingest batch {run,list,...}`
+    in its usage line — a command that does not exist, since there is no
+    ("ingest", "batch") entry to dispatch it.
+    """
+    argv = list(sys.argv[1:] if argv is None else argv)
+    verb = argv[0] if argv and argv[0] in _VERBS else None
+    if verb is None:
+        print(f"magi ingest batch: expected one of {', '.join(_VERBS)}",
+              file=sys.stderr)
+        return 2
+
+    prog, description = _VERBS[verb]
+    parser = argparse.ArgumentParser(prog=prog, description=description)
+    parser.add_argument("--topic-dir", help="Workspace root (default: discovered)")
+    parser.add_argument("--json", action="store_true", help="Machine-readable output")
+    if verb == "run":
+        parser.add_argument("--limit", type=int,
+                            help="Process at most N queued items")
+    if verb == "list":
+        parser.add_argument("--batch", help="Show only this batch id")
+    if verb == "decide":
+        parser.add_argument("--item", required=True, help="Item id (see batch-list)")
+        parser.add_argument("--decision", required=True,
+                            choices=["approve", "reject", "reset"])
+
+    args = parser.parse_args(argv[1:])
+    # Verb-specific flags are absent from the other parsers; give every handler
+    # the same shape so it does not have to know which verb it was reached by.
+    for name in ("batch", "item", "decision", "limit"):
+        if not hasattr(args, name):
+            setattr(args, name, None)
+
+    return {"run": cmd_run, "list": cmd_list,
+            "decide": cmd_decide, "commit": cmd_commit}[verb](args)
 
 
 if __name__ == "__main__":
