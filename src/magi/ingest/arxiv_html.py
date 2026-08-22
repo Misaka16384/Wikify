@@ -46,6 +46,7 @@ from magi.core.config_loader import load_config
 from magi.core.http import http_get
 from magi.core.tools import find_pandoc
 from magi.core.wiki_common import atomic_write, slugify
+from magi.ingest import image_refs
 from magi.ingest.convert_result import ConversionResult
 
 NATIVE_URL = "https://arxiv.org/html/{id}"
@@ -143,60 +144,86 @@ def page_title(page: str) -> str | None:
     return re.sub(r"^\[[^\]]+\]\s*", "", title) or None
 
 
-def _rewrite_image_paths(md: str, arxiv_id: str) -> tuple[str, int, list[str]]:
-    """Point figure references at ``images/`` and report the originals.
+def figure_slug(arxiv_id: str) -> str:
+    """The prefix this paper's figure files carry.
 
-    arXiv serves figures as relative paths under ``{id}v{n}/``. Rewriting them
-    to ``images/<name>`` matches what the tex and OCR routes already produce,
-    which is what `ingest finalize` expects when it converts them to Obsidian
-    wikilinks. The original relative targets come back so the caller can fetch
-    them — rewriting without downloading would leave the wiki full of broken
-    links, which is worse than the tarball route's silent drop, not better.
+    Keeps the id readable in a filename — ``cond-mat/0001002`` becomes
+    ``cond-mat-0001002`` rather than losing the separator entirely — while
+    staying unique, which is the only property that actually matters here.
     """
-    count = 0
-    targets: list[str] = []
-    # The page also carries arXiv's own chrome — funder logos, UI glyphs — as
-    # absolute /static/... paths. Those are not this paper's figures; a real
-    # figure is served relative to the page, under {id}v{n}/.
+    return arxiv_id.replace("/", "-")
+
+
+_SITE_ROOT = "https://arxiv.org"
+
+
+def _absolutize_site_chrome(md: str) -> str:
+    """Give arXiv's own furniture a URL that means what it says.
+
+    Pandoc pulls the whole page in, so the output carries arXiv's funder logos
+    and UI glyphs alongside the paper's figures, as site-absolute paths like
+    ``/static/base/1.0.1/images/icons/smileybones-small.svg``. Those are not
+    this paper's figures and must not be downloaded into its images/ directory
+    — but left as-is they are references to a filesystem root that has no such
+    file, which is to say dead links dressed as working ones.
+
+    Pointing them at arxiv.org costs nothing, makes each reference true, and
+    keeps the portability gate quiet about the one thing in an arXiv document
+    that is legitimately not ours. Deleting them would be the other defensible
+    answer; this one does not have to decide what is furniture and what is not.
+    """
+    def resolve(target: str):
+        return _SITE_ROOT + target if target.startswith("/") else None
+
+    out, _ = image_refs.rewrite(md, resolve, prefix="")
+    return out
+
+
+def _rewrite_image_paths(md: str, arxiv_id: str) -> tuple[str, int, dict[str, str]]:
+    """Point figure references at ``images/<id>-<name>`` and report the originals.
+
+    arXiv serves figures as relative paths under ``{id}v{n}/``, and the names
+    inside are the author's: ``fig1.png``, ``setup.pdf``, ``x.png``. Those
+    names are unique within one submission and not remotely unique across a
+    library. Two papers each shipping a ``fig1.png`` used to land on the same
+    ``raw/papers/images/fig1.png`` at commit, where the second copy silently
+    won and one of the two papers then displayed the other's figure — no error,
+    no missing file, just the wrong picture. So the id goes into the filename,
+    which is what the tex and MinerU routes already do.
+
+    Returns ``{original relative target: local filename}`` rather than a bare
+    list, because the caller has to fetch these and the document and the
+    directory must agree on the name. Handing back the mapping is what makes
+    disagreeing impossible; two independent derivations of "the same" name is
+    how the two drift apart.
+    """
+    # Settle arXiv's own furniture first, so what remains unresolved is either
+    # this paper's figure or something we have no business touching.
+    md = _absolutize_site_chrome(md)
+
+    # A real figure is served relative to the page, under {id}v{n}/ — that is
+    # what separates this paper's images from everything else on the page.
     figure_re = re.compile(rf"^{re.escape(arxiv_id)}v\d+/", re.IGNORECASE)
+    slug = figure_slug(arxiv_id)
 
-    def _is_ours(target: str) -> bool:
-        if target.startswith(("http://", "https://", "data:", "images/", "/")):
-            return False
-        return bool(figure_re.match(target))
+    def resolve(target: str):
+        if not figure_re.match(target):
+            return None
+        return image_refs.namespaced(slug, target)
 
-    def md_repl(m):
-        nonlocal count
-        target = m.group(2)
-        if not _is_ours(target):
-            return m.group(0)
-        count += 1
-        targets.append(target)
-        return f"![{m.group(1)}](images/{os.path.basename(target)})"
-
-    md = re.sub(r"!\[([^\]]*)\]\(([^)]+)\)", md_repl, md)
-
-    # Pandoc leaves a figure it cannot express in Markdown as a raw <img>, which
-    # is what happens to every real arXiv figure: they sit inside <figure>
-    # elements carrying ids and classes. Handling only ![]() would silently miss
-    # all of them — measured on 2608.20333, where both figures survived as HTML
-    # and only arXiv's own smiley glyph came through as Markdown.
-    def html_repl(m):
-        nonlocal count
-        target = m.group(2)
-        if not _is_ours(target):
-            return m.group(0)
-        count += 1
-        targets.append(target)
-        return f'{m.group(1)}"images/{os.path.basename(target)}"'
-
-    md = re.sub(r'(<(?:img|embed)\b[^>]*?\bsrc=)"([^"]+)"', html_repl, md,
-                flags=re.IGNORECASE)
-    return md, count, targets
+    # Count occurrences, not distinct files: a paper that shows the same figure
+    # twice has two references, and one file to fetch.
+    before = image_refs.iter_targets(md)
+    md, mapping = image_refs.rewrite(md, resolve)
+    n = sum(1 for target in before if target in mapping)
+    return md, n, mapping
 
 
-def download_figures(targets, page_url: str, images_dir) -> tuple[int, list[str]]:
+def download_figures(mapping, page_url: str, images_dir) -> tuple[int, list[str]]:
     """Fetch each relative figure next to the markdown. Returns (ok, failures).
+
+    Takes the mapping `_rewrite_image_paths` produced, so each file is saved
+    under exactly the name the document now references.
 
     Throttled like any other arxiv.org request: the figures live under ``/html``
     too, and robots.txt sets ``Crawl-delay: 15`` for that whole path. That makes
@@ -207,12 +234,7 @@ def download_figures(targets, page_url: str, images_dir) -> tuple[int, list[str]
     images_dir = Path(images_dir)
     ok = 0
     failures: list[str] = []
-    seen: set[str] = set()
-    for target in targets:
-        name = os.path.basename(target)
-        if not name or name in seen:
-            continue
-        seen.add(name)
+    for target, name in mapping.items():
         # Plain urljoin: the page URL ends in the paper id, which is a resource
         # not a directory, so `2608.20333v1/torus.png` resolves against /html/.
         # Appending a slash first would treat the id as a directory and produce
@@ -294,14 +316,14 @@ def convert(arxiv_id: str, output_dir, *, doc_type: str | None = None,
                 "Pandoc failed to convert the arXiv HTML.", proc.stderr.strip())
         md_content = Path(out_md).read_text(encoding="utf-8", errors="replace")
 
-    md_content, n_figs, fig_targets = _rewrite_image_paths(md_content, ident)
+    md_content, n_figs, fig_map = _rewrite_image_paths(md_content, ident)
     md_content, n_regrouped = _regroup_align_tables(md_content)
 
     images_dir = os.path.join(output_dir, "images")
     n_figs_ok, fig_failures = 0, []
-    if fetch_figures and fig_targets:
-        print(f"Fetching {len(set(os.path.basename(t) for t in fig_targets))} figure(s)...")
-        n_figs_ok, fig_failures = download_figures(fig_targets, got.url, images_dir)
+    if fetch_figures and fig_map:
+        print(f"Fetching {len(fig_map)} figure(s)...")
+        n_figs_ok, fig_failures = download_figures(fig_map, got.url, images_dir)
         print(f"Figures: {n_figs_ok} saved into images/, {len(fig_failures)} failed")
 
     if doc_type not in ("papers", "articles", "notes", "repos"):

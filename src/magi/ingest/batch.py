@@ -20,8 +20,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+from magi.core.arxiv_id import abs_url, normalize_arxiv_id
 from magi.core.workspace import find_workspace_root
-from magi.ingest import ledger
+from magi.ingest import image_refs, ledger
 from magi.ingest.convert_result import ConversionResult, Finding
 
 
@@ -30,6 +31,54 @@ def _resolve_topic(explicit: str | None) -> Path | None:
         path = Path(explicit).expanduser().resolve()
         return path if path.is_dir() else None
     return find_workspace_root()
+
+
+def _localize_textlayer_images(md: str, images_dir: Path, slug: str) -> str:
+    """Make ``pymupdf4llm``'s output look like every other route's.
+
+    ``to_markdown`` writes each image into whatever directory it is handed and
+    references it by joining that directory string with the filename. Hand it
+    the staging directory — which is what we must do, or the files land in the
+    process's working directory — and every reference in the document is an
+    absolute path into a temporary directory. It resolves for exactly as long
+    as staging exists: commit copies the Markdown and the images into the
+    library, changes neither, and every figure in the document goes dark.
+
+    The rewrite works off the directory listing rather than a regex over the
+    paths, because those paths are the machine's, not ours: a user profile with
+    a space in it, or a parenthesis, makes any Markdown-link pattern wrong in a
+    way that would only show up on someone else's computer. The filenames are
+    the one part we can match exactly.
+
+    Names are prefixed with the document slug for the same reason the arXiv and
+    tex routes do it: ``raw/papers/images/`` is shared by the whole library, and
+    two documents whose sources are both called ``paper.pdf`` produce the same
+    ``paper.pdf-0001-01.png``.
+    """
+    if not images_dir.is_dir():
+        return md
+
+    renamed: dict[str, str] = {}
+    for image in sorted(images_dir.iterdir()):
+        if not image.is_file():
+            continue
+        new_name = image_refs.namespaced(slug, image.name)
+        if new_name != image.name:
+            target = images_dir / new_name
+            if target.exists():  # truncation collided; keep the distinct name
+                new_name = image.name
+            else:
+                image.rename(target)
+        renamed[image.name] = new_name
+
+    def resolve(target: str):
+        return renamed.get(os.path.basename(target.replace("\\", "/")))
+
+    # One pass over the document, not one per image: a 55-page paper can carry
+    # 403 of these (see ROADMAP B1), and replacing a substring per file would
+    # rebuild the whole document that many times.
+    out, _ = image_refs.rewrite(md, resolve)
+    return out
 
 
 def _run_route(route: str, entry, staging: Path) -> ConversionResult:
@@ -75,7 +124,12 @@ def _run_route(route: str, entry, staging: Path) -> ConversionResult:
         produced = sorted(staging.glob("*.md"), key=lambda p: p.stat().st_mtime)
         if not produced:
             return ConversionResult.failed("local OCR produced no markdown.")
-        return ConversionResult(success=True, markdown_path=str(produced[-1]))
+        # Report the images directory even though this route writes it itself.
+        # Without it the image gates never run on OCR output at all, so the one
+        # route that crops its own figures was the one nobody was checking.
+        images_dir = staging / "images"
+        return ConversionResult(success=True, markdown_path=str(produced[-1]),
+                                images_dir=str(images_dir) if images_dir.is_dir() else None)
 
     if route == "textlayer":
         from magi.ingest import textlayer
@@ -118,10 +172,23 @@ def _run_route(route: str, entry, staging: Path) -> ConversionResult:
 
         today = datetime.now().strftime("%Y-%m-%d")
         title = entry.title or source.stem.replace("_", " ").replace("-", " ").title()
+        slug = slugify(title)
+        md = _localize_textlayer_images(md, images_dir, slug)
         fm = {"title": title, "source": str(source), "type": "papers",
               "ingested": today, "tags": [],
               "summary": "Converted from the PDF's own text layer (no OCR)."}
-        out = staging / f"{today}-{slugify(title)}.md"
+        # The tex, MinerU and OCR routes all recover the arXiv id from the
+        # filename; this one did not, and the consequence is not cosmetic —
+        # the radar fingerprints a library by arxiv_id, so a paper ingested
+        # here stayed invisible to it and kept being re-surfaced as a new
+        # candidate. MinerU carries a comment about having had exactly this
+        # bug. Fixing it there and not looking at the other routes is how one
+        # bug becomes four.
+        found_id = normalize_arxiv_id(source.stem)
+        if found_id:
+            fm["arxiv_id"] = found_id
+            fm["arxiv_url"] = abs_url(found_id)
+        out = staging / f"{today}-{slug}.md"
         atomic_write(out, "---\n" + yaml.safe_dump(
             fm, allow_unicode=True, sort_keys=False, default_flow_style=False)
             + "---\n\n" + md, encoding="utf-8")
@@ -328,12 +395,31 @@ def cmd_commit(args) -> int:
             shutil.copy2(src, dest)
 
             staged_images = Path(src).parent / "images"
+            collisions = []
             if staged_images.is_dir():
                 target = dest_dir / "images"
                 target.mkdir(parents=True, exist_ok=True)
                 for img in staged_images.iterdir():
-                    if img.is_file():
-                        shutil.copy2(img, target / img.name)
+                    if not img.is_file():
+                        continue
+                    dst = target / img.name
+                    # raw/<type>/images/ is shared by every document in the
+                    # library, so this copy is where a name collision between
+                    # two papers actually does its damage: the second write
+                    # wins, nothing errors, nothing goes missing, and one paper
+                    # quietly starts displaying the other's figure. Routes are
+                    # supposed to namespace their filenames; this is the check
+                    # that says so out loud when one of them does not — the
+                    # next route we have not written yet included.
+                    if dst.is_file() and dst.read_bytes() != img.read_bytes():
+                        collisions.append(img.name)
+                        continue
+                    shutil.copy2(img, dst)
+            if collisions:
+                print(f"    ! {len(collisions)} image(s) kept out of images/: a "
+                      f"different file of the same name is already there "
+                      f"({', '.join(sorted(collisions)[:5])}) — this document's "
+                      "figures would have overwritten another document's")
 
             subprocess.run(
                 [sys.executable, "-m", "magi", "ingest", "finalize", "none",

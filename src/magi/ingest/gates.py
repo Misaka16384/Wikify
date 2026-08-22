@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 
 from magi.core.arxiv_id import normalize_arxiv_id
+from magi.ingest import image_refs
 from magi.ingest.convert_result import Finding
 
 # Anything shorter than this is not a paper. Deliberately generous: an erratum
@@ -111,18 +112,57 @@ def check_figures(referenced: int, resolved: int) -> Finding | None:
                    f"{resolved} reached the output — {dropped} were dropped")
 
 
+def check_image_refs(md: str) -> Finding | None:
+    """Image references that will not survive the move out of staging.
+
+    This is the check that has to be shape-aware rather than pattern-aware.
+    The earlier version looked for ``](images/…)`` and nothing else, which
+    means an absolute staging path — the exact failure it existed to catch —
+    matched nothing and the document was reported clean. A gate that only
+    recognises the correct answer cannot report a wrong one.
+
+    So the question here is not "does this look like a broken link" but "is
+    this reference of the shape every route is supposed to emit", and anything
+    that is not gets named with the reason it is not.
+    """
+    offenders: dict[str, list[str]] = {}
+    for target in image_refs.iter_targets(md):
+        kind = image_refs.classify(target)
+        if kind in ("portable", "external"):
+            continue
+        offenders.setdefault(kind, []).append(target)
+    if not offenders:
+        return None
+
+    why = {
+        "absolute": "absolute path — resolves only while staging exists",
+        "backslash": "Windows separator — not a path to a Markdown reader",
+        "escaping": "climbs out of the document's directory",
+        "bare": "no directory — the file is expected to sit next to the document",
+        "elsewhere": f"not under {image_refs.IMAGE_DIR_NAME}/",
+        "nested": f"more than one level below {image_refs.IMAGE_DIR_NAME}/",
+    }
+    n = sum(len(v) for v in offenders.values())
+    parts = [f"{why.get(k, k)}: {', '.join(v[:3])}" for k, v in sorted(offenders.items())]
+    return Finding("image-path-not-portable",
+                   f"{n} image reference(s) are not {image_refs.IMAGE_DIR_NAME}/<name> "
+                   "and will break when this document is committed — "
+                   + "; ".join(parts))
+
+
 def check_broken_image_links(md: str, images_dir) -> Finding | None:
-    """Image references pointing at files that are not there.
+    """Well-formed references pointing at files that are not there.
 
     Rewriting a path without fetching the file leaves a wiki full of broken
-    links, which looks complete and is not.
+    links, which looks complete and is not. Only ``images/<name>`` references
+    are judged here — a malformed one is `check_image_refs`'s to report, and
+    reporting it twice would say the same problem is two problems.
     """
     from pathlib import Path
 
     images_dir = Path(images_dir)
-    targets = set(re.findall(r"!\[[^\]]*\]\(images/([^)]+)\)", md))
-    targets |= set(re.findall(r'<(?:img|embed)\b[^>]*?\bsrc="images/([^"]+)"', md,
-                              flags=re.IGNORECASE))
+    targets = {t.split("/", 1)[1] for t in image_refs.iter_targets(md)
+               if image_refs.classify(t) == "portable"}
     missing = sorted(t for t in targets if not (images_dir / t).is_file())
     if not missing:
         return None
@@ -159,6 +199,7 @@ def run_all(md: str, *, payload: bytes | None = None, tex_source: str | None = N
         check_not_a_shell(md, tex_source),
         check_no_leftover_tex(md),
         check_figures(figures_referenced, figures_resolved),
+        check_image_refs(md),
         check_broken_image_links(md, images_dir) if images_dir else None,
     ]
     return [c for c in checks if c is not None]

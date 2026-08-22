@@ -159,6 +159,85 @@ def test_external_images_are_not_expected_on_disk(tmp_path):
     assert gates.check_broken_image_links(md, tmp_path) is None
 
 
+def test_a_malformed_reference_is_not_also_reported_as_a_missing_file(tmp_path):
+    """One problem is one finding. A path that cannot resolve anywhere is
+    check_image_refs's to report; saying it twice says it is two problems."""
+    md = _doc("![c](C:/Temp/tmp1/images/a.png)")
+    assert gates.check_broken_image_links(md, tmp_path) is None
+    assert gates.check_image_refs(md) is not None
+
+
+# --------------------------------------------------------------------------
+# Image references that will not survive the move out of staging
+# --------------------------------------------------------------------------
+
+def test_an_absolute_staging_path_is_caught():
+    """The defect this check exists for, and the one its predecessor could not
+    see: `pymupdf4llm` references each image by the directory it was handed,
+    so pointing it at staging put an absolute temp path in every reference.
+    The old check matched `](images/…)` and nothing else, so it read that
+    document as having no image references at all and reported it clean.
+
+    A gate that only recognises the correct answer cannot report a wrong one.
+    """
+    finding = gates.check_image_refs(
+        _doc("![](C:/Users/x/AppData/Local/Temp/tmp1/images/p.pdf-0001-01.png)"))
+    assert finding is not None
+    assert finding.code == "image-path-not-portable"
+    assert "absolute" in finding.detail
+
+
+def test_a_posix_staging_path_is_caught_too():
+    finding = gates.check_image_refs(_doc("![](/tmp/magi-staging/images/a.png)"))
+    assert finding is not None and finding.code == "image-path-not-portable"
+
+
+def test_a_bare_filename_is_caught():
+    """Renders next to the document in staging and nowhere after the move."""
+    assert gates.check_image_refs(_doc("![](fig1.png)")) is not None
+
+
+def test_a_path_climbing_out_of_the_document_is_caught():
+    assert gates.check_image_refs(_doc("![](../images/a.png)")) is not None
+
+
+def test_html_references_are_judged_by_the_same_rule():
+    """Most real arXiv figures survive pandoc as raw HTML, so a check that only
+    reads ![]() is blind to the majority of them."""
+    finding = gates.check_image_refs(_doc('<img src="C:/Temp/t/images/a.png"/>'))
+    assert finding is not None
+
+
+def test_the_convention_itself_passes():
+    assert gates.check_image_refs(_doc("![c](images/2401.00506-fig1.png)")) is None
+
+
+def test_remote_images_are_not_a_portability_problem():
+    assert gates.check_image_refs(
+        _doc("![x](https://arxiv.org/static/logo.svg)\n![y](data:image/png;base64,AA)")) is None
+
+
+def test_every_kind_of_wrongness_is_named_in_one_finding():
+    """A reviewer gets told what is wrong with each, not just that something is."""
+    finding = gates.check_image_refs(
+        _doc("![](/tmp/x/a.png)\n![](b.png)\n![](../c.png)\n![](figs/d.png)"))
+    assert finding is not None
+    assert "4 image reference(s)" in finding.detail
+    for word in ("absolute", "no directory", "climbs out", "not under images/"):
+        assert word in finding.detail
+
+
+def test_a_document_with_no_images_is_silent():
+    assert gates.check_image_refs(_doc(LONG_BODY)) is None
+
+
+def test_run_all_reports_an_unportable_path_without_an_images_dir():
+    """The shape check needs no directory to run, which matters: the routes that
+    got this wrong are exactly the ones that did not report an images_dir."""
+    findings = gates.run_all(_doc("![](C:/Temp/t/images/a.png)\n" + LONG_BODY))
+    assert "image-path-not-portable" in {f.code for f in findings}
+
+
 # --------------------------------------------------------------------------
 # Identity
 # --------------------------------------------------------------------------

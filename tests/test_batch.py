@@ -8,6 +8,8 @@ The two that matter most:
 Nothing else in this repo has either shape, so nothing else covers them.
 """
 
+import pathlib
+import shutil
 import types
 
 import pytest
@@ -218,6 +220,232 @@ def test_staged_images_travel_with_the_document(ws, monkeypatch):
     batch.main(["commit"])
 
     assert (ws / "raw" / "papers" / "images" / "fig.png").read_bytes() == b"PNG"
+
+
+def test_two_documents_cannot_overwrite_each_others_figures(ws, monkeypatch, capsys):
+    """raw/papers/images/ is shared by the library, so this copy is where a
+    name collision between two papers does its damage: the second write wins,
+    nothing errors, nothing goes missing, and one paper quietly starts showing
+    the other's picture.
+
+    Routes are supposed to namespace their filenames. This is the check that
+    says so out loud when one of them does not — including the route nobody has
+    written yet, which is the point of putting the check here rather than in
+    each route."""
+    bodies = {"a": b"PICTURE-A", "b": b"PICTURE-B"}
+
+    def fake(route, entry, staging):
+        staging.mkdir(parents=True, exist_ok=True)
+        (staging / "images").mkdir()
+        (staging / "images" / "fig1.png").write_bytes(bodies[entry.value])
+        md = staging / f"doc-{entry.value}.md"
+        md.write_text('---\ntitle: T\n---\n\n![](images/fig1.png)\n' + "word " * 300,
+                      encoding="utf-8")
+        return ConversionResult(success=True, markdown_path=str(md),
+                                images_dir=str(staging / "images"))
+
+    monkeypatch.setattr(batch, "_run_route", fake)
+    monkeypatch.setattr(batch, "_resolve_topic", lambda explicit: ws)
+    monkeypatch.setattr(batch.subprocess, "run",
+                        lambda *a, **k: types.SimpleNamespace(returncode=0, stdout="", stderr=""))
+
+    ledger.enqueue(ws, source_type="arxiv", value="a")
+    ledger.enqueue(ws, source_type="arxiv", value="b")
+    batch.main(["run"])
+    for item in ledger.load_batch(ws, ledger.list_batches(ws)[0]):
+        batch.main(["decide", "--item", item.item_id, "--decision", "approve"])
+    batch.main(["commit"])
+
+    # The first copy is intact — the second did not silently replace it.
+    assert (ws / "raw" / "papers" / "images" / "fig1.png").read_bytes() in bodies.values()
+    out = capsys.readouterr().out
+    assert "fig1.png" in out and "overwritten" in out
+
+
+def test_an_identical_image_from_two_documents_is_not_a_collision(ws, monkeypatch, capsys):
+    """Same bytes under the same name is two documents sharing a figure, which
+    is fine and must not be reported as a problem."""
+    def fake(route, entry, staging):
+        staging.mkdir(parents=True, exist_ok=True)
+        (staging / "images").mkdir()
+        (staging / "images" / "shared.png").write_bytes(b"SAME")
+        md = staging / f"doc-{entry.value}.md"
+        md.write_text('---\ntitle: T\n---\n\n![](images/shared.png)\n' + "word " * 300,
+                      encoding="utf-8")
+        return ConversionResult(success=True, markdown_path=str(md),
+                                images_dir=str(staging / "images"))
+
+    monkeypatch.setattr(batch, "_run_route", fake)
+    monkeypatch.setattr(batch, "_resolve_topic", lambda explicit: ws)
+    monkeypatch.setattr(batch.subprocess, "run",
+                        lambda *a, **k: types.SimpleNamespace(returncode=0, stdout="", stderr=""))
+
+    ledger.enqueue(ws, source_type="arxiv", value="a")
+    ledger.enqueue(ws, source_type="arxiv", value="b")
+    batch.main(["run"])
+    for item in ledger.load_batch(ws, ledger.list_batches(ws)[0]):
+        batch.main(["decide", "--item", item.item_id, "--decision", "approve"])
+    batch.main(["commit"])
+
+    assert (ws / "raw" / "papers" / "images" / "shared.png").read_bytes() == b"SAME"
+    assert "overwritten" not in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------
+# The text-layer route's image references
+# --------------------------------------------------------------------------
+
+def test_textlayer_images_stop_being_absolute_staging_paths(tmp_path):
+    """`pymupdf4llm.to_markdown` references each image by the directory string
+    it was handed. Handing it staging — which we must, or the files land in the
+    working directory — put an absolute temp path in every reference. It
+    resolved right up until commit deleted staging, and then every figure in
+    the document went dark."""
+    images = tmp_path / "images"
+    images.mkdir()
+    (images / "survey.pdf-0001-01.png").write_bytes(b"PNG")
+    md = f"Prose.\n\n![]({images}/survey.pdf-0001-01.png)\n"
+
+    out = batch._localize_textlayer_images(md, images, "a-survey")
+
+    assert "![](images/a-survey-survey.pdf-0001-01.png)" in out
+    assert str(images) not in out
+    assert (images / "a-survey-survey.pdf-0001-01.png").is_file()
+
+
+def test_textlayer_rewriting_handles_either_separator(tmp_path):
+    """The path is the machine's, not ours: `to_markdown` joins its directory
+    argument with a forward slash, and on Windows that argument has backslashes
+    in it, so the reference is a mix of both."""
+    for n, style in enumerate(("forward", "native", "all-forward")):
+        images = tmp_path / str(n) / "images"
+        images.mkdir(parents=True)
+        (images / "x.png").write_bytes(b"PNG")
+        joined = {"forward": f"{images}/x.png",
+                  "native": str(images / "x.png"),
+                  "all-forward": f"{str(images).replace(chr(92), '/')}/x.png"}[style]
+        out = batch._localize_textlayer_images(f"![]({joined})", images, "doc")
+        assert out == "![](images/doc-x.png)", style
+
+
+def test_textlayer_figures_carry_the_document_slug(tmp_path):
+    """Two papers whose sources are both called paper.pdf produce the same
+    `paper.pdf-0001-01.png`, and land in the same shared images directory."""
+    names = []
+    for slug in ("first-paper", "second-paper"):
+        images = tmp_path / slug / "images"
+        images.mkdir(parents=True)
+        (images / "paper.pdf-0001-01.png").write_bytes(b"PNG")
+        batch._localize_textlayer_images(
+            f"![]({images}/paper.pdf-0001-01.png)", images, slug)
+        names.append({f.name for f in images.iterdir()})
+    assert names[0].isdisjoint(names[1])
+
+
+def _prose_pdf_with_figures(path):
+    """A born-digital, maths-free paper with two real figures.
+
+    Deliberately built the long way rather than checked in as a fixture: the
+    text-layer gate measures characters per page and enumerates fonts, so a PDF
+    that merely *contains* the right bytes is not enough — it has to actually
+    read like a paper or the route refuses it before any of this is reached.
+    """
+    pymupdf = pytest.importorskip("pymupdf")
+    prose = ("This section reviews the literature on institutional adoption "
+             "and the outcomes reported across the surveyed programmes. ")
+    doc = pymupdf.open()
+    for page_no in range(6):
+        page = doc.new_page()
+        page.insert_textbox(pymupdf.Rect(60, 60, 540, 380),
+                            f"Section {page_no + 1}\n\n" + prose * 14, fontsize=10)
+        if page_no in (1, 3):
+            pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 400, 260))
+            pix.set_rect(pix.irect, (30, 90 + page_no * 30, 200))
+            page.insert_image(pymupdf.Rect(60, 400, 540, 700), pixmap=pix)
+    doc.save(str(path))
+    doc.close()
+    return path
+
+
+def test_a_committed_textlayer_document_still_finds_its_figures(ws, tmp_path, monkeypatch):
+    """The whole defect, end to end: convert, commit, delete staging, look again.
+
+    Every other test here calls the rewriting helper directly and so would not
+    notice the route quietly ceasing to call it — which is precisely how the
+    original bug looked from the outside: a route that reported success and a
+    document whose figures were fine right up until the moment they were not.
+    """
+    pytest.importorskip("pymupdf4llm")
+    from magi.ingest import gates
+
+    pdf = _prose_pdf_with_figures(tmp_path / "survey.pdf")
+    entry = types.SimpleNamespace(value=str(pdf), title="Institutional Adoption",
+                                  route="textlayer", source_type="file",
+                                  retry_of=None, req_id="r1")
+    staging = tmp_path / "staging" / "item"
+    result = batch._run_route("textlayer", entry, staging)
+    assert result.success, result.errors
+
+    md = pathlib.Path(result.markdown_path)
+    assert gates.run_all(md.read_text(encoding="utf-8"),
+                         images_dir=result.images_dir) == []
+
+    # Commit: the document and its images move, and neither is rewritten.
+    dest_dir = ws / "raw" / "papers"
+    (dest_dir / "images").mkdir(parents=True, exist_ok=True)
+    shutil.copy2(md, dest_dir / md.name)
+    for image in pathlib.Path(result.images_dir).iterdir():
+        shutil.copy2(image, dest_dir / "images" / image.name)
+    shutil.rmtree(staging.parent)
+
+    committed = (dest_dir / md.name).read_text(encoding="utf-8")
+    assert "![](images/" in committed          # there were figures to lose
+    assert gates.run_all(committed, images_dir=dest_dir / "images") == []
+
+
+def test_a_textlayer_document_recovers_its_arxiv_identity(ws, tmp_path):
+    """Four of the five routes recover the arXiv id from the filename and this
+    one did not, which is not a cosmetic difference: the radar fingerprints a
+    library by arxiv_id, so a paper ingested here was invisible to it and kept
+    coming back as a fresh candidate. MinerU carries a comment about having had
+    exactly this bug — fixing it in one route and not looking at the rest is
+    how one bug becomes four."""
+    pytest.importorskip("pymupdf4llm")
+
+    pdf = _prose_pdf_with_figures(tmp_path / "2401.00506.pdf")
+    entry = types.SimpleNamespace(value=str(pdf), title="A Survey", route="textlayer",
+                                  source_type="file", retry_of=None, req_id="r1")
+    result = batch._run_route("textlayer", entry, tmp_path / "staging" / "item")
+
+    assert result.success, result.errors
+    body = pathlib.Path(result.markdown_path).read_text(encoding="utf-8")
+    assert "arxiv_id: '2401.00506'" in body
+    assert "arxiv_url: https://arxiv.org/abs/2401.00506" in body
+
+
+def test_a_textlayer_document_with_no_images_is_left_alone(tmp_path):
+    md = "Prose with no figures at all.\n"
+    assert batch._localize_textlayer_images(md, tmp_path / "images", "doc") == md
+
+
+def test_the_ocr_route_reports_its_images_directory(ws, monkeypatch, tmp_path):
+    """The OCR route crops its own figures and was the only route that never
+    told the caller where it put them, so the image gates never ran on the one
+    route that generates image references from scratch."""
+    def fake_run(argv, **kw):
+        out = pathlib.Path(argv[argv.index("-o") + 1])
+        (out / "images").mkdir(parents=True, exist_ok=True)
+        (out / "images" / "doc-fig_p001_1.png").write_bytes(b"PNG")
+        (out / "doc.md").write_text("![](images/doc-fig_p001_1.png)", encoding="utf-8")
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(batch.subprocess, "run", fake_run)
+    entry = types.SimpleNamespace(value="x.pdf", title=None, route="ocr",
+                                  source_type="file", retry_of=None, req_id="r")
+    result = batch._run_route("ocr", entry, tmp_path / "staging")
+
+    assert result.success and result.images_dir
+    assert pathlib.Path(result.images_dir).is_dir()
 
 
 # --------------------------------------------------------------------------

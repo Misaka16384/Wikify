@@ -129,24 +129,45 @@ def test_a_missing_title_is_none():
 
 def test_relative_figure_paths_are_pointed_at_images():
     """arXiv serves figures under {id}v{n}/; the rest of the pipeline wants images/."""
-    md, n, targets = ah._rewrite_image_paths(
+    md, n, mapping = ah._rewrite_image_paths(
         "![A caption](2401.00506v2/sbs.jpg)\n", "2401.00506")
-    assert md == "![A caption](images/sbs.jpg)\n"
+    assert md == "![A caption](images/2401.00506-sbs.jpg)\n"
     assert n == 1
-    assert targets == ["2401.00506v2/sbs.jpg"]
+    assert mapping == {"2401.00506v2/sbs.jpg": "2401.00506-sbs.jpg"}
+
+
+def test_figure_files_carry_the_paper_id():
+    """raw/papers/images/ is shared by the whole library, and `fig1.png` is not
+    a unique name in any library holding two papers. Without the prefix the
+    second commit silently overwrote the first and one paper then displayed the
+    other's figure — no error, nothing missing, just the wrong picture."""
+    a, _, a_map = ah._rewrite_image_paths('<img src="2401.00506v1/fig1.png"/>', "2401.00506")
+    b, _, b_map = ah._rewrite_image_paths('<img src="2502.11111v2/fig1.png"/>', "2502.11111")
+
+    assert set(a_map.values()).isdisjoint(b_map.values())
+    assert 'src="images/2401.00506-fig1.png"' in a
+    assert 'src="images/2502.11111-fig1.png"' in b
+
+
+def test_a_legacy_id_stays_one_path_segment():
+    """cond-mat/0001002 has a slash in it; a filename may not."""
+    md, _, mapping = ah._rewrite_image_paths(
+        '<img src="cond-mat/0001002v1/fig1.png"/>', "cond-mat/0001002")
+    assert mapping == {"cond-mat/0001002v1/fig1.png": "cond-mat-0001002-fig1.png"}
+    assert "images/cond-mat-0001002-fig1.png" in md
 
 
 def test_absolute_and_data_urls_are_left_alone():
     src = "![x](https://example.com/a.png)\n![y](data:image/png;base64,AAA)\n"
-    md, n, targets = ah._rewrite_image_paths(src, "2401.00506")
+    md, n, mapping = ah._rewrite_image_paths(src, "2401.00506")
     assert md == src
-    assert n == 0 and targets == []
+    assert n == 0 and mapping == {}
 
 
 def test_an_already_rewritten_path_is_not_rewritten_twice():
-    md, n, targets = ah._rewrite_image_paths("![a](images/fig.png)\n", "x")
+    md, n, mapping = ah._rewrite_image_paths("![a](images/fig.png)\n", "x")
     assert md == "![a](images/fig.png)\n"
-    assert n == 0 and targets == []
+    assert n == 0 and mapping == {}
 
 
 # --------------------------------------------------------------------------
@@ -160,15 +181,22 @@ def test_figures_are_downloaded_next_to_the_markdown(tmp_path, monkeypatch):
                         lambda url, timeout=60, throttle=None: (b"\x89PNG-bytes", "image/png", url))
 
     ok, failures = ah.download_figures(
-        ["2401.00506v2/sbs.jpg", "2401.00506v2/disp.png"],
+        {"2401.00506v2/sbs.jpg": "2401.00506-sbs.jpg",
+         "2401.00506v2/disp.png": "2401.00506-disp.png"},
         "https://arxiv.org/html/2401.00506v2", tmp_path / "images")
 
     assert ok == 2 and failures == []
-    assert (tmp_path / "images" / "sbs.jpg").read_bytes() == b"\x89PNG-bytes"
-    assert (tmp_path / "images" / "disp.png").exists()
+    assert (tmp_path / "images" / "2401.00506-sbs.jpg").read_bytes() == b"\x89PNG-bytes"
+    assert (tmp_path / "images" / "2401.00506-disp.png").exists()
 
 
 def test_a_figure_is_fetched_once_even_if_referenced_twice(tmp_path, monkeypatch):
+    """A paper that shows the same figure twice has two references and one file.
+
+    Runs through the rewrite instead of handing download_figures a made-up
+    duplicate, because the mapping is what makes this true and a made-up
+    argument would not exercise it. At 15 s per arXiv request a needless second
+    fetch is not a rounding error."""
     calls = []
 
     def fake_get(url, timeout=60, throttle=None):
@@ -176,8 +204,11 @@ def test_a_figure_is_fetched_once_even_if_referenced_twice(tmp_path, monkeypatch
         return b"x", "image/png", url
 
     monkeypatch.setattr(ah, "http_get", fake_get)
-    ok, _ = ah.download_figures(["v2/a.png", "v2/a.png"],
-                                "https://arxiv.org/html/x", tmp_path / "images")
+    md, n, mapping = ah._rewrite_image_paths(
+        "![one](2401.00506v2/a.png)\n![again](2401.00506v2/a.png)\n", "2401.00506")
+    assert n == 2 and len(mapping) == 1
+
+    ok, _ = ah.download_figures(mapping, "https://arxiv.org/html/x", tmp_path / "images")
     assert ok == 1 and len(calls) == 1
 
 
@@ -188,12 +219,13 @@ def test_one_failed_figure_does_not_abort_the_rest(tmp_path, monkeypatch):
         return b"ok", "image/png", url
 
     monkeypatch.setattr(ah, "http_get", fake_get)
-    ok, failures = ah.download_figures(["v2/bad.png", "v2/good.png"],
+    ok, failures = ah.download_figures({"v2/bad.png": "x-bad.png",
+                                        "v2/good.png": "x-good.png"},
                                        "https://arxiv.org/html/x", tmp_path / "images")
 
     assert ok == 1
     assert len(failures) == 1 and "bad.png" in failures[0]
-    assert (tmp_path / "images" / "good.png").exists()
+    assert (tmp_path / "images" / "x-good.png").exists()
 
 
 def test_figure_urls_resolve_against_the_page_url(tmp_path, monkeypatch):
@@ -209,7 +241,7 @@ def test_figure_urls_resolve_against_the_page_url(tmp_path, monkeypatch):
         return b"x", "image/png", url
 
     monkeypatch.setattr(ah, "http_get", fake_get)
-    ah.download_figures(["2401.00506v2/sbs.jpg"],
+    ah.download_figures({"2401.00506v2/sbs.jpg": "2401.00506-sbs.jpg"},
                         "https://arxiv.org/html/2401.00506v2", tmp_path / "images")
 
     assert seen == ["https://arxiv.org/html/2401.00506v2/sbs.jpg"]
@@ -219,12 +251,14 @@ def test_arxiv_site_chrome_is_not_mistaken_for_a_figure():
     """The rendering also carries funder logos and UI glyphs as /static/... paths."""
     src = ("![](/static/base/1.0.1/images/icons/smileybones-small.svg)\n"
            "![Refer to caption](2608.20333v1/torus.png)\n")
-    md, n, targets = ah._rewrite_image_paths(src, "2608.20333")
+    md, n, mapping = ah._rewrite_image_paths(src, "2608.20333")
 
     assert n == 1
-    assert targets == ["2608.20333v1/torus.png"]
-    assert "/static/base/1.0.1/images/icons/smileybones-small.svg" in md
-    assert "![Refer to caption](images/torus.png)" in md
+    assert mapping == {"2608.20333v1/torus.png": "2608.20333-torus.png"}
+    assert "![Refer to caption](images/2608.20333-torus.png)" in md
+    # Not downloaded into this paper's images/ — but pointed somewhere real.
+    assert ("https://arxiv.org/static/base/1.0.1/images/icons/"
+            "smileybones-small.svg") in md
 
 
 def test_raw_html_img_tags_are_rewritten_too():
@@ -232,36 +266,52 @@ def test_raw_html_img_tags_are_rewritten_too():
     real arXiv figure is. Measured on 2608.20333: both figures came through as
     <img> and only arXiv's own glyph became Markdown."""
     src = '<img src="2608.20333v1/torus.png" id="S2.F1.g1" class="ltx_graphics"/>\n'
-    md, n, targets = ah._rewrite_image_paths(src, "2608.20333")
+    md, n, mapping = ah._rewrite_image_paths(src, "2608.20333")
 
     assert n == 1
-    assert targets == ["2608.20333v1/torus.png"]
-    assert 'src="images/torus.png"' in md
+    assert mapping == {"2608.20333v1/torus.png": "2608.20333-torus.png"}
+    assert 'src="images/2608.20333-torus.png"' in md
     assert 'id="S2.F1.g1"' in md          # the rest of the tag is preserved
 
 
 def test_html_and_markdown_figures_are_both_counted():
     src = ('![cap](2608.20333v1/a.png)\n'
            '<img src="2608.20333v1/b.png" id="x"/>\n')
-    md, n, targets = ah._rewrite_image_paths(src, "2608.20333")
+    md, n, mapping = ah._rewrite_image_paths(src, "2608.20333")
 
     assert n == 2
-    assert set(targets) == {"2608.20333v1/a.png", "2608.20333v1/b.png"}
-    assert "![cap](images/a.png)" in md and 'src="images/b.png"' in md
+    assert set(mapping) == {"2608.20333v1/a.png", "2608.20333v1/b.png"}
+    assert ("![cap](images/2608.20333-a.png)" in md
+            and 'src="images/2608.20333-b.png"' in md)
 
 
-def test_html_chrome_images_are_left_alone_too():
+def test_html_chrome_images_are_not_treated_as_this_papers_figures():
     src = '<img src="/static/base/1.0.1/images/funders/logo.png" class="ds-funder-logo"/>\n'
-    md, n, targets = ah._rewrite_image_paths(src, "2608.20333")
-    assert n == 0 and targets == []
-    assert md == src
+    md, n, mapping = ah._rewrite_image_paths(src, "2608.20333")
+    assert n == 0 and mapping == {}
+    assert 'class="ds-funder-logo"' in md
+
+
+def test_site_chrome_is_pointed_at_arxiv_rather_than_left_dangling():
+    """Pandoc drags the whole page in, so the output carries arXiv's furniture
+    as site-rooted paths. Those name a filesystem root with no such file — dead
+    links dressed as working ones, and one `image-path-not-portable` finding on
+    every single arXiv paper if left that way."""
+    from magi.ingest import gates
+
+    md, _, _ = ah._rewrite_image_paths(
+        '![](/static/base/1.0.1/images/icons/smileybones-small.svg)\n'
+        '![cap](2608.20333v1/torus.png)\n', "2608.20333")
+
+    assert "](https://arxiv.org/static/base/1.0.1/images/icons/" in md
+    assert gates.check_image_refs(md) is None
 
 
 def test_a_relative_path_that_is_not_this_papers_figure_is_left_alone():
     """Only {id}v{n}/... is this paper's figure directory."""
-    md, n, targets = ah._rewrite_image_paths(
+    md, n, mapping = ah._rewrite_image_paths(
         "![x](someother/thing.png)\n", "2608.20333")
-    assert n == 0 and targets == []
+    assert n == 0 and mapping == {}
     assert md == "![x](someother/thing.png)\n"
 
 

@@ -4,6 +4,25 @@
 >
 > 最后更新：2026-08-22 · 当前阶段：**v1.12.2 已发布**（tag `v1.12.2`；版本号同步 ×5）。此前：M0–M9 全部完成。
 >
+> 2026-08-22 图片路径：三个 bug 是同一件事没人负责 (A1/A2/A3)：五条路线各自决定图片引用长什么样，没有任何一处说过它应该长什么样。于是它们互相不一致，而每一处不一致都是一个只在 commit 之后才显形的 bug。
+>
+> **A3 先修，因为它决定另外两个能不能被看见。** `check_broken_image_links` 的正则只匹配 `](images/…)`——也就是**只认得正确答案**。喂给它一条绝对暂存路径（正是 A2 的产物），它匹配到零个引用，于是报告"文档干净"。一个只认得对的形状的关口，结构上没法报告错的形状。现在拆成两条：`check_image_refs` 问"这条引用是不是所有路线约定的形状"，把 absolute / backslash / escaping / bare / elsewhere / nested 各自点名；`check_broken_image_links` 只管形状正确但文件不在的。一个问题算一条 finding，不重复报。
+>
+> **A1：arXiv-HTML 路线的图片会跨论文互相覆盖。** 两篇论文各带一张作者自己命名的 `fig1.png`，改写后都指向 `images/fig1.png`，commit 平铺进**全库共享**的 `raw/papers/images/`，后写的赢。不报错、不缺文件，就是图错了——这是最难发现的一类失败。现在文件名带论文 id（`2401.00506-fig1.png`），和 tex / MinerU 两条路线本来就在做的一致。顺带把 `_rewrite_image_paths` 的返回从"目标列表"改成"{原目标: 本地文件名}"映射，`download_figures` 直接吃这个映射——**让文档和目录没有机会对不上名字**，而不是让两处各算一遍。
+>
+> **A2：textlayer 的图片引用是绝对暂存路径。** `pymupdf4llm.to_markdown` 用你传给它的目录字符串去拼引用，而我们必须传暂存目录（否则文件落到进程工作目录里）。于是每条引用都是 `C:/…/Temp/tmpXXX/images/…`，在 staging 存在期间一切正常，commit 之后全灭。改写用的是**目录清单**而不是对路径写正则——那些路径是机器的不是我们的，用户名里一个空格或括号就能让任何 Markdown 链接模式在别人电脑上出错。
+>
+> **三处不在清单上、但属于同一个洞：**
+> - commit 复制图片是裸 `shutil.copy2`，正是 A1 真正造成伤害的地方。现在同名不同内容直接拒绝覆盖并报出来。**把守卫放在这里而不是每条路线里**，是因为它也能接住下一条我们还没写的路线；同名同内容（两篇共用一张图）不算冲突。
+> - OCR 路线从不上报 `images_dir`，所以唯一一条自己裁剪生成图片的路线，是唯一一条图片关口从来没跑过的。
+> - 五条路线里**四条**从文件名恢复 `arxiv_id`，textlayer 不恢复。后果不是美观问题：雷达按 `arxiv_id` 给库做指纹，这条路线进来的论文对它隐形，会一直被当成新候选推出来。MinerU 源码里就贴着一条注释说它自己犯过这个 bug——**在一条路线上修好、不回头看其他路线，就是一个 bug 变成四个的过程。**
+>
+> 新增 `src/magi/ingest/image_refs.py`——约定写在一处：**每条引用都是 `images/<name>`，POSIX 相对路径，一层，`<name>` 带文档 slug**。相对是因为 md 和图片要一起从 staging 搬进 `raw/`；带 slug 是因为目的地是全库共享的，"在本文档内唯一"不算唯一。
+>
+> 验证不止于"测试绿了"：把守卫拆掉重跑，确认 collision 测试会红；把 textlayer 的改写摘掉重跑，确认端到端测试会红——**而且它是被新关口拦下的**，A3 修好之后 A2 自己变成了可见 finding，正是当初判断它值得先修的理由。
+>
+> 测试 802 → **846**（+44：`test_image_refs.py` 21、gate 11、batch 9、arxiv-html 3。batch 那 9 条里有一条用真 PDF 跑完整路线、再删掉 staging 回头看）。
+>
 > 2026-08-22 「在哪儿启动 magi ui 影响什么」——一个问题问出两个真 bug (v1.12.2)：用户随口一问，查下去发现启动目录管了两件它不该管的事。
 >
 > **先说不影响的，因为我一开始怀疑错了。** 我 grep `workspace=` 没搜到 graph/browse 和 doc 的调用，以为面板会串库。**是 grep 写错了**——那几处用 `URLSearchParams` 拼参数，字面量里当然没有 `workspace=`。实际六个 workspace 端点（graph/browse、doc、search、tasks、pm、radar）**全都显式传 workspace**；`launchJob` 永远发 `kb: state.workspace`，没选工作区直接拒绝；任务库是从**选中的**工作区往上走找的。所以面板数据和操作落点只认顶栏选择器，跟启动目录无关。合法影响的只有两件便利性：首次加载预选哪个工作区，以及「Browsing」徽章亮不亮（它比的就是这个字段）。
@@ -248,18 +267,17 @@ adar-stress-ws`（67 篇真实论文 + 索引 + 真实 harvest/citation-gap 产�
 
 > 最后整理：2026-08-22（v1.12.2 之后）。**都有复现证据**，不是猜测；每条注明证据、位置和建议改法。
 > 修掉一条就从这里删掉，并在当天的 dated entry 里写清楚。
+> **已修：A1 / A2 / A3**（2026-08-22，见当天条目）。编号不重排——A4 以后保持原号，免得旧讨论里的引用失效。
 
 ### A. 已确认的 bug
 
 | # | 问题 | 证据 | 位置 | 建议 |
 |---|---|---|---|---|
-| A1 | **arXiv-HTML 路线的图片会跨论文互相覆盖** | 实测：论文 A(2401.00506) 与 B(2502.11111) 各有一张 `fig1.png`，改写后**两篇的 markdown 都指向 `images/fig1.png`**；commit 按 basename 平铺进 `raw/papers/images/`，后者覆盖前者 → A 显示 B 的图 | `arxiv_html.py:_rewrite_image_paths` 用 `os.path.basename(target)`；`batch.py` commit 段平铺复制 | 加 `{slug}-` 前缀，`tex2md.py:242` 和 `mineru.py:181` 已经是这么做的。**这是 rung 1，最优先的路线** |
-| A2 | **textlayer 产出的图片链接是绝对临时路径，commit 后全断** | 实测：`pymupdf4llm` 吐出 `![](C:/Users/.../Temp/tmpXXX/images/xxx.png)`；commit 只复制文件、**不改写路径**，staging 一清链接全死（图片文件在 `raw/` 里，没人指得着） | `batch.py:108` 调 `to_markdown(write_images=True, image_path=…)` 后直接落盘，无改写 | 改写成 `images/<basename>`，与其余四条路线的产出形状一致 |
-| A3 | **专门防 A2 的关口结构上看不见 A2** | 实测：绝对路径喂进去，`check_broken_image_links` 返回**"干净，没问题"** | `gates.py:126` 正则只匹配 `](images/…)` 相对路径 | 同时匹配绝对路径与裸 `<img src>`。**这条比 A2 更值得先修**——修好它，A2 会自己变成可见的 finding，下一个我们没想到的路线它也接得住 |
 | A4 | **本地 PDF 永远走不到 textlayer** | 实测：真实存在的本地 PDF → `source_type='file'` → 起始 rung `mineru`；`next_rung('mineru')='ocr'`，而 textlayer 在阶梯上位于 mineru **上方**，掉不上去。完整链：`mineru → ocr → None` | `batch.py:_starting_route` 只有三条规则，其余一律 `mineru` | `source_type='file'` 且后缀 `.pdf` 时返回 `textlayer`，让闸门自己判；判不过正常掉 `mineru`。代价只有一次 PyMuPDF 打开文件。**影响面：用户 758 条 Zotero 里 567 条带 PDF** |
 | A5 | **两条 PDF 入口对同一份文件给出不同路线** | `magi ingest auto` 走 `classify()`，**会**用 textlayer；`magi ingest batch-run` 走阶梯，**跳过** textlayer | `auto.py:classify` vs `batch.py:_starting_route` | 同一个决策实现了两次。A4 修完顺手合并成一处 |
 | A6 | **`except ImportError` 太窄，会让整个 `ingest auto` 崩掉** | 实测：`pymupdf4llm` 在 onnxruntime 1.15.1 上抛 `onnxruntime.capi.…Fail: Unsupported model IR version: 10`，**不是 ImportError** → 逃出 `classify()` | `auto.py:52`、`batch.py:98` | 改成接住任何异常并给出可操作提示（"升级 onnxruntime"）。顺带给 `[textlayer]` extra 的 onnxruntime 写版本下限 |
 | A7 | **拒绝重排队时硬编码 `source_type="arxiv"`** | 一份本地 PDF 被拒绝降级后，以 `source_type="arxiv"` 重新入队，`value` 却是文件路径 | `batch.py:279` | 目前不炸（`route=nxt` 显式给了，不走 `_starting_route`），但账本记的是假的，将来任何按 source_type 分流的逻辑都会踩到 |
+| A8 | **OCR 路线的 `summary` 是空字符串** | 其余四条都写明自己是哪条路线转的（`Converted from arXiv HTML (…)` / `…from LaTeX/arXiv source.` / `…via MinerU Cloud API.` / `…from the PDF's own text layer (no OCR).`），OCR 写 `""` | `ocr/agent.py:334` | 补一句路线说明。纯一致性问题，不影响功能——但读一份 raw 文档时，"它是怎么进来的"是判断可信度的第一个问题，四条路线答得出、一条答不出 |
 
 ### B. 质量问题（不是 bug，是选择）
 
