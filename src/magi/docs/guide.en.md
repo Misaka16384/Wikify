@@ -267,7 +267,7 @@ The plugin and `magi skills install` coexist — one gives you `/magi:skill-name
 **Any other agent** — the workspace's `CLAUDE.md` and `AGENTS.md` (identical content, two copies) are the onboarding protocol: run `magi sync` on entry, which commands map to which core, use `magi guide --search` when stuck, and never answer research questions from memory. Any host that reads either file can work here; if it reads neither, pasting `magi --help` is enough.
 
 > [!EXPECT]
-> `magi skills where` shows 19/19 on the project rows. Start a fresh agent session **from that workspace directory** and the skills appear under `/` (Claude Code, opencode), or just say "ingest the papers in inbox" and watch it act. `magi setup --check` also shows the per-CLI count for the workspace you are in.
+> `magi skills where` shows 20/20 on the project rows. Start a fresh agent session **from that workspace directory** and the skills appear under `/` (Claude Code, opencode), or just say "ingest the papers in inbox" and watch it act. `magi setup --check` also shows the per-CLI count for the workspace you are in.
 
 > [!FIX]
 > - **Installed but not showing**: skills are scanned at startup — **start a new session from the workspace directory** (project skills are only visible when the CLI is launched there).
@@ -974,7 +974,7 @@ magi kb unregister <name>      # Remove only the registry entry, files untouched
 > - `sqlite-vec unavailable` → The vector extension failed to load (common on macOS when the system Python doesn't support loading extensions). Use uv/Homebrew Python, or fall back to keyword search.
 
 > [!NOTE]
-> `magi index` has no `--force` / `--rebuild`, and no clear-the-index command; if you really need a clean slate, delete `output/index.db` and rerun.
+> `magi index --rebuild` deletes the index and builds it again — the clean slate. You need it after changing the embedding model, because the vector table is created at a fixed width and cannot hold vectors of a different size. Deleting `output/index.db` by hand does the same thing; the index is derived from `wiki/` and `raw/`, so nothing of yours is lost either way.
 > `magi grep "<regex>" <files...> [-i]` is a different thing entirely — it doesn't read the index, it just does regex line-matching against the files you name (Python regex syntax, JSON output, capped at 200 matches, with a 5-second hang guard). Use it when there are only a few files and you need an exact literal match; use `magi search` when you want to "find related content."
 
 ---

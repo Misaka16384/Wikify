@@ -37,21 +37,43 @@ back to the commit body.
 
 Prepend a dated entry to `ROADMAP.md` — it is the living handoff document.
 
+**Wait for the simple index before upgrading anything.** `pypi.org/pypi/<pkg>/json`
+shows the new version within seconds of publishing; `pypi.org/simple/<pkg>/`,
+which is what every resolver actually reads, lags it by a few minutes. Until it
+catches up, `pipx upgrade` correctly reports "already at latest version" — the
+previous one really is the latest as far as the index is concerned:
+
+```powershell
+curl -s https://pypi.org/simple/magi-research/ | Select-String "X.Y.Z"
+```
+
 Then upgrade the local install and restart any dashboards:
 
 ```powershell
-pipx install --force "magi-research==X.Y.Z"          # or, with uv:
+pipx upgrade magi-research                           # or, with uv:
 uv tool install --force --refresh "magi-research==X.Y.Z"
 ```
 
-> Pin the exact version, and use `--force` rather than the plain
-> `pipx upgrade --install` the docs give users: right after publishing, an
-> index cache can still resolve the previous release, and `--force` (with
-> uv, `--refresh`) is what defeats that. Users never need this.
+> [!WARN]
+> **Do not use `pipx install --force`.** Under pipx's uv backend it fails with
+> `A virtual environment already exists ... Use --clear to replace it`, then
+> `Not removing existing venv ... because it was not created in this session`,
+> prints `Installing to existing venv` and **leaves the old version in place**.
+> It exits 1, but the message reads like success. Verified on v1.12.0 and
+> reproduced in an isolated `PIPX_HOME`: `pipx install --force "cowsay==6.1"`
+> over an existing 6.0 left 6.0 installed.
+>
+> To pin an exact version with pipx, uninstall first:
+> `pipx uninstall magi-research; pipx install "magi-research==X.Y.Z"`.
+> To simply take the newest, `pipx upgrade magi-research` works.
+> `uv tool install --force --refresh` has no such problem.
 
 > If the install fails with `failed to remove directory ... Lib: 拒绝访问`, a
 > `magi ui` process is holding it. Stop every one of them first — a half-failed
-> install leaves the CLI broken.
+> install leaves the CLI broken. On Windows the holders are easy to miss: the
+> shim, the venv's python, and any python that launched it all keep the file
+> open, so kill the tree (`taskkill /PID <pid> /T /F`), not just the one you see
+> listening on the port.
 
 > Do not verify a release by installing it with the *other* manager. pipx and
 > uv share `~/.local/bin`, so uninstalling the one you tested with deletes the

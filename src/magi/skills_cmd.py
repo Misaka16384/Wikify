@@ -3,7 +3,7 @@
 MAGI's skills are host-agnostic prose: they teach *when and why* to run the
 deterministic ``magi`` commands. What differs per host is only where the file
 goes and what wrapper it needs to become a slash command. This module owns
-that table, so every supported CLI gets the same 18 skills instead of Claude
+that table, so every supported CLI gets the same skills instead of Claude
 Code getting them through the plugin and everyone else copying directories by
 hand.
 

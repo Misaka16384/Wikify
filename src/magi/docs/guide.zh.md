@@ -267,7 +267,7 @@ claude plugin install <本地仓库目录>      # 本地开发模式
 **任何其他 agent**——工作区里的 `CLAUDE.md` 和 `AGENTS.md`（两份内容完全一致）就是入场协议：它告诉 agent 进场先跑 `magi sync`、三核对应哪些命令、卡住时用 `magi guide --search` 查手册，以及「不许凭记忆回答研究问题」。只要宿主会读其中之一就能开工；实在不认，把 `magi --help` 贴给它也行。
 
 > [!EXPECT]
-> `magi skills where` 里 project 那几行显示 18/18；在**这个工作区目录里**重开一个 agent 会话，输入 `/` 能看到技能（Claude Code / opencode），或者直接说「摄入 inbox 里的论文」它就动手。`magi setup --check` 的体检表也会显示当前工作区各 CLI 的技能数。
+> `magi skills where` 里 project 那几行显示 20/20；在**这个工作区目录里**重开一个 agent 会话，输入 `/` 能看到技能（Claude Code / opencode），或者直接说「摄入 inbox 里的论文」它就动手。`magi setup --check` 的体检表也会显示当前工作区各 CLI 的技能数。
 
 > [!FIX]
 > - **装完看不到**：技能是启动时扫描的——**在工作区目录里重开一个会话**（项目级技能只在从该目录启动时可见）。
@@ -965,7 +965,7 @@ magi kb unregister <名字>      # 只删注册项，不动文件
 > - `sqlite-vec unavailable` → 向量扩展加载失败（macOS 上常见于系统 Python 不支持加载扩展）。用 uv/Homebrew 的 Python，或接受关键词检索。
 
 > [!NOTE]
-> `magi index` 没有 `--force` / `--rebuild`，也没有清库命令；真要重来就删掉 `output/index.db` 再跑。
+> `magi index --rebuild` 会删掉索引重建，这就是「从头来」。换嵌入模型之后必须跑一次——向量表是按固定宽度建的，装不下不同维度的向量。手动删 `output/index.db` 效果一样；索引是从 `wiki/`、`raw/` 推导出来的派生数据，两种做法都不会丢东西。
 > `magi grep "<正则>" <文件...> [-i]` 是另一回事——它不读索引，就是对指定文件做正则行匹配（Python 正则语法，输出 JSON，最多 200 条，带 5 秒防卡死保护）。文件很少、要精确匹配字面量时用它；要「找相关内容」用 `magi search`。
 
 ---
