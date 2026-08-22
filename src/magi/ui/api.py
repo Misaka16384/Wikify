@@ -772,7 +772,26 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             if err:
                 raise HTTPException(status_code=404, detail=err)
         else:
-            target = _resolve_workspace(None)
+            # Omitting the library is fine when the server was started inside a
+            # workspace — that is unambiguous, and every other endpoint reads
+            # an unspecified workspace the same way.
+            #
+            # It is not fine when it was not. `_resolve_workspace` then falls
+            # through to bare `Path.cwd()`, so the paper would be filed into
+            # whatever directory `magi ui` happened to be launched in — which
+            # is what a browser extension whose library picker failed to load
+            # used to do, silently. A paper in the wrong library is worse than
+            # one that was never queued: it is not lost, it is somewhere else,
+            # and nobody looks there.
+            target = find_workspace_root()
+            if target is None:
+                known = sorted(load_registry().get("kbs", {}))
+                raise HTTPException(
+                    status_code=400,
+                    detail="this server was not started inside a workspace, so "
+                           "there is no default — name the library to queue "
+                           "into: " + (", ".join(known) if known
+                                       else "none are registered"))
         if target is None:
             raise HTTPException(status_code=400, detail="no workspace to queue into")
 
@@ -1494,12 +1513,31 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
 
     @app.get("/api/docs/readme")
     def get_readme_docs(lang: Optional[str] = Query(None)) -> dict:
-        # Three-level fallback so an installed `magi ui` (uv tool / pip) still
-        # has docs: repo checkout -> wheel metadata long-description ->
-        # GitHub raw (online).
+        # Four-level fallback so an installed `magi ui` still has docs:
+        # packaged copies -> repo checkout -> wheel metadata -> GitHub raw.
+        #
+        # The packaged copies come first because they are the only source that
+        # works for everyone. Metadata carries the long_description, which is
+        # README.md alone — so before this, every user who did not launch from
+        # a git checkout got a Chinese README and a *blank* English tab.
         readme_zh = ""
         readme_en = ""
         source = None
+
+        try:
+            import importlib.resources as _res
+
+            import magi.docs as _docs
+
+            zh = _res.files(_docs) / "readme.zh.md"
+            en = _res.files(_docs) / "readme.en.md"
+            if zh.is_file():
+                readme_zh = zh.read_text(encoding="utf-8")
+                if en.is_file():
+                    readme_en = en.read_text(encoding="utf-8")
+                source = "packaged"
+        except Exception:
+            pass
 
         candidates = []
         root = Path(__file__).resolve()
@@ -1507,7 +1545,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             root = root.parent
             candidates.append(root)
         candidates.append(Path.cwd())
-        for base in candidates:
+        for base in candidates if not readme_zh else []:
             p_zh = base / "README.md"
             # Marker for "this is the repo checkout, not a random cwd". Uses the
             # package source tree because skills/ moved inside the package.

@@ -99,6 +99,14 @@ async function init() {
 $("send").addEventListener("click", async () => {
   const tab = await currentTab();
   const library = $("library").value;
+  // An empty picker means the library list never loaded — wrong port, server
+  // down, nothing registered. Sending anyway used to queue into whichever
+  // directory `magi ui` was started in; the server refuses that now, and
+  // saying so here saves a round trip and names the real problem.
+  if (!library) {
+    status("No library to queue into — check the port above, or register one with 'magi kb register'.", "err");
+    return;
+  }
   $("send").disabled = true;
   status("queueing…");
 
