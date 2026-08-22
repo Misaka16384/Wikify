@@ -1,6 +1,6 @@
 # MAGI 开发路线图（动态文档）
 
-> **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
+> **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。**手上没活时，先看"待修问题"那一节**——那里每条都有复现证据。
 >
 > 最后更新：2026-08-22 · 当前阶段：**v1.12.2 已发布**（tag `v1.12.2`；版本号同步 ×5）。此前：M0–M9 全部完成。
 >
@@ -243,6 +243,59 @@ adar-stress-ws`（67 篇真实论文 + 索引 + 真实 harvest/citation-gap 产�
 ## 项目一句话
 
 **MAGI** = agent-native 科研工作环境。三态架构：Beads 管 work state（在做什么），Wikify 子系统管 epistemic state（知道什么、为何可信），自建检索层管 retrieval state（该读什么）。人是驾驶员，LLM 是机体，确定性 CLI 是拘束具，`magi sync` 输出同步率。
+
+## 待修问题（已确认，未动手）
+
+> 最后整理：2026-08-22（v1.12.2 之后）。**都有复现证据**，不是猜测；每条注明证据、位置和建议改法。
+> 修掉一条就从这里删掉，并在当天的 dated entry 里写清楚。
+
+### A. 已确认的 bug
+
+| # | 问题 | 证据 | 位置 | 建议 |
+|---|---|---|---|---|
+| A1 | **arXiv-HTML 路线的图片会跨论文互相覆盖** | 实测：论文 A(2401.00506) 与 B(2502.11111) 各有一张 `fig1.png`，改写后**两篇的 markdown 都指向 `images/fig1.png`**；commit 按 basename 平铺进 `raw/papers/images/`，后者覆盖前者 → A 显示 B 的图 | `arxiv_html.py:_rewrite_image_paths` 用 `os.path.basename(target)`；`batch.py` commit 段平铺复制 | 加 `{slug}-` 前缀，`tex2md.py:242` 和 `mineru.py:181` 已经是这么做的。**这是 rung 1，最优先的路线** |
+| A2 | **textlayer 产出的图片链接是绝对临时路径，commit 后全断** | 实测：`pymupdf4llm` 吐出 `![](C:/Users/.../Temp/tmpXXX/images/xxx.png)`；commit 只复制文件、**不改写路径**，staging 一清链接全死（图片文件在 `raw/` 里，没人指得着） | `batch.py:108` 调 `to_markdown(write_images=True, image_path=…)` 后直接落盘，无改写 | 改写成 `images/<basename>`，与其余四条路线的产出形状一致 |
+| A3 | **专门防 A2 的关口结构上看不见 A2** | 实测：绝对路径喂进去，`check_broken_image_links` 返回**"干净，没问题"** | `gates.py:126` 正则只匹配 `](images/…)` 相对路径 | 同时匹配绝对路径与裸 `<img src>`。**这条比 A2 更值得先修**——修好它，A2 会自己变成可见的 finding，下一个我们没想到的路线它也接得住 |
+| A4 | **本地 PDF 永远走不到 textlayer** | 实测：真实存在的本地 PDF → `source_type='file'` → 起始 rung `mineru`；`next_rung('mineru')='ocr'`，而 textlayer 在阶梯上位于 mineru **上方**，掉不上去。完整链：`mineru → ocr → None` | `batch.py:_starting_route` 只有三条规则，其余一律 `mineru` | `source_type='file'` 且后缀 `.pdf` 时返回 `textlayer`，让闸门自己判；判不过正常掉 `mineru`。代价只有一次 PyMuPDF 打开文件。**影响面：用户 758 条 Zotero 里 567 条带 PDF** |
+| A5 | **两条 PDF 入口对同一份文件给出不同路线** | `magi ingest auto` 走 `classify()`，**会**用 textlayer；`magi ingest batch-run` 走阶梯，**跳过** textlayer | `auto.py:classify` vs `batch.py:_starting_route` | 同一个决策实现了两次。A4 修完顺手合并成一处 |
+| A6 | **`except ImportError` 太窄，会让整个 `ingest auto` 崩掉** | 实测：`pymupdf4llm` 在 onnxruntime 1.15.1 上抛 `onnxruntime.capi.…Fail: Unsupported model IR version: 10`，**不是 ImportError** → 逃出 `classify()` | `auto.py:52`、`batch.py:98` | 改成接住任何异常并给出可操作提示（"升级 onnxruntime"）。顺带给 `[textlayer]` extra 的 onnxruntime 写版本下限 |
+| A7 | **拒绝重排队时硬编码 `source_type="arxiv"`** | 一份本地 PDF 被拒绝降级后，以 `source_type="arxiv"` 重新入队，`value` 却是文件路径 | `batch.py:279` | 目前不炸（`route=nxt` 显式给了，不走 `_starting_route`），但账本记的是假的，将来任何按 source_type 分流的逻辑都会踩到 |
+
+### B. 质量问题（不是 bug，是选择）
+
+| # | 问题 | 证据 | 建议 |
+|---|---|---|---|
+| B1 | **`pymupdf4llm` 的 `write_images=True` 导出的是"每个嵌入图像对象"，不是"图"** | 实测一篇 55 页论文吐出 **403 张**（约每页 7 张）——TeX 论文里每个矢量片段都被单独导出 | 这条路本来就是给"无数学的散文文档"用的，图不是重点。建议默认 `write_images=False`；真要图，本地 OCR 那条（按图标题锚定裁剪，4 篇实测 85/86）好得多 |
+| B2 | **`pymupdf4llm` 把表格塌成一行** | 实测：`Category Kept Excluded heightCorrespondence 412 38 …`，`\hline` 还漏成字面量 `height` | `to_markdown` 签名是 `(*args, **kwargs)`，试过的 table 参数都无效。暂时接受，或在 finding 里提示"本文含表格，textlayer 路线会丢结构" |
+
+### C. 已实测否定的方案（别再重复调研）
+
+| 方案 | 结论 | 证据 |
+|---|---|---|
+| **阿里 DocMind V2**（免鉴权端点） | **不建议进阶梯。** 端点是真的、无需 AccessKey、可达；但公式回来是扁平化字符汤**并且被套进 `$$`**——看起来像 LaTeX、实际是坏的，正是本管线要绕开的失败模式 | 实测（自造 PDF，未发用户文件）：`\hat{H}=\sum_i J_i\sigma^z_i\sigma^z_{i+1}` → `H=[Joo1`；`\frac{1}{n}\sum…=\int_0^1 f dx` → `$$ 1lim f(x) dx(1) n→oo n2()-[ $$`；矩阵 → `$$ M=(aprγγ66), $$`。`enhancementMode: VLM` **输出逐字节相同**，免费端点上被忽略 |
+| 同上，无数学文档 | 也比 pymupdf4llm 差：标题层级全塌成 `#`、列表是字面 `●`、表格被**当成公式**包进 `$$` | 同一份对照文档 |
+| 同上，其他障碍 | 输出是临时签名 OSS 链接、默认 `http://` 明文；**16% 的用户 PDF 超过 3.75 MB 上限**（626 个里 99 个，90 分位 6.1 MB）；官方文档查不到"10 万 credits/天 / 50 credits/页"这三个数字 | 实测 + 官方文档核查 |
+| **未测**：DocMind 在**扫描件**上的表现 | 唯一还可能有价值的场景。若明显强过本地 `glm-ocr`，有资格做 rung 5 的替代 | 手头没有合适的扫描 PDF |
+
+### D. 架构债（判断，不是 bug）
+
+| # | 观察 | 为什么要紧 |
+|---|---|---|
+| D1 | **Hub / 工作区 / 知识库 = 三个词对两个半东西** | 作者本人说"我都晕了"。而且它一直在漏：为它加了作用域徽章、hub-level 徽章、解释弹窗、任务归属句、检索范围行。**当你为一个概念加解释性 UI 时，通常是概念错了。** 可考虑：知识库不是第三种东西（=已注册的工作区）；Hub 目前唯一实质作用是放共享任务库 |
+| D2 | **配置有两套表示，需要代码同步** | 关任务追踪有 `profile: kb-only` 和 `optional_features.tasks` 两处，`set_feature()` 里专门写了同步逻辑还配了测试。**需要代码维持一致的两份状态迟早会不一致。** 现在动成本最低 |
+| D3 | **派生数据 vs 原创数据没有统一标记** | `graph.db`/`index.db` 可再生，`raw/`/`wiki/` 不可，`output/ingest/` 是事务日志。每次要动什么都得逐个推理。一条明确约定（"`output/` 下除 `ingest/` 全部可再生"）能让"重建吧"变成零风险、备份建议变成一句话 |
+| D4 | **WebUI 在用 JS 重新实现后端逻辑** | `countTasks()` vs `bd_status_summary()`、功能开关判断两处、i18n 抄了一遍 CLI 文案。任务面板显示 0 那个 bug 本质就是这种漂移。判据：**一段 JS 在做判断而不是渲染，它大概率该在 Python 里** |
+| D5 | **Skill 是没有测试的代码，而且单位字符代价最高** | 那次烧掉用户周额度的事故，起点是 `wiki_ingest/SKILL.md` 里一句话。`test_skill_conventions.py` 只检查**形式**（不许写死宿主工具名、必须有提问原语），检查不了**行为**。可行起点：给每个 skill 写下"绝不应该做的三件事"，至少让它们在文本层面可检测 |
+| D6 | **上游依赖承重且无版本承诺，但没有降级表** | arXiv HTML 是 beta、ar5iv 是 2024-02 冻结快照、S2 匿名限额无文档（实测拒绝 295、100 可以）、PyPI simple index 比 JSON API 慢几分钟。建议显式写一张「每个上游挂掉时产品退化成什么样、用户看到什么」的表——既是设计文档也是测试清单 |
+
+### E. 测量缺口（知道自己没测）
+
+- rung 2（tex/pandoc）的成功率只在**两篇老论文**上试过，两篇都暴露了缺陷（一篇静默丢 6 张图，一篇 pandoc 直接死在 `\vskip`）。完整样本等 rung 1 上线后看 rung 2 真实流量再说
+- arXiv 覆盖率测量**没取到** pre-2000 的原生 HTML 桶和非物理学科桶
+- 本地 OCR（rung 5）在数学上的质量**从未测过**——`glm-ocr` 没有公式专项，也不在任何 benchmark 里。原计划的 0c 一直没做
+- DocMind 在扫描件上的表现（见 C）
+
+---
 
 ## 锁定决策（勿重新讨论）
 
