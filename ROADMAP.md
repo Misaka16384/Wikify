@@ -2,7 +2,25 @@
 
 > **本文档是活的交接文档。** 任何 agent 接手工作前必读；完成一步就更新对应条目（勾选 checkbox、追加 Status 注记）。架构定案见下方"锁定决策"，不要重新讨论已锁定项。
 >
-> 最后更新：2026-08-21 · 当前阶段：**v1.12.0 已发布**（tag `v1.12.0`；版本号同步 ×5）。此前：M0–M9 全部完成。
+> 最后更新：2026-08-22 · 当前阶段：**v1.12.1 已发布**（tag `v1.12.1`；版本号同步 ×5）。此前：M0–M9 全部完成。
+>
+> 2026-08-22 发布流程自证其伪，以及文档一致性 (v1.12.1)：纯文档修正——但手册是**打包进 wheel 里**的（`magi guide` 读的就是它），所以不发版用户拿不到。
+>
+> **① `RELEASING.md` 里两条写着的东西，被真发一次版当场推翻。**
+>
+> 其一，**`pipx install --force` 在这台机器上根本不干活**。pipx 的 uv 后端拒绝清理一个不是本次会话建的 venv：先报 `A virtual environment already exists ... Use --clear`，再报 `Not removing existing venv ... because it was not created in this session`，然后打印 `Installing to existing venv`——**旧版本原地不动**。它 exit 1，但那句话读起来像成功。在隔离的 `PIPX_HOME` 里复现过：对着已装的 `cowsay==6.0` 跑 `pipx install --force "cowsay==6.1"`，装完还是 6.0。文档改成明确警告不要用，并给出两条**实测可用**的：要最新用 `pipx upgrade`，要精确钉版本先 `pipx uninstall` 再 `pipx install "pkg==X.Y.Z"`。
+>
+> 其二，**"刚发完版解析到旧版本"不是本地缓存**。原文归因于 index cache，开的药方是 `--force` / `--refresh`。真实原因是 `pypi.org/simple/<pkg>/`（**所有解析器实际读的那个**）比 JSON API 慢好几分钟——所以 `pipx upgrade` 报 "already at latest 1.11.0" 是**对的**，本地加什么 flag 都没用。当时轮询 simple index 约 5 分钟后 1.12.0 才出现，出现之后一次就升上去了。文档改成"先看 simple index 再升"。
+>
+> 另外补了一条 Windows 细节：shim、venv 里的 python、以及拉起它的那个 python **三者都持有 magi.exe**，所以半失败的安装要杀**进程树**（`taskkill /PID <pid> /T /F`），只杀那个在监听端口的不够。
+>
+> **② 审计翻出两处自相矛盾，都比这次发布更老。**
+> - 两份手册都先教 `magi index --rebuild`，**350 行之后**又白纸黑字写"`magi index` 没有 `--force` / `--rebuild`"。这个 flag 是真的（v1.12.0 加的）。此前那条测试只检查"提到了这个 flag"——而一个同时否认它的页面，照样满足这个检查。
+> - **三处硬编码的技能数，三个不同的数字，没一个对**：英文手册写 19/19，中文写 18/18，`skills_cmd.py` 的 docstring 写 18。实际是 **20**。
+>
+> **③ `tests/test_doc_consistency.py`（21 条）把线钉住**：所有面向用户的文档只给同一条安装命令；那条坏掉的写法只允许出现在维护者文档里、且只能作为警告；中英两份手册**指令集合必须一致**——比较的是"命令骨架"（动词 + flag 名），因为 `magi search "anyon statistics"` 和 `magi search "任意子统计"` 是同一条指令的正确本地化，不是漂移（这条测试我前两版写错了，错的是测试不是文档）；安装脚本必须真的跑手册宣称它跑的那条命令；技能数**对着代码查**而不是对着散文查。两条新守卫都先注入真 bug 看着它们失败，再留下。
+>
+> 测试 772 → **793**。用户决定：`radar-stress-ws` 保留在注册表里，留作以后的测试库。
 >
 > 2026-08-21 云端向量、任务可见可管、玻璃材质塌成一块灰 (v1.12.0)：用户一次提了六条，全部落地。
 >
