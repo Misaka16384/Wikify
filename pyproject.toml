@@ -51,7 +51,15 @@ test = ["pytest>=8.0", "httpx2>=2.0"]
 # not free: pymupdf4llm pulls pymupdf_layout, which pulls onnxruntime. The
 # *detection* half — deciding whether a PDF even has a usable text layer, which
 # saves a MinerU token or a GPU minute — runs on PyMuPDF alone and is always on.
-textlayer = ["pymupdf4llm>=0.0.17"]
+#
+# The onnxruntime floor is ours to declare because nobody else does:
+# pymupdf_layout requires a bare `onnxruntime` with no version specifier at
+# all, so pip is free to leave a years-old one in place next to the models it
+# ships. Measured: onnxruntime 1.15.1 raises `Fail: Unsupported model IR
+# version: 10, max supported IR version: 9` on import, which is not an
+# ImportError and took `ingest auto` down with it. IR 10 is ONNX 1.16, and
+# onnxruntime 1.18.0 is the first release to bundle it.
+textlayer = ["pymupdf4llm>=0.0.17", "onnxruntime>=1.18"]
 
 [project.urls]
 Homepage = "https://github.com/Misaka16384/magi"

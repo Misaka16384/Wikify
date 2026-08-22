@@ -250,7 +250,7 @@ Trigger via slash commands in your agent (namespaced `magi:` under the Claude Co
 | Phase | Skill | What it does |
 |---|---|---|
 | Setup | `wiki_hub_init` / `wiki_init` | scaffold the hub / a topic workspace |
-| Ingest | `wiki_ingest` | PDF/LaTeX/URL → Markdown (MinerU cloud or native vision; put your MinerU token in the workspace `config.yaml` under `ocr.mineru_api_token`) |
+| Ingest | `wiki_ingest` | PDF/LaTeX/URL → Markdown, routed down a ladder: arXiv HTML → LaTeX source → the PDF's own text layer → MinerU cloud → local OCR. **Native vision is not on the ladder** — it bills per page and has burned a user's entire weekly quota, so it runs only after you have seen the page count and asked for it. Put your MinerU token in the workspace `config.yaml` under `ocr.mineru_api_token` |
 | Ingest | `wiki_ingest_ocr` | fully local OCR route (Ollama `glm-ocr`) |
 | Ingest | `wiki_inbox` | links / DOIs / citations / screenshots -> queued through the deterministic pipeline, output waits for your approval (`magi ingest url` + `batch-*`) |
 | Compile | `wiki_compile` | raw sources → reference + concept cards (closes the bd loop: `magi pm backlog-sync`'s `magi-compile` label) |

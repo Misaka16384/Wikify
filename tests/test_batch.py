@@ -452,6 +452,88 @@ def test_the_ocr_route_reports_its_images_directory(ws, monkeypatch, tmp_path):
 # Reject means "try the next rung down"
 # --------------------------------------------------------------------------
 
+def test_a_local_pdf_starts_on_the_free_route(ws, tmp_path):
+    """A4. `_starting_route` sent every non-arXiv source to `mineru`, and
+    because `textlayer` sits *above* `mineru` on the ladder nothing could fall
+    back up to it — so a local PDF could not reach the free route at all. Of
+    758 items in the library this was built for, 567 carry a stored PDF."""
+    pymupdf = pytest.importorskip("pymupdf")
+    prose = ("This section reviews the literature on institutional adoption "
+             "and the outcomes reported across the surveyed programmes. ")
+    doc = pymupdf.open()
+    for n in range(6):
+        doc.new_page().insert_textbox(pymupdf.Rect(60, 60, 540, 700),
+                                      f"Section {n}\n\n" + prose * 14, fontsize=10)
+    pdf = tmp_path / "survey.pdf"
+    doc.save(str(pdf))
+    doc.close()
+
+    entry = types.SimpleNamespace(route=None, source_type="file", value=str(pdf))
+    route, why = batch._starting_route(entry)
+
+    assert route == "textlayer", why
+    # And the ladder below it is intact, so a wrong guess still degrades.
+    assert ledger.next_rung("textlayer") == "mineru"
+
+
+def test_a_retry_keeps_the_rung_it_was_queued_for(ws):
+    """A forced route is how "reject" means "try the next one down"; the
+    router must not overrule it."""
+    entry = types.SimpleNamespace(route="ocr", source_type="file", value="x.pdf")
+    route, why = batch._starting_route(entry)
+    assert route == "ocr" and why
+
+
+def test_something_already_text_is_refused_with_a_usable_sentence(ws, tmp_path):
+    """The ladder converts documents. A Markdown file needs filing, not
+    converting, and saying so beats handing it to a PDF reader."""
+    note = tmp_path / "note.md"
+    note.write_text("# already text\n", encoding="utf-8")
+    entry = types.SimpleNamespace(route=None, source_type="file", value=str(note),
+                                  title=None, retry_of=None, req_id="r")
+    route, _ = batch._starting_route(entry)
+    result = batch._run_route(route, entry, tmp_path / "staging")
+
+    assert route == "add"
+    assert not result.success
+    assert "ingest add" in "; ".join(result.errors)
+
+
+def test_a_rejected_item_is_requeued_as_what_it_actually_is(ws, monkeypatch):
+    """A7. The requeue named "arxiv" for everything, so a rejected local PDF
+    came back as an arXiv paper whose identifier was a file path. Nothing broke
+    — the route is passed explicitly, so nothing re-derived it — but the ledger
+    recorded something untrue, and the next code to branch on source_type would
+    have inherited it."""
+    _stub_route(monkeypatch, ws)
+    ledger.enqueue(ws, source_type="file", value="D:/Zotero/storage/AB/paper.pdf",
+                   route="textlayer")
+    batch.main(["run"])
+    item = ledger.load_batch(ws, ledger.list_batches(ws)[0])[0]
+    assert item.source_type == "file"
+
+    batch.main(["decide", "--item", item.item_id, "--decision", "reject"])
+
+    requeued = ledger.pending(ws)
+    assert len(requeued) == 1
+    assert requeued[0].source_type == "file"
+    assert requeued[0].route == "mineru"
+
+
+def test_a_record_written_before_the_type_was_stored_is_inferred(ws, monkeypatch):
+    """Old batch logs have no source_type. Inferring it is a guess; writing
+    "arxiv" over a file path was a guess already made and recorded as fact."""
+    _stub_route(monkeypatch, ws)
+    ledger.enqueue(ws, source_type="", value="D:/lib/paper.pdf", route="textlayer")
+    batch.main(["run"])
+    item = ledger.load_batch(ws, ledger.list_batches(ws)[0])[0]
+    assert item.source_type == ""
+
+    batch.main(["decide", "--item", item.item_id, "--decision", "reject"])
+
+    assert ledger.pending(ws)[0].source_type == "file"
+
+
 def test_rejecting_requeues_one_rung_down(ws, monkeypatch, capsys):
     _stub_route(monkeypatch, ws)
     ledger.enqueue(ws, source_type="arxiv", value="2608.16520")

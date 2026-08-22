@@ -502,7 +502,8 @@ magi ingest auto              # inbox/ 里的全部
 magi ingest auto paper.pdf    # 或者指定一个文件
 ```
 
-它按文件类型自己选路线（arXiv 源码包走 LaTeX、PDF 有 token 走云端 OCR 否则本地 OCR），并自动 finalize。只有在需要指定页码、想强制走某条路线、或者对付难搞的扫描件时，才用下面那些具体命令。
+它按文件本身是什么来选路线（arXiv 源码包走 LaTeX；PDF 先看自己的文本层够不够，
+不够才走云端 OCR（有 token）或本地 OCR），并自动 finalize。只有在需要指定页码、想强制走某条路线、或者对付难搞的扫描件时，才用下面那些具体命令。
 
 ### 手上是链接不是文件？排队就行 {#ingest-queue}
 
@@ -526,6 +527,11 @@ magi ingest batch-commit                              # 到这一步才真的进
 里面**每个公式都原样带着作者写的 LaTeX**——不涉及任何识别。这条排在源码 tar 包之前，
 tar 包又排在所有 PDF 路线之前。
 
+到了 PDF 这一层，同样的道理再往下走一格。在花掉一个 MinerU token 或一分钟 GPU 之前，
+MAGI 先问这份文档是不是真需要：**没有数学的原生电子版 PDF，可以直接读它自己的文本层**
+——免费、快，而且忠实，因为那是文档自己的文字，不是对它的一次识别。**带数学的不行**：
+字符出得来，二维结构出不来，所以照样交给模型。这个不用你选，闸门自己判，并把判断打出来。
+
 **不点头，什么都进不了你的库。** `batch-run` 只写进暂存区就停下；只要批次里还有
 一条没决定，`batch-commit` 就**直接拒绝**。而「拒绝」不等于丢弃——它会自动落到
 **下一档路线**、出现在下一批里，所以「这份转得不行，换个法子」只要一条命令。
@@ -540,11 +546,14 @@ tar 包又排在所有 PDF 路线之前。
 | `magi ingest url` → `batch-run` | 任何有链接 / DOI / arXiv 号的东西 | Pandoc | **当前可用的最好一条**——自动挑保真度最高且跑得通的 |
 | `magi ingest arxiv-html` | 直接抓某一篇 arXiv 论文 | Pandoc | **最好**——原始 LaTeX 就在 HTML 里逐字带着 |
 | `magi ingest tex` | arXiv 源码包（`.tar.gz`）或 `.tex` | Pandoc | **最好**——公式、引文、编号原生保真 |
+| *（自动）* 文本层 | 没有数学的原生电子版 PDF | `magi-research[textlayer]` | 忠实且免费——是文档自己的文字，不是识别出来的 |
 | `magi ingest mineru` | 一般 PDF（含扫描件） | MinerU 云端 token | 好，版面/公式识别强 |
 | `magi ingest ocr` | 一般 PDF，要求全离线 | Ollama + poppler | 中等，逐页视觉转录 |
 | `magi ingest add` | 已经是 Markdown/文本的材料 | 无 | 只做归档与 frontmatter 注入 |
 
-**懒得选？** `magi ingest auto` 按文件类型自动挑（源码包 → tex，PDF → 有 token 走 mineru、否则本地 ocr，文本 → add），而且自动收尾：
+**懒得选？** `magi ingest auto` 按文件**本身是什么**来挑——源码包 → tex；PDF → 文本层够用就用它，
+不够才 MinerU（有 token）或本地 OCR（没 token）；文本 → add——并且自动收尾。
+它和 `batch-run` 的结论一定一致，因为走的是同一份代码：
 
 ```powershell
 magi ingest auto paper.pdf        # 单个文件

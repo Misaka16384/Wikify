@@ -503,7 +503,9 @@ magi ingest auto              # everything sitting in inbox/
 magi ingest auto paper.pdf    # or one named file
 ```
 
-It picks the route by file type — LaTeX source for arXiv bundles, cloud OCR for PDFs when you have a token, local OCR otherwise — and finalises for you. Reach for the specific commands below only when you need a page range, want to force a route, or are fighting a difficult scan.
+It picks the route by what the file is — LaTeX source for arXiv bundles; for a
+PDF, its own text layer when that suffices, else cloud OCR with a token or local
+OCR without one — and finalises for you. Reach for the specific commands below only when you need a page range, want to force a route, or are fighting a difficult scan.
 
 ### Have a link instead of a file? Queue it {#ingest-queue}
 
@@ -528,6 +530,14 @@ most papers, and every formula in it carries the original LaTeX verbatim — no
 recognition involved. That is tried before the source tarball, which is tried
 before any PDF route.
 
+For a PDF the same principle applies one rung further down. Before spending a
+MinerU token or a GPU minute, MAGI asks whether the document needs either: a
+born-digital paper with no mathematics can be read straight out of its own text
+layer, which is free, fast and faithful. One *with* mathematics cannot — the
+characters come out fine and the two-dimensional structure does not — so it goes
+to a model regardless. You do not choose between these; the check decides, and
+prints what it decided.
+
 **Nothing reaches your library until you say so.** `batch-run` writes into a
 staging area and stops. `batch-commit` refuses outright while any item in a batch
 is still undecided. Rejecting an item isn't discarding it — it comes back on the
@@ -545,11 +555,15 @@ commands above.
 | `magi ingest url` → `batch-run` | Anything you have a link, DOI, or arXiv id for | Pandoc | **Best available** — picks the highest-fidelity route that works |
 | `magi ingest arxiv-html` | One arXiv paper, directly | Pandoc | **Best** — the original LaTeX arrives verbatim inside the HTML |
 | `magi ingest tex` | arXiv source packages (`.tar.gz`) or `.tex` | Pandoc | **Best** — formulas, citations, and numbering stay natively faithful |
+| *(automatic)* text layer | Born-digital PDFs with no mathematics | `magi-research[textlayer]` | Faithful and free — it is the document's own text, not a reading of it |
 | `magi ingest mineru` | General PDFs (including scans) | MinerU cloud token | Good, strong layout/formula recognition |
 | `magi ingest ocr` | General PDFs, fully offline | Ollama + poppler | Moderate, page-by-page visual transcription |
 | `magi ingest add` | Material that's already Markdown/text | None | Just archives it and injects frontmatter |
 
-**Don't want to choose?** `magi ingest auto` picks by file type (source bundle → tex, PDF → mineru when a token is configured, otherwise local ocr, text → add) and finalizes for you:
+**Don't want to choose?** `magi ingest auto` picks by what the file *is* — source
+bundle → tex; PDF → its own text layer when that is enough, otherwise MinerU with
+a token or local OCR without one; text → add — and finalizes for you. It reaches
+the same conclusion `batch-run` would, from the same code:
 
 ```powershell
 magi ingest auto paper.pdf        # one file

@@ -4,6 +4,37 @@
 >
 > 最后更新：2026-08-22 · 当前阶段：**v1.12.2 已发布**（tag `v1.12.2`；版本号同步 ×5）。此前：M0–M9 全部完成。
 >
+> 2026-08-22 剩下五条 (A4–A8)：两条是同一个决策实现了两遍，一条是异常没接住，一条是账本记了假话，一条是四条路线说得出、一条说不出。
+>
+> **A4 + A5 是同一件事，所以一起修。** "这个源该从哪一级开始"被实现了两次：`ingest auto` 会问 PDF 有没有可读的、无数学的文本层，用得上就用；`batch-run` 把所有非 arXiv 源一律送 `mineru`。而 `textlayer` 在阶梯上位于 `mineru` **上方**，掉不上去——所以走批处理的本地 PDF **根本到不了那一级**。用户 758 条 Zotero 里 567 条带 PDF，每一条都在为免费能读的东西花 token 或 GPU 时间。
+>
+> 新增 `src/magi/ingest/routing.py`，把决策收成一处。**关键是它只回答一半问题**：
+>
+> | 问题 | 归谁 |
+> |---|---|
+> | **该跑哪条？** | `routing.first_rung` —— 只看格式和内容，不看装了什么 |
+> | **这儿跑得动哪条？** | 调用方 —— `batch-run` 根本不问（跑不动就掉下一级），`ingest auto` 必须问（它没有阶梯可掉） |
+>
+> 把第二个问题留在外面，才使得第一个能共享。合并成一个"什么都管"的函数会立刻把 auto 的工具可用性检查塞进 batch 用不到的地方。测试里最关键的一条是**拿同一份 PDF 同时问两个入口，断言答案相同**——这才是防止它再分叉的东西。
+>
+> **A6：`except ImportError` 太窄。** `pymupdf4llm` 拉 `onnxruntime`，而旧版 onnxruntime 载入新模型时抛的是 `Fail: Unsupported model IR version: 10`——**不是 ImportError**，于是逃出处理器，把整个 `ingest auto` 带崩了；它当时只是在**问一个关于某个文件的问题**。现在接住任何异常并给出可操作提示。
+>
+> 顺手把顺序也调了：**先问闸门，再查依赖**。这样理由才值得读——"这份 PDF 有干净的无数学文本层，本来可以免费读，但你没装 pymupdf4llm"会让人去装；"没装 pymupdf4llm"不告诉你装了对这份文件有没有用。闸门本身只用 PyMuPDF（硬依赖），先问不花钱。
+>
+> 同时给 `[textlayer]` extra 写上 `onnxruntime>=1.18` 下限。**这个下限必须由我们声明，因为没有别人声明**：查证过 `pymupdf_layout` 的 PyPI 元数据，它要的是**裸 `onnxruntime`，一个版本约束都没有**，pip 完全可以把几年前的旧版留在原地。IR 10 对应 ONNX 1.16，onnxruntime 1.18.0 是第一个捆绑它的版本。
+>
+> **A7：账本记了假话。** 拒绝后重排队时 `source_type` 硬编码 `"arxiv"`，于是一份被降级的本地 PDF 以"arXiv 论文"的身份重新入队，而它的"标识符"是一个文件路径。它不炸——route 是显式传的，没人去重新推导——但**账本记下来的是假的**，下一段按 source_type 分流的代码会原样继承。现在账本真的存 `source_type`；旧记录没有这个字段，就从 value 反推，并且注明那是推断。反推靠的是 arXiv id 解析器而不是找点号：`2401.00506` 有点号但不是文件，`cond-mat/0001002` 有斜杠但不是路径。
+>
+> **A8：OCR 的 `summary` 是空字符串**，其余四条都写明自己是哪条路线转的。补上，并且**带上模型名**——这一级的输出只和配置里那个模型一样好，而"这份文档怎么进来的"是判断可信度的第一个问题。
+>
+> **顺带修的一处不在清单上：** 一个 `.md` 排进批处理阶梯会掉到 `mineru`，也就是把 Markdown 文件递给 PDF 阅读器。现在路由直接说"已经是文本，没有可转的"，并指向 `magi ingest add`。
+>
+> **文档同步更新**，因为 A4 改的是真实行为，说明不跟上就成了假的：两份 guide 的路线表补上文本层这一级并改掉"PDF → mineru"的旧描述（那句话在文本层路线加进来时就已经错了）；`wiki_ingest/SKILL.md` 同样——**它是给 agent 读了照做的**，写错就是让 agent 做错事；`wiki_inbox/SKILL.md` 的 findings 清单补上 `image-path-not-portable` 和 `route-textlayer`，一个 skill 只能报出它知道名字的东西。
+>
+> 顺手抓到一条比过时更糟的：两份 README 的技能表写着摄入是"MinerU 云端**或原生视觉转录**"——把烧掉用户一整周额度、整条流水线专门绕开的那条末路，摆成两个常规选项之一。改成完整阶梯，并写明原生视觉**不在阶梯上**。（打包副本同步重拷，有测试盯着逐字节一致。）
+>
+> 测试 846 → **879**（+33：`test_routing.py` 28、batch 5）。其中两条盯着新加的判定缓存：一份排队的 PDF 会被问两次（选路一次、那一级自己再验一次，因为重试可以强制路线），而检查意味着打开文档并枚举字体——实测六页文件 869ms，一次不算什么，一整批就是真的。
+>
 > 2026-08-22 图片路径：三个 bug 是同一件事没人负责 (A1/A2/A3)：五条路线各自决定图片引用长什么样，没有任何一处说过它应该长什么样。于是它们互相不一致，而每一处不一致都是一个只在 commit 之后才显形的 bug。
 >
 > **A3 先修，因为它决定另外两个能不能被看见。** `check_broken_image_links` 的正则只匹配 `](images/…)`——也就是**只认得正确答案**。喂给它一条绝对暂存路径（正是 A2 的产物），它匹配到零个引用，于是报告"文档干净"。一个只认得对的形状的关口，结构上没法报告错的形状。现在拆成两条：`check_image_refs` 问"这条引用是不是所有路线约定的形状"，把 absolute / backslash / escaping / bare / elsewhere / nested 各自点名；`check_broken_image_links` 只管形状正确但文件不在的。一个问题算一条 finding，不重复报。
@@ -267,17 +298,14 @@ adar-stress-ws`（67 篇真实论文 + 索引 + 真实 harvest/citation-gap 产�
 
 > 最后整理：2026-08-22（v1.12.2 之后）。**都有复现证据**，不是猜测；每条注明证据、位置和建议改法。
 > 修掉一条就从这里删掉，并在当天的 dated entry 里写清楚。
-> **已修：A1 / A2 / A3**（2026-08-22，见当天条目）。编号不重排——A4 以后保持原号，免得旧讨论里的引用失效。
+> **A 栏已清空**（2026-08-22）：A1–A8 全修完。B/C/D/E 仍在。编号只增不重排，旧讨论里引用的编号要一直有效。
 
 ### A. 已确认的 bug
 
-| # | 问题 | 证据 | 位置 | 建议 |
-|---|---|---|---|---|
-| A4 | **本地 PDF 永远走不到 textlayer** | 实测：真实存在的本地 PDF → `source_type='file'` → 起始 rung `mineru`；`next_rung('mineru')='ocr'`，而 textlayer 在阶梯上位于 mineru **上方**，掉不上去。完整链：`mineru → ocr → None` | `batch.py:_starting_route` 只有三条规则，其余一律 `mineru` | `source_type='file'` 且后缀 `.pdf` 时返回 `textlayer`，让闸门自己判；判不过正常掉 `mineru`。代价只有一次 PyMuPDF 打开文件。**影响面：用户 758 条 Zotero 里 567 条带 PDF** |
-| A5 | **两条 PDF 入口对同一份文件给出不同路线** | `magi ingest auto` 走 `classify()`，**会**用 textlayer；`magi ingest batch-run` 走阶梯，**跳过** textlayer | `auto.py:classify` vs `batch.py:_starting_route` | 同一个决策实现了两次。A4 修完顺手合并成一处 |
-| A6 | **`except ImportError` 太窄，会让整个 `ingest auto` 崩掉** | 实测：`pymupdf4llm` 在 onnxruntime 1.15.1 上抛 `onnxruntime.capi.…Fail: Unsupported model IR version: 10`，**不是 ImportError** → 逃出 `classify()` | `auto.py:52`、`batch.py:98` | 改成接住任何异常并给出可操作提示（"升级 onnxruntime"）。顺带给 `[textlayer]` extra 的 onnxruntime 写版本下限 |
-| A7 | **拒绝重排队时硬编码 `source_type="arxiv"`** | 一份本地 PDF 被拒绝降级后，以 `source_type="arxiv"` 重新入队，`value` 却是文件路径 | `batch.py:279` | 目前不炸（`route=nxt` 显式给了，不走 `_starting_route`），但账本记的是假的，将来任何按 source_type 分流的逻辑都会踩到 |
-| A8 | **OCR 路线的 `summary` 是空字符串** | 其余四条都写明自己是哪条路线转的（`Converted from arXiv HTML (…)` / `…from LaTeX/arXiv source.` / `…via MinerU Cloud API.` / `…from the PDF's own text layer (no OCR).`），OCR 写 `""` | `ocr/agent.py:334` | 补一句路线说明。纯一致性问题，不影响功能——但读一份 raw 文档时，"它是怎么进来的"是判断可信度的第一个问题，四条路线答得出、一条答不出 |
+**空的。** A1–A8 全部修完（2026-08-22，见当天两条 dated entry）。
+
+这一栏是空的，不代表没有 bug，只代表**没有已知且已复现的 bug**。下一条进来时按原格式加，
+编号继续往下走（A9 起），不要重排——旧讨论里引用的编号得一直有效。
 
 ### B. 质量问题（不是 bug，是选择）
 

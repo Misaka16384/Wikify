@@ -178,6 +178,7 @@ class BatchItem(NamedTuple):
     item_id: str
     req_id: str
     route: str
+    source_type: str           # "" on records written before this was stored
     source_value: str
     title: str | None
     arxiv_id: str | None
@@ -206,7 +207,7 @@ def start_batch(topic) -> str:
 
 
 def record_item(topic, batch_id: str, *, req_id: str, route: str,
-                source_value: str, title: str | None = None,
+                source_value: str, source_type: str = "", title: str | None = None,
                 arxiv_id: str | None = None, staged_md: str | None = None,
                 findings: Iterable | None = None, error: str | None = None,
                 retry_of: str | None = None) -> str:
@@ -217,6 +218,10 @@ def record_item(topic, batch_id: str, *, req_id: str, route: str,
         "req_id": req_id,
         "at": _now(),
         "route": route,
+        # Carried so a rejection can requeue the item as what it actually is.
+        # Without it the requeue had to name a type, and named "arxiv" for
+        # everything — including local files, whose "value" is a path.
+        "source_type": source_type,
         "source_value": source_value,
         "title": title,
         "arxiv_id": arxiv_id,
@@ -265,6 +270,7 @@ def load_batch(topic, batch_id: str) -> list[BatchItem]:
         rec = items[item_id]
         out.append(BatchItem(
             item_id=item_id, req_id=rec.get("req_id", ""), route=rec.get("route", ""),
+            source_type=rec.get("source_type", ""),
             source_value=rec.get("source_value", ""), title=rec.get("title"),
             arxiv_id=rec.get("arxiv_id"), staged_md=rec.get("staged_md"),
             findings=rec.get("findings") or [], error=rec.get("error"),

@@ -90,10 +90,12 @@ magi ingest batch-list --json
 Summarise it for them — do not paste the JSON. For each item: the title, which route succeeded, and any findings. Findings are the pipeline telling you what it is unsure about; the ones worth mentioning out loud:
 
 - `figure-count-mismatch` / `broken-image-links` — figures are missing from the output
+- `image-path-not-portable` — a figure reference will break once the document is committed. **Always surface this one**: it is a defect in the route, not in the paper, and approving it files a document whose images go dark.
 - `leftover-tex` — the converter choked on a macro and left raw TeX inline
 - `suspiciously-short` — the document came out far shorter than expected
 - `identity-mismatch` — the output is labelled as a different paper than requested. **Always surface this one.**
 - `route-arxiv-html` with a formula count — informational, and good news
+- `route-textlayer` with a page count — informational, and good news: the PDF was read out of its own text layer, so no model was involved and nothing was recognised
 
 Then **ask** which to keep. For a clean batch, "all of these look fine, approve them?" is a reasonable single question. For anything carrying a finding, name it and let them choose.
 

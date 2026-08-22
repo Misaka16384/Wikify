@@ -22,7 +22,7 @@ from pathlib import Path
 
 from magi.core.arxiv_id import abs_url, normalize_arxiv_id
 from magi.core.workspace import find_workspace_root
-from magi.ingest import image_refs, ledger
+from magi.ingest import image_refs, ledger, routing
 from magi.ingest.convert_result import ConversionResult, Finding
 
 
@@ -132,29 +132,22 @@ def _run_route(route: str, entry, staging: Path) -> ConversionResult:
                                 images_dir=str(images_dir) if images_dir.is_dir() else None)
 
     if route == "textlayer":
-        from magi.ingest import textlayer
-
         source = Path(entry.value)
         if not source.is_file():
             return ConversionResult.failed(
                 "the text-layer route needs a PDF on disk; this item has none")
 
-        # The gate is the cheap half and runs on PyMuPDF alone. It answers two
-        # separate questions — is there readable text, and is reading it enough —
-        # and a maths paper fails the second even when it sails through the first.
-        verdict = textlayer.inspect(source)
-        print(f"[textlayer] {verdict.reason}")
-        if not verdict.route_here:
-            return ConversionResult.failed(
-                f"not a text-layer document: {verdict.reason}")
+        # The same verdict `ingest auto` routes on, from the same function. It
+        # answers two separate questions — is there readable text, and is
+        # reading it enough — and a maths paper fails the second even when it
+        # sails through the first. It also never raises: a rung that cannot run
+        # has to fall to the next one, not end the batch.
+        verdict = routing.text_layer_verdict(source)
+        print(f"[textlayer] {verdict.why}")
+        if not verdict.ok:
+            return ConversionResult.failed(f"not a text-layer document: {verdict.why}")
 
-        try:
-            import pymupdf4llm
-        except ImportError:
-            return ConversionResult.failed(
-                "this PDF has a clean, math-free text layer and could be read "
-                "without OCR, but pymupdf4llm is not installed. "
-                "Install it with: pip install 'magi-research[textlayer]'")
+        import pymupdf4llm  # the verdict above already proved this imports
 
         staging.mkdir(parents=True, exist_ok=True)
         images_dir = staging / "images"
@@ -200,15 +193,30 @@ def _run_route(route: str, entry, staging: Path) -> ConversionResult:
                      severity="info")
         return outcome
 
+    if route == "add":
+        # The router's answer for something that is already text. The ladder
+        # converts documents; this one needs filing, not converting, and saying
+        # so beats handing a Markdown file to a PDF reader.
+        return ConversionResult.failed(
+            "this is already text — nothing on the conversion ladder applies. "
+            "File it directly with `magi ingest add`.")
+
     return ConversionResult.failed(f"unknown route: {route}")
 
 
-def _starting_route(entry) -> str:
+def _starting_route(entry) -> tuple[str, str]:
+    """Which rung this queued item starts on, and why.
+
+    A retry names its own rung — that is how "reject" means "try the next one
+    down" — and otherwise the shared router decides. Sharing it is the point:
+    this used to send every non-arXiv source to ``mineru``, and because
+    ``textlayer`` sits *above* ``mineru`` on the ladder, a local PDF could
+    never fall back up to the free route. `ingest auto` picked it correctly all
+    along, from a second implementation of the same decision.
+    """
     if entry.route:
-        return entry.route
-    if entry.source_type in ("arxiv", "url", "doi"):
-        return "arxiv-html"
-    return "mineru"
+        return entry.route, "the rung this retry was queued for"
+    return routing.first_rung(entry.source_type, entry.value)
 
 
 # --------------------------------------------------------------------------
@@ -234,8 +242,8 @@ def cmd_run(args) -> int:
     print(f"[batch] {batch_id}: {len(queued)} item(s)")
 
     for n, entry in enumerate(queued, 1):
-        route = _starting_route(entry)
-        print(f"[batch] {n}/{len(queued)} {entry.value} via {route}")
+        route, why = _starting_route(entry)
+        print(f"[batch] {n}/{len(queued)} {entry.value} via {route} — {why}")
         staging = ledger.staging_dir(topic, batch_id) / entry.req_id
         try:
             result = _run_route(route, entry, staging)
@@ -259,7 +267,8 @@ def cmd_run(args) -> int:
 
         ledger.record_item(
             topic, batch_id, req_id=entry.req_id, route=route,
-            source_value=entry.value, title=title, arxiv_id=arxiv_id,
+            source_type=entry.source_type, source_value=entry.value,
+            title=title, arxiv_id=arxiv_id,
             staged_md=result.markdown_path if result.success else None,
             findings=findings,
             error=None if result.success else "; ".join(result.errors) or "failed",
@@ -343,7 +352,14 @@ def cmd_decide(args) -> int:
         if args.decision == "reject":
             nxt = ledger.next_rung(item.route)
             if nxt:
-                ledger.enqueue(topic, source_type="arxiv", value=item.source_value,
+                # As what it actually is. This used to say "arxiv" for
+                # everything, so a rejected local PDF was requeued as an arXiv
+                # paper whose identifier was a file path. It did not break —
+                # the route is passed explicitly, so nothing re-derived it —
+                # but the ledger recorded something untrue, and the next piece
+                # of code to branch on source_type would have inherited it.
+                source_type = item.source_type or routing.infer_source_type(item.source_value)
+                ledger.enqueue(topic, source_type=source_type, value=item.source_value,
                                route=nxt, retry_of=item.item_id, title=item.title)
                 print(f"  requeued on the next route down: {nxt} "
                       "(it will appear in the next batch)")

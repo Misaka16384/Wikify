@@ -331,7 +331,15 @@ class PDF2MarkdownAgent:
             markdown_content = builder.build(include_metadata=False)
             
             # 注入 YAML Frontmatter
-            fm = {"title": title, "source": pdf_path.name, "type": "papers", "ingested": today_str, "tags": [], "summary": ""}
+            # The other four routes all say which one converted the document.
+            # This one said nothing, and "how did this get here" is the first
+            # question anyone reading a raw file asks — it is what decides how
+            # far to trust the formulas. Name the model too: this rung's output
+            # is only as good as whatever was configured to read the pages.
+            ocr_model = self.config.get("ocr", {}).get("model", "an OCR model")
+            fm = {"title": title, "source": pdf_path.name, "type": "papers",
+                  "ingested": today_str, "tags": [],
+                  "summary": f"Converted from PDF by local OCR ({ocr_model})."}
             # 从文件名提取 arXiv ID，供文献雷达识别库内论文
             found_id = normalize_arxiv_id(pdf_path.name)
             if found_id:

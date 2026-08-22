@@ -29,9 +29,10 @@ This skill handles converting external material (URLs, PDFs, local text files, a
 > would have asked and what you need in order to continue.
 
 **Fast path (use it when nothing needs judgment):** `magi ingest auto "<PATH>"` — or
-`magi ingest auto` with no path to take the whole `inbox/` — picks the converter by file
-type (LaTeX source → `tex`, PDF → `mineru` when a token is configured else local `ocr`,
-text → `add`), runs `magi ingest finalize` for each file, and does one lint/graph/index
+`magi ingest auto` with no path to take the whole `inbox/` — picks the converter by what the
+file is (LaTeX source → `tex`; PDF → its own text layer when that is enough, else
+`mineru` with a token or local `ocr` without one; text → `add`), runs
+`magi ingest finalize` for each file, and does one lint/graph/index
 pass at the end. Add `--dry-run` to see the routing first. Fall back to the numbered steps
 below when a file needs a decision the router cannot make: native-vision transcription,
 a page range, math-error triage, or a source type other than the default.
@@ -50,16 +51,16 @@ When the user asks to ingest documents (or runs the command without a path):
         magi ingest batch-run
         magi ingest batch-list          # then approve what looks right
         ```
-        This tries arXiv's own LaTeXML HTML first, where every formula carries its original LaTeX verbatim, then the source tarball, then MinerU, then local OCR. It costs you no tokens beyond reading the report. **Everything it produces waits for a human to approve it before entering the library**, so you are not deciding on anyone's behalf.
+        This tries arXiv's own LaTeXML HTML first, where every formula carries its original LaTeX verbatim, then the source tarball, then the PDF's own text layer where that suffices, then MinerU, then local OCR. It costs you no tokens beyond reading the report. **Everything it produces waits for a human to approve it before entering the library**, so you are not deciding on anyone's behalf.
     *   **For a `.pdf` file already on disk with no identifier**: use the router — it picks the best available converter and never picks anything expensive:
         `magi ingest auto "<PDF_PATH>" --topic-dir "<TOPIC_DIR>"`
-        Add `--dry-run` first to see which route it would take. If it reports that it cannot route the file, that is a real answer: it means neither a MinerU token nor Ollama is available. **Say so and stop.** Do not work around it.
+        Add `--dry-run` first to see which route it would take. For a born-digital PDF with no mathematics it reads the document's own text layer — free, and faithful because it is the text itself rather than a reading of it. A PDF *with* mathematics goes to a model even though its text reads perfectly: the characters survive and the two-dimensional structure does not. This is not a judgement call you need to make; the gate decides and prints what it decided. If it reports that it cannot route the file, that is a real answer: it means neither a MinerU token nor Ollama is available. **Say so and stop.** Do not work around it.
     *   **Native Vision — last resort, and never by default**: transcribing a PDF page by page with your own multimodal vision costs roughly **one sub-agent call per page**, and a batch of papers can run to hundreds of calls. It has burned a user's entire weekly quota. Use it **only** when the user has explicitly asked for it after being told the page count, or when they say so having seen `magi ingest auto` report no available route.
         Before you spawn anything: count the pages with a deterministic script (`pymupdf` or `PyPDF2`), state the bill plainly — *"this is 34 pages, so about 34 sub-agent calls"* — and **ask the user to confirm**. If a batch, state the total across all files.
         Once confirmed: one sub-agent per page, never more than 10 concurrent, verify the number of returned transcriptions equals the page count and re-invoke for any missing page, then assemble in order:
         **Collect any `NEEDS-DECISION:` lines the page sub-agents return** — an unreadable page or an ambiguous figure is something they cannot ask you about themselves. Raise them together, once, rather than per page.
         `magi ingest assemble --dir <PAGES_DIR> --out <FILE_PATH> --title <TITLE> [--source <SRC>] [--type papers]`
-    *   **Local OCR**: `magi ingest auto` already picks this for a PDF when Ollama is present and no MinerU token is configured. It is one deterministic command with no fan-out, it supports `--pages`, and it resumes. Reach for the `wiki_ingest_ocr` skill when you need to force it, or need a page range.
+    *   **Local OCR**: `magi ingest auto` already picks this for a PDF that needs a model when Ollama is present and no MinerU token is configured. It is one deterministic command with no fan-out, it supports `--pages`, and it resumes. Reach for the `wiki_ingest_ocr` skill when you need to force it, or need a page range.
     *   For `.md` files or general inbox files, call the ingest helper script:
         `magi ingest add --file \"<MD_FILE>\" --type \"<TYPE>\" --topic-dir \"<TOPIC_DIR>\" [--move]`
         This script handles parsing/injecting standard YAML frontmatter, slugifying, and moving/copying the file.
