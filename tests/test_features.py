@@ -206,3 +206,101 @@ def test_unreadable_settings_leave_features_on(config_home, monkeypatch, tmp_pat
     ws = _workspace(tmp_path)
     report = magi.sync.build_report(ws)
     assert report["cores"]["balthasar"].get("state") != "disabled"
+
+
+# --------------------------------------------------------------------------
+# the two setup flags that write the same fact
+# --------------------------------------------------------------------------
+
+@pytest.fixture
+def quiet_setup(config_home, monkeypatch):
+    """`magi setup` with every side effect on the machine stubbed out."""
+    import magi.setup_cmd as setup
+
+    monkeypatch.setattr(setup, "_which", lambda name: None)
+    monkeypatch.setattr(setup, "agent_cli_rows", lambda _ws=None: [])
+    monkeypatch.setattr(setup, "wanted_optionals", lambda: {})
+    return setup
+
+
+NO_SIDE_EFFECTS = ["--yes", "--no-beads", "--no-models", "--no-plugin", "--no-skills"]
+
+
+def test_setup_full_actually_turns_task_tracking_back_on(quiet_setup, config_home):
+    """It used to print "profile set to full" and change nothing.
+
+    `--full` wrote `profile` alone, but `feature_enabled` only lets
+    `profile: kb-only` *veto* — so once the newer `optional_features["tasks"]`
+    key held False, flipping the profile could not undo it. The command
+    reported success and task tracking stayed off, with no way to tell from
+    the output. Two representations of one fact, drifting exactly where D2
+    said they would.
+    """
+    features.set_feature("tasks", False)
+    assert features.feature_enabled("tasks") is False
+
+    quiet_setup.main(["--full"] + NO_SIDE_EFFECTS)
+
+    assert features.feature_enabled("tasks") is True
+    assert _settings(config_home)["profile"] == "full"
+    assert _settings(config_home)["optional_features"]["tasks"] is True
+
+
+def test_setup_kb_only_turns_task_tracking_off_in_both_places(quiet_setup, config_home):
+    features.set_feature("tasks", True)
+    quiet_setup.main(["--kb-only"] + NO_SIDE_EFFECTS)
+
+    assert features.feature_enabled("tasks") is False
+    assert _settings(config_home)["profile"] == "kb-only"
+    assert _settings(config_home)["optional_features"]["tasks"] is False
+
+
+def test_the_two_profile_flags_round_trip(quiet_setup, config_home):
+    """The property that matters: whichever you ran last is what you get."""
+    for flag, want in (("--kb-only", False), ("--full", True),
+                       ("--kb-only", False), ("--full", True)):
+        quiet_setup.main([flag] + NO_SIDE_EFFECTS)
+        assert features.feature_enabled("tasks") is want, flag
+
+
+def test_passing_both_flags_keeps_the_safer_one(quiet_setup, config_home):
+    """--kb-only won before this change and still does. Ambiguous input should
+    not be the one case that turns something on."""
+    quiet_setup.main(["--kb-only", "--full"] + NO_SIDE_EFFECTS)
+    assert features.feature_enabled("tasks") is False
+
+
+def test_the_radar_choice_survives_a_profile_flag(quiet_setup, config_home):
+    features.set_feature("radar", False)
+    quiet_setup.main(["--full"] + NO_SIDE_EFFECTS)
+    assert features.feature_enabled("radar") is False
+
+
+def test_only_one_module_writes_the_legacy_profile_key():
+    """The drift D2 predicted, made structurally hard to repeat.
+
+    `profile` and `optional_features["tasks"]` are two spellings of one fact,
+    kept in step by `set_feature`. That works exactly as long as `set_feature`
+    is the only writer — and it stopped being true the moment `magi setup
+    --full` assigned `profile` on its own, which is how a command came to
+    report success and change nothing.
+
+    Reading is fine anywhere; this only looks for assignment.
+    """
+    import pathlib
+    import re
+
+    src = pathlib.Path(features.__file__).resolve().parent
+    writes = re.compile(r"""\[\s*['"]profile['"]\s*\]\s*=""")
+    offenders = []
+    for path in src.rglob("*.py"):
+        if path.name == "features.py":
+            continue
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if writes.search(line):
+                offenders.append(f"{path.relative_to(src)}:{n}: {line.strip()}")
+
+    assert not offenders, (
+        "these assign `profile` directly instead of calling "
+        "features.set_feature('tasks', ...), so the two representations can "
+        "disagree again:\n  " + "\n  ".join(offenders))

@@ -551,6 +551,12 @@ MAGI 先问这份文档是不是真需要：**没有数学的原生电子版 PDF
 | `magi ingest ocr` | 一般 PDF，要求全离线 | Ollama + poppler | 中等，逐页视觉转录 |
 | `magi ingest add` | 已经是 Markdown/文本的材料 | 无 | 只做归档与 frontmatter 注入 |
 
+> [!NOTE]
+> **文本层路线默认不导出图。** `pymupdf4llm` 导出的是"每个嵌入图像对象"而不是"每张图"，
+> 而且每一个都内联进正文：实测一篇 23 页、只有 4 张图的论文吐出 117 个文件，最小的
+> 40×24 其实是一行行间公式被渲染成了图片。真要图就在 `config.yaml` 里设
+> `ingest.textlayer_images: true`。如果图很重要，本地 OCR 那条路线按图标题锚定裁剪，效果好得多。
+
 **懒得选？** `magi ingest auto` 按文件**本身是什么**来挑——源码包 → tex；PDF → 文本层够用就用它，
 不够才 MinerU（有 token）或本地 OCR（没 token）；文本 → add——并且自动收尾。
 它和 `batch-run` 的结论一定一致，因为走的是同一份代码：

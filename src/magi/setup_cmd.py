@@ -315,8 +315,8 @@ def choose_features(interactive: bool) -> dict:
     whole product and can discover it; anyone who does not want a panel says so
     once and it greys out, in the CLI and in the WebUI alike.
     """
-    from magi.features import FEATURES, feature_enabled
-    from magi.kb_registry import load_settings, save_settings
+    from magi.features import FEATURES, feature_enabled, set_feature
+    from magi.kb_registry import load_settings
 
     settings = load_settings()
     chosen = dict(settings.get("optional_features") or {})
@@ -336,12 +336,12 @@ def choose_features(interactive: bool) -> dict:
                                        default=feature_enabled(feat.key, settings))
         print()
 
-    settings["optional_features"] = chosen
-    # `profile: kb-only` is the older way of saying "no task tracking" and is
-    # still consulted, so leaving it stale here would silently override the
-    # answer just given.
-    settings["profile"] = "full" if chosen.get("tasks", True) else "kb-only"
-    save_settings(settings)
+    # One writer for the two spellings of one fact. This used to assign
+    # `profile` here as well — correctly, but as a second place that had to
+    # remember to. The third place forgot, and `magi setup --full` reported
+    # success while changing nothing.
+    for feat in FEATURES:
+        set_feature(feat.key, bool(chosen.get(feat.key, True)))
     return chosen
 
 
@@ -617,14 +617,23 @@ def main(argv: list[str] | None = None) -> int:
     from magi.kb_registry import load_settings, save_settings
 
     settings = load_settings()
-    if args.kb_only:
-        settings["profile"] = "kb-only"
-        save_settings(settings)
-        print("[setup] profile set to kb-only (task tracking disabled; revert with 'magi setup --full')")
-    elif args.full:
-        settings["profile"] = "full"
-        save_settings(settings)
-        print("[setup] profile set to full")
+    # Both flags go through set_feature, which writes `profile` *and*
+    # `optional_features["tasks"]`. Writing `profile` alone was not enough:
+    # `feature_enabled` only lets `profile: kb-only` veto, so once the newer
+    # key held False, `--full` flipped the profile, printed "profile set to
+    # full", and left task tracking off. The command reported success and did
+    # nothing. Two representations of one fact, exactly as D2 predicted.
+    if args.kb_only or args.full:
+        from magi.features import set_feature
+
+        # If both are passed, --kb-only wins, as it did before.
+        set_feature("tasks", bool(args.full) and not args.kb_only)
+        settings = load_settings()
+        if args.kb_only:
+            print("[setup] profile set to kb-only (task tracking disabled; "
+                  "revert with 'magi setup --full')")
+        else:
+            print("[setup] profile set to full (task tracking enabled)")
     kb_only = settings.get("profile") == "kb-only"
 
     # Prompting is for a person at a terminal. A CI run, a subprocess, or a

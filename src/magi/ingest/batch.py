@@ -151,9 +151,16 @@ def _run_route(route: str, entry, staging: Path) -> ConversionResult:
 
         staging.mkdir(parents=True, exist_ok=True)
         images_dir = staging / "images"
+        # Off by default. `write_images=True` exports every embedded image
+        # *object* and inlines each one: 117 files on a paper with 4 figures,
+        # the smallest 40x24 -- a display equation rendered as a picture. See
+        # the note on `ingest.textlayer_images` in config_loader.
+        from magi.core.config_loader import get as cfg_get, load_config
+
+        want_images = bool(cfg_get(load_config(), "ingest.textlayer_images", False))
+        kwargs = {"write_images": True, "image_path": str(images_dir)} if want_images else {}
         try:
-            md = pymupdf4llm.to_markdown(
-                str(source), write_images=True, image_path=str(images_dir))
+            md = pymupdf4llm.to_markdown(str(source), **kwargs)
         except Exception as exc:  # noqa: BLE001
             return ConversionResult.failed(f"text-layer extraction failed: {exc}")
 
@@ -186,11 +193,25 @@ def _run_route(route: str, entry, staging: Path) -> ConversionResult:
             fm, allow_unicode=True, sort_keys=False, default_flow_style=False)
             + "---\n\n" + md, encoding="utf-8")
 
-        outcome = ConversionResult(success=True, markdown_path=str(out),
-                                   images_dir=str(images_dir), pages_processed=verdict.pages)
+        outcome = ConversionResult(
+            success=True, markdown_path=str(out),
+            images_dir=str(images_dir) if images_dir.is_dir() else None,
+            pages_processed=verdict.pages)
         outcome.flag("route-textlayer",
                      f"read {verdict.pages} page(s) straight from the text layer, no OCR",
                      severity="info")
+        if not want_images:
+            # Say it, rather than let the reader wonder where the figures went.
+            # A document that silently has no figures is the same failure this
+            # whole ladder exists to avoid, just pointed at pictures.
+            outcome.flag("figures-not-exported",
+                         "figures were not exported: this route emits every embedded "
+                         "image object, not every figure (measured: 117 files for a "
+                         "4-figure paper, the smallest a 40x24 equation strip). Set "
+                         "`ingest.textlayer_images: true` to export them anyway, or "
+                         "reject this item to fall to the OCR route, which crops "
+                         "figures by caption anchor",
+                         severity="info")
         return outcome
 
     if route == "add":

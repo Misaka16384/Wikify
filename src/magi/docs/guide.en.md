@@ -560,6 +560,15 @@ commands above.
 | `magi ingest ocr` | General PDFs, fully offline | Ollama + poppler | Moderate, page-by-page visual transcription |
 | `magi ingest add` | Material that's already Markdown/text | None | Just archives it and injects frontmatter |
 
+> [!NOTE]
+> **The text-layer route does not export figures by default.** `pymupdf4llm`
+> writes every embedded image *object* rather than every figure and inlines each
+> one: measured on a 23-page paper carrying 4 figures, 117 files, the smallest a
+> 40×24 strip that is really a display equation rendered as a picture. Set
+> `ingest.textlayer_images: true` in `config.yaml` if you want them anyway. For
+> documents where the figures matter, the OCR route crops them by caption anchor
+> and is the better choice.
+
 **Don't want to choose?** `magi ingest auto` picks by what the file *is* — source
 bundle → tex; PDF → its own text layer when that is enough, otherwise MinerU with
 a token or local OCR without one; text → add — and finalizes for you. It reaches

@@ -373,6 +373,17 @@ def _prose_pdf_with_figures(path):
     return path
 
 
+def _wants_images(ws, monkeypatch):
+    """Opt this workspace into figure export, and stand in it.
+
+    Exporting is off by default now, so a test about *where the figures land*
+    has to ask for figures first, or it is a test about nothing.
+    """
+    (ws / "config.yaml").write_text("ingest:\n  textlayer_images: true\n",
+                                    encoding="utf-8")
+    monkeypatch.chdir(ws)
+
+
 def test_a_committed_textlayer_document_still_finds_its_figures(ws, tmp_path, monkeypatch):
     """The whole defect, end to end: convert, commit, delete staging, look again.
 
@@ -384,6 +395,7 @@ def test_a_committed_textlayer_document_still_finds_its_figures(ws, tmp_path, mo
     pytest.importorskip("pymupdf4llm")
     from magi.ingest import gates
 
+    _wants_images(ws, monkeypatch)
     pdf = _prose_pdf_with_figures(tmp_path / "survey.pdf")
     entry = types.SimpleNamespace(value=str(pdf), title="Institutional Adoption",
                                   route="textlayer", source_type="file",
@@ -648,3 +660,145 @@ def test_no_workspace_is_an_error_not_a_crash(monkeypatch):
     assert batch.main(["run"]) == 1
     assert batch.main(["list"]) == 1
     assert batch.main(["commit"]) == 1
+
+
+# --------------------------------------------------------------------------
+# what the text-layer route does about figures
+# --------------------------------------------------------------------------
+
+def test_the_textlayer_route_does_not_export_images_by_default(ws, tmp_path, monkeypatch):
+    """`write_images=True` exports every embedded image *object*, not every
+    figure, and inlines each one into the document.
+
+    Measured on a real 23-page paper carrying 4 figures: 117 files, 102 of
+    them under 200x200, the smallest 301x24 and 40x24 — single display
+    equations rendered as pictures. The library keeps all of them, and the
+    Markdown reads as if the paper had 117 figures.
+
+    `image_size_limit` is not the fix: `to_markdown` is declared
+    `(*args, **kwargs)` and silently ignores what it does not use, so 0.05 and
+    0.25 produce byte-identical output. Passing the option is not evidence the
+    option did anything.
+    """
+    pytest.importorskip("pymupdf4llm")
+    monkeypatch.chdir(ws)                    # no workspace opt-in: the default
+
+    pdf = _prose_pdf_with_figures(tmp_path / "survey.pdf")
+    entry = types.SimpleNamespace(value=str(pdf), title="Institutional Adoption",
+                                  route="textlayer", source_type="file",
+                                  retry_of=None, req_id="r1")
+    result = batch._run_route("textlayer", entry, tmp_path / "staging" / "item")
+    assert result.success, result.errors
+
+    body = pathlib.Path(result.markdown_path).read_text(encoding="utf-8")
+    assert "![](" not in body
+    assert result.images_dir is None
+
+
+def test_skipping_the_figures_is_said_out_loud(ws, tmp_path, monkeypatch):
+    """A document that quietly has no figures is the same failure this ladder
+    exists to avoid, pointed at pictures instead of formulas. The reviewer is
+    told, and told which route does export them."""
+    pytest.importorskip("pymupdf4llm")
+    monkeypatch.chdir(ws)
+
+    pdf = _prose_pdf_with_figures(tmp_path / "survey.pdf")
+    entry = types.SimpleNamespace(value=str(pdf), title="T", route="textlayer",
+                                  source_type="file", retry_of=None, req_id="r1")
+    result = batch._run_route("textlayer", entry, tmp_path / "staging" / "item")
+
+    codes = {f.code for f in result.findings}
+    assert "figures-not-exported" in codes
+    said = next(f for f in result.findings if f.code == "figures-not-exported")
+    assert said.severity == "info"           # a choice, not a fault
+    assert "ingest.textlayer_images" in said.detail
+
+
+def test_the_opt_in_actually_exports_them(ws, tmp_path, monkeypatch):
+    """The switch has to work in both directions, or "off by default" is just
+    "removed" with a longer changelog entry."""
+    pytest.importorskip("pymupdf4llm")
+    _wants_images(ws, monkeypatch)
+
+    pdf = _prose_pdf_with_figures(tmp_path / "survey.pdf")
+    entry = types.SimpleNamespace(value=str(pdf), title="T", route="textlayer",
+                                  source_type="file", retry_of=None, req_id="r1")
+    result = batch._run_route("textlayer", entry, tmp_path / "staging" / "item")
+
+    assert result.images_dir and pathlib.Path(result.images_dir).is_dir()
+    assert "![](images/" in pathlib.Path(result.markdown_path).read_text(encoding="utf-8")
+    assert "figures-not-exported" not in {f.code for f in result.findings}
+
+
+def _table_pdf(path, *, ruling="booktabs"):
+    """A page whose only structure is a table, in the style papers actually use."""
+    pymupdf = pytest.importorskip("pymupdf")
+    # Enough prose that the routing gate calls this a text-layer document at
+    # all: a page carrying only a table is, correctly, not one.
+    prose = ("Respondents in cohort {n} were contacted twice and the second "
+             "contact is recorded separately, so the totals below count "
+             "correspondence rather than people. ")
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_textbox(pymupdf.Rect(60, 40, 540, 400),
+                        "Sampling Outcomes\n\n"
+                        + "".join(prose.format(n=i) for i in range(12)), fontsize=10)
+    rows = [("Category", "Kept", "Excluded"), ("Correspondence", "412", "38"),
+            ("Interviews", "119", "7"), ("Field notes", "58", "12")]
+    y = 440
+    for n, row in enumerate(rows):
+        for x, cell in zip((70, 250, 400), row):
+            page.insert_text((x, y), cell, fontsize=10)
+        if ruling == "booktabs" and n == 0:
+            page.draw_line((60, y + 6), (540, y + 6))
+        y += 30
+    if ruling == "booktabs":
+        page.draw_line((60, 428), (540, 428))
+        page.draw_line((60, y - 24), (540, y - 24))
+    doc.save(str(path))
+    doc.close()
+    return path
+
+
+@pytest.mark.parametrize("ruling", ["booktabs", "none"])
+def test_a_table_survives_the_textlayer_route_as_a_table(ws, tmp_path, monkeypatch, ruling):
+    r"""ROADMAP B2 says this route flattens tables into a line of prose, with
+    `\hline` leaking as the literal word `height`.
+
+    It does not reproduce on pymupdf4llm 1.28.2 — not on a fully ruled table,
+    not on booktabs, not with no rules at all, and not on a real 23-page paper
+    whose 10 tables all came back as Markdown tables (285 pipe rows against a
+    205-row census). Whatever triggered the original observation is narrower
+    than "this route, tables". So the current behaviour is pinned here instead
+    of assumed: if a future version regresses to the flattening, this is what
+    says so, rather than a note nobody re-measures.
+    """
+    pytest.importorskip("pymupdf4llm")
+    monkeypatch.chdir(ws)
+
+    pdf = _table_pdf(tmp_path / f"survey-{ruling}.pdf", ruling=ruling)
+    entry = types.SimpleNamespace(value=str(pdf), title="Sampling", route="textlayer",
+                                  source_type="file", retry_of=None, req_id="r1")
+    result = batch._run_route("textlayer", entry, tmp_path / "staging" / "item")
+    assert result.success, result.errors
+
+    body = pathlib.Path(result.markdown_path).read_text(encoding="utf-8")
+    assert "|Correspondence|412|38|" in body.replace(" ", "")
+    assert "height" not in body                 # the \hline leak in the report
+
+
+def test_a_dropped_table_is_still_caught_if_it_ever_happens(ws):
+    """The gate that would catch a regression, exercised directly.
+
+    Pinning the good behaviour above only helps while the conversion is good.
+    This is the other half: source has tables, output has no table markup, and
+    the item is flagged rather than approved on the strength of a caption that
+    survived.
+    """
+    from magi.ingest import gates
+
+    flat = ("# Sampling Outcomes\n\nTABLE I. Response rates.\n\n"
+            "Category Kept Excluded heightCorrespondence 412 38 Interviews 119 7\n")
+    codes = {f.code for f in gates.run_all(flat, source_chars=len(flat),
+                                           source_tables=1, source_rows=4)}
+    assert "tables-dropped" in codes

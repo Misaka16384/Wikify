@@ -43,6 +43,17 @@ _DEFAULTS: dict[str, Any] = {
         "timeout": 180,
         "dpi": 150,
     },
+    "ingest": {
+        # `pymupdf4llm` exports every embedded image *object*, not every
+        # figure, and inlines each one into the Markdown. Measured on a real
+        # paper with 4 figures: 117 files, 102 of them under 200x200, the
+        # smallest 301x24 and 40x24 -- single display-equation strips turned
+        # into pictures. Its `image_size_limit` knob does not help: to_markdown
+        # is (*args, **kwargs) and silently ignores what it does not use, so
+        # 0.05 and 0.25 produce byte-identical output. Off by default; the OCR
+        # route crops figures by caption anchor and is the one to use for them.
+        "textlayer_images": False,
+    },
     "semantic_link": {
         "threshold": 0.75,
         "merge_threshold": 0.85,
