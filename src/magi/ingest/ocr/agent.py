@@ -231,6 +231,7 @@ class PDF2MarkdownAgent:
             ocr_results = []
             total_ocr_time = 0
             page_times = []
+            repairs = []
 
             with Progress(
                 TextColumn("[progress.description]{task.description}"),
@@ -281,9 +282,12 @@ class PDF2MarkdownAgent:
                     start_time = time.time()
                     # 使用带有重试机制的 OCR 方法，最大重试 2 次
                     page_tiles = (2, 1) if page.page_number in table_pages else None
-                    result = self.ocr_engine.ocr_image_with_retry(
+                    result, repair = self.ocr_engine.ocr_image_repaired(
                         page.image_path, page.page_number, max_retries=2,
                         tiles=page_tiles)
+                    if repair:
+                        repairs.append(repair)
+                        console.print(f"[yellow]  {repair}[/yellow]")
                     elapsed = time.time() - start_time
                     total_ocr_time += elapsed
                     page_times.append((page.page_number, elapsed))
@@ -390,13 +394,22 @@ class PDF2MarkdownAgent:
             # 显示结果摘要
             self._display_summary(ocr_results, md_path, images_dir)
 
-            return ConversionResult(
+            outcome = ConversionResult(
                 success=True,
                 markdown_path=str(md_path),
                 images_dir=str(images_dir),
                 pages_processed=len(pages),
                 errors=errors
             )
+            if repairs:
+                # The reviewer is told a page had to be re-read. A repair that
+                # leaves no trace is the same silent degradation this pipeline
+                # exists to stop, just pointed the other way.
+                outcome.flag("page-repaired",
+                             "%d page(s) came back repeating and were re-read: %s"
+                             % (len(repairs), "; ".join(repairs)),
+                             severity="info")
+            return outcome
 
         except (KeyboardInterrupt, SystemExit):
             raise

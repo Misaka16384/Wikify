@@ -307,19 +307,33 @@ def check_repetition(md: str) -> Finding | None:
     # Strip the blank lines after the frontmatter before scanning: they belong
     # to no repeated unit, so leaving them in shifts every window out of
     # alignment with the repeat and the shortest restatements slip through.
+    n = repetition_runs(md)
+    if n > 1:
+        return Finding("repetition-loop",
+                       f"a {_REPEAT_WINDOW}-character passage appears {n} times — "
+                       "the converter restated the page rather than finishing it")
+    return None
+
+
+def repetition_runs(md: str) -> int:
+    """How many times the most-repeated varied passage appears; 1 means clean.
+
+    Split out from the reporting because a *degree* is what lets two attempts
+    at the same page be compared. A retry that changes nothing is useless here
+    — the loop is byte-identically reproducible for a given rendering — so a
+    repair has to change a parameter and then something has to judge which of
+    the two results to keep.
+    """
     body = _body_of(md).strip()
     if len(body) < _REPEAT_WINDOW * 2:
-        return None
+        return 1
+    worst = 1
     for start in range(0, len(body) - _REPEAT_WINDOW, _REPEAT_STRIDE):
         chunk = body[start:start + _REPEAT_WINDOW]
         if _min_period(chunk) < _MIN_VARIED_PERIOD:
             continue
-        n = body.count(chunk)
-        if n > 1:
-            return Finding("repetition-loop",
-                           f"a {_REPEAT_WINDOW}-character passage appears {n} times — "
-                           "the converter restated the page rather than finishing it")
-    return None
+        worst = max(worst, body.count(chunk))
+    return worst
 
 
 def check_output_inflation(md: str, source_chars: int) -> Finding | None:

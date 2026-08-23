@@ -404,6 +404,87 @@ class OCREngine:
         except Exception as e:
             return False, f"预热失败: {e}"
 
+    #: The configuration a repeating page is tried again with. Both measured
+    #: cases were fixed by it: a page that came back as 20 copies of its own
+    #: body was clean at 2x2, and the page that stops early went from 24 of 49
+    #: table rows to all 49. Two columns was *worse* than the whole page on one
+    #: of them, so this is the specific configuration and not just "split it".
+    REPAIR_TILES = (2, 2)
+
+    @staticmethod
+    def _alternative(tiles) -> Tuple[int, int] | None:
+        """The other configuration to try. Whole page repairs to 2x2; a page
+        already split repairs by being read whole, because splitting is what
+        amplified the loop on the one page where it got worse."""
+        current = tuple(tiles) if tiles else (1, 1)
+        return None if current == OCREngine.REPAIR_TILES else OCREngine.REPAIR_TILES
+
+    @staticmethod
+    def _is_better(candidate: str, incumbent: str) -> bool:
+        """Which of two attempts at one page to keep.
+
+        The gate that detects the failure is also the judge of the repair —
+        "better" is not a second opinion invented here. A page that does not
+        repeat beats one that does; between two clean ones the longer has
+        simply transcribed more (measured: 6,362 characters and every table row
+        against 4,200 and half of them); between two repeating ones, less
+        repetition, and failing that less garbage.
+        """
+        from magi.ingest.gates import repetition_runs
+
+        c_runs, i_runs = repetition_runs(candidate), repetition_runs(incumbent)
+        if (c_runs > 1) != (i_runs > 1):
+            return i_runs > 1
+        if c_runs != i_runs:
+            return c_runs < i_runs
+        if c_runs > 1:                      # both loop: prefer less of it
+            return len(candidate) < len(incumbent)
+        return len(candidate) > len(incumbent)
+
+    def ocr_image_repaired(self, image_path: str, page_number: int = 1,
+                           max_retries: int = 2,
+                           tiles: Optional[Tuple[int, int]] = None
+                           ) -> Tuple[OCRResult, str]:
+        """OCR a page, and if it comes back repeating, try it another way once.
+
+        The whole reason this can work is that the loop is **not** random:
+        the same page through the same pipeline produces byte-identical output,
+        twice over. So repeating the call unchanged would reproduce the failure
+        exactly, and a repair has to change a parameter. Splitting the page is
+        the parameter, because it is measured to fix it — and measured to make
+        one page worse, which is why the result is judged rather than assumed.
+
+        One extra pass at most. A document where every page repeats would
+        otherwise cost double for nothing.
+
+        Returns the result and a sentence about what happened, empty when
+        nothing did — a repair that says nothing is the silent degradation this
+        pipeline exists to stop.
+        """
+        from magi.ingest.gates import repetition_runs
+
+        first = self.ocr_image_with_retry(image_path, page_number, max_retries,
+                                          tiles=tiles)
+        if not first.success or not first.markdown.strip():
+            return first, ""
+        if repetition_runs(first.markdown) <= 1:
+            return first, ""
+
+        alt = self._alternative(tiles)
+        second = self.ocr_image_with_retry(image_path, page_number, max_retries,
+                                           tiles=alt)
+        how = "whole page" if alt is None else "%dx%d" % alt
+        if not second.success or not second.markdown.strip():
+            return first, (f"page {page_number} repeated itself; reading it as "
+                           f"{how} returned nothing, so the first result was kept")
+        if self._is_better(second.markdown, first.markdown):
+            return second, (f"page {page_number} repeated itself; re-read as "
+                            f"{how} and kept that ({len(first.markdown)} → "
+                            f"{len(second.markdown)} characters)")
+        return first, (f"page {page_number} repeated itself and re-reading it as "
+                       f"{how} was no better, so it was kept as it was — "
+                       f"the gates will flag it")
+
     def ocr_image_with_retry(
         self, 
         image_path: str, 
