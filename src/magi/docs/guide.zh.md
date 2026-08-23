@@ -548,7 +548,7 @@ MAGI 先问这份文档是不是真需要：**没有数学的原生电子版 PDF
 | `magi ingest tex` | arXiv 源码包（`.tar.gz`）或 `.tex` | Pandoc | **最好**——公式、引文、编号原生保真 |
 | *（自动）* 文本层 | 没有数学的原生电子版 PDF | `magi-research[textlayer]` | 忠实且免费——是文档自己的文字，不是识别出来的 |
 | `magi ingest mineru` | 一般 PDF（含扫描件） | MinerU 云端 token | 好，版面/公式识别强 |
-| `magi ingest ocr` | 一般 PDF，要求全离线 | Ollama + poppler | 中等，逐页视觉转录 |
+| `magi ingest ocr` | 一般 PDF，要求全离线 | Ollama + poppler | 中等——逐页视觉转录；公式是它的强项，表格也能保住（含表格的页会切成两半读）|
 | `magi ingest add` | 已经是 Markdown/文本的材料 | 无 | 只做归档与 frontmatter 注入 |
 
 > [!NOTE]
@@ -700,6 +700,16 @@ magi ingest finalize inbox/paper.pdf --topic-dir . --md-file raw/papers/2026-08-
 | `第 N 页 OCR 失败` | 单页重试两次仍失败 | **直接重跑一模一样的命令**：成功页缓存在 `.temp/`，只会重做失败页 |
 | 公式乱码、下标粘连 | 渲染精度太低 | 把 `ocr.dpi` 提到 150 再重跑 |
 | 摄入后 `Warning: 'magi math check' failed` | 公式校验发现问题 | `finalize` 不会因此中断；单独跑 `magi math check <文件>` 看详情，见第 6 章 |
+
+> [!NOTE]
+> **含表格的页面会被切成左右两块分别识别。** 整页发过去,模型转到长表格一半就停
+> ——实测 49 行只出 24 行,而且把上下文窗口开到四倍,输出逐字节相同。把左右两半
+> 按同样分辨率分别给它,49 行全部拿到。只有 PyMuPDF 认出表格的页会切,所以代价
+> (那一页约两倍时间)只花在有收益的地方。扫描件没有文本层、找不到表格,仍按整页
+> 处理,和以前一样。
+>
+> `.temp/` 里的缓存会记下它是用哪套提示词、切没切图产生的,两者都对得上才会复用
+> ——否则重新识别,而不是拿一份配方已经变了的旧答案交差。
 
 > [!NOTE]
 > `magi ingest ocr` **没有** `--resume` 开关——续跑是自动的：只要输出目录还在，重跑同一条命令就会复用 `.temp/page_N.json` 里已完成的页。有失败页时 `.temp/` 会被特意保留。确认全部做完后可以手动删掉它。

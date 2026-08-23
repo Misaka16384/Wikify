@@ -557,7 +557,7 @@ commands above.
 | `magi ingest tex` | arXiv source packages (`.tar.gz`) or `.tex` | Pandoc | **Best** — formulas, citations, and numbering stay natively faithful |
 | *(automatic)* text layer | Born-digital PDFs with no mathematics | `magi-research[textlayer]` | Faithful and free — it is the document's own text, not a reading of it |
 | `magi ingest mineru` | General PDFs (including scans) | MinerU cloud token | Good, strong layout/formula recognition |
-| `magi ingest ocr` | General PDFs, fully offline | Ollama + poppler | Moderate, page-by-page visual transcription |
+| `magi ingest ocr` | General PDFs, fully offline | Ollama + poppler | Moderate — page-by-page visual transcription; formulas are its strength, and tables survive since pages with one are read in halves |
 | `magi ingest add` | Material that's already Markdown/text | None | Just archives it and injects frontmatter |
 
 > [!NOTE]
@@ -708,6 +708,21 @@ magi ingest finalize inbox/paper.pdf --topic-dir . --md-file raw/papers/2026-08-
 | `第 N 页 OCR 失败` | That single page failed both retries | **Just rerun the exact same command** — successful pages are cached in `.temp/`, so only the failed page gets redone |
 | Garbled formulas, subscripts running together | Render resolution is too low | Bump `ocr.dpi` to 150 and rerun |
 | `Warning: 'magi math check' failed` after ingestion | Formula validation found an issue | `finalize` doesn't stop for this; run `magi math check <file>` on its own for details — see Chapter 6 |
+
+> [!NOTE]
+> **Pages that contain a table are read in two halves.** Sent a whole page, the
+> model transcribes about half a long table and then stops — measured, 24 of 49
+> rows, and raising the context window fourfold changes nothing byte for byte.
+> Given the left and right halves separately, at the same resolution, it
+> returns all 49. Only pages where PyMuPDF finds a table are split, so the cost
+> (roughly twice the time for that page) falls only where it buys something.
+> A scanned page has no text layer to find a table in and is read whole, as
+> before.
+>
+> A cache in `.temp/` written by an older version records the prompt and split
+> it was produced with, and is re-read only if both still match — otherwise the
+> page is transcribed again rather than replaying an answer from a recipe that
+> has since changed.
 
 > [!NOTE]
 > `magi ingest ocr` has **no** `--resume` flag — resuming is automatic. As long as the output directory still exists, rerunning the same command reuses whatever pages are already done in `.temp/page_N.json`. `.temp/` is deliberately kept around whenever there are failed pages; once you've confirmed everything's finished, you can delete it by hand.

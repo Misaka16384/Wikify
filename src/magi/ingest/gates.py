@@ -190,8 +190,12 @@ def check_identity_agrees(expected: str | None, md: str) -> Finding | None:
     return None
 
 
-#: Markdown table markup: a row of pipes, or the dashed separator under a header.
-_TABLE_ROW_RE = re.compile(r"^\s*\|.*\|\s*$", re.MULTILINE)
+#: A table row, in either notation anyone here writes one in. Markdown is a row
+#: of pipes; HTML is what `glm-ocr` produces no matter what it is asked for, and
+#: while `ocr/tables.py` converts it, a gate that only knew Markdown would call
+#: a document full of tables a document that dropped them — the loudest possible
+#: false alarm, on the route where a real dropped table is the thing to catch.
+_TABLE_ROW_RE = re.compile(r"^\s*\|.*\|\s*$|<tr\b", re.MULTILINE | re.IGNORECASE)
 
 #: The environments whose openings must be matched by a closing.
 _ENV_OPEN_RE = re.compile(r"\\begin\s*\{([A-Za-z*]+)\}")

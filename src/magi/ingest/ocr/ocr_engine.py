@@ -18,6 +18,29 @@ from dataclasses import dataclass, field
 from PIL import Image
 
 
+# glm-ocr's native OCR prompt was `Text Recognition:`, which says nothing about
+# structure -- and the model answered accordingly: across three pages carrying
+# 151 table rows it transcribed the captions and skipped every row. That was
+# recorded as a capability limit. It is not one. The same model, same pages,
+# same weights, asked for tables, returns them with the cells correct down to
+# the signs: `x^{-2}y^{-5}` and `(4, -6)` where a whole-page cloud model
+# invented `x^{32}`.
+#
+# The wording matters less than it looks. Seven prompts were measured and only
+# three distinct outputs came back: "output EVERY row, do not stop early" is
+# byte-identical to `Text Recognition:`, and "output only the table, every row"
+# is byte-identical to a fourth phrasing. The words that do anything are
+# **Markdown** and **HTML** -- naming a notation is what unlocks the table.
+# So this string is the one that was measured, not a paraphrase of it.
+#
+# It asks for pipes and gets HTML anyway. That is fine and expected; see
+# `tables.py`, which converts exactly.
+GLM_PROMPT = (
+    "Transcribe this page to Markdown. Render every table as a Markdown table "
+    "with | pipes. Use LaTeX for maths (inline: $formula$, display: $$formula$$)."
+)
+
+
 @dataclass
 class OCRResult:
     """OCR 结果"""
@@ -39,13 +62,13 @@ class OCREngine:
         "glm-ocr": {
             "max_pixels": 2_000_000,  # glm-ocr 限制约 2MP
             "use_chat_api": False,
-            "prompt": "Text Recognition:",
+            "prompt": GLM_PROMPT,
             "requires_large_context": True,
         },
         "glm-ocr-16k": {
             "max_pixels": 3_000_000,
             "use_chat_api": False,
-            "prompt": "Text Recognition:",
+            "prompt": GLM_PROMPT,
             "requires_large_context": True,
         },
         "qwen3-vl": {
@@ -146,27 +169,44 @@ class OCREngine:
         """获取 OCR 提示词"""
         return self.model_config.get("prompt", "Text Recognition:")
 
-    def ocr_image(self, image_path: str, page_number: int = 1) -> OCRResult:
+    def _transcribe(self, image_path: str) -> str:
+        """One image in, the model's raw answer out."""
+        image_base64 = self._preprocess_image(image_path)
+        prompt = self._build_ocr_prompt()
+        if self.model_config.get("use_chat_api", True):
+            return self._call_chat_api(image_base64, prompt)
+        return self._call_generate_api(image_base64, prompt)
+
+    def ocr_image(self, image_path: str, page_number: int = 1,
+                  tiles: Optional[Tuple[int, int]] = None) -> OCRResult:
         """
         对单张图片进行 OCR
 
         Args:
             image_path: 图片路径
             page_number: 页码
+            tiles: (nx, ny)，把整页切成若干块分别识别再拼回。只对**确实含表格**
+                的页面使用——整页发过去时模型转到一半就发 EOS（实测 49 行的表
+                只出 24 行），而切成左右两块能拿到 49/49。见 tiler.py。
 
         Returns:
             OCR 结果
         """
         try:
-            # 预处理图片
-            image_base64 = self._preprocess_image(image_path)
-            prompt = self._build_ocr_prompt()
+            if tiles and tuple(tiles) != (1, 1):
+                from magi.ingest.ocr import tiler
 
-            # 根据模型选择 API
-            if self.model_config.get("use_chat_api", True):
-                response_text = self._call_chat_api(image_base64, prompt)
+                parts = tiler.tile(image_path, tiles[0], tiles[1])
+                try:
+                    response_text = tiler.stitch([self._transcribe(str(p)) for p in parts])
+                finally:
+                    for part in parts:      # the tiles are scratch, not output
+                        try:
+                            part.unlink()
+                        except OSError:
+                            pass
             else:
-                response_text = self._call_generate_api(image_base64, prompt)
+                response_text = self._transcribe(image_path)
 
             # 解析结果
             markdown = self._parse_ocr_result(response_text)
@@ -242,9 +282,15 @@ class OCREngine:
         if text.endswith("```"):
             text = text[:-3]
 
-        return text.strip()
+        # The model answers with HTML tables whatever notation the prompt asks
+        # for. Converting here rather than at the end means every consumer --
+        # the gates, the wiki, a reader -- sees one notation.
+        from magi.ingest.ocr.tables import html_tables_to_markdown
 
-    def ocr_batch(self, image_paths: List[str], start_page: int = 1) -> List[OCRResult]:
+        return html_tables_to_markdown(text.strip()).strip()
+
+    def ocr_batch(self, image_paths: List[str], start_page: int = 1,
+                  tiles: Optional[Tuple[int, int]] = None) -> List[OCRResult]:
         """
         批量 OCR 处理
 
@@ -257,7 +303,7 @@ class OCREngine:
         """
         results = []
         for idx, image_path in enumerate(image_paths, start=start_page):
-            result = self.ocr_image(image_path, idx)
+            result = self.ocr_image(image_path, idx, tiles=tiles)
             results.append(result)
         return results
 
@@ -362,7 +408,8 @@ class OCREngine:
         self, 
         image_path: str, 
         page_number: int = 1, 
-        max_retries: int = 2
+        max_retries: int = 2,
+        tiles: Optional[Tuple[int, int]] = None
     ) -> OCRResult:
         """
         带重试的 OCR 处理
@@ -377,7 +424,7 @@ class OCREngine:
         """
         last_error = None
         for attempt in range(max_retries + 1):
-            result = self.ocr_image(image_path, page_number)
+            result = self.ocr_image(image_path, page_number, tiles=tiles)
             if result.success:
                 return result
             last_error = result.error_message

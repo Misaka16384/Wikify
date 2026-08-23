@@ -206,6 +206,22 @@ class PDF2MarkdownAgent:
                 if not pages:
                     raise RuntimeError(f"--pages 范围 {lo}-{hi} 不含任何页（PDF 共 {total_in_pdf} 页）")
 
+            # Pages whose source carries a table are read a tile at a time. Sent
+            # the whole page, the model transcribes about half a long table and
+            # then emits end-of-sequence: measured 24 of 49 rows, and raising
+            # num_ctx four-fold or num_predict to 8192 changes nothing, byte for
+            # byte. Left and right tiles get all 49. It is applied only here
+            # because on the six measured pages without tables tiling buys
+            # nothing, and on one of them it turned a 559-character answer into
+            # a 32,785-character repetition loop.
+            from magi.ingest.ocr import tiler
+
+            table_pages = tiler.pages_with_tables(pdf_path)
+            self._table_pages = table_pages
+            if table_pages:
+                console.print(f"[cyan]{len(table_pages)} 页含表格[/cyan]，这些页按左右两块分别识别"
+                              f"（整页发过去模型会转到一半就停）")
+
             cached_n = sum(1 for p in pages if (temp_dir / f"page_{p.page_number}.json").exists())
             if cached_n:
                 console.print(f"[green]✓[/green] 检测到 {cached_n} 页已有 OCR 缓存，将直接复用（中断后重跑即断点续跑）")
@@ -237,7 +253,14 @@ class PDF2MarkdownAgent:
                             import json
                             with open(cache_path, "r", encoding="utf-8") as f:
                                 cache_data = json.load(f)
-                            if cache_data.get("success", False):
+                            # A cache written by an older build was produced by
+                            # a different prompt and without tiling, so replaying
+                            # it would silently serve the results this change
+                            # exists to replace. Recipe mismatch means re-OCR.
+                            stale = cache_data.get("recipe") != self._recipe(page.page_number)
+                            if stale:
+                                console.print(f"[dim]  第 {page.page_number} 页缓存来自旧配方，重新识别[/dim]")
+                            if cache_data.get("success", False) and not stale:
                                 result = OCRResult(
                                     page_number=cache_data["page_number"],
                                     raw_text=cache_data["raw_text"],
@@ -257,7 +280,10 @@ class PDF2MarkdownAgent:
                     
                     start_time = time.time()
                     # 使用带有重试机制的 OCR 方法，最大重试 2 次
-                    result = self.ocr_engine.ocr_image_with_retry(page.image_path, page.page_number, max_retries=2)
+                    page_tiles = (2, 1) if page.page_number in table_pages else None
+                    result = self.ocr_engine.ocr_image_with_retry(
+                        page.image_path, page.page_number, max_retries=2,
+                        tiles=page_tiles)
                     elapsed = time.time() - start_time
                     total_ocr_time += elapsed
                     page_times.append((page.page_number, elapsed))
@@ -275,7 +301,8 @@ class PDF2MarkdownAgent:
                                     "figures": result.figures,
                                     "tables": result.tables,
                                     "success": result.success,
-                                    "error_message": result.error_message
+                                    "error_message": result.error_message,
+                                    "recipe": self._recipe(page.page_number),
                                 }, f, ensure_ascii=False, indent=2)
                         except Exception as e:
                             console.print(f"[yellow]  写入第 {page.page_number} 页缓存失败: {e}[/yellow]")
@@ -382,6 +409,20 @@ class PDF2MarkdownAgent:
                 pages_processed=0,
                 errors=[str(e)]
             )
+
+    def _recipe(self, page_number: int) -> str:
+        """What produced a cached page: model, prompt, and whether it was tiled.
+
+        Anything that would change the answer belongs in this string. A cache
+        keyed only on the page number is a cache that survives the fix.
+        """
+        import hashlib
+
+        prompt = self.ocr_engine._build_ocr_prompt()
+        tiled = page_number in getattr(self, "_table_pages", set())
+        return "%s|%s|%s" % (self.ocr_engine.model,
+                             hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:12],
+                             "2x1" if tiled else "whole")
 
     def _display_summary(self, results: List[OCRResult], md_path: Path, images_dir: Path):
         """显示转换摘要"""
