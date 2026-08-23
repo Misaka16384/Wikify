@@ -4,6 +4,59 @@
 >
 > 最后更新：2026-08-22 · 当前阶段：**v1.12.2 已发布**（tag `v1.12.2`；版本号同步 ×5）。此前：M0–M9 全部完成。
 >
+> 2026-08-23（四）发布失败，起因是我自己写的设计说明没被自己遵守 (v1.12.3)。
+>
+> **v1.12.3 的 tag 推上去，CI 34 秒后挂了**，PyPI 仍是 1.12.2、GitHub Release 没生成。三个测试在 CI 红、在本地全绿：
+>
+> ```
+> test_batch.py::test_a_local_pdf_starts_on_the_free_route
+> test_routing.py::test_a_prose_pdf_starts_on_the_free_route            assert 'mineru' == 'textlayer'
+> test_routing.py::test_both_commands_route_the_same_pdf_to_the_same_rung
+> ```
+>
+> **原因是 CI 装的是 `.[test]`，不含 `[textlayer]`。** 而 `routing.text_layer_verdict` 会检查 `pymupdf4llm` 在不在，不在就把 `ok` 判成 False，于是 `first_rung` 掉到 `mineru`。**这与 `routing.py` 顶上那段设计说明直接矛盾**——那段话是修 A4/A5 时我自己写的：
+>
+> > **What should run?** — this module. Format and content decide it, and **the answer does not depend on what happens to be installed.**
+> > **What can run here?** — the caller's.
+>
+> 我把第二个问题漏进了第一个。**症状恰恰是这个模块存在的理由**：同一份 PDF、同一份代码，在开发机上走 textlayer、在 runner 上走 mineru。
+>
+> **修法是让代码回到那段说明上，不是给 CI 补装 extra。** `TextLayerVerdict` 拆成两个字段：`ok` 讲文档（原生电子版、可读、无数学），`available` 讲这台机器（`pymupdf4llm` 装没装）。`first_rung` 只看 `ok`；`ingest auto` 自己看 `available`，因为它没有阶梯可掉、必须当场决定。
+>
+> **顺带这修好了一个真 bug**：没装 `[textlayer]` 的机器上，`batch-run` 原先把散文 PDF 直接送 mineru——**花掉一个 token 去读装个包就免费的东西，而且不说**。现在它会先试 textlayer、失败、掉下去，路上把包名讲出来。这就是 A4 的同一个毛病，只是被 extra 挡了一层。
+>
+> **两条测试钉的是旧契约**（`ok is False`），按新契约改了——A6 要的"理由可操作"没丢，只是挪到了对的字段上。另加一条测试直接钉住这件事：**隐藏 `pymupdf4llm` 之后，`first_rung` 仍须返回 `textlayer`**。
+>
+> **教训值得单独记**：本地绿 + CI 红，第一反应容易是"把 CI 环境补齐"。但**测试环境的差异只是显影剂**——它显出来的是代码里一处真实的耦合。补 CI 会让红变绿，同时把 bug 留在所有没装 extra 的用户机器上。
+>
+> **本轮其余部分：**
+>
+> **浏览器插件进了发布流水线。** 它此前**没有任何分发渠道**——不在 wheel 里（不是 Python 包），仓库里除 ROADMAP 外无人引用，装了 `magi-research` 的人根本拿不到。现在每次发布附一个 zip。**不是 crx**：Chrome 官方文档写着 *"Linux is the only platform where Chrome users can install extensions that are hosted outside of the Chrome Web Store"*，Windows/macOS 上自托管 crx 只能靠企业策略，拖进去会 `CRX_REQUIRED_PROOF_MISSING`。查了对照组：uBlock Origin 只发 zip；Vimium、Zotero Connector、SingleFile 在 GitHub 上一个二进制都不发。**打 crx 等于发一个谁都装不了的文件。** zip 打进 `ext/` 而非 `dist/`——`publish` job 会把 `dist/` 里的一切传去 PyPI。
+>
+> **扩展有自己的版本号，且由 CI 守着。** Chrome 会**静默拒绝**版本号没涨的更新，所有人留在旧弹窗上而没有任何地方会说。`tests/test_extension_version.py` 拿上一个 release tag 做 diff：文件改了而 `manifest.json` 没动就红。守卫验过会咬（退回 1.0.0 当场红）。**并且发现它在 CI 里本来跑不到**——`test` job 是浅克隆没有 tag，`git describe` 拿不到就 skip 了，加了 `fetch-depth: 0`。一个只在本地生效的 CI 检查等于没有。
+>
+> **GitHub 项目元数据全部停在 Wikify 时代**，其中一条是坏的：**homepage 指向 `Misaka16384/Wikify`**，那个仓库已改名，任何访客的第一个外链就是历史遗迹。简介说的还是"AI 智能体技能"。topics 里没有 python/cli/arxiv/zotero/rag 这些真会被搜到的词。三处都换了，topics 补到 20 个（上限）。README 加了四个徽章（版本/下载/Python/协议），此前一个都没有。
+>
+> **流量数字要泼一盆冷水，记下来免得以后误读。** 用户注意到 clone 和下载"很多"。实测：PyPI 总下载 6005，**其中非镜像只有 1752——镜像占 77%**；GitHub 14 天 700 clone / **299 个唯一 cloner**，但**只有 20 个唯一访客**。人类基本先看页面再 clone，**93% 的 cloner 从没打开过仓库页**。这是包镜像、安全扫描器、依赖图爬虫、AI 训练爬虫的签名。真正的人类尺度是 7 star / 1 fork / 20 访客。**shields.io 的 `pypi/dm` 徽章报的是 without_mirrors（1.8k/月），是诚实的**，所以徽章可以放心挂。
+>
+> 2026-08-23（三）浏览器按钮的第一次真实点击，和它带出来的两条。用户「用我的 chrome 点一点试试」。
+>
+> **这个插件从写出来到现在没有被真的点过。** `chrome://` 和 `chrome-extension://` 都不让扩展去操作，截图也只到页面视口、拍不到工具栏，所以这一步只能人来点——之前的测试全部停在 `POST /api/ingest/enqueue` 那一层（`tests/test_ui_api.py` 的 blast-radius 断言）。**结论是它能用**：端口自己探到 8737、库列表只出现隔离出来的 `ext-demo`（真实注册表四条一条没露）、URL 被认成 `arxiv` 而不是 `page`（这决定走 LaTeXML 还是下 PDF）、`raw/` 与 `wiki/` 字节未变、只多了 `queue.jsonl` 一行。
+>
+> **点出来三件事，两件当场修了。**
+>
+> **① 成功提示两句话粘成一句。** `popup.js` 里写的是 `` `…${body.value}\n${body.pending} waiting…` ``，但它用 `textContent` 塞进 div，而 CSS 没有 `white-space: pre-line`，换行被折叠成空格。于是显示成 `Queued as arXiv paper: 2410.11942 2 waiting in ext-demo.`——**恰好 arXiv id 是数字，`2410.11942 2` 看起来像版本号的一部分**。加一行 CSS。
+>
+> **② 标题带着浏览器的装饰进库。** 存下来的是 `[2410.11942] Operator algebra and…`。**修在服务端，不在插件里**：插件自己的文档写着它不解析、不判断，"那是服务器的活，在这儿写就是第二份会漂移的实现"——所以 `enqueue.clean_title()` 承担这条规则，CLI 与 WebUI 端点共用。它平时看不见（rung 1 拿到 arXiv 自己的标题会覆盖掉），**只在 rung 1 落空、降级到没有元数据的转换器时才显形**——正是那种平时不咬人、出事时才咬的。顺带一提这个修复第一次验证时"没生效"，原因是**服务还跑着改之前的代码**，重启后含 legacy 格式（`[cond-mat/9512169] …`）一并正确。
+>
+> **③ 插件没有 i18n（用户指出）。** 补了，**而且是两套机制，因为不得不**：扩展的名字和 tooltip 是 manifest 字段，**只能**走 Chrome 原生的 `_locales/`（跟随浏览器 UI 语言，无法切换）；弹窗内部则用和 WebUI **同一张 `I18N` 表结构、同一个 `magi-lang` 存储键**，带 `中 / EN` 按钮，所以两个界面不会各说各话。语言解析顺序也照抄 WebUI：存过的选择 → `navigator.language` → 英文。
+>
+> **④ 入队没有幂等（用户指出，本轮按要求未动）** → 记为 **A11**。同一篇点三次就进三次。
+>
+> **顺带查清的一条** → 记为 **D7**：MinerU token 在 WebUI 里配置**不是全局的**，写的是当前选中工作区的 `config.yaml`。用户机器上同一个 JWT 因此存了三份。而 `~/.config/magi/config.yaml` 这条"全局回退"永远轮不到——`find_config_yaml` 是首个命中即返回，而每个工作区根下都有 config.yaml。
+>
+> 测试 902 → 917（+15，`tests/test_enqueue_title.py`）。
+>
 > 2026-08-23 让 rung 5 没法再无声地失败，以及换掉默认模型 (v1.12.3)：用户「全部做」。当天三次实测的结论一次落地。
 >
 > **默认 OCR 模型改成 `glm-ocr:q8_0`。** 实测背书：错误集合跟 F16 **逐条相同**（同样的行、同样的 ratio），而 9 页均值 17.1 → 13.0 秒/页，**快 24%**——70 页的论文从 20 分钟到 15 分钟。Q4_K_M 再快 17%，但多两条错且**是同一类**（把散文包进 `$$`），加上那个社区包 `quantization_level` 报 `unknown`、缺 `tools` 能力，为了 2 秒不值得。顺带把 `_get_model_config` 的前缀匹配改成**最长键优先**——默认值带上 tag 之后这件事才有分量，否则将来的 `glm-ocr-16k:q8_0` 会先撞上 `glm-ocr` 拿到 2MP 而不是它要的 3MP。
@@ -369,19 +422,18 @@ adar-stress-ws`（67 篇真实论文 + 索引 + 真实 harvest/citation-gap 产�
 
 ## 待修问题（已确认，未动手）
 
-> 最后整理：2026-08-23（v1.12.3）。**都有复现证据**，不是猜测；每条注明证据、位置和建议改法。
+> 最后整理：2026-08-23（v1.12.3 之后；A11/D7 来自浏览器按钮的首次真实点击）。**都有复现证据**，不是猜测；每条注明证据、位置和建议改法。
 > 修掉一条就从这里删掉，并在当天的 dated entry 里写清楚。
 > **A1–A10 已全部处理完**（A1–A8 于 2026-08-22，A9/A10 于 2026-08-23 / v1.12.3）。编号只增不重排，旧讨论里引用的编号要一直有效。
 
 ### A. 已确认的 bug
 
-**空的。** A1–A10 全部处理完（A1–A8 见 2026-08-22，A9/A10 见 2026-08-23 / v1.12.3）。
+> A1–A10 已于 2026-08-22 / 2026-08-23 处理完。**A9/A10 的收尾方式值得记一句**：模型仍然丢表格、
+> 仍然会停在那个矩阵里——这两件事这个仓库修不了。**能修的是"静默"**，所以修的是那个。
 
-这一栏是空的，不代表没有 bug，只代表**没有已知且已复现的 bug**。下一条进来时按原格式加，
-编号继续往下走（A11 起），不要重排——旧讨论里引用的编号得一直有效。
-
-**A9/A10 的收尾方式值得记一句**：模型仍然丢表格、仍然会停在那个矩阵里——这两件事这个仓库
-修不了。**能修的是"静默"**，所以修的是那个。现在它们会被闸门报出来，人在审批时看得见。
+| # | 问题 | 证据 | 位置 | 建议 |
+|---|---|---|---|---|
+| A11 | **入队没有幂等**：同一篇文章点几次浏览器按钮，就进几次队列 | 用户实测：同一个 arXiv 标签页点三次，`queue.jsonl` 得到 **三条 `2410.11942`**，会被 `batch-run` 转换三遍、在审批列表里出现三次 | `ingest/ledger.py` 的 `enqueue()`——CLI 与 WebUI 端点都走它，所以修在这一处就够 | **判据是"还在等着的"，不是"这辈子见过的"**：同一个 `(source_type, value)` 若已在 `pending()` 里，就不要新建请求，直接把已有的 `req_id` 回给调用方。三种情况必须放过：① 带 `retry_of` 的——那是拒绝后的降级重排队，故意要重来；② 已经 commit 进库的——arXiv 出了新版本重新摄入是合理的（但值得出一条 finding）；③ 不同库里的同一篇。**端点要如实回报**（比如 `status: "already-queued"`），否则弹窗会说"已入队"而其实什么都没发生——那比重复更糟 |
 
 ### B. 质量问题（不是 bug，是选择）
 
@@ -409,6 +461,7 @@ adar-stress-ws`（67 篇真实论文 + 索引 + 真实 harvest/citation-gap 产�
 | D4 | **WebUI 在用 JS 重新实现后端逻辑** | `countTasks()` vs `bd_status_summary()`、功能开关判断两处、i18n 抄了一遍 CLI 文案。任务面板显示 0 那个 bug 本质就是这种漂移。判据：**一段 JS 在做判断而不是渲染，它大概率该在 Python 里** |
 | D5 | **Skill 是没有测试的代码，而且单位字符代价最高** | 那次烧掉用户周额度的事故，起点是 `wiki_ingest/SKILL.md` 里一句话。`test_skill_conventions.py` 只检查**形式**（不许写死宿主工具名、必须有提问原语），检查不了**行为**。可行起点：给每个 skill 写下"绝不应该做的三件事"，至少让它们在文本层面可检测 |
 | D6 | **上游依赖承重且无版本承诺，但没有降级表** | arXiv HTML 是 beta、ar5iv 是 2024-02 冻结快照、S2 匿名限额无文档（实测拒绝 295、100 可以）、PyPI simple index 比 JSON API 慢几分钟。建议显式写一张「每个上游挂掉时产品退化成什么样、用户看到什么」的表——既是设计文档也是测试清单 |
+| D7 | **秘密被迫存 N 份，而且有一条看起来能用、实际永远轮不到的全局路径** | `models.ocr` 之类的设置每个工作区一份还说得过去，`ocr.mineru_api_token` 不行——WebUI 的配置编辑器写的是 `ws / "config.yaml"`（`api.py`），而 `find_config_yaml` 是**首个命中即返回**：向上走撞到第一个工作区/hub 根下的 config.yaml 就用它，只有一路走到头才回退 `~/.config/magi/config.yaml`。**每个 `magi init` 出来的工作区根下都有 config.yaml**，所以那条全局路径永远被挡住。实测：用户机器上同一个 JWT 存了三份，而 `~/.config/magi/config.yaml` 根本不存在。**这比没有全局层更糟**——代码里有这条回退，看起来像是能用的 |
 
 ### E. 测量缺口（知道自己没测）
 

@@ -23,6 +23,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # test_extension_version.py compares the extension against the last
+          # release tag. A shallow clone has no tags, so the check would skip
+          # in CI — silently, and CI is the only place it needs to hold.
+          fetch-depth: 0
       - uses: astral-sh/setup-uv@v10.0.1
       - run: uv venv
       - run: uv pip install -e ".[test]"
@@ -38,10 +43,39 @@ jobs:
       # Catches an unrenderable README before it reaches PyPI, where a bad
       # long_description is a hard 400.
       - run: uvx twine check dist/*
+      # The browser button is not in the wheel — it is not a Python package —
+      # so without this it ships nowhere and the only way to get it is to
+      # clone the repo. A zip of the source tree is the artifact that helps:
+      # Chrome refuses a .crx that the Web Store did not sign, and on Windows
+      # and macOS a self-hosted one cannot be installed at all outside
+      # enterprise policy ("Linux is the only platform where Chrome users can
+      # install extensions that are hosted outside of the Chrome Web Store").
+      # uBlock Origin ships a zip for the same reason; Vimium and the Zotero
+      # connector ship no binary at all and point at the store.
+      #
+      # Built into `ext/`, never `dist/`: the publish job uploads everything in
+      # dist/ to PyPI, and a zip that is not a Python distribution would fail
+      # that upload — or, worse, be accepted as a stray file on the project.
+      - name: Package the browser extension
+        run: |
+          mkdir -p ext
+          VER="$(python -c 'import json;print(json.load(open("browser-extension/manifest.json"))["version"])')"
+          echo "extension version $VER"
+          (cd browser-extension && zip -r "../ext/magi-browser-extension-v${VER}.zip" . -x '*.DS_Store')
+          # A zip Chrome cannot load is worse than no zip: it fails on the
+          # user's machine, at the moment they try it, with no way for them to
+          # tell whether they did something wrong. Assert the files Chrome
+          # requires are actually in there.
+          unzip -l "ext/magi-browser-extension-v${VER}.zip" | grep -q 'manifest.json'
+          unzip -l "ext/magi-browser-extension-v${VER}.zip" | grep -q '_locales/en/messages.json'
       - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
+      - uses: actions/upload-artifact@v7
+        with:
+          name: extension
+          path: ext/
 
   publish:
     needs: build
@@ -79,6 +113,10 @@ jobs:
         with:
           name: dist
           path: dist/
+      - uses: actions/download-artifact@v8
+        with:
+          name: extension
+          path: ext/
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -104,10 +142,19 @@ jobs:
             echo "::notice::No '#' headings in the tag body. If you wrote any," \
                  "re-tag with --cleanup=verbatim; git strips them otherwise."
           fi
+          # The extension zip needs its own sentence. Chrome will not install a
+          # self-hosted .crx on Windows or macOS at all, so "Load unpacked" is
+          # not us being lazy — it is the only path that works without going
+          # through the Web Store, and saying so stops the download looking
+          # broken.
           printf '%s\n\n```bash\npipx upgrade --install magi-research\n```\n' \
             "$BODY" > notes.md
+          if ls ext/*.zip >/dev/null 2>&1; then
+            printf '\n---\n\n**Browser button** — `%s` below.\nUnzip it, open `chrome://extensions`, turn on Developer Mode, and use **Load unpacked** on the unzipped folder. It sends the page you are reading to a local MAGI queue and nothing else; nothing enters a library until you approve the batch.\n' \
+              "$(basename ext/*.zip)" >> notes.md
+          fi
           gh release create "$TAG" \
             --title "$SUBJECT" \
             --notes-file notes.md \
             --verify-tag \
-            dist/*
+            dist/* ext/*

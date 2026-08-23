@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -59,6 +60,42 @@ def resolve_library(name: str | None) -> tuple[Path | None, str | None]:
     return path, None
 
 
+#: How the sites people queue from decorate a browser tab's title. The
+#: extension sends `tab.title` verbatim — deliberately, since parsing is the
+#: server's job — and arXiv's abstract pages prefix the identifier, so a queued
+#: paper arrives called "[2410.11942] Operator algebra and…".
+_TITLE_NOISE = (
+    re.compile(r"^\s*\[\s*(?:arXiv[:\s]*)?[0-9]{4}\.[0-9]{4,5}(?:v\d+)?\s*\]\s*", re.I),
+    re.compile(r"^\s*\[\s*[a-z-]+(?:\.[A-Z]{2})?/[0-9]{7}(?:v\d+)?\s*\]\s*", re.I),
+    re.compile(r"\s*[-|–—]\s*arXiv(?:\.org)?\s*$", re.I),
+)
+
+
+def clean_title(title: str | None) -> str | None:
+    """The paper's title, without what the browser tab added to it.
+
+    Done here rather than in the extension on purpose. The extension states
+    that it parses nothing and decides nothing — that is what keeps it a
+    button — so every rule about what a title looks like lives on this side,
+    where it is one implementation with tests around it.
+
+    It matters mainly on the way *down* the ladder. arXiv's own HTML carries a
+    proper title that overwrites this one, so the prefix is invisible while
+    rung 1 works; when rung 1 misses and the item falls through to a converter
+    that has no metadata of its own, this is the title that reaches the
+    library.
+    """
+    if not title:
+        return None
+    cleaned = title
+    for pattern in _TITLE_NOISE:
+        cleaned = pattern.sub("", cleaned)
+    cleaned = cleaned.strip()
+    # If stripping left nothing, the "noise" was the whole title. Keep the
+    # original: a wrong title beats an empty one, and it is visible in review.
+    return cleaned or title.strip()
+
+
 def classify(target: str) -> tuple[str, str]:
     """What kind of thing this is, using no network.
 
@@ -93,7 +130,8 @@ def cmd_url(args) -> int:
     for target in args.targets:
         source_type, value = classify(target)
         req_id = ledger.enqueue(topic, source_type=source_type, value=value,
-                                library=args.library, title=args.title)
+                                library=args.library,
+                                title=clean_title(args.title))
         queued.append({"req_id": req_id, "source_type": source_type,
                        "value": value, "status": "queued"})
         if not args.json:

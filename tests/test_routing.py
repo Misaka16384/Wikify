@@ -126,9 +126,14 @@ def test_a_missing_extractor_says_whether_it_would_have_helped(tmp_path, monkeyp
     _make_import_fail(monkeypatch, ImportError("No module named 'pymupdf4llm'"))
 
     verdict = routing.text_layer_verdict(tmp_path / "x.pdf")
-    assert verdict.ok is False
+    # The document is still readable; this machine is what is missing something.
+    # Folding the two together made routing depend on the environment, and the
+    # same PDF then took different rungs on a developer's box and on CI.
+    assert verdict.ok is True
+    assert verdict.available is False
     assert "a real text layer" in verdict.why
     assert "pymupdf4llm is not installed" in verdict.why
+    assert "pymupdf4llm is not installed" in verdict.unavailable_why
 
 
 def test_an_import_that_fails_without_being_an_ImportError_is_caught(tmp_path, monkeypatch):
@@ -141,8 +146,27 @@ def test_an_import_that_fails_without_being_an_ImportError_is_caught(tmp_path, m
         "Fail: Unsupported model IR version: 10, max supported IR version: 9"))
 
     verdict = routing.text_layer_verdict(tmp_path / "x.pdf")
-    assert verdict.ok is False
+    assert verdict.ok is True          # the PDF is fine; the install is not
+    assert verdict.available is False
     assert "onnxruntime" in verdict.why and "1.18" in verdict.why
+
+
+def test_the_rung_is_chosen_without_asking_what_is_installed(tmp_path, monkeypatch):
+    """The whole point of this module, and the thing CI caught being violated.
+
+    A prose PDF routes to `textlayer` on a machine with the extra and on one
+    without it. `batch-run` has a ladder and falls, learning the package name
+    on the way; `ingest auto` has none and looks at `available` itself.
+    """
+    _stub_verdict(monkeypatch, route_here=True, reason="a real text layer, no math fonts")
+    _make_import_fail(monkeypatch, ImportError("No module named 'pymupdf4llm'"))
+    routing.forget_verdicts()
+
+    pdf = tmp_path / "survey.pdf"
+    pdf.write_bytes(b"%PDF-1.7\n")
+    route, why = routing.first_rung("file", str(pdf))
+    assert route == "textlayer"
+    assert "pymupdf4llm is not installed" in why
 
 
 def test_a_maths_paper_is_refused_before_the_extractor_is_even_considered(tmp_path, monkeypatch):

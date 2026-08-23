@@ -25,14 +25,42 @@ If you never install this, `magi ingest url "<URL>"` does exactly the same thing
 from a terminal, and the **wiki_inbox** skill does it from an agent. All three
 call the same function.
 
-## Install (unpacked)
+## Install
+
+Every MAGI release attaches `magi-browser-extension-v<version>.zip`. Download
+it from the [releases page](https://github.com/Misaka16384/magi/releases) and
+unzip it, or just use this folder from a clone — they are the same files.
 
 1. `magi ui` — MAGI must be running; the button looks on ports 8737–8741.
 2. Chrome/Edge → `chrome://extensions` → turn on **Developer mode**
-3. **Load unpacked** → choose this `browser-extension/` folder
+3. **Load unpacked** → choose the unzipped folder (the one holding `manifest.json`)
 
 Firefox: `about:debugging` → **This Firefox** → **Load Temporary Add-on** →
 pick `manifest.json`.
+
+> **Why a zip and not a `.crx`?** Because a `.crx` would not install.
+> Chrome only accepts extensions the Web Store signed: *"Linux is the only
+> platform where Chrome users can install extensions that are hosted outside
+> of the Chrome Web Store"*, and on Windows and macOS a self-hosted one needs
+> an enterprise policy. Dragging a `.crx` in fails with
+> `CRX_REQUIRED_PROOF_MISSING`. Shipping one would hand you a file you cannot
+> use — uBlock Origin ships a zip for the same reason, and Vimium and the
+> Zotero connector ship no binary at all.
+
+The extension carries its **own version number**, independent of MAGI's: it can
+sit unchanged across several MAGI releases, and can need a fix between them.
+`tests/test_extension_version.py` fails the build if these files changed since
+the last release tag without `manifest.json` moving — Chrome silently refuses
+an update whose version did not increase, which would leave everyone on the old
+popup with nothing to say so.
+
+## Language
+
+The popup follows your saved choice, then the browser's language, then English —
+the same order and the same `magi-lang` key the WebUI uses, so the two surfaces
+agree. The `中 / EN` button in the corner switches it. The extension's *name* and
+tooltip come from `_locales/` instead, because manifest strings can only be
+localised Chrome's way and follow Chrome's own UI language.
 
 ## Security
 

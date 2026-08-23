@@ -65,7 +65,16 @@ def classify(path: Path, cfg: dict) -> Tuple[str, str]:
         return "skip", "LaTeX source, but pandoc is not installed"
 
     if route == "textlayer":
-        return "textlayer", why
+        # `first_rung` says this document *should* be read from its own text
+        # layer and deliberately does not care whether the extractor is here.
+        # This command has no ladder to fall down, so it is the one that has to
+        # look — and when it is missing, the honest move is the next rung with
+        # the reason attached, not a failure that never names the package.
+        verdict = routing.text_layer_verdict(path)
+        if verdict.available:
+            return "textlayer", why
+        why = (f"{why}; falling to a model instead — "
+               f"install it to read this one for free")
 
     # Everything else is a PDF needing a model. Which model is available is a
     # local question the ladder would answer by falling; here it is answered by

@@ -2,6 +2,11 @@
 
 *[中文](README.md) | [English](README_en.md)*
 
+[![PyPI](https://img.shields.io/pypi/v/magi-research?label=PyPI)](https://pypi.org/project/magi-research/)
+[![下载量](https://img.shields.io/pypi/dm/magi-research?label=%E4%B8%8B%E8%BD%BD%2F%E6%9C%88)](https://pypistats.org/packages/magi-research)
+[![Python](https://img.shields.io/pypi/pyversions/magi-research)](https://pypi.org/project/magi-research/)
+[![License](https://img.shields.io/pypi/l/magi-research)](LICENSE)
+
 **MAGI** 是一个 agent-native 的科研工作环境：人是驾驶员，LLM agent 是机体，确定性的 `magi` CLI 是拘束具——三者同步率越高，科研越快。它把学术论文（PDF/LaTeX）摄入、编译为 Obsidian 兼容的概念卡片知识库，并用三核架构管理完整的科研状态：
 
 | 核 | 状态 | 由谁承载 | 回答的问题 |

@@ -2,6 +2,11 @@
 
 *[English](README_en.md) | [中文](README.md)*
 
+[![PyPI](https://img.shields.io/pypi/v/magi-research?label=PyPI)](https://pypi.org/project/magi-research/)
+[![Downloads](https://img.shields.io/pypi/dm/magi-research)](https://pypistats.org/packages/magi-research)
+[![Python](https://img.shields.io/pypi/pyversions/magi-research)](https://pypi.org/project/magi-research/)
+[![License](https://img.shields.io/pypi/l/magi-research)](LICENSE)
+
 **MAGI** is an agent-native research workspace: the human pilots, the LLM agent is the mecha, and the deterministic `magi` CLI is the restraint armor — the higher the sync ratio, the faster the science. It ingests academic papers (PDF/LaTeX) into an Obsidian-compatible concept-card knowledge base and manages the full research state through a three-core architecture:
 
 | Core | State | Carried by | Question answered |

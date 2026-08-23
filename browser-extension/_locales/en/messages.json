@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "MAGI — add to library",
+    "description": "Extension name, shown in the toolbar and on chrome://extensions."
+  },
+  "extDescription": {
+    "message": "Send the page you are reading to a local MAGI knowledge base. Nothing is downloaded or converted here — MAGI does that, and waits for your approval before anything enters the library.",
+    "description": "Extension description on chrome://extensions and the Web Store."
+  },
+  "actionTitle": {
+    "message": "Add this page to a MAGI library",
+    "description": "Tooltip on the toolbar button."
+  }
+}

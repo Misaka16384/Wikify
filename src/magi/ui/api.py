@@ -765,7 +765,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         loopback-only server. Everything it queues waits for a human.
         """
         from magi.ingest import ledger
-        from magi.ingest.enqueue import classify, resolve_library
+        from magi.ingest.enqueue import classify, clean_title, resolve_library
 
         if req.library:
             target, err = resolve_library(req.library)
@@ -796,8 +796,12 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail="no workspace to queue into")
 
         source_type, value = classify(req.value)
+        # The browser sends the tab's title verbatim — the extension parses
+        # nothing on purpose — so arXiv's "[2410.11942] " prefix arrives with
+        # it. Cleaning it here keeps that rule in one place, shared with the
+        # CLI path.
         req_id = ledger.enqueue(target, source_type=source_type, value=value,
-                                library=req.library, title=req.title)
+                                library=req.library, title=clean_title(req.title))
         return {"req_id": req_id, "source_type": source_type, "value": value,
                 "workspace": str(target), "status": "queued",
                 "pending": len(ledger.pending(target))}

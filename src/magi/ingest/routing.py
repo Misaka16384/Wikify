@@ -36,15 +36,25 @@ from magi.core.arxiv_id import normalize_arxiv_id
 
 
 class TextLayerVerdict(NamedTuple):
-    """Whether a PDF can be read without a model, why, and how big it is.
+    """Whether a PDF should be read without a model, why, and how big it is.
 
     Carries ``pages`` because the caller that acts on a yes wants to report it
     and would otherwise open the document a second time to find out.
+
+    ``ok`` and ``available`` are the module's two questions, kept apart. ``ok``
+    is about the document: born-digital, readable, no mathematics. ``available``
+    is about this machine: is ``pymupdf4llm`` installed. Folding the second into
+    the first is exactly the leak this module exists to prevent, and it showed
+    up as a CI failure — a prose PDF routed to ``textlayer`` on a developer's
+    machine and to ``mineru`` on a runner without the extra, from the same code
+    and the same file.
     """
 
     ok: bool
     why: str
     pages: int = 0
+    available: bool = True
+    unavailable_why: str = ""
 
 
 #: Suffixes that mean LaTeX source rather than a rendered document.
@@ -131,6 +141,12 @@ def text_layer_verdict(path) -> TextLayerVerdict:
     tells someone to install it. "the extractor is missing" does not say
     whether installing it would have helped this file at all. The gate itself
     runs on PyMuPDF, a hard dependency, so asking first costs nothing.
+
+    A missing extractor makes ``available`` false and leaves ``ok`` alone. The
+    document did not change because this machine is missing a package, and a
+    caller with a ladder underneath it should still start here and fall — it
+    gets the sentence naming the package that way, instead of silently
+    spending a MinerU token on something that is free once installed.
     """
     key = _fingerprint(path)
     if key is not None and key in _VERDICTS:
@@ -146,20 +162,23 @@ def text_layer_verdict(path) -> TextLayerVerdict:
     if not verdict.route_here:
         return _remember(key, TextLayerVerdict(False, verdict.reason, pages))
 
+    missing = ""
     try:
         import pymupdf4llm  # noqa: F401 — presence check only
     except ImportError:
-        return _remember(key, TextLayerVerdict(
-            False, f"{verdict.reason}, so this could have been read without OCR — "
-            "but pymupdf4llm is not installed "
-            "(pip install 'magi-research[textlayer]')", pages))
+        missing = ("pymupdf4llm is not installed "
+                   "(pip install 'magi-research[textlayer]')")
     except Exception as exc:  # noqa: BLE001
-        detail = f"{type(exc).__name__}: {exc}"
         hint = ("its onnxruntime is too old — pip install -U 'onnxruntime>=1.18'"
                 if "IR version" in str(exc) else "reinstall it")
+        missing = (f"pymupdf4llm could not be loaded "
+                   f"({type(exc).__name__}: {exc}); {hint}")
+
+    if missing:
         return _remember(key, TextLayerVerdict(
-            False, f"{verdict.reason}, so this could have been read without OCR — "
-            f"but pymupdf4llm could not be loaded ({detail}); {hint}", pages))
+            True,
+            f"{verdict.reason}, so this can be read without OCR — but {missing}",
+            pages, available=False, unavailable_why=missing))
 
     return _remember(key, TextLayerVerdict(True, verdict.reason, pages))
 

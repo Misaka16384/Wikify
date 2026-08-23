@@ -1,0 +1,14 @@
+{
+  "extName": {
+    "message": "MAGI — 收进知识库",
+    "description": "Extension name, shown in the toolbar and on chrome://extensions."
+  },
+  "extDescription": {
+    "message": "把当前正在读的页面发给本机的 MAGI 知识库。这里不下载、也不转换——那些是 MAGI 做的，而且在任何东西进库之前都会等你批准。",
+    "description": "Extension description on chrome://extensions and the Web Store."
+  },
+  "actionTitle": {
+    "message": "把这个页面加进 MAGI 知识库",
+    "description": "Tooltip on the toolbar button."
+  }
+}

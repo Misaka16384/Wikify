@@ -35,6 +35,7 @@
     color: var(--ink);
     font: 13px/1.5 "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   }
+  .head { display: flex; align-items: baseline; justify-content: space-between; }
   h1 {
     margin: 0 0 2px;
     font-size: 12px;
@@ -43,6 +44,17 @@
     text-transform: uppercase;
     color: var(--accent);
   }
+  #lang {
+    width: auto;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font-size: 11px;
+    cursor: pointer;
+    clip-path: none;
+  }
+  #lang:hover { color: var(--accent); }
   .target {
     font-size: 12px;
     color: var(--ink-2);
@@ -75,7 +87,11 @@
   }
   button:disabled { opacity: 0.55; cursor: default; }
   button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  #status { margin-top: 10px; font-size: 12px; min-height: 34px; color: var(--ink-2); }
+  /* The success message is two sentences separated by a newline: what MAGI
+     understood the page to be, and how many items are now waiting. Without
+     this they collapse onto one line and read as one sentence — worst with an
+     arXiv id, where "2410.11942 2 waiting" looks like part of the number. */
+  #status { margin-top: 10px; font-size: 12px; min-height: 34px; color: var(--ink-2); white-space: pre-line; }
   #status.ok { color: var(--sage); }
   #status.err { color: var(--danger); }
   .hint { margin-top: 8px; font-size: 11px; color: var(--muted); }
@@ -83,19 +99,21 @@
 </style>
 </head>
 <body>
-  <h1>MAGI</h1>
+  <div class="head">
+    <h1>MAGI</h1>
+    <button id="lang" type="button" title="中文 / English">中 / EN</button>
+  </div>
   <div class="target" id="target">…</div>
 
-  <label for="library">Add to</label>
-  <select id="library"><option>loading…</option></select>
+  <label for="library" id="lbl-library">Add to</label>
+  <select id="library"><option>…</option></select>
 
-  <label for="port" style="margin-top:10px">MAGI port</label>
+  <label for="port" id="lbl-port" style="margin-top:10px">MAGI port</label>
   <select id="port"></select>
 
   <button id="send" disabled>Queue it</button>
   <div id="status"></div>
-  <div class="hint">Queuing only adds it to a list. Run <code>magi ingest batch-run</code>,
-    then approve what came out — nothing enters your library until you do.</div>
+  <div class="hint" id="hint"></div>
 
   <script src="popup.js"></script>
 </body>
