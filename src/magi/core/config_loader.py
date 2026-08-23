@@ -36,7 +36,7 @@ _DEFAULTS: dict[str, Any] = {
         "autostart": True,
     },
     "models": {
-        "ocr": "glm-ocr",
+        "ocr": "glm-ocr:q8_0",
         "embedding": "qwen3-embedding:0.6b",
     },
     "ocr": {
@@ -193,7 +193,7 @@ def get(config: dict, dotted_key: str, default: Any = None) -> Any:
 
     >>> cfg = load_config()
     >>> get(cfg, 'models.ocr')
-    'glm-ocr'
+    'glm-ocr:q8_0'
     >>> get(cfg, 'ocr.timeout')
     180
     """

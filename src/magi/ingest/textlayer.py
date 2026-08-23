@@ -247,3 +247,64 @@ def inspect(pdf_path) -> TextLayer:
 
 def would_route_here(pdf_path) -> bool:
     return inspect(pdf_path).route_here
+
+
+class Census(NamedTuple):
+    """What the source document actually contains, counted rather than guessed.
+
+    The gates judge a conversion by comparing what came out against what went
+    in, and until this existed there was no "what went in" — so a route could
+    return a clean-reading page that was missing half the document and nothing
+    could tell. Measured on ``glm-ocr``: three pages carrying 151 table rows
+    produced zero, and the text recovered fell to 41-63% of the page while
+    table-free pages held 96-102%. Both numbers are here.
+
+    ``ok`` is False when the document could not be read at all; callers should
+    then skip the comparison rather than report a document as empty.
+    """
+
+    ok: bool
+    pages: int = 0
+    chars: int = 0
+    tables: int = 0
+    table_rows: int = 0
+
+
+def census(pdf_path, page_range: tuple[int, int] | None = None) -> Census:
+    """Count the text and tables a PDF holds, over all pages or a range.
+
+    ``page_range`` is 1-based and inclusive, matching ``ingest ocr --pages``,
+    so a partial conversion is compared against the part it converted rather
+    than against the whole document.
+
+    Never raises. This is evidence for a report, and a report that cannot be
+    produced must not take the conversion down with it.
+    """
+    try:
+        doc = _open(pdf_path)
+    except Exception:  # noqa: BLE001
+        return Census(False)
+
+    try:
+        lo, hi = (1, doc.page_count) if page_range is None else page_range
+        hi = min(hi or doc.page_count, doc.page_count)
+        chars = tables = rows = 0
+        pages = 0
+        for index in range(max(lo, 1) - 1, hi):
+            page = doc[index]
+            pages += 1
+            chars += len(re.sub(r"\s+", "", page.get_text()))
+            try:
+                found = list(page.find_tables().tables)
+            except Exception:  # noqa: BLE001 — table finding is best-effort
+                found = []
+            tables += len(found)
+            rows += sum(getattr(t, "row_count", 0) for t in found)
+        return Census(True, pages, chars, tables, rows)
+    except Exception:  # noqa: BLE001
+        return Census(False)
+    finally:
+        try:
+            doc.close()
+        except Exception:  # noqa: BLE001
+            pass

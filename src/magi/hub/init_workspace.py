@@ -213,7 +213,7 @@ ollama:
   autostart: true      # start a stopped local Ollama on demand
   embed_batch: 16      # chunks per embedding request; raise on a roomy machine
 models:
-  ocr: "glm-ocr"
+  ocr: "glm-ocr:q8_0"
   embedding: "qwen3-embedding:0.6b"
 ocr:
   mineru_api_token: ""

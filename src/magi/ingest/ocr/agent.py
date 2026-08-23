@@ -61,7 +61,7 @@ class PDF2MarkdownAgent:
         # 将统一配置映射为 agent 内部期望的结构
         return {
             "ocr": {
-                "model": cfg_get(unified, "models.ocr", "glm-ocr"),
+                "model": cfg_get(unified, "models.ocr", "glm-ocr:q8_0"),
                 "ollama_base_url": cfg_get(unified, "ollama.base_url", "http://127.0.0.1:11434"),
                 "timeout": cfg_get(unified, "ocr.timeout", 180),
                 "dpi": cfg_get(unified, "ocr.dpi", 150),
@@ -95,7 +95,7 @@ class PDF2MarkdownAgent:
         )
 
         self.ocr_engine = OCREngine(
-            model=ocr_config.get("model", "glm-ocr"),
+            model=ocr_config.get("model", "glm-ocr:q8_0"),
             base_url=ocr_config.get("ollama_base_url", "http://127.0.0.1:11434"),
             timeout=ocr_config.get("timeout", 180)
         )

@@ -148,7 +148,7 @@ uv tool install --force magi-research
 
 **Beads**: Windows `irm https://raw.githubusercontent.com/gastownhall/beads/main/install.ps1 | iex`; macOS/Linux see the [official docs](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md). MAGI degrades gracefully without `bd`.
 
-**Ollama models**: `ollama pull qwen3-embedding:0.6b` (vector search); `ollama pull glm-ocr` (local OCR, optional). **You never run `ollama serve` yourself** — a local Ollama that is merely stopped gets started the first time something needs it (once per process; `ollama.autostart` in `config.yaml` is on by default, and `MAGI_NO_OLLAMA_AUTOSTART` turns it off). Retrieval only degrades to BM25-only when Ollama really is not installed, or the configured endpoint is a remote one that is down.
+**Ollama models**: `ollama pull qwen3-embedding:0.6b` (vector search); `ollama pull glm-ocr:q8_0` (local OCR, optional). **You never run `ollama serve` yourself** — a local Ollama that is merely stopped gets started the first time something needs it (once per process; `ollama.autostart` in `config.yaml` is on by default, and `MAGI_NO_OLLAMA_AUTOSTART` turns it off). Retrieval only degrades to BM25-only when Ollama really is not installed, or the configured endpoint is a remote one that is down.
 
 </details>
 
@@ -251,7 +251,7 @@ Trigger via slash commands in your agent (namespaced `magi:` under the Claude Co
 |---|---|---|
 | Setup | `wiki_hub_init` / `wiki_init` | scaffold the hub / a topic workspace |
 | Ingest | `wiki_ingest` | PDF/LaTeX/URL → Markdown, routed down a ladder: arXiv HTML → LaTeX source → the PDF's own text layer → MinerU cloud → local OCR. **Native vision is not on the ladder** — it bills per page and has burned a user's entire weekly quota, so it runs only after you have seen the page count and asked for it. Put your MinerU token in the workspace `config.yaml` under `ocr.mineru_api_token` |
-| Ingest | `wiki_ingest_ocr` | fully local OCR route (Ollama `glm-ocr`) |
+| Ingest | `wiki_ingest_ocr` | fully local OCR route (Ollama `glm-ocr:q8_0`) |
 | Ingest | `wiki_inbox` | links / DOIs / citations / screenshots -> queued through the deterministic pipeline, output waits for your approval (`magi ingest url` + `batch-*`) |
 | Compile | `wiki_compile` | raw sources → reference + concept cards (closes the bd loop: `magi pm backlog-sync`'s `magi-compile` label) |
 | Compile | `wiki_enrich` | deep-scan compiled sources for missed theorems/concepts |

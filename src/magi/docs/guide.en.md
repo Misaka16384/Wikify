@@ -289,7 +289,7 @@ Changed your mind? `magi setup --optionals`.
 |---|---|---|---|
 | **Beads** (`bd`) | Task tracking | Task features degrade; everything else is unaffected | `magi setup` installs it |
 | **Ollama** + `qwen3-embedding:0.6b` | Semantic search, semantic linking, radar relevance scoring | Search falls back to keyword matching; `magi link` errors out | https://ollama.com/download |
-| **Ollama** + `glm-ocr` | Fully local OCR ingestion | You're limited to cloud OCR, the LaTeX route, or arXiv HTML | https://ollama.com/download |
+| **Ollama** + `glm-ocr:q8_0` | Fully local OCR ingestion | You're limited to cloud OCR, the LaTeX route, or arXiv HTML | https://ollama.com/download |
 | **Pandoc** | `magi ingest arxiv-html` and `magi ingest tex` — the two best-fidelity routes | Can't process arXiv HTML or source packages | https://pandoc.org/installing.html |
 | **Poppler** (`pdftoppm`) | Rendering pages for local OCR | Local OCR errors out directly | https://poppler.freedesktop.org/ |
 | **pdflatex** | Deep verification of math formulas | Falls back to lightweight `pylatexenc` verification | https://www.tug.org/texlive/ |
@@ -304,7 +304,7 @@ Changed your mind? `magi setup --optionals`.
 
 ```powershell
 ollama pull qwen3-embedding:0.6b     # vector search (~640MB)
-ollama pull glm-ocr                  # local OCR (optional)
+ollama pull glm-ocr:q8_0             # local OCR (optional)
 ```
 
 `pandoc-crossref` is optional; without it cross-references degrade but conversion still works. From a source checkout the Windows build sits in `vendor/windows/` — add it to PATH or set `tools.pandoc_crossref_path` in the workspace's `config.yaml`. A pipx or uv install does not include it (a 19 MB Windows-only binary has no business shipping to macOS and Linux users); download it from https://github.com/lierdakil/pandoc-crossref/releases if you want it.
@@ -588,7 +588,7 @@ ocr:
   timeout: 180              # per-page OCR timeout (seconds)
 
 models:
-  ocr: glm-ocr                    # local OCR model (glm-ocr / qwen3-vl / qwen3-vl:4b ...)
+  ocr: glm-ocr:q8_0               # local OCR model (glm-ocr:q8_0 / qwen3-vl / qwen3-vl:4b ...)
   embedding: qwen3-embedding:0.6b # shared by semantic search and semantic linking
 
 ollama:
@@ -694,7 +694,7 @@ magi ingest finalize inbox/paper.pdf --topic-dir . --md-file raw/papers/2026-08-
 | `pandoc-crossref not found` | Cross-references don't render | Non-fatal; install it or set `tools.pandoc_crossref_path` |
 | `TeX source references N figure(s) but only M survived` | pandoc dropped a subfigure/wrapfigure | Compare against the original PDF and add the figure back by hand |
 | `EPS not rasterized (install Ghostscript)` | Ghostscript is missing | Install it and rerun, or accept the figure not being inlined |
-| `OCR 模型 X 不可用` | The model hasn't been pulled | `ollama pull glm-ocr` |
+| `OCR 模型 X 不可用` | The model hasn't been pulled | `ollama pull glm-ocr:q8_0` |
 | `pdftoppm 未找到` | poppler is missing | Install poppler, or set `tools.pdftoppm_path` |
 | `第 N 页 OCR 失败` | That single page failed both retries | **Just rerun the exact same command** — successful pages are cached in `.temp/`, so only the failed page gets redone |
 | Garbled formulas, subscripts running together | Render resolution is too low | Bump `ocr.dpi` to 150 and rerun |

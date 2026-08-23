@@ -95,10 +95,12 @@ class OCREngine:
         if model in self.MODEL_CONFIGS:
             return self.MODEL_CONFIGS[model]
 
-        # 前缀匹配
-        for key, config in self.MODEL_CONFIGS.items():
+        # 前缀匹配：**最长的键优先**。默认模型带上 tag（`glm-ocr:q8_0`）之后
+        # 这一点才有分量——按字典顺序匹配的话，`glm-ocr-16k:q8_0` 会先撞上
+        # `glm-ocr` 拿到 2MP 的配置，而它要的是 3MP。谁更具体谁赢。
+        for key in sorted(self.MODEL_CONFIGS, key=len, reverse=True):
             if model.startswith(key):
-                return config
+                return self.MODEL_CONFIGS[key]
 
         # 默认配置
         return {

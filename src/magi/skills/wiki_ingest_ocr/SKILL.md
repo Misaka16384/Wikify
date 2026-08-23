@@ -9,7 +9,7 @@ commands:
 
 > **CLI (read first):** This skill drives the `magi` CLI (MAGI research workspace tool, assumed installed on PATH). If unsure of your surroundings, run `magi sync` first to locate the workspace. For the full syntax of any command: `magi <command> --help`.
 
-This skill handles converting external PDF documents (especially academic papers or scanned articles inside `inbox/` or custom local paths) into high-fidelity clean Markdown using the local OCR model configured in `config.yaml` (default: `glm-ocr` at 130 DPI).
+This skill handles converting external PDF documents (especially academic papers or scanned articles inside `inbox/` or custom local paths) into high-fidelity clean Markdown using the local OCR model configured in `config.yaml` (default: `glm-ocr:q8_0` at 150 DPI). The quantised tag is the default because it was measured against the F16 one: identical formula errors, 24% faster.
 
 > **Note:** `magi ingest auto` already picks this route for PDFs when no MinerU token is configured. Use this skill when you want to *force* local OCR (offline, or to save API credit), or when you need `--pages` or a specific `models.ocr`.
 

@@ -1,5 +1,5 @@
 # Modelfile for glm-ocr with increased context size
-FROM glm-ocr:latest
+FROM glm-ocr:q8_0
 
 # Increase context size for large images
 PARAMETER num_ctx 16384

@@ -287,7 +287,7 @@ claude plugin install <本地仓库目录>      # 本地开发模式
 |---|---|---|---|
 | **Beads**（`bd`） | 任务待办 | 任务功能降级，其余不受影响 | `magi setup` 会替你装 |
 | **Ollama** + `qwen3-embedding:0.6b` | 语义检索、语义连边、雷达相关度打分 | 检索退回关键词匹配；`magi link` 报错退出 | https://ollama.com/download |
-| **Ollama** + `glm-ocr` | 全本地 OCR 摄入 | 只能走云端 OCR、LaTeX 源码或 arXiv HTML | https://ollama.com/download |
+| **Ollama** + `glm-ocr:q8_0` | 全本地 OCR 摄入 | 只能走云端 OCR、LaTeX 源码或 arXiv HTML | https://ollama.com/download |
 | **Pandoc** | `magi ingest arxiv-html` 和 `magi ingest tex`——保真度最高的两条路 | 无法处理 arXiv HTML 与源码包 | https://pandoc.org/installing.html |
 | **Poppler**（`pdftoppm`） | 本地 OCR 渲染页面 | 本地 OCR 直接报错 | https://poppler.freedesktop.org/ |
 | **pdflatex** | 数学公式深度校验 | 自动回退 `pylatexenc` 轻量校验 | https://www.tug.org/texlive/ |
@@ -301,7 +301,7 @@ claude plugin install <本地仓库目录>      # 本地开发模式
 
 ```powershell
 ollama pull qwen3-embedding:0.6b     # 向量检索（约 640MB）
-ollama pull glm-ocr                  # 本地 OCR（可选）
+ollama pull glm-ocr:q8_0             # 本地 OCR（可选）
 ```
 
 Windows 的 `pandoc-crossref.exe` 已内置于仓库 `vendor/windows/`：加入 PATH，或在工作区 `config.yaml` 的 `tools.pandoc_crossref_path` 里指路。
@@ -578,7 +578,7 @@ ocr:
   timeout: 180              # 单页 OCR 超时（秒）
 
 models:
-  ocr: glm-ocr                    # 本地 OCR 模型（glm-ocr / qwen3-vl / qwen3-vl:4b ...）
+  ocr: glm-ocr:q8_0               # 本地 OCR 模型（glm-ocr:q8_0 / qwen3-vl / qwen3-vl:4b ...）
   embedding: qwen3-embedding:0.6b # 语义检索与语义连边共用
 
 ollama:
@@ -689,7 +689,7 @@ magi ingest finalize inbox/paper.pdf --topic-dir . --md-file raw/papers/2026-08-
 | `pandoc-crossref not found` | 交叉引用不渲染 | 非致命；装上或配 `tools.pandoc_crossref_path` |
 | `TeX source references N figure(s) but only M survived` | pandoc 丢了 subfigure/wrapfigure | 对照原 PDF 手工补图 |
 | `EPS not rasterized (install Ghostscript)` | 缺 Ghostscript | 装上后重跑，或接受插图不内联 |
-| `OCR 模型 X 不可用` | 模型没拉 | `ollama pull glm-ocr` |
+| `OCR 模型 X 不可用` | 模型没拉 | `ollama pull glm-ocr:q8_0` |
 | `pdftoppm 未找到` | 缺 poppler | 装 poppler，或配 `tools.pdftoppm_path` |
 | `第 N 页 OCR 失败` | 单页重试两次仍失败 | **直接重跑一模一样的命令**：成功页缓存在 `.temp/`，只会重做失败页 |
 | 公式乱码、下标粘连 | 渲染精度太低 | 把 `ocr.dpi` 提到 150 再重跑 |

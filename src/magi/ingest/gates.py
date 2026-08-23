@@ -13,6 +13,7 @@ measuring.
 from __future__ import annotations
 
 import re
+from collections import Counter
 
 from magi.core.arxiv_id import normalize_arxiv_id
 from magi.ingest import image_refs
@@ -189,10 +190,187 @@ def check_identity_agrees(expected: str | None, md: str) -> Finding | None:
     return None
 
 
+#: Markdown table markup: a row of pipes, or the dashed separator under a header.
+_TABLE_ROW_RE = re.compile(r"^\s*\|.*\|\s*$", re.MULTILINE)
+
+#: The environments whose openings must be matched by a closing.
+_ENV_OPEN_RE = re.compile(r"\\begin\s*\{([A-Za-z*]+)\}")
+_ENV_CLOSE_RE = re.compile(r"\\end\s*\{([A-Za-z*]+)\}")
+
+#: Below this share of the source's own characters, the output is not a
+#: transcription of the page — something was dropped wholesale. Set from
+#: measurement: pages that converted fully recovered 96-102%, pages that lost
+#: their tables recovered 41-63%, and the page that stopped mid-formula 37%.
+COVERAGE_FLOOR = 0.80
+
+#: Above this multiple of the source's characters the converter is generating
+#: rather than reading. Measured: a looping page produced 17.9x its own source.
+#: Set well clear of that and of legitimate expansion — LaTeX markup for dense
+#: mathematics can genuinely run to several times the plain text it replaces.
+INFLATION_CEILING = 4.0
+
+#: A repeated block this long is not prose that happens to recur.
+_REPEAT_WINDOW = 200
+
+#: …provided the block is built from a unit at least this long. Below it the
+#: text is uniform filler, which repeats for reasons that are not a loop.
+_MIN_VARIED_PERIOD = 40
+
+#: How far apart the scan's windows sit. A restated block of length L is only
+#: visible when some window lands wholly inside it, so the stride bounds the
+#: shortest restatement that can be seen — at 25 that is a short paragraph.
+_REPEAT_STRIDE = 25
+
+
+def check_tables_survived(md: str, source_tables: int, source_rows: int) -> Finding | None:
+    """Tables the source has and the output does not.
+
+    Measured on ``glm-ocr``: across three pages carrying two tables each,
+    PyMuPDF found 151 rows and the transcription contained none — while the
+    *captions* came through correctly, so the output reads as a complete page
+    and the data is simply gone. That is the shape worth naming: not a
+    conversion that failed, but one that succeeded around the table.
+    """
+    if source_tables <= 0:
+        return None
+    if _TABLE_ROW_RE.search(md):
+        return None
+    return Finding("tables-dropped",
+                   f"the source page(s) contain {source_tables} table(s) with "
+                   f"{source_rows} row(s) and the output has no table markup — "
+                   "the caption may still be there, which is what makes this "
+                   "easy to miss")
+
+
+def check_environments_closed(md: str) -> Finding | None:
+    """``\\begin{…}`` with no matching ``\\end{…}``.
+
+    A model that stops mid-structure leaves exactly this. Measured on the page
+    that defeated every quantisation of ``glm-ocr``: the output ends
+    ``\\begin{array}{cccccccc…`` and simply stops, so the document carries an
+    unclosed environment into the wiki, where it swallows everything after it
+    when rendered.
+    """
+    opened = Counter(_ENV_OPEN_RE.findall(md))
+    closed = Counter(_ENV_CLOSE_RE.findall(md))
+    unclosed = {k: n - closed.get(k, 0) for k, n in opened.items() if n > closed.get(k, 0)}
+    unopened = {k: n - opened.get(k, 0) for k, n in closed.items() if n > opened.get(k, 0)}
+    if not unclosed and not unopened:
+        return None
+    parts = []
+    if unclosed:
+        parts.append("never closed: " + ", ".join(f"{k}×{n}" for k, n in sorted(unclosed.items())))
+    if unopened:
+        parts.append("closed but never opened: "
+                     + ", ".join(f"{k}×{n}" for k, n in sorted(unopened.items())))
+    return Finding("unclosed-environment",
+                   "LaTeX environments do not balance — " + "; ".join(parts))
+
+
+def _min_period(s: str) -> int:
+    """Shortest unit the string is built from, via the KMP failure function.
+
+    ``"ab" * 100`` has period 2. Real prose has a period equal to its own
+    length. This is what separates a converter restating a paragraph from text
+    that is merely uniform, and without it the check fires on any repetitive
+    passage — a column of identical values, a list of near-identical citations.
+    """
+    n = len(s)
+    fail = [0] * n
+    k = 0
+    for i in range(1, n):
+        while k and s[i] != s[k]:
+            k = fail[k - 1]
+        if s[i] == s[k]:
+            k += 1
+        fail[i] = k
+    return n - fail[-1] if n else 0
+
+
+def check_repetition(md: str) -> Finding | None:
+    """A substantial passage emitted more than once.
+
+    A vision model that loses its place restates what it has already read.
+    Measured on ``glm-ocr`` before Ollama 0.32.15: one page came back with its
+    entire body twice. Kept after that fix, because the fix lives in a
+    dependency the user controls and not in this repository.
+
+    The block must be *varied* to count. Uniform filler repeats trivially and
+    says nothing — flagging it would mean flagging every table of identical
+    values — so a chunk built from a short unit is skipped and only genuine
+    restatement is reported.
+    """
+    # Strip the blank lines after the frontmatter before scanning: they belong
+    # to no repeated unit, so leaving them in shifts every window out of
+    # alignment with the repeat and the shortest restatements slip through.
+    body = _body_of(md).strip()
+    if len(body) < _REPEAT_WINDOW * 2:
+        return None
+    for start in range(0, len(body) - _REPEAT_WINDOW, _REPEAT_STRIDE):
+        chunk = body[start:start + _REPEAT_WINDOW]
+        if _min_period(chunk) < _MIN_VARIED_PERIOD:
+            continue
+        n = body.count(chunk)
+        if n > 1:
+            return Finding("repetition-loop",
+                           f"a {_REPEAT_WINDOW}-character passage appears {n} times — "
+                           "the converter restated the page rather than finishing it")
+    return None
+
+
+def check_output_inflation(md: str, source_chars: int) -> Finding | None:
+    """Far more text came out than the source could possibly hold.
+
+    The other end of ``check_text_coverage``'s ratio, and the one that catches
+    degenerate generation: measured at 27,281 output characters from a page
+    holding 1,526 — an eighteen-fold inflation of ``& 0 & \\cdots``, produced in
+    181 seconds against a normal page's 17. Uniform enough that the repetition
+    check above deliberately ignores it, which is exactly why this exists.
+    """
+    if source_chars <= 0:
+        return None
+    out = len(re.sub(r"\s+", "", _body_of(md)))
+    ratio = out / source_chars
+    if ratio <= INFLATION_CEILING:
+        return None
+    return Finding("output-inflated",
+                   f"the output is {ratio:.1f}x the size of the source page(s) "
+                   f"({out} vs {source_chars} characters) — a converter cannot "
+                   "read more text than the page contains, so this is generated, "
+                   "not transcribed")
+
+
+def check_text_coverage(md: str, source_chars: int) -> Finding | None:
+    """Far less text came out than the source holds.
+
+    The generic form of the two checks above, and it catches what they miss:
+    it needs no table to be detected and no environment to be left open, only
+    a page that arrived short. It is the reason a silently truncated page is
+    reportable at all — nothing else about that output looks wrong.
+    """
+    if source_chars <= 0:
+        return None
+    out = len(re.sub(r"\s+", "", re.sub(r"\\[A-Za-z]+|[${}&\\|]", "", _body_of(md))))
+    ratio = out / source_chars
+    if ratio >= COVERAGE_FLOOR:
+        return None
+    return Finding("output-much-shorter-than-source",
+                   f"the output carries {ratio:.0%} of the characters the source "
+                   f"page(s) hold ({out} vs {source_chars}) — below the {COVERAGE_FLOOR:.0%} "
+                   "floor, so something was dropped rather than converted")
+
+
 def run_all(md: str, *, payload: bytes | None = None, tex_source: str | None = None,
             figures_referenced: int = 0, figures_resolved: int = 0,
-            images_dir=None, expected_arxiv_id: str | None = None) -> list[Finding]:
-    """Every applicable check, in the order a reviewer would care about them."""
+            images_dir=None, expected_arxiv_id: str | None = None,
+            source_chars: int = 0, source_tables: int = 0,
+            source_rows: int = 0) -> list[Finding]:
+    """Every applicable check, in the order a reviewer would care about them.
+
+    The ``source_*`` counts come from ``textlayer.census`` and are zero when
+    the source is not a local PDF — an arXiv identifier has nothing to count —
+    in which case the checks that need them stand down rather than guess.
+    """
     checks = [
         check_payload_is_not_pdf(payload) if payload else None,
         check_identity_agrees(expected_arxiv_id, md),
@@ -201,5 +379,10 @@ def run_all(md: str, *, payload: bytes | None = None, tex_source: str | None = N
         check_figures(figures_referenced, figures_resolved),
         check_image_refs(md),
         check_broken_image_links(md, images_dir) if images_dir else None,
+        check_environments_closed(md),
+        check_repetition(md),
+        check_tables_survived(md, source_tables, source_rows),
+        check_text_coverage(md, source_chars),
+        check_output_inflation(md, source_chars),
     ]
     return [c for c in checks if c is not None]

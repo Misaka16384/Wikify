@@ -351,13 +351,19 @@ def _prose_pdf_with_figures(path):
     read like a paper or the route refuses it before any of this is reached.
     """
     pymupdf = pytest.importorskip("pymupdf")
-    prose = ("This section reviews the literature on institutional adoption "
-             "and the outcomes reported across the surveyed programmes. ")
+    # Varied on purpose. An earlier version filled every page with one sentence
+    # repeated fourteen times, which the repetition gate then reported — and it
+    # was right to: a document that really is one paragraph eighty-four times
+    # over is a converter that lost its place. Papers do not read like that, so
+    # neither should the paper this pretends to be.
+    prose = ("Cohort {n} diverged from the projections of the preceding year, "
+             "and the discrepancy is examined against regional baseline {n}. ")
     doc = pymupdf.open()
     for page_no in range(6):
         page = doc.new_page()
+        body = "".join(prose.format(n=page_no * 14 + i) for i in range(14))
         page.insert_textbox(pymupdf.Rect(60, 60, 540, 380),
-                            f"Section {page_no + 1}\n\n" + prose * 14, fontsize=10)
+                            f"Section {page_no + 1}\n\n" + body, fontsize=10)
         if page_no in (1, 3):
             pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 400, 260))
             pix.set_rect(pix.irect, (30, 90 + page_no * 30, 200))

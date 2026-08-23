@@ -148,7 +148,7 @@ uv tool install --force magi-research
 
 **Beads**：Windows 用 `irm https://raw.githubusercontent.com/gastownhall/beads/main/install.ps1 | iex`，macOS/Linux 见[官方文档](https://github.com/gastownhall/beads/blob/main/docs/getting-started/installation.md)。没有 `bd` 时 MAGI 优雅降级。
 
-**Ollama 模型**：`ollama pull qwen3-embedding:0.6b`（向量检索）；`ollama pull glm-ocr`（本地 OCR，可选）。**不用自己 `ollama serve`**——本机 Ollama 只是没启动的话，MAGI 第一次用到它时会拉起来（每进程试一次；`config.yaml` 的 `ollama.autostart` 默认开，环境变量 `MAGI_NO_OLLAMA_AUTOSTART` 可关）。真没装、或配的是连不上的远端地址，检索才降级成 BM25-only。
+**Ollama 模型**：`ollama pull qwen3-embedding:0.6b`（向量检索）；`ollama pull glm-ocr:q8_0`（本地 OCR，可选）。**不用自己 `ollama serve`**——本机 Ollama 只是没启动的话，MAGI 第一次用到它时会拉起来（每进程试一次；`config.yaml` 的 `ollama.autostart` 默认开，环境变量 `MAGI_NO_OLLAMA_AUTOSTART` 可关）。真没装、或配的是连不上的远端地址，检索才降级成 BM25-only。
 
 </details>
 
@@ -250,7 +250,7 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 |---|---|---|
 | 基建 | `wiki_hub_init` / `wiki_init` | 建 hub / 建主题工作区 |
 | 摄入 | `wiki_ingest` | PDF/LaTeX/URL → Markdown。按阶梯自动选路：arXiv HTML → LaTeX 源码 → PDF 自己的文本层 → MinerU 云端 → 本地 OCR。**原生视觉转录不在阶梯上**——它按页计费、烧过用户一整周额度，只在你看过页数并明确要求后才走。MinerU Token 填入工作区 `config.yaml` 的 `ocr.mineru_api_token` |
-| 摄入 | `wiki_ingest_ocr` | 完全本地离线 OCR 路线（Ollama `glm-ocr`） |
+| 摄入 | `wiki_ingest_ocr` | 完全本地离线 OCR 路线（Ollama `glm-ocr:q8_0`） |
 | 摄入 | `wiki_inbox` | 链接 / DOI / 引文 / 截图 → 排队走确定性管线，产物待你审批（`magi ingest url` + `batch-*`） |
 | 编译 | `wiki_compile` | raw 文献 → 文献卡片 + 概念卡片（与 bd 任务闭环：`magi pm backlog-sync` 的 `magi-compile` 标签） |
 | 编译 | `wiki_enrich` | 深扫已编译文献，补挖遗漏的定理/概念 |

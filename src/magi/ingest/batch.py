@@ -223,6 +223,27 @@ def _starting_route(entry) -> tuple[str, str]:
 # run
 # --------------------------------------------------------------------------
 
+def _source_census(value: str):
+    """What the source holds, when the source is a PDF we can still look at.
+
+    Only the PDF rungs have one: ``arxiv-html`` and ``tex`` start from an
+    identifier, and there is nothing on disk to count. Those get an empty
+    census, and the gates that need it stand down — which is right, because
+    "the output is shorter than the source" is not a question that has an
+    answer when no source document exists locally.
+    """
+    from magi.ingest.textlayer import Census
+
+    try:
+        path = Path(value)
+        if path.suffix.lower() != ".pdf" or not path.is_file():
+            return Census(False)
+        from magi.ingest import textlayer
+        return textlayer.census(path)
+    except Exception:  # noqa: BLE001 — evidence is optional, the run is not
+        return Census(False)
+
+
 def cmd_run(args) -> int:
     topic = _resolve_topic(args.topic_dir)
     if topic is None:
@@ -256,9 +277,12 @@ def cmd_run(args) -> int:
         if result.success and result.markdown_path:
             from magi.ingest import gates
             md = Path(result.markdown_path).read_text(encoding="utf-8", errors="replace")
+            census = _source_census(entry.value)
             findings += gates.run_all(
                 md, images_dir=result.images_dir or None,
-                expected_arxiv_id=entry.value if "/" in entry.value or "." in entry.value else None)
+                expected_arxiv_id=entry.value if "/" in entry.value or "." in entry.value else None,
+                source_chars=census.chars, source_tables=census.tables,
+                source_rows=census.table_rows)
             import re
             m = re.search(r"^arxiv_id:\s*['\"]?([^'\"\n]+)", md, re.MULTILINE)
             arxiv_id = m.group(1).strip() if m else None
