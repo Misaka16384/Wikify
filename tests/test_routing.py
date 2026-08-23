@@ -221,24 +221,72 @@ def test_a_type_can_be_recovered_from_a_value(value, expected):
 # The two entry points must not drift apart again
 # --------------------------------------------------------------------------
 
-def test_both_commands_route_the_same_pdf_to_the_same_rung(tmp_path):
-    """A5, stated as a test. `ingest auto` and `batch-run` are separate
-    commands with separate argument handling, and they used to reach separate
-    conclusions about one file. Whatever else changes, this must not."""
+def _both_decisions(pdf):
+    """What each entry point decides for one file, from cold each time."""
     import types
 
     from magi.ingest import auto, batch
 
-    pdf = _prose_pdf(tmp_path / "survey.pdf")
-
-    auto_route, _ = auto.classify(pdf, {"ocr": {"mineru_api_token": "tok"}})
+    routing.forget_verdicts()
+    auto_route, auto_why = auto.classify(pdf, {"ocr": {"mineru_api_token": "tok"}})
     # From cold, so this really re-runs the decision rather than reading back
     # the answer the first call left in the verdict cache.
     routing.forget_verdicts()
     batch_route, _ = batch._starting_route(
         types.SimpleNamespace(route=None, source_type="file", value=str(pdf)))
+    routing.forget_verdicts()
+    shared, _ = routing.first_rung("file", str(pdf))
+    return auto_route, auto_why, batch_route, shared
 
-    assert auto_route == batch_route == "textlayer"
+
+def test_both_commands_ask_the_same_question_about_the_same_pdf(tmp_path):
+    """A5, stated as a test — and stated more carefully than it first was.
+
+    The original assertion was that both commands *execute* the same rung. That
+    was true only because the shared decision happened to be executable here;
+    on a machine without ``magi-research[textlayer]`` the two legitimately
+    diverge, and asserting otherwise pinned an accident.
+
+    What must hold is that they reach the same *conclusion about the document*.
+    What each does with it is their own: ``batch-run`` has a ladder and starts
+    at the best rung, ``ingest auto`` has none and may only pick a rung it can
+    actually run.
+    """
+    pdf = _prose_pdf(tmp_path / "survey.pdf")
+    auto_route, _, batch_route, shared = _both_decisions(pdf)
+
+    assert shared == "textlayer"
+    assert batch_route == shared          # a ladder starts at the best rung
+    assert auto_route in ("textlayer", "mineru", "ocr")
+
+
+def test_with_the_extractor_present_both_commands_run_the_free_rung(tmp_path):
+    # Import it rather than asking whether a spec exists: a module can be
+    # findable and still fail to load — an onnxruntime too old for the models
+    # pymupdf4llm ships is exactly that, and it is the case this file already
+    # has a test for.
+    pytest.importorskip("pymupdf4llm")
+    pdf = _prose_pdf(tmp_path / "survey.pdf")
+    auto_route, _, batch_route, shared = _both_decisions(pdf)
+    assert auto_route == batch_route == shared == "textlayer"
+
+
+def test_without_the_extractor_auto_falls_but_says_what_to_install(tmp_path, monkeypatch):
+    """The divergence, pinned so it stays deliberate.
+
+    ``batch-run`` still starts at the free rung and learns the package name
+    when it fails. ``ingest auto`` cannot afford that — it converts
+    immediately — so it takes a model route, and the reason has to name the
+    thing that would have made this document free.
+    """
+    _make_import_fail(monkeypatch, ImportError("No module named 'pymupdf4llm'"))
+    pdf = _prose_pdf(tmp_path / "survey.pdf")
+    auto_route, auto_why, batch_route, shared = _both_decisions(pdf)
+
+    assert shared == "textlayer"          # the document did not change
+    assert batch_route == "textlayer"
+    assert auto_route in ("mineru", "ocr")
+    assert "pymupdf4llm" in auto_why
 
 
 def test_a_pdf_is_not_inspected_twice_for_one_answer(tmp_path, monkeypatch):
