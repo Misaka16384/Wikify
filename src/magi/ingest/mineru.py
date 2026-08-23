@@ -12,7 +12,15 @@ import yaml
 from magi.core.arxiv_id import abs_url, normalize_arxiv_id
 from magi.core.config_loader import load_config, get as cfg_get
 from magi.core.wiki_common import atomic_write
+from urllib.parse import urlparse
+
 from magi.ingest.convert_result import ConversionResult
+
+
+#: The result is fetched after the work is done and billed, so a transient
+#: network failure costs the whole job. Three tries, backing off.
+DOWNLOAD_ATTEMPTS = 3
+DOWNLOAD_BACKOFF_S = 5
 
 
 def convert(input_path, output_dir) -> ConversionResult:
@@ -33,9 +41,22 @@ def convert(input_path, output_dir) -> ConversionResult:
         print("Error: mineru_api_token not configured in config.yaml")
         return ConversionResult.failed("mineru_api_token not configured in config.yaml")
 
-    # Unset proxy to avoid SSLEOFError
-    os.environ.pop("http_proxy", None)
-    os.environ.pop("https_proxy", None)
+    # There used to be two lines here popping `http_proxy` and `https_proxy`,
+    # commented "unset proxy to avoid SSLEOFError". They never did anything:
+    # the variables are conventionally spelled in UPPER CASE, which is what
+    # this machine sets and what `requests` reads, and only the lower-case
+    # names were removed. A workaround that has never once executed.
+    #
+    # It would also have been the wrong fix. The SSLEOFError is real, but it
+    # comes from the *result host* being unreachable while the API host is
+    # fine — measured: uploads and polling both succeed through the proxy and
+    # only the CDN fails. Dropping the proxy would break the half that works,
+    # and on a machine using fake-IP DNS there is no direct route to fall back
+    # to. Mutating os.environ from inside a conversion would also silently
+    # change how every other request in the process is routed.
+    #
+    # What helps is retrying the download and saying what actually happened;
+    # see the end of this function.
 
     base_name = os.path.basename(input_path)
     if base_name.lower().endswith('.pdf'):
@@ -132,11 +153,41 @@ def convert(input_path, output_dir) -> ConversionResult:
         print("Error: Could not retrieve zip URL.")
         return ConversionResult.failed("Could not retrieve zip URL.")
 
+    # The conversion is finished and paid for by the time we get here — the
+    # service has already done the work and charged the quota for it. Fetching
+    # the result once and giving up cost a measured seven jobs in one round,
+    # every one of them converted server-side and then lost to a host that
+    # could not be reached. Retry, and if it still fails say plainly that the
+    # extraction succeeded, so the reader looks at their network rather than at
+    # the document.
     print("Downloading extraction results...")
-    zip_res = requests.get(zip_url, timeout=(10, 300))
-    if zip_res.status_code != 200:
-        print("Failed to download zip:", zip_res.status_code)
-        return ConversionResult.failed(f"failed to download zip: {zip_res.status_code}")
+    zip_res, last_error = None, ""
+    for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+        try:
+            zip_res = requests.get(zip_url, timeout=(10, 300))
+        except requests.RequestException as exc:
+            last_error = f"{type(exc).__name__}: {exc}"
+            zip_res = None
+        else:
+            if zip_res.status_code == 200:
+                break
+            last_error = f"HTTP {zip_res.status_code}"
+            zip_res = None
+        if attempt < DOWNLOAD_ATTEMPTS:
+            wait = DOWNLOAD_BACKOFF_S * attempt
+            print(f"  download attempt {attempt}/{DOWNLOAD_ATTEMPTS} failed "
+                  f"({last_error}); retrying in {wait}s")
+            time.sleep(wait)
+
+    if zip_res is None:
+        host = urlparse(zip_url).hostname or "the result host"
+        detail = (f"the extraction SUCCEEDED and the quota for it is already spent, "
+                  f"but the result could not be downloaded from {host} after "
+                  f"{DOWNLOAD_ATTEMPTS} attempts ({last_error}). This is a network "
+                  f"problem between this machine and {host}, not a problem with the "
+                  f"document — check a proxy or firewall rule for that host.")
+        print("Failed to download zip:", detail, file=sys.stderr)
+        return ConversionResult.failed(detail)
 
     md_content = ""
     images_dir = os.path.join(output_dir, "images")

@@ -185,6 +185,56 @@ def _contains_center(box, r):
     return box.x0 <= cx <= box.x1 and box.y0 <= cy <= box.y1
 
 
+#: How far outside the drawing a label may sit and still belong to it. An axis
+#: label is a few points clear of the plot; a paragraph is a line further away.
+LABEL_REACH_PT = 14
+
+#: A label is short. Body prose is not. This is what keeps the reach above from
+#: swallowing the sentence that happens to end just beside a figure.
+LABEL_MAX_CHARS = 48
+
+
+def _with_figure_text(page, rect, caps, ci):
+    """Grow a figure rect to take in the text that is part of the figure.
+
+    The rect is built from *drawing* boxes, and axis labels, tick values and
+    panel letters are text — so they sit outside it and get cropped away.
+    Measured: a plot came out without either axis label, `E/t'` and `U/t'` both
+    sliced off and the tick values cut in half, which is most of what makes a
+    plot readable. The panel letter `a)` of a four-panel figure went the same
+    way.
+
+    Only short runs of text, only close by, and never the caption itself —
+    the caption is rendered as Markdown beside the image and would be
+    duplicated inside it.
+    """
+    try:
+        blocks = page.get_text("blocks")
+    except Exception:  # noqa: BLE001 — a figure without its label beats no figure
+        return rect
+
+    cap_rect = caps[ci]["rect"] if ci < len(caps) else None
+    grown = fitz.Rect(rect)
+    for _ in range(3):          # a label next to a grown edge joins on the next pass
+        before = fitz.Rect(grown)
+        reach = fitz.Rect(grown.x0 - LABEL_REACH_PT, grown.y0 - LABEL_REACH_PT,
+                          grown.x1 + LABEL_REACH_PT, grown.y1 + LABEL_REACH_PT)
+        for b in blocks:
+            if len(b) < 5 or not isinstance(b[4], str):
+                continue
+            text = b[4].strip()
+            if not text or len(text) > LABEL_MAX_CHARS:
+                continue
+            br = fitz.Rect(b[:4])
+            if cap_rect is not None and br.intersects(cap_rect):
+                continue
+            if br.intersects(reach):
+                grown |= br
+        if grown == before:
+            break
+    return grown
+
+
 def detect_figures(page, page_area, keep_uncaptioned=False):
     """Return a list of {rect, label, caption} for one page."""
     pr = page.rect
@@ -195,16 +245,23 @@ def detect_figures(page, page_area, keep_uncaptioned=False):
     caps = find_captions(page)
     cap_col = [column_of(c["rect"], mid, two_col) for c in caps]
 
+    # The size thresholds decide whether a cluster can stand alone as a figure.
+    # They must NOT decide whether it is *part* of one: a panel of a stacked
+    # multi-panel figure is small on its own and still belongs. Measured on a
+    # real four-panel figure — panel (a) was 0.56% of the page (under the 1.2%
+    # floor), panel (c) was 35pt tall (under the 40pt floor), panel (d) was
+    # four dots — so three of the four were discarded before captions were
+    # even looked at, and the survivor inherited the whole figure's caption.
+    # So: keep every cluster, mark which ones qualify alone, and let the
+    # caption decide the rest.
     cand = []
     for c in clusters:
-        if c.width * c.height < MIN_AREA_FRAC * page_area:
-            continue
-        if min(c.width, c.height) < MIN_DIM_PT:
-            continue
+        big = (c.width * c.height >= MIN_AREA_FRAC * page_area
+               and min(c.width, c.height) >= MIN_DIM_PT)
         n_vec = sum(1 for r in vec if _contains_center(c, r))
         has_img = any(c.intersects(r) for r in imgs)
         cand.append({"rect": c, "col": column_of(c, mid, two_col),
-                     "rich": has_img or n_vec >= 3, "cap": None})
+                     "rich": has_img or n_vec >= 3, "big": big, "cap": None})
 
     # ownership: nearest caption below in same column (below < within-box < above)
     for k in cand:
@@ -226,12 +283,17 @@ def detect_figures(page, page_area, keep_uncaptioned=False):
                 best, best_key = i, key
         k["cap"] = best
 
+    # A caption is a real figure only if something under it qualifies on its
+    # own; the small parts then join that figure rather than being dropped or
+    # becoming figures of their own.
+    anchored = {k["cap"] for k in cand if k["big"] and k["cap"] is not None}
+
     by_cap, figs = {}, []
     for k in cand:
         if k["cap"] is None:
-            if keep_uncaptioned and k["rich"]:
+            if keep_uncaptioned and k["rich"] and k["big"]:
                 figs.append({"rect": k["rect"], "label": None, "caption": ""})
-        else:
+        elif k["big"] or k["cap"] in anchored:
             r = by_cap.get(k["cap"])
             by_cap[k["cap"]] = (r | k["rect"]) if r is not None else fitz.Rect(k["rect"])
 
@@ -254,7 +316,7 @@ def detect_figures(page, page_area, keep_uncaptioned=False):
             by_cap[i] = u
 
     for ci, r in by_cap.items():
-        r = fitz.Rect(r)
+        r = _with_figure_text(page, fitz.Rect(r), caps, ci)
         if two_col and cap_col[ci] == "left":
             r.x1 = min(r.x1, mid + GUTTER)
         elif two_col and cap_col[ci] == "right":
