@@ -142,6 +142,83 @@ def find_main_tex(directory, slug=None):
 _IMG_EXTS = (".pdf", ".eps", ".ps", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".svg")
 
 
+#: Macros whose braced argument is not a figure wrapper even when a figure is
+#: inside it. Pandoc understands these and unwrapping would lose meaning.
+_KEEP_WRAPPED = {"includegraphics", "caption", "subcaption", "label",
+                 "href", "url", "begin", "end"}
+
+_MACRO_CALL_RE = re.compile(r"\\([a-zA-Z@]+)\s*(?:\[[^\]]*\]\s*)*\{")
+
+
+def unwrap_figure_macros(tex_content):
+    """Strip macros that merely wrap an ``\\includegraphics``, keeping the inside.
+
+    Pandoc's LaTeX reader discards a macro it does not know **together with its
+    arguments**, so a figure wrapped in one vanishes and its caption does not.
+    That is the whole of arXiv 2401.00506's missing figures, and the mechanism
+    is worth stating exactly because the note it replaces blamed the route:
+
+        \\includegraphics[width=0.5\\textwidth]{sbs}          -> ![](sbs.jpg)
+        \\subfigure[]{\\includegraphics[...]{disp}}           -> <figure> with
+                                                               only a caption
+
+    ``\\subfigure`` (package ``subfigure``) and ``\\subfloat`` (package
+    ``subfig``) are the two standard ways to build a multi-panel figure, which
+    is most figures in a physics paper. Rather than enumerate them, this
+    unwraps *any* macro whose braced argument contains an ``\\includegraphics``
+    — the same trap with a different package name is then already handled.
+
+    Returns ``(tex, n_unwrapped)``. Pure; the caller decides what to write.
+    """
+    marker = "\\includegraphics"
+    total = 0
+    for _ in range(4):          # a panel can be wrapped more than once
+        out, i, n = [], 0, 0
+        while True:
+            m = _MACRO_CALL_RE.search(tex_content, i)
+            if not m:
+                out.append(tex_content[i:])
+                break
+            # The figure is not always in the first argument:
+            # `\resizebox{2cm}{!}{\includegraphics{...}}` puts it in the third,
+            # and pandoc drops that one too — measured, along with \scalebox,
+            # \makebox and \raisebox. (\parbox is the odd one out and keeps it.)
+            # So read the consecutive braced groups and take whichever holds the
+            # graphic; in every one of these macros that is the content group.
+            groups, k = [], m.end() - 1
+            while len(groups) < 3 and k < len(tex_content) and tex_content[k] == "{":
+                depth, j = 1, k + 1
+                while j < len(tex_content) and depth:
+                    if tex_content[j] == "{":
+                        depth += 1
+                    elif tex_content[j] == "}":
+                        depth -= 1
+                    j += 1
+                if depth:       # unbalanced source; leave it exactly as it was
+                    groups = []
+                    break
+                groups.append((tex_content[k + 1:j - 1], j))
+                k = j
+                while k < len(tex_content) and tex_content[k] in " \t":
+                    k += 1
+
+            hit = next(((inner, end) for inner, end in groups if marker in inner), None)
+            if hit and m.group(1) not in _KEEP_WRAPPED:
+                out.append(tex_content[i:m.start()])
+                out.append(hit[0])
+                n += 1
+                i = hit[1]
+            else:
+                # Step just past the brace so nested wrappers are still seen.
+                out.append(tex_content[i:m.end()])
+                i = m.end()
+        tex_content = "".join(out)
+        total += n
+        if not n:
+            break
+    return tex_content, total
+
+
 def _graphics_search_dirs(tex_content, tex_dir):
     """Directories to look for figures in: tex dir + \\graphicspath + common subdirs."""
     dirs = [tex_dir]
@@ -397,6 +474,24 @@ def convert(input_path, output_dir) -> ConversionResult:
             print(f"Warning: found {os.path.basename(bbl_path)} but could not inline it ({exc}); "
                   "citations may render as (**key?**) placeholders.")
 
+    # Unwrap figure macros before Pandoc sees them. Written as a sibling file
+    # in tex_dir so relative image paths still resolve from the same cwd.
+    try:
+        with open(tex_path, "r", encoding="utf-8", errors="ignore") as f:
+            _pre = f.read()
+        _pre, _n_unwrapped = unwrap_figure_macros(_pre)
+        if _n_unwrapped:
+            prepared = os.path.join(tex_dir, "_magi_prepared.tex")
+            with open(prepared, "w", encoding="utf-8") as f:
+                f.write(_pre)
+            tex_path = prepared
+            print(f"  [fig] unwrapped {_n_unwrapped} figure macro(s) "
+                  r"(\subfigure / \subfloat and the like) so Pandoc can see "
+                  "the graphics inside them")
+    except OSError as exc:
+        print(f"Warning: could not pre-process the TeX for figures ({exc}); "
+              "figures wrapped in macros may be dropped")
+
     doc_type = os.path.basename(os.path.normpath(output_dir))
     if doc_type not in ['papers', 'articles', 'notes', 'repos']:
         doc_type = 'papers'
@@ -442,7 +537,15 @@ def convert(input_path, output_dir) -> ConversionResult:
         print("Warning: pandoc-crossref not found. Cross-references may not render correctly. Set tools.pandoc_crossref_path in config.yaml or add pandoc-crossref to PATH.")
     if use_citeproc:
         cmd.append("--citeproc")
-    cmd.extend(["-t", "markdown"])
+    # Pandoc's default Markdown writer emits *simple* tables — space-aligned
+    # columns under a row of dashes. Nothing in the library renders those:
+    # Obsidian and every GFM reader want pipes, so a converted table arrived
+    # looking like a mangled paragraph, and `tables-dropped` flagged it as
+    # missing because it could not see one either. Ask for pipes explicitly.
+    # A table too complex for pipes falls through to raw HTML, which both the
+    # readers and the gate do understand.
+    cmd.extend(["-t", "markdown-simple_tables-multiline_tables-grid_tables"
+                      "+pipe_tables"])
     if bib_arg:
         cmd.extend(["--bibliography", bib_path])
 
