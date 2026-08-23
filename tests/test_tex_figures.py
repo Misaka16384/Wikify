@@ -240,3 +240,129 @@ def test_a_group_after_the_macro_is_not_swallowed():
 
     assert n == 1
     assert out == INC + "{x} and then {a braced aside}"
+
+
+# --------------------------------------------------------------------------
+# The dialect that predates the packages pandoc assumes
+# --------------------------------------------------------------------------
+
+from magi.ingest.tex2md import modernise_tex   # noqa: E402
+
+
+def test_a_true_prefixed_dimension_is_normalised():
+    r"""TeX's `true` prefix breaks pandoc two different ways, and which one
+    depends on a space: `\vskip 0.3truein` is a hard parse error that loses the
+    entire document, while `\vskip 0.3 truein` parses and puts the word
+    "truein" in the body as text. One loud, one silent, one fix."""
+    out, counts = modernise_tex(BS + "vskip 0.3truein and " + BS + "hskip 1 truecm")
+
+    assert counts["true_dimens"] == 2
+    assert "truein" not in out and "truecm" not in out
+    assert "0.3in" in out and "1cm" in out
+
+
+@pytest.mark.parametrize("unit", ["in", "cm", "mm", "pt", "bp", "pc"])
+def test_every_true_unit_is_covered(unit):
+    out, counts = modernise_tex(BS + "vskip 2true" + unit)
+    assert counts["true_dimens"] == 1
+    assert out == BS + "vskip 2" + unit
+
+
+def test_a_word_starting_with_true_is_not_a_dimension():
+    """`truetype` and a sentence about something being true are not units. The
+    rule requires a digit in front."""
+    tex = "This is true in general, and truetype fonts are fine."
+    assert modernise_tex(tex)[0] == tex
+
+
+def test_the_pre_graphicx_figure_macros_become_includegraphics():
+    r"""`\epsfbox` and `\epsfig` are how a paper referenced a figure before
+    graphicx won. Pandoc knows neither, so on a 2000-era paper all thirteen
+    figures were invisible to it even once the document parsed."""
+    out, counts = modernise_tex(
+        BS + "epsfbox{sfigs/gs.eps} and "
+        + BS + "epsfig{file=sfigs/quench.eps,width=3in}")
+
+    assert counts["epsfbox"] == 1 and counts["epsfig"] == 1
+    assert out.count(INC) == 2
+    assert "{sfigs/gs.eps}" in out and "{sfigs/quench.eps}" in out
+
+
+def test_the_file_key_is_found_wherever_it_sits():
+    out, _ = modernise_tex(BS + "epsfig{width=3in,file=a.eps,height=2in}")
+    assert out == INC + "{a.eps}"
+
+
+def test_an_epsfig_with_no_file_key_is_left_exactly_as_it_was():
+    """Rewriting something we did not understand is how a converter starts
+    inventing."""
+    tex = BS + "epsfig{width=3in}"
+    assert modernise_tex(tex)[0] == tex
+
+
+def test_a_modern_document_is_untouched():
+    tex = (BS + "documentclass{article}\n" + BS + "usepackage{graphicx}\n"
+           + INC + "[width=0.5" + BS + "textwidth]{fig1}\n")
+    out, counts = modernise_tex(tex)
+
+    assert out == tex
+    assert not any(counts.values())
+
+
+# --------------------------------------------------------------------------
+# A macro being defined is not a macro wrapping a figure
+# --------------------------------------------------------------------------
+
+def test_a_newcommand_definition_is_not_unwrapped():
+    r"""Found on cond-mat/0001002, and introduced by the unwrapper itself.
+
+        \newcommand\frm[1]{\includegraphics{#1}}
+
+    matches the call pattern exactly, and unwrapping it produced
+    `\newcommand\includegraphics{#1}` — redefining the one command everything
+    downstream depends on. Pandoc then failed two hundred lines away, which is
+    what makes this worth a test rather than a comment.
+    """
+    tex = BS + "newcommand" + BS + "frm[1]{" + INC + "{#1}}"
+    out, n = unwrap_figure_macros(tex)
+
+    assert n == 0
+    assert out == tex
+
+
+@pytest.mark.parametrize("definer", ["newcommand", "renewcommand",
+                                     "providecommand", "def",
+                                     "DeclareRobustCommand"])
+def test_every_definition_form_is_protected(definer):
+    tex = BS + definer + BS + "fig{" + INC + "{x}}"
+    assert unwrap_figure_macros(tex) == (tex, 0)
+
+
+def test_a_starred_definition_is_protected_too():
+    tex = BS + "newcommand*" + BS + "fig{" + INC + "{x}}"
+    assert unwrap_figure_macros(tex) == (tex, 0)
+
+
+def test_a_wrapper_inside_a_definition_body_is_still_unwrapped():
+    r"""The guard protects the macro *being defined*, not everything in its
+    body. `\centerline{\includegraphics{#1}}` inside a definition is a genuine
+    wrapper and pandoc drops it like any other."""
+    tex = (BS + "newcommand" + BS + "figu[1]{" + BS + "begin{figure}"
+           + BS + "centerline{" + INC + "{#1}}" + BS + "end{figure}}")
+    out, n = unwrap_figure_macros(tex)
+
+    assert n == 1
+    assert BS + "newcommand" + BS + "figu[1]{" in out
+    assert BS + "centerline" not in out
+    assert INC + "{#1}" in out
+
+
+def test_a_call_that_merely_follows_a_definition_is_still_unwrapped():
+    """The guard looks at what is immediately before the macro name, not
+    anywhere earlier in the file."""
+    tex = (BS + "newcommand" + BS + "x{y}\n\n"
+           + BS + "subfigure[]{" + INC + "{a}}")
+    out, n = unwrap_figure_macros(tex)
+
+    assert n == 1
+    assert BS + "subfigure" not in out

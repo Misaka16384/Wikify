@@ -142,12 +142,68 @@ def find_main_tex(directory, slug=None):
 _IMG_EXTS = (".pdf", ".eps", ".ps", ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".svg")
 
 
+#: TeX's ``true`` dimension prefix (``0.3truein``), which pandoc's dimension
+#: parser does not know. It fails two different ways depending on a space:
+#: ``\vskip 0.3truein`` is a hard parse error that loses the whole document,
+#: while ``\vskip 0.3 truein`` parses and emits the word "truein" into the body
+#: as text. One breaks loudly, the other quietly.
+_TRUE_DIMEN_RE = re.compile(r"(\d)\s*true(in|cm|mm|pt|bp|pc|dd|cc|sp)\b")
+
+#: How papers referenced figures before ``graphicx`` won. ``\epsfbox`` takes the
+#: filename directly; ``\epsfig``/``\psfig`` take ``file=`` among key-values.
+_EPSFBOX_RE = re.compile(r"\\epsfbox\s*\{([^{}]*)\}")
+_EPSFIG_RE = re.compile(r"\\(?:epsfig|psfig)\s*\{([^{}]*)\}")
+
+
+def modernise_tex(tex_content):
+    """Rewrite the pre-``graphicx`` dialect into the one pandoc reads.
+
+    arXiv's back catalogue is full of papers that predate the packages pandoc
+    assumes. Measured on cond-mat/0001002 (submitted 2000, ``\\documentstyle``
+    rather than ``\\documentclass``):
+
+    * ``\\vskip 0.3truein`` — pandoc stops with a parse error and returns
+      **nothing at all**. The same glue written ``0.3 truein`` parses, and puts
+      the literal word "truein" in the body instead. Normalising the unit fixes
+      both: 0 characters out becomes 79,090.
+    * ``\\epsfbox`` and ``\\epsfig`` — the figure macros of that era. Pandoc
+      knows neither, so all thirteen figures in that paper were invisible to it
+      even after the document parsed. Translated to ``\\includegraphics``, which
+      is what they mean.
+
+    Returns ``(tex, counts)``; pure, so the caller decides what to write.
+    """
+    def _file_from_kv(m):
+        for part in m.group(1).split(","):
+            key, _, value = part.partition("=")
+            if key.strip().lower() == "file":
+                return "\\includegraphics{" + value.strip() + "}"
+        return m.group(0)          # no file= to find: leave it exactly as it was
+
+    counts = {}
+    tex_content, counts["true_dimens"] = _TRUE_DIMEN_RE.subn(r"\1\2", tex_content)
+    tex_content, counts["epsfbox"] = _EPSFBOX_RE.subn(
+        lambda m: "\\includegraphics{" + m.group(1).strip() + "}", tex_content)
+    tex_content, counts["epsfig"] = _EPSFIG_RE.subn(_file_from_kv, tex_content)
+    return tex_content, counts
+
+
 #: Macros whose braced argument is not a figure wrapper even when a figure is
 #: inside it. Pandoc understands these and unwrapping would lose meaning.
 _KEEP_WRAPPED = {"includegraphics", "caption", "subcaption", "label",
                  "href", "url", "begin", "end"}
 
 _MACRO_CALL_RE = re.compile(r"\\([a-zA-Z@]+)\s*(?:\[[^\]]*\]\s*)*\{")
+
+#: A macro being *defined*, not called. ``\newcommand\frm[1]{\includegraphics{#1}}``
+#: matches the call pattern exactly, and unwrapping it destroys the definition —
+#: on a real paper it produced ``\newcommand\includegraphics{#1}``, redefining
+#: the very command everything downstream depends on, and pandoc then failed on
+#: a line 200 lines away. A wrapper is something a figure is *passed to*; the
+#: name right after a definition command is not that.
+_DEFINING_RE = re.compile(
+    r"\\(?:new|renew|provide)command\*?\s*$|\\def\s*$|\\let\s*$"
+    r"|\\DeclareRobustCommand\*?\s*$|\\newenvironment\*?\s*$")
 
 
 def unwrap_figure_macros(tex_content):
@@ -203,7 +259,8 @@ def unwrap_figure_macros(tex_content):
                     k += 1
 
             hit = next(((inner, end) for inner, end in groups if marker in inner), None)
-            if hit and m.group(1) not in _KEEP_WRAPPED:
+            defining = _DEFINING_RE.search(tex_content[:m.start()])
+            if hit and m.group(1) not in _KEEP_WRAPPED and not defining:
                 out.append(tex_content[i:m.start()])
                 out.append(hit[0])
                 n += 1
@@ -479,15 +536,25 @@ def convert(input_path, output_dir) -> ConversionResult:
     try:
         with open(tex_path, "r", encoding="utf-8", errors="ignore") as f:
             _pre = f.read()
+        _pre, _old = modernise_tex(_pre)
+        if any(_old.values()):
+            bits = []
+            if _old["true_dimens"]:
+                bits.append(f"{_old['true_dimens']} true-prefixed dimension(s)")
+            if _old["epsfbox"] or _old["epsfig"]:
+                bits.append(f"{_old['epsfbox'] + _old['epsfig']} epsf/psfig figure(s)")
+            print("  [tex] modernised " + " and ".join(bits)
+                  + " — this package predates the packages Pandoc assumes")
         _pre, _n_unwrapped = unwrap_figure_macros(_pre)
-        if _n_unwrapped:
+        if _n_unwrapped or any(_old.values()):
             prepared = os.path.join(tex_dir, "_magi_prepared.tex")
             with open(prepared, "w", encoding="utf-8") as f:
                 f.write(_pre)
             tex_path = prepared
-            print(f"  [fig] unwrapped {_n_unwrapped} figure macro(s) "
-                  r"(\subfigure / \subfloat and the like) so Pandoc can see "
-                  "the graphics inside them")
+            if _n_unwrapped:
+                print(f"  [fig] unwrapped {_n_unwrapped} figure macro(s) "
+                      r"(\subfigure / \subfloat and the like) so Pandoc can "
+                      "see the graphics inside them")
     except OSError as exc:
         print(f"Warning: could not pre-process the TeX for figures ({exc}); "
               "figures wrapped in macros may be dropped")
