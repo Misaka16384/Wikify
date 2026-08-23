@@ -224,3 +224,106 @@ def test_every_outcome_explains_itself(tmp_path):
 def test_the_convenience_wrapper_agrees_with_inspect(tmp_path):
     pdf = _pdf(tmp_path, "x.pdf")
     assert textlayer.would_route_here(pdf) == textlayer.inspect(pdf).route_here
+
+
+# --------------------------------------------------------------------------
+# "could not look" is not "nothing there"
+# --------------------------------------------------------------------------
+
+def _fonts_always_raise(monkeypatch):
+    """A document whose font table cannot be read on any page.
+
+    Real causes exist — a damaged xref, an unusual encryption, a PyMuPDF that
+    chokes on one malformed object — and the reading is best effort by design.
+    What must not happen is the shrug arriving as an answer.
+    """
+    real_open = textlayer._open
+
+    class _NoFonts:
+        def __init__(self, doc):
+            self._doc = doc
+
+        def get_page_fonts(self, _n):
+            raise RuntimeError("cannot read the font table")
+
+        def __getattr__(self, name):
+            return getattr(self._doc, name)
+
+        def __getitem__(self, n):
+            return self._doc[n]
+
+        def __enter__(self):
+            self._doc.__enter__()
+            return self
+
+        def __exit__(self, *exc):
+            return self._doc.__exit__(*exc)
+
+    monkeypatch.setattr(textlayer, "_open", lambda p: _NoFonts(real_open(p)))
+
+
+def test_an_unreadable_font_table_does_not_read_as_no_maths(tmp_path, monkeypatch):
+    """`has_math` came back False because nothing was *found*, which is not the
+    same as nothing being there — and False sent the document straight to the
+    one route that flattens formulas. Exactly the confusion already fixed once
+    in routing, where a rung's availability was folded into a document's
+    routing decision."""
+    _fonts_always_raise(monkeypatch)
+    got = textlayer.inspect(_pdf(tmp_path, "damaged.pdf"))
+
+    assert got.usable                    # the text itself is fine
+    assert got.math_known is False
+    assert not got.route_here            # so it falls to a model-backed rung
+
+
+def test_the_unknown_case_says_why(tmp_path, monkeypatch):
+    """Otherwise a prose PDF going to OCR looks like a routing bug rather than
+    a damaged file."""
+    _fonts_always_raise(monkeypatch)
+    got = textlayer.inspect(_pdf(tmp_path, "damaged.pdf"))
+
+    assert "font table could not be read" in got.reason
+
+
+def test_a_readable_font_table_still_answers(tmp_path):
+    """The guard must not fire on ordinary documents — otherwise the whole
+    rung is off and nobody notices, which is the failure this ladder exists to
+    avoid, one level up."""
+    got = textlayer.inspect(_pdf(tmp_path, "prose.pdf"))
+    assert got.math_known is True
+    assert got.route_here
+
+
+def test_one_bad_page_is_not_enough_to_give_up(tmp_path, monkeypatch):
+    """Best effort stays best effort. A single unreadable page among many is
+    the ordinary case the try/except was written for; only a total failure is
+    a shrug."""
+    real_open = textlayer._open
+
+    class _OneBadPage:
+        def __init__(self, doc):
+            self._doc = doc
+
+        def get_page_fonts(self, n):
+            if n == 0:
+                raise RuntimeError("one bad page")
+            return self._doc.get_page_fonts(n)
+
+        def __getattr__(self, name):
+            return getattr(self._doc, name)
+
+        def __getitem__(self, n):
+            return self._doc[n]
+
+        def __enter__(self):
+            self._doc.__enter__()
+            return self
+
+        def __exit__(self, *exc):
+            return self._doc.__exit__(*exc)
+
+    monkeypatch.setattr(textlayer, "_open", lambda p: _OneBadPage(real_open(p)))
+    got = textlayer.inspect(_pdf(tmp_path, "prose.pdf", pages=4))
+
+    assert got.math_known is True
+    assert got.route_here

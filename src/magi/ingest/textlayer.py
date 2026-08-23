@@ -102,16 +102,27 @@ class TextLayer(NamedTuple):
     chars_per_page: int
     pages: int
     producer: str = ""
+    # Whether `has_math` is an answer or a shrug. Reading the font table is
+    # best effort, and when every attempt raised, `has_math` comes back False
+    # because nothing was found — which is indistinguishable from a document
+    # that genuinely has no maths. "Could not look" must not read as "nothing
+    # there": that is the exact confusion that sent a rung's availability into
+    # a document's routing decision, and it lands a maths paper on the one
+    # route that flattens formulas.
+    math_known: bool = True
 
     @property
     def route_here(self) -> bool:
         """Whether this route may handle the document.
 
-        Both conditions, and they are different: readable *and* not
-        mathematical. A maths paper whose text layer is perfect still goes to a
-        model, because the formulas would arrive as flattened character soup.
+        Three conditions now, and they are different questions: readable, not
+        mathematical, and *known* not to be mathematical. A maths paper whose
+        text layer is perfect still goes to a model, because the formulas would
+        arrive as flattened character soup — and a document we could not
+        examine is treated as one that might be maths, because being sent one
+        rung lower costs time while the other mistake costs the formulas.
         """
-        return self.usable and not self.has_math
+        return self.usable and not self.has_math and self.math_known
 
 
 def _open(pdf_path):
@@ -166,6 +177,7 @@ def inspect(pdf_path) -> TextLayer:
                       else sorted({int(round(i * (pages - 1) / (FONT_SCAN_CAP - 1)))
                                    for i in range(FONT_SCAN_CAP)}))
         fonts_seen: list[str] = []
+        font_failures = 0
         for n in font_pages:
             try:
                 for font in doc.get_page_fonts(n):
@@ -173,7 +185,12 @@ def inspect(pdf_path) -> TextLayer:
                     if len(font) > 3 and font[3]:
                         fonts_seen.append(str(font[3]))
             except Exception:  # noqa: BLE001 — font table is best effort
-                pass
+                font_failures += 1
+        # Best effort, but not best-effort-and-say-nothing: if *every* page
+        # refused, the maths answer below is "nothing found", not "nothing
+        # there", and the caller has to be told which one it got.
+        font_pages = list(font_pages)
+        math_known = not (font_pages and font_failures == len(font_pages))
 
         total_chars = 0
         full_page_images = 0
@@ -204,26 +221,26 @@ def inspect(pdf_path) -> TextLayer:
         if full_page_images >= max(1, len(indices) // 2) and per_page < MIN_CHARS_PER_PAGE:
             return TextLayer(False, has_math,
                              "each page is one full-page image — this is a scan",
-                             per_page, pages, producer)
+                             per_page, pages, producer, math_known)
 
         if per_page < MIN_CHARS_PER_PAGE:
             return TextLayer(False, has_math,
                              f"only ~{per_page} characters per page — no real text layer",
-                             per_page, pages, producer)
+                             per_page, pages, producer, math_known)
 
         cid = _cid_ratio(text)
         if cid > MAX_CID_RATIO:
             return TextLayer(False, has_math,
                              f"{cid:.0%} of the extracted text is unmapped glyph codes — "
                              "the text layer exists but is unreadable",
-                             per_page, pages, producer)
+                             per_page, pages, producer, math_known)
 
         printable = _printable_ratio(text)
         if printable < MIN_PRINTABLE_RATIO:
             return TextLayer(False, has_math,
                              f"only {printable:.0%} of the extracted text is printable — "
                              "likely a bad OCR layer baked in by a scanner",
-                             per_page, pages, producer)
+                             per_page, pages, producer, math_known)
 
         if SCANNER_PRODUCER_RE.search(producer):
             # Corroboration, not the decision: the text passed every check
@@ -237,12 +254,23 @@ def inspect(pdf_path) -> TextLayer:
                              "readable text, but the document is TeX-typeset with real "
                              "mathematics — formulas would arrive as flattened characters"
                              + note,
-                             per_page, pages, producer)
+                             per_page, pages, producer, math_known)
+
+        if not math_known:
+            # Readable, and no maths *found* — but nothing was readable to find
+            # it in. Naming the cause matters: the reader can see this is a
+            # damaged file rather than wonder why a prose PDF went to a model.
+            return TextLayer(True, False,
+                             f"a real text layer, ~{per_page} characters per page, but the "
+                             "font table could not be read on any page — whether this "
+                             "document has mathematics is unknown, so it does not take "
+                             "the no-maths route" + note,
+                             per_page, pages, producer, False)
 
         return TextLayer(True, False,
                          f"a real text layer, ~{per_page} characters per page, no math fonts"
                          + note,
-                         per_page, pages, producer)
+                         per_page, pages, producer, True)
 
 
 def would_route_here(pdf_path) -> bool:
