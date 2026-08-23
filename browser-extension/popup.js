@@ -39,6 +39,7 @@ const I18N = {
     noLibChosen: "No library to queue into — check the port above, or register one with 'magi kb register'.",
     queueing: "queueing…",
     queued: (kind, value) => `Queued as ${kind}: ${value}`,
+    already: (kind, value) => `Already waiting as ${kind}: ${value}`,
     waiting: (n, lib) => `${n} waiting in ${lib}.`,
     hint: "Queuing only adds it to a list. Run <code>magi ingest batch-run</code>, then approve what came out — nothing enters your library until you do.",
     kind: { arxiv: "arXiv paper", doi: "DOI", url: "page", file: "file" },
@@ -55,6 +56,7 @@ const I18N = {
     noLibChosen: "没有可入队的知识库——检查上面的端口，或者用 'magi kb register' 注册一个。",
     queueing: "正在入队…",
     queued: (kind, value) => `已入队，识别为${kind}：${value}`,
+    already: (kind, value) => `已经在队列里了，识别为${kind}：${value}`,
     waiting: (n, lib) => `${lib} 里现在有 ${n} 项待处理。`,
     hint: "入队只是加进一个清单。跑 <code>magi ingest batch-run</code>，然后审批转换结果——在你批准之前，什么都不会进库。",
     kind: { arxiv: "arXiv 论文", doi: "DOI", url: "网页", file: "文件" },
@@ -192,7 +194,14 @@ $("send").addEventListener("click", async () => {
     // worked". The newline is load-bearing: #status sets white-space:pre-line
     // so these stay two sentences.
     const kind = t().kind[body.source_type] || body.source_type;
-    status(`${t().queued(kind, body.value)}\n${t().waiting(body.pending, library)}`, "ok");
+    // Say which of the two happened. Clicking the same paper twice used to
+    // queue it twice; it now collapses into the request already waiting, and
+    // reporting that as a fresh queueing would be a comfortable lie — the
+    // duplicate it replaced was at least visible.
+    const line = body.status === "already-queued"
+      ? t().already(kind, body.value)
+      : t().queued(kind, body.value);
+    status(`${line}\n${t().waiting(body.pending, library)}`, "ok");
   } catch (err) {
     status(String(err.message || err), "err");
     $("send").disabled = false;

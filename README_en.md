@@ -3,7 +3,7 @@
 *[English](README_en.md) | [中文](README.md)*
 
 [![PyPI](https://img.shields.io/pypi/v/magi-research?label=PyPI)](https://pypi.org/project/magi-research/)
-[![Downloads](https://img.shields.io/pypi/dm/magi-research)](https://pypistats.org/packages/magi-research)
+[![Downloads](https://img.shields.io/pypi/dm/magi-research?cacheSeconds=86400)](https://pypistats.org/packages/magi-research)
 [![Python](https://img.shields.io/pypi/pyversions/magi-research)](https://pypi.org/project/magi-research/)
 [![License](https://img.shields.io/pypi/l/magi-research)](LICENSE)
 

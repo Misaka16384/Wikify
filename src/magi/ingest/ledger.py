@@ -126,6 +126,32 @@ class QueueEntry(NamedTuple):
     title: str | None
 
 
+def find_pending(topic, source_type: str, value: str):
+    """The queued-but-unclaimed request for this exact source, if there is one.
+
+    "Still waiting", not "ever seen". Three cases have to stay possible and
+    each is a real workflow:
+
+    * a **retry** — a rejected item is deliberately requeued on the next rung
+      down, and it carries ``retry_of``; deduplicating it against the request
+      it descends from would break the downgrade path entirely;
+    * a **re-ingest** — arXiv issues a new version and the paper is worth
+      converting again, which is why a request already claimed by a batch does
+      not block a new one;
+    * the **same paper in another library**, which is a different destination
+      and therefore a different request.
+
+    So the match is on what is still in the queue, in this workspace, for this
+    identity — nothing else.
+    """
+    for entry in pending(topic):
+        if entry.retry_of:
+            continue
+        if entry.source_type == source_type and entry.value == value:
+            return entry
+    return None
+
+
 def enqueue(topic, *, source_type: str, value: str, library: str | None = None,
             route: str | None = None, retry_of: str | None = None,
             title: str | None = None) -> str:
@@ -134,7 +160,20 @@ def enqueue(topic, *, source_type: str, value: str, library: str | None = None,
     Appends a line. Touches nothing else — no network, no conversion, no writing
     into the library. An entry sitting here is inert until someone runs a batch,
     and what a batch produces is still inert until a human approves it.
+
+    Idempotent for anything already waiting: clicking the browser button twice
+    on one paper returns the first request's id rather than queueing it again.
+    Measured before this existed — three clicks, three identical entries, three
+    conversions of the same paper and three rows to approve.
+
+    A retry is exempt and says so by carrying ``retry_of``: it is a deliberate
+    second attempt on a lower rung, not a duplicate.
     """
+    if retry_of is None:
+        existing = find_pending(topic, source_type, value)
+        if existing is not None:
+            return existing.req_id
+
     req_id = _new_id("req")
     _append(queue_path(topic), {
         "kind": "enqueue",

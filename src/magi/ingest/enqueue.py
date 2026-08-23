@@ -129,13 +129,21 @@ def cmd_url(args) -> int:
     queued = []
     for target in args.targets:
         source_type, value = classify(target)
+        # Ask first so the line printed is true. `enqueue` collapses a repeat
+        # into the request already waiting, and reporting that as "queued"
+        # would hide the one thing the user needs to know.
+        already = ledger.find_pending(topic, source_type, value)
         req_id = ledger.enqueue(topic, source_type=source_type, value=value,
                                 library=args.library,
                                 title=clean_title(args.title))
+        status = "already-queued" if already else "queued"
         queued.append({"req_id": req_id, "source_type": source_type,
-                       "value": value, "status": "queued"})
+                       "value": value, "status": status})
         if not args.json:
-            print(f"queued {source_type}: {value}")
+            if already:
+                print(f"already queued {source_type}: {value}")
+            else:
+                print(f"queued {source_type}: {value}")
 
     pending = len(ledger.pending(topic))
     if args.json:

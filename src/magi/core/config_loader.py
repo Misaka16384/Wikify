@@ -161,23 +161,40 @@ def load_config(config_path: Optional[str] = None,
                 raise ValueError(f"Config file must be a YAML mapping, got {type(user_cfg).__name__}")
             config = _deep_merge(config, user_cfg)
     else:
-        yaml_path = _find_config_yaml(start)
-        if yaml_path is not None and yaml is not None:
+        # Two layers, not two candidates. The user file used to be reachable
+        # only when no workspace config existed anywhere above the cwd — and
+        # every `magi init` workspace writes one at its root, so in practice it
+        # was never read at all. Anything that belongs to the person rather
+        # than to a topic had to be copied into every workspace: measured on
+        # one machine, the same MinerU token stored three times, with no single
+        # place to change it.
+        #
+        # Now the user file is the base and the workspace file overrides it,
+        # key by key, so a token can live in one place and a topic can still
+        # differ where it means to.
+        from magi.core.workspace import find_workspace_config_yaml, user_config_yaml
+
+        for layer in (user_config_yaml(), find_workspace_config_yaml(start)):
+            if layer is None or yaml is None:
+                continue
+            yaml_path = layer
             try:
-                with open(yaml_path, "r", encoding="utf-8") as fh:
+                with open(layer, "r", encoding="utf-8") as fh:
                     user_cfg = yaml.safe_load(fh)
             except Exception as exc:
                 # Silently falling back to defaults here is how a one-character
                 # YAML typo turns into "radar found nothing today" with an exit
                 # code of 0. The defaults still apply — but say so.
-                print(f"warning: could not read {yaml_path} ({exc}); using defaults",
+                print(f"warning: could not read {layer} ({exc}); ignoring it",
                       file=sys.stderr)
-                user_cfg = None
-            if user_cfg is not None and not isinstance(user_cfg, dict):
-                print(f"warning: {yaml_path} is not a YAML mapping "
-                      f"({type(user_cfg).__name__}); using defaults", file=sys.stderr)
-            elif isinstance(user_cfg, dict):
-                config = _deep_merge(config, user_cfg)
+                continue
+            if user_cfg is None:
+                continue
+            if not isinstance(user_cfg, dict):
+                print(f"warning: {layer} is not a YAML mapping "
+                      f"({type(user_cfg).__name__}); ignoring it", file=sys.stderr)
+                continue
+            config = _deep_merge(config, user_cfg)
 
     # --- Layer 2: Environment variable overrides ---
     for env_var, dotted_key in _ENV_OVERRIDES:

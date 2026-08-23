@@ -79,8 +79,39 @@ def find_config_yaml(start: str | os.PathLike | None = None) -> Path | None:
        sitting at a MAGI topic or hub root count. ``config.yaml`` is a very
        common filename (Hugo, CI, ML repos); accepting an arbitrary one
        from the ancestor chain would silently hijack model/OCR settings.
-    2. User config dir: ``~/.config/magi/config.yaml``.
+    2. The user config file.
+
+    Kept for callers that want "the one file that decides". ``load_config``
+    no longer uses it: the two are *layers*, not alternatives, and treating
+    them as alternatives meant the user file was unreachable for anyone with
+    a workspace — which is everyone.
     """
+    return find_workspace_config_yaml(start) or user_config_yaml()
+
+
+def config_home() -> Path:
+    """Where per-user MAGI state lives. ``MAGI_CONFIG_HOME`` overrides it.
+
+    Lives here rather than in ``kb_registry`` because both the registry and
+    the config loader need it and ``kb_registry`` already imports this module
+    — putting it the other way round would be a cycle. It was previously
+    private to the registry, so ``find_config_yaml`` hardcoded
+    ``~/.config/magi`` instead: a test that isolated the registry still read
+    the developer's real settings, which is the kind of leak that shows up
+    only as an inexplicable pass.
+    """
+    override = os.environ.get("MAGI_CONFIG_HOME")
+    return Path(override) if override else Path.home() / ".config" / "magi"
+
+
+def user_config_yaml() -> Path | None:
+    """``<config home>/config.yaml`` when it exists."""
+    path = config_home() / "config.yaml"
+    return path if path.is_file() else None
+
+
+def find_workspace_config_yaml(start: str | os.PathLike | None = None) -> Path | None:
+    """The nearest workspace- or hub-level config.yaml, and nothing else."""
     base = Path(start) if start is not None else Path.cwd()
     if base.is_file():
         base = base.parent
@@ -88,7 +119,4 @@ def find_config_yaml(start: str | os.PathLike | None = None) -> Path | None:
         cfg = candidate / "config.yaml"
         if cfg.is_file() and (is_topic_root(candidate) or is_hub_root(candidate)):
             return cfg
-    user_cfg = Path.home() / ".config" / "magi" / "config.yaml"
-    if user_cfg.is_file():
-        return user_cfg
     return None

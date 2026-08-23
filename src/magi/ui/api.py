@@ -800,10 +800,16 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         # nothing on purpose — so arXiv's "[2410.11942] " prefix arrives with
         # it. Cleaning it here keeps that rule in one place, shared with the
         # CLI path.
+        # Ask before appending so the answer can be honest. `enqueue` is
+        # idempotent for anything still waiting, and a caller told "queued"
+        # when nothing was queued is worse off than one told nothing at all —
+        # the duplicate it was trying to avoid is at least visible.
+        already = ledger.find_pending(target, source_type, value)
         req_id = ledger.enqueue(target, source_type=source_type, value=value,
                                 library=req.library, title=clean_title(req.title))
         return {"req_id": req_id, "source_type": source_type, "value": value,
-                "workspace": str(target), "status": "queued",
+                "workspace": str(target),
+                "status": "already-queued" if already else "queued",
                 "pending": len(ledger.pending(target))}
 
     @app.post("/api/workspace/radar/review")

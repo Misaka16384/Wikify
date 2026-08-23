@@ -168,11 +168,23 @@ def test_json_output_reports_what_was_queued(ws, capsys):
     assert data["workspace"]
 
 
-def test_queueing_the_same_paper_twice_is_allowed(ws):
-    """Deduplication is a decision for the reviewer, not a silent drop here."""
+def test_queueing_the_same_paper_twice_collapses_and_says_so(ws, capsys):
+    """This used to assert the opposite, for a reason worth preserving:
+    "deduplication is a decision for the reviewer, not a silent drop here."
+
+    The objection was to the *silence*, not to the collapsing — and clicking
+    the browser button three times really did produce three conversions of one
+    paper and three rows to approve. So the request is now collapsed and the
+    fact is reported: the reviewer still learns what happened, without having
+    to notice three identical rows to learn it.
+    """
     enqueue.main(["2608.16520"])
+    capsys.readouterr()
     enqueue.main(["2608.16520"])
-    assert len(ledger.pending(ws)) == 2
+    out = capsys.readouterr().out
+
+    assert len(ledger.pending(ws)) == 1
+    assert "already queued" in out          # collapsed, and not quietly
 
 
 def test_no_workspace_is_an_error_not_a_crash(monkeypatch):

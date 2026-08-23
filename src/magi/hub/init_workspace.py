@@ -216,10 +216,15 @@ models:
   ocr: "glm-ocr:q8_0"
   embedding: "qwen3-embedding:0.6b"
 ocr:
-  mineru_api_token: ""
+  # Deliberately absent, not empty. Settings layer: this file overrides
+  # ~/.config/magi/config.yaml key by key, and an explicit "" is a value —
+  # it would shadow a token set once for you and leave every new workspace
+  # unable to reach MinerU for no visible reason. Put the token in the user
+  # file; uncomment here only to give this one topic a different key.
+  # mineru_api_token: ""
   use_mineru: false
   timeout: 180
-  dpi: 130
+  dpi: 150
 semantic_link:
   threshold: 0.75
   merge_threshold: 0.85

@@ -23,11 +23,15 @@ from magi.core.workspace import find_workspace_root
 
 
 def _config_home() -> Path:
-    """User-global magi config dir. MAGI_CONFIG_HOME overrides (tests)."""
-    import os
+    """User-global magi config dir. MAGI_CONFIG_HOME overrides (tests).
 
-    override = os.environ.get("MAGI_CONFIG_HOME")
-    return Path(override) if override else Path.home() / ".config" / "magi"
+    One implementation, in `core.workspace`, because the config loader needs
+    the same answer — and when it had its own, `find_config_yaml` looked in
+    the real home directory while the registry looked in the isolated one.
+    """
+    from magi.core.workspace import config_home
+
+    return config_home()
 
 
 def registry_path() -> Path:
