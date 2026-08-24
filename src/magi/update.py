@@ -279,6 +279,79 @@ def result_path() -> Path:
     return config_home() / "update-result.json"
 
 
+def relaunch_log_path() -> Path:
+    from magi.core.workspace import config_home
+
+    return config_home() / "ui-relaunch.log"
+
+
+#: Windows process-creation flags for something that must outlive its parent.
+#:
+#: ``CREATE_NO_WINDOW`` (0x08000000), **not** ``DETACHED_PROCESS`` (0x8). Both
+#: are supposed to leave a console program without a window, and the first
+#: version of this used DETACHED_PROCESS — a console window appeared anyway,
+#: black and empty because the output was going to the null device. A server
+#: that prints nothing and never returns a prompt is indistinguishable from a
+#: hung one, and it was reported as exactly that.
+#:
+#: ``CREATE_NEW_PROCESS_GROUP`` (0x200) keeps a Ctrl-C in the shell that started
+#: the upgrade from reaching the process that has to survive it.
+_NT_DETACHED = 0x08000000 | 0x00000200
+
+
+def _detached_kwargs(log: Path | None = None) -> dict:
+    """Popen options for a process that must survive its parent.
+
+    ``log`` is where its output goes. Discarding it entirely is what made the
+    first version impossible to diagnose: when the relaunched dashboard did
+    something unexpected there was no record anywhere of what it said.
+    """
+    import subprocess
+
+    stream = subprocess.DEVNULL
+    if log is not None:
+        try:
+            log.parent.mkdir(parents=True, exist_ok=True)
+            stream = open(log, "a", encoding="utf-8", errors="replace")
+        except OSError:
+            stream = subprocess.DEVNULL
+
+    kwargs: dict = {"stdin": subprocess.DEVNULL,
+                    "stdout": stream, "stderr": stream}
+    if os.name == "nt":
+        kwargs["creationflags"] = _NT_DETACHED
+    else:
+        kwargs["start_new_session"] = True
+    return kwargs
+
+
+def _port_of(argv: list[str]) -> tuple[str, int] | None:
+    """The (host, port) a `magi ui` argv asks for, if it names one."""
+    host, port = "127.0.0.1", None
+    for i, part in enumerate(argv):
+        if part == "--host" and i + 1 < len(argv):
+            host = argv[i + 1]
+        elif part == "--port" and i + 1 < len(argv):
+            try:
+                port = int(argv[i + 1])
+            except ValueError:
+                return None
+    return (host, port) if port else None
+
+
+def _port_state(host: str, port: int, timeout: float = 0.4) -> str:
+    """``"free"`` or ``"taken"``. Used to decide whether to relaunch at all."""
+    import socket
+
+    with socket.socket() as s:
+        s.settimeout(timeout)
+        try:
+            s.connect((host if host != "0.0.0.0" else "127.0.0.1", port))
+        except OSError:
+            return "free"
+        return "taken"
+
+
 def _write_result(**fields) -> None:
     from magi.core.wiki_common import atomic_write
 
@@ -340,18 +413,8 @@ def spawn_detached_upgrade(*, wait_pid: int, relaunch: list[str] | None) -> bool
     if relaunch:
         argv += ["--_relaunch", json.dumps(relaunch)]
 
-    kwargs: dict = {"stdin": subprocess.DEVNULL,
-                    "stdout": subprocess.DEVNULL,
-                    "stderr": subprocess.DEVNULL}
-    if os.name == "nt":
-        # DETACHED_PROCESS so it does not die with the console, and
-        # CREATE_NEW_PROCESS_GROUP so a Ctrl-C in the old shell cannot reach it.
-        kwargs["creationflags"] = 0x00000008 | 0x00000200
-    else:
-        kwargs["start_new_session"] = True
-
     try:
-        subprocess.Popen(argv, **kwargs)
+        subprocess.Popen(argv, **_detached_kwargs())
         return True
     except Exception:  # noqa: BLE001
         return False
@@ -405,26 +468,58 @@ def _run_detached(wait_pid: int, relaunch: list[str] | None) -> int:
     # documented to print "Installing to existing venv" and leave the old
     # version behind, so a command that exits 0 is not proof of anything.
     now = _installed_version_on_disk()
-    _write_result(state="done", installed=__version__, now=now,
-                  changed=bool(now and now != __version__),
-                  command=" ".join(how.command), output=output[-4000:])
+    done = dict(state="done", installed=__version__, now=now,
+                changed=bool(now and now != __version__),
+                command=" ".join(how.command), output=output[-4000:])
+
+    # Written twice on purpose. The upgrade is finished and that fact should be
+    # on disk before the relaunch, which waits up to twenty seconds for the old
+    # port to come free — a reader arriving during that wait must not find a
+    # file that still says the upgrade is running.
+    _write_result(**done)
 
     if relaunch:
-        try:
-            kwargs: dict = {"stdin": subprocess.DEVNULL,
-                            "stdout": subprocess.DEVNULL,
-                            "stderr": subprocess.DEVNULL}
-            if os.name == "nt":
-                kwargs["creationflags"] = 0x00000008 | 0x00000200
-            else:
-                kwargs["start_new_session"] = True
-            subprocess.Popen(relaunch, **kwargs)
-        except Exception as exc:  # noqa: BLE001
-            _write_result(state="done", installed=__version__, now=now,
-                          changed=bool(now and now != __version__),
-                          command=" ".join(how.command),
-                          relaunch_error=str(exc))
+        note = _relaunch(relaunch)
+        if note:
+            done["relaunch"] = note
+    _write_result(**done)
     return 0
+
+
+def _relaunch(argv: list[str]) -> str:
+    """Start the dashboard again. Returns a note for the result file, or "".
+
+    Two things this has to get right, both learned the hard way:
+
+    **Do not start a second server on a port that is already answering.**
+    ``magi ui`` treats an explicitly requested busy port as a fatal error, so a
+    duplicate does not politely step aside — it dies, or sits there having done
+    nothing. Somebody who restarted the dashboard themselves while waiting
+    should keep the one they started.
+
+    **Wait for the port to actually come free first.** The old server has only
+    just been asked to stop; the listening socket outlives the process by a
+    moment, and relaunching into that window is a race that loses silently.
+    """
+    want = _port_of(argv)
+    if want:
+        host, port = want
+        # Up to ~20s for the old listener to go away.
+        for _ in range(40):
+            if _port_state(host, port) == "free":
+                break
+            time.sleep(0.5)
+        else:
+            return (f"not relaunched: something is still serving {host}:{port}, "
+                    "so the dashboard you have is the one to use")
+
+    try:
+        import subprocess
+
+        subprocess.Popen(argv, **_detached_kwargs(relaunch_log_path()))
+    except Exception as exc:  # noqa: BLE001
+        return f"could not relaunch the dashboard: {exc}"
+    return ""
 
 
 def _installed_version_on_disk() -> str | None:

@@ -477,3 +477,137 @@ def test_the_result_survives_for_the_relaunched_dashboard(client):
 
     client.post("/api/update/result/clear")
     assert client.get("/api/update/result").json() == {}
+
+
+# --------------------------------------------------------------------------
+# The relaunched dashboard, reported as a hung process
+#
+# The first version spawned it with DETACHED_PROCESS and its output pointed at
+# the null device. A console window appeared anyway — black, silent, and never
+# returning a prompt, which is exactly what a hung process looks like. The
+# upgrade had in fact succeeded and the dashboard behind that window was
+# serving the new version.
+#
+# Two defects, one report: the wrong Windows flag, and throwing away the only
+# evidence of what the new server said.
+# --------------------------------------------------------------------------
+
+def test_a_detached_child_gets_no_console_window():
+    """CREATE_NO_WINDOW (0x08000000), not DETACHED_PROCESS (0x8)."""
+    kwargs = update._detached_kwargs()
+    if update.os.name != "nt":
+        assert kwargs["start_new_session"] is True
+        return
+    flags = kwargs["creationflags"]
+    assert flags & 0x08000000, "CREATE_NO_WINDOW is missing"
+    assert not (flags & 0x00000008), "DETACHED_PROCESS is back; it showed a window"
+    assert flags & 0x00000200, "CREATE_NEW_PROCESS_GROUP is missing"
+
+
+def test_the_relaunched_server_keeps_a_log(home, tmp_path):
+    """Output thrown away is why "it just sat there" could not be diagnosed."""
+    log = tmp_path / "ui.log"
+    kwargs = update._detached_kwargs(log)
+    stream = kwargs["stdout"]
+    assert stream is kwargs["stderr"]
+    assert hasattr(stream, "write"), "output is still going to the null device"
+    stream.write("hello\n")
+    stream.close()
+    assert "hello" in log.read_text(encoding="utf-8")
+
+
+def test_an_unwritable_log_falls_back_rather_than_failing(home, tmp_path, monkeypatch):
+    """A log is a nicety; not relaunching the dashboard is not.
+
+    The failure is forced rather than provoked with a hopeless path: the first
+    version of this test used "/nonexistent-root/x/ui.log", which Windows
+    cheerfully created on the current drive — so it tested the happy path and
+    left a directory behind on the machine.
+    """
+    import builtins
+    import subprocess
+
+    def no_open(*a, **k):
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(builtins, "open", no_open)
+    kwargs = update._detached_kwargs(tmp_path / "ui.log")
+    assert kwargs["stdout"] is subprocess.DEVNULL
+
+
+@pytest.mark.parametrize("argv,want", [
+    (["py", "-m", "magi", "ui", "--host", "127.0.0.1", "--port", "8737"],
+     ("127.0.0.1", 8737)),
+    (["py", "-m", "magi", "ui", "--port", "9000"], ("127.0.0.1", 9000)),
+    (["py", "-m", "magi", "ui", "--no-open"], None),
+    (["py", "-m", "magi", "ui", "--port", "notanumber"], None),
+])
+def test_the_relaunch_port_is_read_out_of_the_command(argv, want):
+    assert update._port_of(argv) == want
+
+
+def test_no_second_server_is_started_on_a_port_that_answers(home, monkeypatch):
+    """`magi ui` treats an explicitly requested busy port as fatal, so a
+    duplicate does not step aside politely. Somebody who restarted the
+    dashboard themselves while waiting keeps the one they started."""
+    import subprocess
+
+    monkeypatch.setattr(update, "_port_state", lambda h, p, timeout=0.4: "taken")
+    monkeypatch.setattr(update.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(subprocess, "Popen",
+                        lambda *a, **k: pytest.fail("must not start a second server"))
+
+    note = update._relaunch(["py", "-m", "magi", "ui", "--port", "8737"])
+    assert "still serving" in note
+
+
+def test_the_relaunch_waits_for_the_old_listener_to_go(home, monkeypatch):
+    """The socket outlives the process by a moment; relaunching into that
+    window is a race that loses silently."""
+    import subprocess
+
+    states = iter(["taken", "taken", "free"])
+    monkeypatch.setattr(update, "_port_state",
+                        lambda h, p, timeout=0.4: next(states, "free"))
+    monkeypatch.setattr(update.time, "sleep", lambda *_: None)
+    started = []
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: started.append(a[0]))
+
+    assert update._relaunch(["py", "-m", "magi", "ui", "--port", "8737"]) == ""
+    assert started and started[0][-1] == "8737"
+
+
+def test_a_relaunch_that_could_not_start_is_recorded(home, monkeypatch):
+    import subprocess
+
+    monkeypatch.setattr(update, "_port_state", lambda h, p, timeout=0.4: "free")
+
+    def boom(*a, **k):
+        raise OSError("no such file")
+
+    monkeypatch.setattr(subprocess, "Popen", boom)
+    note = update._relaunch(["py", "-m", "magi", "ui", "--port", "8737"])
+    assert "could not relaunch" in note
+
+
+def test_the_upgrade_result_is_written_before_the_relaunch_is_attempted(home, monkeypatch):
+    """The relaunch waits up to twenty seconds. A reader arriving during that
+    wait must not find a file that still says the upgrade is running."""
+    import subprocess
+    import types
+
+    seen = {}
+    monkeypatch.setattr(update, "_pid_alive", lambda pid: False)
+    monkeypatch.setattr(update.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(update, "detect_install",
+                        lambda *a, **k: update.Install("pipx", ["pipx", "upgrade", "x"]))
+    monkeypatch.setattr(subprocess, "run",
+                        lambda *a, **k: types.SimpleNamespace(
+                            returncode=0, stdout="ok", stderr=""))
+    monkeypatch.setattr(update, "_installed_version_on_disk", lambda: "9.9.9")
+    monkeypatch.setattr(update, "_relaunch",
+                        lambda argv: seen.update(state_at_relaunch=update.read_result().get("state")) or "")
+
+    update._run_detached(1, ["py", "-m", "magi", "ui"])
+    assert seen["state_at_relaunch"] == "done"
+    assert update.read_result()["now"] == "9.9.9"

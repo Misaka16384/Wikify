@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+  <!-- The tri-sage emblem, redrawn for 16 pixels.
+
+       Not the same artwork as the header mark: that one carries three 1.3px
+       connecting lines between the cores, and at favicon size they render as
+       grey mush that only muddies the shape. A favicon has to survive being
+       shrunk to a sixth of its size, so this keeps the two things that read at
+       that scale — the hexagon and three coloured cores — and drops the rest.
+       The stroke is thicker for the same reason.
+
+       The shell is one mid grey rather than a colour that follows
+       prefers-color-scheme. The theme-aware version was tried and rejected by
+       looking at it: rendered at a true 16 pixels it vanished against a white
+       tab strip whenever the browser reported a dark scheme, and the tab strip
+       and the browser theme do not have to agree — a light Chrome theme on a
+       dark OS is an ordinary setup. #6C767E holds against both, and a favicon
+       is far too small for the subtlety to have bought anything. -->
+  <polygon fill="none" stroke="#6C767E" stroke-width="4.2" stroke-linejoin="round" points="24,4 41.3,14 41.3,34 24,44 6.7,34 6.7,14"/>
+  <circle cx="13.5" cy="18" r="5.4" fill="#AE4339"/>
+  <circle cx="34.5" cy="18" r="5.4" fill="#67824E"/>
+  <circle cx="24" cy="33" r="5.4" fill="#3E7F88"/>
+</svg>
