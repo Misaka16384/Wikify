@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+from contextlib import contextmanager
 import sys
 from pathlib import Path
 
@@ -46,20 +47,83 @@ def settings_path() -> Path:
 # storage
 # --------------------------------------------------------------------------
 
+def _quarantine(path: Path) -> Path | None:
+    """Move a file that will not parse somewhere it can still be recovered from.
+
+    This registry is not derived data. Nothing rebuilds it: it is the list of
+    libraries a person registered by hand, and losing it loses that work. The
+    old behaviour on a file that would not parse was to return an empty
+    registry — after which the very next ``save_registry`` wrote that emptiness
+    over the original. A truncated file became **no** file, silently.
+    """
+    stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    backup = path.with_name(f"{path.name}.corrupt-{stamp}")
+    try:
+        path.replace(backup)
+    except OSError:
+        return None
+    print(f"warning: {path.name} could not be parsed; kept a copy at {backup.name} "
+          f"and started a new one", file=sys.stderr)
+    return backup
+
+
 def _load_json(path: Path) -> dict | None:
     if path.is_file():
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(data, dict):
-                return data
-        except (json.JSONDecodeError, OSError):
-            pass
+        except OSError:
+            return None
+        except json.JSONDecodeError:
+            _quarantine(path)
+            return None
+        if isinstance(data, dict):
+            return data
+        _quarantine(path)
     return None
 
 
 def _save_json(path: Path, data: dict) -> None:
+    from magi.core.wiki_common import atomic_write
+
+    # Written to a sibling temporary file and renamed over the target, so a
+    # crash or a full disk mid-write leaves the previous registry intact rather
+    # than a half-written one that then fails to parse.
+    atomic_write(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+
+
+@contextmanager
+def _edit(path: Path, load, save):
+    """Hold a lock across the whole read-modify-write.
+
+    Atomic writing alone only rules out half a file. It does not rule out the
+    other half of the problem, which is two processes doing
+    ``load -> change one key -> save`` at the same time and the second one
+    writing back a picture of the world taken before the first one's change.
+    ``magi index`` registers the workspace it just indexed, the WebUI toggles
+    ``enabled``, the setup command writes settings — running two of those at
+    once is ordinary, and the loser's change simply vanished.
+
+    Falling through without the lock on timeout is deliberate and matches the
+    ledger: a ten-second wait means something is wrong with the lock, not with
+    the caller, and refusing to record the work at all is worse than racing.
+    """
+    from filelock import FileLock, Timeout
+
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+    lock = FileLock(str(path.with_suffix(path.suffix + ".lock")), timeout=10)
+    try:
+        lock.acquire()
+    except Timeout:
+        print(f"warning: could not lock {path.name} within 10s; writing anyway",
+              file=sys.stderr)
+        lock = None
+    try:
+        data = load()
+        yield data
+        save(data)
+    finally:
+        if lock is not None:
+            lock.release()
 
 
 def load_registry() -> dict:
@@ -73,12 +137,26 @@ def save_registry(data: dict) -> None:
     _save_json(registry_path(), data)
 
 
+def edit_registry():
+    """``with edit_registry() as data:`` — mutate ``data``, it is saved on exit.
+
+    The only safe way to change the registry. ``load_registry()`` followed by
+    ``save_registry()`` is the lost-update pattern spelled out.
+    """
+    return _edit(registry_path(), load_registry, save_registry)
+
+
 def load_settings() -> dict:
     return _load_json(settings_path()) or {}
 
 
 def save_settings(data: dict) -> None:
     _save_json(settings_path(), data)
+
+
+def edit_settings():
+    """``with edit_settings() as data:`` — see :func:`edit_registry`."""
+    return _edit(settings_path(), load_settings, save_settings)
 
 
 # --------------------------------------------------------------------------
@@ -88,20 +166,22 @@ def save_settings(data: dict) -> None:
 def register_kb(path: Path, name: str | None = None, enabled: bool = True, quiet: bool = False) -> str:
     """Idempotent: same resolved path keeps its entry (and enabled flag)."""
     path = path.resolve()
-    data = load_registry()
-    for existing_name, entry in data["kbs"].items():
-        if Path(entry["path"]).resolve() == path:
-            return existing_name
-    base = name or path.name
-    candidate, i = base, 2
-    while candidate in data["kbs"]:
-        candidate, i = f"{base}-{i}", i + 1
-    data["kbs"][candidate] = {
-        "path": str(path),
-        "enabled": enabled,
-        "registered": dt.date.today().isoformat(),
-    }
-    save_registry(data)
+    # Under the lock for the whole check-then-write: `magi index` calls this at
+    # the end of every run, so two indexes finishing together used to be able to
+    # pick the same free name and have the second overwrite the first.
+    with edit_registry() as data:
+        for existing_name, entry in data["kbs"].items():
+            if Path(entry["path"]).resolve() == path:
+                return existing_name
+        base = name or path.name
+        candidate, i = base, 2
+        while candidate in data["kbs"]:
+            candidate, i = f"{base}-{i}", i + 1
+        data["kbs"][candidate] = {
+            "path": str(path),
+            "enabled": enabled,
+            "registered": dt.date.today().isoformat(),
+        }
     if not quiet:
         print(f"registered KB '{candidate}' ({path}) — searchable: {enabled}")
     return candidate
@@ -170,23 +250,21 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 
 def _set_enabled(name: str, enabled: bool) -> int:
-    data = load_registry()
-    if name not in data["kbs"]:
-        print(f"unknown KB '{name}' — see 'magi kb list'", file=sys.stderr)
-        return 1
-    data["kbs"][name]["enabled"] = enabled
-    save_registry(data)
+    with edit_registry() as data:
+        if name not in data["kbs"]:
+            print(f"unknown KB '{name}' — see 'magi kb list'", file=sys.stderr)
+            return 1
+        data["kbs"][name]["enabled"] = enabled
     print(f"KB '{name}' is now {'searchable' if enabled else 'disabled'}")
     return 0
 
 
 def cmd_unregister(args: argparse.Namespace) -> int:
-    data = load_registry()
-    if args.name not in data["kbs"]:
-        print(f"unknown KB '{args.name}'", file=sys.stderr)
-        return 1
-    del data["kbs"][args.name]
-    save_registry(data)
+    with edit_registry() as data:
+        if args.name not in data["kbs"]:
+            print(f"unknown KB '{args.name}'", file=sys.stderr)
+            return 1
+        del data["kbs"][args.name]
     print(f"unregistered '{args.name}' (workspace files untouched)")
     return 0
 

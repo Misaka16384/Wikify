@@ -350,7 +350,7 @@ def coverage(items: Iterable[ZoteroItem]) -> dict:
 # --------------------------------------------------------------------------
 
 def cmd_dirs(args) -> int:
-    from magi.kb_registry import load_settings, save_settings
+    from magi.kb_registry import edit_settings, load_settings
 
     settings = load_settings()
     configured = settings.get("zotero_data_dir")
@@ -367,8 +367,8 @@ def cmd_dirs(args) -> int:
         if not (chosen / "zotero.sqlite").is_file():
             print(f"no zotero.sqlite in {chosen}", file=sys.stderr)
             return 1
-        settings["zotero_data_dir"] = str(chosen)
-        save_settings(settings)
+        with edit_settings() as data:
+            data["zotero_data_dir"] = str(chosen)
         print(f"[zotero] using {chosen}")
         return 0
 

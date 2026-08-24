@@ -88,15 +88,18 @@ def set_feature(key: str, enabled: bool) -> None:
     """
     if key not in FEATURE_KEYS:
         raise ValueError(f"unknown feature: {key!r}")
-    from magi.kb_registry import load_settings, save_settings
+    from magi.kb_registry import edit_settings
 
-    data = load_settings()
-    chosen = dict(data.get("optional_features") or {})
-    chosen[key] = bool(enabled)
-    data["optional_features"] = chosen
-    if key == "tasks":
-        data["profile"] = "full" if enabled else "kb-only"
-    save_settings(data)
+    # Both representations under one lock. Writing them as two separate
+    # load/save pairs would let a concurrent writer land between them and leave
+    # `profile` and `optional_features["tasks"]` disagreeing — which is the very
+    # drift this function exists to prevent.
+    with edit_settings() as data:
+        chosen = dict(data.get("optional_features") or {})
+        chosen[key] = bool(enabled)
+        data["optional_features"] = chosen
+        if key == "tasks":
+            data["profile"] = "full" if enabled else "kb-only"
 
 
 def enabled_features(settings: dict | None = None) -> dict[str, bool]:

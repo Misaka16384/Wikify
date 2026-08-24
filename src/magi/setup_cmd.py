@@ -353,7 +353,7 @@ def choose_optionals(interactive: bool) -> dict:
     official link, and record a "no" so the doctor stops raising it forever
     after. A tool you decided not to install is not a fault in your machine.
     """
-    from magi.kb_registry import load_settings, save_settings
+    from magi.kb_registry import edit_settings, load_settings
 
     settings = load_settings()
     chosen = dict(settings.get("optional_features") or {})
@@ -398,8 +398,14 @@ def choose_optionals(interactive: bool) -> dict:
     chosen["mineru"] = _ask_yes_no("Do you plan to use MinerU?",
                                    default=bool(chosen.get("mineru", False)))
 
-    settings["optional_features"] = chosen
-    save_settings(settings)
+    # Re-read under the lock and merge, rather than writing back the snapshot
+    # taken before the questions. The prompts above wait for a person, and a
+    # setting changed elsewhere during that wait must not be undone by an
+    # answer to a different question.
+    with edit_settings() as data:
+        merged = dict(data.get("optional_features") or {})
+        merged.update(chosen)
+        data["optional_features"] = merged
 
     wanted = [t.label for t in OPTIONAL_TOOLS if chosen.get(t.key)]
     if wanted:
@@ -614,7 +620,7 @@ def main(argv: list[str] | None = None) -> int:
                         help="DELETE detected legacy Wikify skill/bin copies")
     args = parser.parse_args(argv)
 
-    from magi.kb_registry import load_settings, save_settings
+    from magi.kb_registry import load_settings
 
     settings = load_settings()
     # Both flags go through set_feature, which writes `profile` *and*

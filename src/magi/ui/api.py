@@ -40,10 +40,11 @@ from magi.kb.detect_uncompiled import find_uncompiled
 from magi.kb_registry import (
     _config_home,
     _set_enabled,
+    edit_registry,
+    edit_settings,
     load_registry,
     load_settings,
     register_kb,
-    save_registry,
     searchable_kbs,
 )
 from magi.pm import bd_available, bd_status_summary
@@ -379,11 +380,11 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
 
     @app.delete("/api/kb/{name}")
     def unregister_kb_endpoint(name: str) -> dict:
-        data = load_registry()
-        if name not in data.get("kbs", {}):
-            raise HTTPException(status_code=404, detail=f"KB '{name}' not found in registry")
-        del data["kbs"][name]
-        save_registry(data)
+        with edit_registry() as data:
+            if name not in data.get("kbs", {}):
+                raise HTTPException(status_code=404,
+                                    detail=f"KB '{name}' not found in registry")
+            del data["kbs"][name]
         return {"name": name, "deleted": True}
 
     @app.get("/api/features")
@@ -458,7 +459,6 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         step: this only ever flips a flag.
         """
         from magi.features import FEATURE_KEYS, set_feature
-        from magi.kb_registry import load_settings, save_settings
         from magi.setup_cmd import OPTIONAL_TOOLS
 
         if req.kind == "feature":
@@ -473,11 +473,10 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             if req.key not in known:
                 raise HTTPException(status_code=404,
                                     detail=f"Unknown tool: {req.key}")
-            data = load_settings()
-            chosen = dict(data.get("optional_features") or {})
-            chosen[req.key] = bool(req.enabled)
-            data["optional_features"] = chosen
-            save_settings(data)
+            with edit_settings() as data:
+                chosen = dict(data.get("optional_features") or {})
+                chosen[req.key] = bool(req.enabled)
+                data["optional_features"] = chosen
             return {"key": req.key, "enabled": req.enabled, "kind": "tool"}
 
         raise HTTPException(status_code=400, detail=f"Unknown kind: {req.kind}")
