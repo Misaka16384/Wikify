@@ -2455,6 +2455,37 @@ details.advanced-sql > summary {
   flex-direction: column;
 }
 
+/* Full screen: the reference cards this pane exists to read are long, and a
+   900px-tall box in the middle of the screen wastes most of a monitor on the
+   backdrop. Every rule here overrides one of the three above that bound the
+   window — width, both heights, and the rounded frame — so none of them is
+   left half-applied at the edges. */
+.doc-preview-window.fullscreen {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100vh;
+  max-height: 100vh;
+  border-radius: 0;
+  border-width: 0;
+}
+
+/* The reading column keeps its measure. Line length is what makes a long card
+   readable, and a 2560px-wide paragraph is worse than the small box was — the
+   point of full screen is more lines visible at once, not longer ones. */
+.doc-preview-window.fullscreen .doc-preview-content {
+  max-width: 78ch;
+  margin-inline: auto;
+}
+
+.doc-preview-window.fullscreen .doc-preview-body.no-side .doc-preview-content {
+  max-width: 82ch;
+}
+
+#doc-preview-fullscreen[aria-pressed="true"] {
+  background-color: var(--accent-primary-wash);
+  color: var(--accent-primary);
+}
+
 .doc-preview-head {
   display: flex;
   align-items: flex-start;

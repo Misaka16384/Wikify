@@ -652,6 +652,8 @@
       preview_back: "返回上一张",
       preview_close: "关闭",
       preview_copy_path: "复制路径",
+      preview_fullscreen: "全屏（Esc 退出全屏）",
+      preview_fullscreen_exit: "退出全屏",
       preview_copied: "路径已复制：{path}",
       preview_open_links: "链接视图",
       preview_out: "出链",
@@ -1313,6 +1315,8 @@
       preview_back: "Back",
       preview_close: "Close",
       preview_copy_path: "Copy path",
+      preview_fullscreen: "Full screen (Esc to leave)",
+      preview_fullscreen_exit: "Leave full screen",
       preview_copied: "Path copied: {path}",
       preview_open_links: "Links view",
       preview_out: "Outgoing",
@@ -1597,6 +1601,7 @@
     docPreviewBack: document.getElementById("doc-preview-back"),
     docPreviewCopy: document.getElementById("doc-preview-copy"),
     docPreviewClose: document.getElementById("doc-preview-close"),
+    docPreviewFullscreen: document.getElementById("doc-preview-fullscreen"),
     docPreviewLinksBtn: document.getElementById("doc-preview-links-btn"),
 
     toastContainer: document.getElementById("toast-container"),
@@ -4708,6 +4713,53 @@
     scrollTarget: null, pending: [],
   };
 
+  const PREVIEW_FULLSCREEN_KEY = "magi.preview.fullscreen";
+
+  function previewWindow() {
+    return els.docPreviewModal
+      ? els.docPreviewModal.querySelector(".doc-preview-window") : null;
+  }
+
+  function isPreviewFullscreen() {
+    const win = previewWindow();
+    return !!(win && win.classList.contains("fullscreen"));
+  }
+
+  function setPreviewFullscreen(on, remember = true) {
+    const win = previewWindow();
+    if (!win) return;
+    win.classList.toggle("fullscreen", !!on);
+    const btn = els.docPreviewFullscreen;
+    if (btn) {
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      // The glyph changes with the state, so the button says what it will do
+      // next rather than what is currently true.
+      btn.innerHTML = on ? "&#11034;" : "&#11036;";
+      // Swap the i18n *key*, not just the rendered string: the language
+      // switcher re-reads `data-i18n-title` for every element, so setting only
+      // `title` would put the wrong label back the moment somebody changes
+      // language while full screen is on.
+      const key = on ? "preview_fullscreen_exit" : "preview_fullscreen";
+      btn.setAttribute("data-i18n-title", key);
+      btn.title = t(key);
+    }
+    if (!remember) return;
+    // A per-viewer convenience, so it survives a reload. Wrapped because a
+    // browser with site data blocked throws on access rather than returning
+    // nothing, and a reading pane must not fail to open over a preference.
+    try {
+      localStorage.setItem(PREVIEW_FULLSCREEN_KEY, on ? "1" : "0");
+    } catch (err) { /* not important enough to report */ }
+  }
+
+  function preferredPreviewFullscreen() {
+    try {
+      return localStorage.getItem(PREVIEW_FULLSCREEN_KEY) === "1";
+    } catch (err) {
+      return false;
+    }
+  }
+
   function closeDocPreview() {
     if (!els.docPreviewModal) return;
     els.docPreviewModal.classList.remove("open");
@@ -4723,6 +4775,9 @@
     else if (!opts.keepStack) preview.stack = [];
     preview.current = { ref, opts };
     els.docPreviewModal.classList.add("open");
+    // Reopening honours the last choice: somebody who reads cards full screen
+    // is not asking to be put back in a box on the next card.
+    setPreviewFullscreen(preferredPreviewFullscreen(), false);
     // A class, not style.display: the base rule hides the button, so clearing
     // the inline style would put it right back to hidden.
     els.docPreviewBack.classList.toggle("show", preview.stack.length > 0);
@@ -4961,6 +5016,10 @@
     if (!els.docPreviewModal) return;
     els.docPreviewClose.addEventListener("click", closeDocPreview);
     els.docPreviewBack.addEventListener("click", previewGoBack);
+    if (els.docPreviewFullscreen) {
+      els.docPreviewFullscreen.addEventListener("click", () =>
+        setPreviewFullscreen(!isPreviewFullscreen()));
+    }
     els.docPreviewModal.addEventListener("click", (ev) => {
       if (ev.target === els.docPreviewModal) closeDocPreview();
     });
@@ -7039,7 +7098,11 @@
   document.addEventListener("keydown", (ev) => {
     if (ev.key !== "Escape") return;
     if (els.docPreviewModal && els.docPreviewModal.classList.contains("open")) {
-      closeDocPreview();
+      // One Escape, one thing undone. Closing the card straight out of full
+      // screen loses your place as well as the frame, and the frame is the
+      // one you just changed.
+      if (isPreviewFullscreen()) setPreviewFullscreen(false);
+      else closeDocPreview();
     } else if (els.doctorModal && els.doctorModal.classList.contains("open")) {
       els.doctorModal.classList.remove("open");
     }
