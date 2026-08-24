@@ -44,14 +44,21 @@ _DEFAULTS: dict[str, Any] = {
         "dpi": 150,
     },
     "ingest": {
-        # `pymupdf4llm` exports every embedded image *object*, not every
-        # figure, and inlines each one into the Markdown. Measured on a real
+        # Which of two things "the figures" means on the text-layer route.
+        #
+        # Off (default): crop each figure from the rendered page, anchored on
+        # its caption -- the same extractor the OCR rung uses, measured at 4 of
+        # 4 and 8 of 8 figures with captions, in well under a second.
+        #
+        # On: hand the job to `pymupdf4llm`'s `write_images=True`, which exports
+        # every embedded image *object* and inlines each one. Measured on a real
         # paper with 4 figures: 117 files, 102 of them under 200x200, the
         # smallest 301x24 and 40x24 -- single display-equation strips turned
         # into pictures. Its `image_size_limit` knob does not help: to_markdown
         # is (*args, **kwargs) and silently ignores what it does not use, so
-        # 0.05 and 0.25 produce byte-identical output. Off by default; the OCR
-        # route crops figures by caption anchor and is the one to use for them.
+        # 0.05 and 0.25 produce byte-identical output. Worth having for a
+        # document whose figures carry no captions, since the crop has nothing
+        # to anchor on there, and worth nothing otherwise.
         "textlayer_images": False,
     },
     "semantic_link": {

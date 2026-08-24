@@ -9,12 +9,13 @@ Nothing else in this repo has either shape, so nothing else covers them.
 """
 
 import pathlib
+import re
 import shutil
 import types
 
 import pytest
 
-from magi.ingest import batch, ledger
+from magi.ingest import batch, image_refs, ledger
 from magi.ingest.convert_result import ConversionResult, Finding
 
 
@@ -666,68 +667,135 @@ def test_no_workspace_is_an_error_not_a_crash(monkeypatch):
 # what the text-layer route does about figures
 # --------------------------------------------------------------------------
 
-def test_the_textlayer_route_does_not_export_images_by_default(ws, tmp_path, monkeypatch):
-    """`write_images=True` exports every embedded image *object*, not every
-    figure, and inlines each one into the document.
+def _captioned_pdf(path):
+    """A prose document whose figures are captioned, the way papers are.
 
-    Measured on a real 23-page paper carrying 4 figures: 117 files, 102 of
-    them under 200x200, the smallest 301x24 and 40x24 — single display
-    equations rendered as pictures. The library keeps all of them, and the
-    Markdown reads as if the paper had 117 figures.
+    `_prose_pdf_with_figures` deliberately is not: it exists to exercise the
+    *object* exporter, which does not care about captions. The crop does — the
+    caption is its anchor — so a test of cropping needs a document that has
+    them, or it passes while measuring nothing.
+    """
+    pymupdf = pytest.importorskip("pymupdf")
+    prose = ("Cohort {n} diverged from the projections of the preceding year, "
+             "and the discrepancy is examined against regional baseline {n}. ")
+    doc = pymupdf.open()
+    for page_no in range(4):
+        page = doc.new_page()
+        body = "".join(prose.format(n=page_no * 9 + i) for i in range(9))
+        page.insert_textbox(pymupdf.Rect(60, 60, 540, 300),
+                            f"Section {page_no + 1}\n\n" + body, fontsize=10)
+        if page_no in (1, 3):
+            page.draw_rect(pymupdf.Rect(120, 340, 480, 600),
+                           color=(0, 0, 0), fill=(0.2, 0.4, 0.8))
+            page.insert_textbox(
+                pymupdf.Rect(120, 610, 480, 660),
+                f"Figure {1 if page_no == 1 else 2}: Adoption against the "
+                "regional baseline.", fontsize=9)
+    doc.save(str(path))
+    doc.close()
+    return path
 
-    `image_size_limit` is not the fix: `to_markdown` is declared
-    `(*args, **kwargs)` and silently ignores what it does not use, so 0.05 and
-    0.25 produce byte-identical output. Passing the option is not evidence the
-    option did anything.
+
+def _convert(pdf, staging, title="Institutional Adoption"):
+    entry = types.SimpleNamespace(value=str(pdf), title=title,
+                                  route="textlayer", source_type="file",
+                                  retry_of=None, req_id="r1")
+    return batch._run_route("textlayer", entry, staging)
+
+
+def test_the_textlayer_route_crops_figures_by_caption(ws, tmp_path, monkeypatch):
+    """The route used to export no figures at all, because its only offer was
+    `write_images=True` — every embedded image *object*, inlined. Measured on a
+    real 23-page paper carrying 4 figures: 117 files, 102 under 200x200, the
+    smallest 301x24 and 40x24, single display equations rendered as pictures.
+
+    Cropping by caption anchor is a different question with a different answer,
+    and it is the one a reader is asking. It is the same extractor the OCR rung
+    has always used; nothing about it was ever OCR-specific.
     """
     pytest.importorskip("pymupdf4llm")
     monkeypatch.chdir(ws)                    # no workspace opt-in: the default
 
-    pdf = _prose_pdf_with_figures(tmp_path / "survey.pdf")
-    entry = types.SimpleNamespace(value=str(pdf), title="Institutional Adoption",
-                                  route="textlayer", source_type="file",
-                                  retry_of=None, req_id="r1")
-    result = batch._run_route("textlayer", entry, tmp_path / "staging" / "item")
+    pdf = _captioned_pdf(tmp_path / "survey.pdf")
+    result = _convert(pdf, tmp_path / "staging" / "item")
     assert result.success, result.errors
 
+    assert result.images_dir, "no figures were exported"
+    files = sorted(pathlib.Path(result.images_dir).iterdir())
+    assert len(files) == 2, [f.name for f in files]
+
     body = pathlib.Path(result.markdown_path).read_text(encoding="utf-8")
-    assert "![](" not in body
-    assert result.images_dir is None
+    assert body.count("![") == 2
+    for target in image_refs.iter_targets(body):
+        assert image_refs.is_portable(target), target
 
 
-def test_skipping_the_figures_is_said_out_loud(ws, tmp_path, monkeypatch):
-    """A document that quietly has no figures is the same failure this ladder
-    exists to avoid, pointed at pictures instead of formulas. The reviewer is
-    told, and told which route does export them."""
+def test_a_cropped_figure_lands_beside_its_own_caption(ws, tmp_path, monkeypatch):
+    """Placement is the whole reason this is done page by page. Searched over a
+    whole paper, "Figure 2" first matches the sentence in the body that
+    mentions Figure 2, and the image lands paragraphs away from the figure."""
+    pytest.importorskip("pymupdf4llm")
+    monkeypatch.chdir(ws)
+
+    pdf = _captioned_pdf(tmp_path / "survey.pdf")
+    result = _convert(pdf, tmp_path / "staging" / "item")
+    lines = pathlib.Path(result.markdown_path).read_text(encoding="utf-8").splitlines()
+
+    for n, line in enumerate(lines):
+        if line.startswith("!["):
+            following = "\n".join(lines[n + 1:n + 4])
+            assert re.search(r"Figure\s*\d", following), following
+
+
+def test_what_happened_to_the_figures_is_always_said(ws, tmp_path, monkeypatch):
+    """"Eight figures, all captioned" and "no figures found" are both facts the
+    reviewer needs, and only one of them means something went wrong. A document
+    that quietly has no figures is the failure this ladder exists to avoid,
+    pointed at pictures instead of formulas."""
+    pytest.importorskip("pymupdf4llm")
+    monkeypatch.chdir(ws)
+
+    for pdf, expected in ((_captioned_pdf(tmp_path / "with.pdf"), "2 figure(s)"),
+                          (_prose_pdf_with_figures(tmp_path / "without.pdf"),
+                           "no figures found")):
+        result = _convert(pdf, tmp_path / "staging" / pdf.stem)
+        said = [f for f in result.findings if f.code == "figures"]
+        assert len(said) == 1, [f.code for f in result.findings]
+        assert said[0].severity == "info"     # a fact, not a fault
+        assert expected in said[0].detail, said[0].detail
+
+
+def test_an_uncaptioned_document_exports_nothing_rather_than_guessing(
+        ws, tmp_path, monkeypatch):
+    """The anchor is caption text. Without one there is no way to tell a figure
+    from a rule or a logo, and inventing figures is worse than reporting none —
+    which is exactly what the object exporter did."""
     pytest.importorskip("pymupdf4llm")
     monkeypatch.chdir(ws)
 
     pdf = _prose_pdf_with_figures(tmp_path / "survey.pdf")
-    entry = types.SimpleNamespace(value=str(pdf), title="T", route="textlayer",
-                                  source_type="file", retry_of=None, req_id="r1")
-    result = batch._run_route("textlayer", entry, tmp_path / "staging" / "item")
+    result = _convert(pdf, tmp_path / "staging" / "item")
 
-    codes = {f.code for f in result.findings}
-    assert "figures-not-exported" in codes
-    said = next(f for f in result.findings if f.code == "figures-not-exported")
-    assert said.severity == "info"           # a choice, not a fault
-    assert "ingest.textlayer_images" in said.detail
+    assert result.images_dir is None
+    assert "![](" not in pathlib.Path(result.markdown_path).read_text(encoding="utf-8")
 
 
-def test_the_opt_in_actually_exports_them(ws, tmp_path, monkeypatch):
-    """The switch has to work in both directions, or "off by default" is just
-    "removed" with a longer changelog entry."""
+def test_the_opt_in_still_exports_every_image_object(ws, tmp_path, monkeypatch):
+    """The flag now selects between two answers rather than switching one off,
+    and it is worth keeping for a document whose figures carry no captions —
+    there the crop has nothing to anchor on and the object exporter, for all
+    its noise, is the only one that returns anything at all."""
     pytest.importorskip("pymupdf4llm")
     _wants_images(ws, monkeypatch)
 
     pdf = _prose_pdf_with_figures(tmp_path / "survey.pdf")
-    entry = types.SimpleNamespace(value=str(pdf), title="T", route="textlayer",
-                                  source_type="file", retry_of=None, req_id="r1")
-    result = batch._run_route("textlayer", entry, tmp_path / "staging" / "item")
+    result = _convert(pdf, tmp_path / "staging" / "item")
 
     assert result.images_dir and pathlib.Path(result.images_dir).is_dir()
-    assert "![](images/" in pathlib.Path(result.markdown_path).read_text(encoding="utf-8")
-    assert "figures-not-exported" not in {f.code for f in result.findings}
+    body = pathlib.Path(result.markdown_path).read_text(encoding="utf-8")
+    assert "![](images/" in body
+    said = next(f for f in result.findings if f.code == "figures")
+    assert "image object" in said.detail
 
 
 def _table_pdf(path, *, ruling="booktabs"):

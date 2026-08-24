@@ -81,6 +81,72 @@ def _localize_textlayer_images(md: str, images_dir: Path, slug: str) -> str:
     return out
 
 
+def _textlayer_with_figures(source: Path, images_dir: Path, slug: str,
+                            pages: int) -> tuple[str, str]:
+    """Read the text layer page by page, cropping each figure by its caption.
+
+    Returns the document and a sentence saying what happened to the figures,
+    which becomes a finding either way — "no figures were found" and "figures
+    were never looked for" are different facts and the reader needs to be able
+    to tell them apart.
+
+    Why per page rather than over the whole document: a figure is placed above
+    the caption line that names it, and the search for "Figure 3" over a whole
+    paper finds the sentence in the body that *mentions* Figure 3 long before
+    it reaches the caption. Restricting each search to the page the figure was
+    cropped from is what makes the anchor mean anything.
+
+    ``page_chunks`` carries no page number in this version of ``pymupdf4llm``,
+    so the mapping is positional, and positional mappings are exactly the kind
+    that break silently when an upstream changes. Hence the count check: if the
+    chunks are not one per page, the figures go at the end of the document
+    instead of in the wrong places. Measured on a 34-page paper — 34 chunks, and
+    concatenating them reproduces the plain output byte for byte.
+    """
+    import pymupdf4llm
+
+    from magi.ingest.figures import extract_figures, inject_figures
+
+    try:
+        figures = extract_figures(str(source), str(images_dir), prefix=slug)
+    except Exception as exc:  # noqa: BLE001 — a missing figure is not a lost paper
+        return pymupdf4llm.to_markdown(str(source)), \
+            f"figures could not be extracted ({exc}); the text is unaffected"
+
+    chunks = pymupdf4llm.to_markdown(str(source), page_chunks=True)
+    aligned = (isinstance(chunks, list) and len(chunks) == pages
+               and all(isinstance(c, dict) and "text" in c for c in chunks))
+
+    if not figures:
+        md = "".join(c["text"] for c in chunks) if aligned \
+            else pymupdf4llm.to_markdown(str(source))
+        return md, ("no figures found: this route anchors on caption text, so a "
+                    "document whose figures are uncaptioned yields none")
+
+    by_page: dict[int, list] = {}
+    for fig in figures:
+        by_page.setdefault(fig.page, []).append(fig)
+
+    if not aligned:
+        md = pymupdf4llm.to_markdown(str(source))
+        md = inject_figures(md, figures, image_refs.IMAGE_DIR_NAME)
+        return md, (f"{len(figures)} figure(s) cropped, but appended rather than "
+                    "placed: the extractor did not return one chunk per page")
+
+    parts = []
+    for index, chunk in enumerate(chunks, 1):
+        text = chunk["text"]
+        page_figs = by_page.get(index)
+        if page_figs:
+            text = inject_figures(text, page_figs, image_refs.IMAGE_DIR_NAME)
+        parts.append(text)
+
+    labelled = sum(1 for f in figures if f.label)
+    return "".join(parts), (
+        f"{len(figures)} figure(s) cropped by caption anchor, {labelled} with a "
+        "caption, each placed above the caption line that names it")
+
+
 def _run_route(route: str, entry, staging: Path) -> ConversionResult:
     """Convert one queued item on one rung.
 
@@ -151,29 +217,41 @@ def _run_route(route: str, entry, staging: Path) -> ConversionResult:
 
         staging.mkdir(parents=True, exist_ok=True)
         images_dir = staging / "images"
-        # Off by default. `write_images=True` exports every embedded image
-        # *object* and inlines each one: 117 files on a paper with 4 figures,
-        # the smallest 40x24 -- a display equation rendered as a picture. See
-        # the note on `ingest.textlayer_images` in config_loader.
-        from magi.core.config_loader import get as cfg_get, load_config
-
-        want_images = bool(cfg_get(load_config(), "ingest.textlayer_images", False))
-        kwargs = {"write_images": True, "image_path": str(images_dir)} if want_images else {}
-        try:
-            md = pymupdf4llm.to_markdown(str(source), **kwargs)
-        except Exception as exc:  # noqa: BLE001
-            return ConversionResult.failed(f"text-layer extraction failed: {exc}")
 
         from datetime import datetime
 
         import yaml
 
+        from magi.core.config_loader import get as cfg_get, load_config
         from magi.core.wiki_common import atomic_write, slugify
 
         today = datetime.now().strftime("%Y-%m-%d")
         title = entry.title or source.stem.replace("_", " ").replace("-", " ").title()
         slug = slugify(title)
-        md = _localize_textlayer_images(md, images_dir, slug)
+
+        # Two ways to get pictures out of a PDF, and they are not variations of
+        # one setting -- they answer different questions. Cropping by caption
+        # anchor asks "what does this paper call a figure"; `write_images=True`
+        # asks "what image objects are embedded", and on a real paper with 4
+        # figures that came to 117 files, the smallest a 40x24 strip that was a
+        # display equation. So the flag selects between them rather than adding
+        # to the default, and the default is the one that answers the question
+        # a reader is actually asking.
+        raw_objects = bool(cfg_get(load_config(), "ingest.textlayer_images", False))
+        try:
+            if raw_objects:
+                md = pymupdf4llm.to_markdown(str(source), write_images=True,
+                                             image_path=str(images_dir))
+                md = _localize_textlayer_images(md, images_dir, slug)
+                figure_note = ("every embedded image object was exported, because "
+                               "`ingest.textlayer_images` is on -- expect strips of "
+                               "equations and rules among the real figures")
+            else:
+                md, figure_note = _textlayer_with_figures(
+                    source, images_dir, slug, verdict.pages)
+        except Exception as exc:  # noqa: BLE001
+            return ConversionResult.failed(f"text-layer extraction failed: {exc}")
+
         fm = {"title": title, "source": str(source), "type": "papers",
               "ingested": today, "tags": [],
               "summary": "Converted from the PDF's own text layer (no OCR)."}
@@ -193,25 +271,23 @@ def _run_route(route: str, entry, staging: Path) -> ConversionResult:
             fm, allow_unicode=True, sort_keys=False, default_flow_style=False)
             + "---\n\n" + md, encoding="utf-8")
 
+        # An *empty* images directory is not an images directory. The extractor
+        # creates it before it knows whether it will find anything, so testing
+        # for existence would report one on every document and hand the image
+        # gates a directory to have opinions about that no route filled.
+        has_images = images_dir.is_dir() and any(images_dir.iterdir())
         outcome = ConversionResult(
             success=True, markdown_path=str(out),
-            images_dir=str(images_dir) if images_dir.is_dir() else None,
+            images_dir=str(images_dir) if has_images else None,
             pages_processed=verdict.pages)
         outcome.flag("route-textlayer",
                      f"read {verdict.pages} page(s) straight from the text layer, no OCR",
                      severity="info")
-        if not want_images:
-            # Say it, rather than let the reader wonder where the figures went.
-            # A document that silently has no figures is the same failure this
-            # whole ladder exists to avoid, just pointed at pictures.
-            outcome.flag("figures-not-exported",
-                         "figures were not exported: this route emits every embedded "
-                         "image object, not every figure (measured: 117 files for a "
-                         "4-figure paper, the smallest a 40x24 equation strip). Set "
-                         "`ingest.textlayer_images: true` to export them anyway, or "
-                         "reject this item to fall to the OCR route, which crops "
-                         "figures by caption anchor",
-                         severity="info")
+        # Say what happened to the figures either way. This route used to export
+        # none at all and say so; now it crops them, and "8 figures, all with
+        # captions" and "no figures found" are both facts the reviewer needs,
+        # because only one of them means something went wrong.
+        outcome.flag("figures", figure_note, severity="info")
         return outcome
 
     if route == "add":
@@ -348,7 +424,10 @@ def cmd_list(args) -> int:
 
     payload = []
     for batch_id in batch_ids:
-        items = ledger.load_batch(topic, batch_id)
+        # Flagged and undecided first. The order is the whole of the triage —
+        # nothing is hidden and nothing is decided here, and an item with no
+        # flags is not thereby checked. See `ledger.review_order`.
+        items = ledger.review_order(ledger.load_batch(topic, batch_id))
         undecided = [i for i in items if not i.decided]
         payload.append({
             "batch_id": batch_id,
