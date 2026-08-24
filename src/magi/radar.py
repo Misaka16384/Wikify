@@ -448,21 +448,32 @@ def _score_candidates(topic: Path, cands: list[dict]) -> bool:
         centroid = centroid / norm
 
         emb = Embedder(start=topic)
+
+        # In batches, because `emb.embed(text)` is `embed_many([text])` — one
+        # request per candidate. A harvest scores forty of them, so this was
+        # forty round trips where the embedder's own batch size asks for three.
+        # (The connection is pooled by a requests.Session either way, so the
+        # saving is per-request latency and server-side batching, not TCP
+        # handshakes. No benchmark for it lives in this repo, so no factor is
+        # claimed here.)
+        wanted = [(c, f"{c.get('title') or ''}\n{(c.get('abstract') or '')[:800]}".strip())
+                  for c in cands]
+        wanted = [(c, t) for c, t in wanted if t]
+
         scored_any = False
-        for c in cands:
-            text = f"{c.get('title') or ''}\n{(c.get('abstract') or '')[:800]}".strip()
-            if not text:
-                continue
-            vec = emb.embed(text)
-            if vec is None:
+        for start in range(0, len(wanted), emb.batch):
+            chunk = wanted[start:start + emb.batch]
+            vecs = emb.embed_many([t for _, t in chunk])
+            if vecs is None:
                 break  # Ollama went away — keep whatever we scored so far
-            v = np.asarray(vec, dtype=np.float32)
-            if v.shape != centroid.shape:
-                return False  # index built with a different embedding model
-            vn = float(np.linalg.norm(v))
-            if vn:
-                c["score"] = round(float(np.dot(centroid, v / vn)), 3)
-                scored_any = True
+            for (c, _), vec in zip(chunk, vecs):
+                v = np.asarray(vec, dtype=np.float32)
+                if v.shape != centroid.shape:
+                    return False  # index built with a different embedding model
+                vn = float(np.linalg.norm(v))
+                if vn:
+                    c["score"] = round(float(np.dot(centroid, v / vn)), 3)
+                    scored_any = True
         return scored_any
     except Exception as exc:
         print(f"warning: relevance scoring skipped ({exc})", file=sys.stderr)
@@ -540,18 +551,24 @@ def load_triage(topic: Path, report: str) -> dict[str, str]:
     if not path.is_file():
         return out
     try:
-        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if rec.get("report") != report or not rec.get("id"):
-                continue
-            decision = rec.get("decision")
-            if decision in (None, "reset"):
-                out.pop(rec["id"], None)          # last write wins, including undo
-            else:
-                out[rec["id"]] = decision
+        # Streamed rather than read whole. These ledgers are append-only and
+        # only ever folded front to back, so the full string and the list of
+        # lines it splits into were two copies of a file that grows for the
+        # life of the workspace, held for no reason. `errors="replace"` stays:
+        # a byte that will not decode must not stop the fold.
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if rec.get("report") != report or not rec.get("id"):
+                    continue
+                decision = rec.get("decision")
+                if decision in (None, "reset"):
+                    out.pop(rec["id"], None)      # last write wins, including undo
+                else:
+                    out[rec["id"]] = decision
     except OSError:
         pass
     return out
@@ -579,13 +596,14 @@ def last_harvest_date(topic: Path) -> str | None:
         return None
     newest: str | None = None
     try:
-        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-            try:
-                seen = json.loads(line).get("first_seen")
-            except (json.JSONDecodeError, AttributeError):
-                continue
-            if isinstance(seen, str) and (newest is None or seen > newest):
-                newest = seen
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                try:
+                    seen = json.loads(line).get("first_seen")
+                except (json.JSONDecodeError, AttributeError):
+                    continue
+                if isinstance(seen, str) and (newest is None or seen > newest):
+                    newest = seen
     except OSError:
         return None
     return newest
@@ -605,11 +623,19 @@ def harvest_age_days(topic: Path) -> int | None:
 def _load_ledger(path: Path) -> set[str]:
     seen: set[str] = set()
     if path.is_file():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            try:
-                seen.add(json.loads(line)["id"])
-            except (json.JSONDecodeError, KeyError):
-                continue
+        # Same treatment, and the same OSError guard the other two loaders
+        # already had: an unreadable ledger means "nothing seen yet", which is
+        # safe here — a duplicate candidate is survivable, a crashed harvest
+        # is not.
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as fh:
+                for line in fh:
+                    try:
+                        seen.add(json.loads(line)["id"])
+                    except (json.JSONDecodeError, KeyError):
+                        continue
+        except OSError:
+            pass
     return seen
 
 
