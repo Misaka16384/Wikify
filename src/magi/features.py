@@ -67,39 +67,42 @@ def _settings() -> dict:
 def feature_enabled(key: str, settings: dict | None = None) -> bool:
     """Is this feature on? Absent means never asked, which means on.
 
-    `profile: kb-only` predates this and is the older way of saying "no task
-    tracking". It still wins, so an existing kb-only machine does not quietly
-    grow a Balthasar panel because the newer key was never written.
+    One fact, one place. There used to be a second spelling —
+    ``profile: kb-only`` — held in step with this one by ``set_feature``, and
+    the drift it invited arrived on schedule: ``magi setup --full`` assigned
+    ``profile`` directly, the newer key still said False, and the command
+    printed "profile set to full" while changing nothing.
+
+    Keeping two representations in sync is a maintenance obligation that has to
+    be discharged correctly at every write site, forever. Removing one is
+    discharged once. `profile` is gone: not read, not written, not derived
+    back. A machine that was kb-only and never touched the newer key reads as
+    "never asked", which is on — a deliberate clean break rather than a
+    compatibility layer, per locked decision D9.
     """
     data = _settings() if settings is None else settings
-    if key == "tasks" and data.get("profile") == "kb-only":
-        return False
     chosen = data.get("optional_features") or {}
     value = chosen.get(key)
     return True if value is None else bool(value)
 
 
 def set_feature(key: str, enabled: bool) -> None:
-    """Persist a feature choice. Keeps `profile` in step for `tasks`.
+    """Persist a feature choice. The only writer, and now the only spelling.
 
-    Leaving a stale `profile: kb-only` behind would make `feature_enabled`
-    keep returning False no matter what was just written, so the two
-    representations are updated together rather than allowed to disagree.
+    A stale ``profile`` left on disk from an older release is discarded here
+    rather than maintained: this is the one function that rewrites the block,
+    so it is the cheapest place to make sure the dead key does not survive to
+    confuse somebody reading the file by hand.
     """
     if key not in FEATURE_KEYS:
         raise ValueError(f"unknown feature: {key!r}")
     from magi.kb_registry import edit_settings
 
-    # Both representations under one lock. Writing them as two separate
-    # load/save pairs would let a concurrent writer land between them and leave
-    # `profile` and `optional_features["tasks"]` disagreeing — which is the very
-    # drift this function exists to prevent.
     with edit_settings() as data:
         chosen = dict(data.get("optional_features") or {})
         chosen[key] = bool(enabled)
         data["optional_features"] = chosen
-        if key == "tasks":
-            data["profile"] = "full" if enabled else "kb-only"
+        data.pop("profile", None)
 
 
 def enabled_features(settings: dict | None = None) -> dict[str, bool]:

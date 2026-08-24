@@ -431,7 +431,8 @@ def main(argv: list[str] | None = None) -> int:
         print("|- MELCHIOR  (knowledge)  no topic workspace here — run 'magi init' in a topic directory")
     b = report["cores"]["balthasar"]
     if b.get("state") == "disabled":
-        print("|- BALTHASAR (intent)     disabled (kb-only profile — 'magi setup --full' to enable)")
+        print("|- BALTHASAR (intent)     disabled (task tracking off — "
+              "'magi setup --full' to enable)")
     elif b.get("beads_root"):
         print(f"|- BALTHASAR (intent)     {_fmt(b['ready'])} ready · {_fmt(b['in_progress'])} in progress · {_fmt(b['blocked'])} blocked")
     else:

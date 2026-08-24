@@ -133,15 +133,19 @@ def test_registering_the_same_path_twice_keeps_one_entry(home):
     assert len(kb_registry.load_registry()["kbs"]) == 1
 
 
-def test_both_spellings_of_the_task_feature_are_written_together(home):
-    """`set_feature` writes `profile` and `optional_features["tasks"]`. Under
-    one lock, so nothing can land between them and leave them disagreeing."""
+def test_a_feature_write_lands_atomically_and_completely(home):
+    """`set_feature` rewrites the whole block under one lock — it sets the key
+    it was asked for and drops the dead `profile` spelling in the same write,
+    so no reader can ever see half of that."""
     from magi import features
 
+    kb_registry.save_settings({"profile": "kb-only", "keep_me": 1})
     features.set_feature("tasks", True)
+
     data = json.loads(kb_registry.settings_path().read_text(encoding="utf-8"))
-    assert data["profile"] == "full"
     assert data["optional_features"]["tasks"] is True
+    assert "profile" not in data
+    assert data["keep_me"] == 1
 
 
 # --------------------------------------------------------------------------

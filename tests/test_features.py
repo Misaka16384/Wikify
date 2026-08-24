@@ -75,45 +75,80 @@ def test_only_an_explicit_false_turns_something_off(config_home):
 
 
 # --------------------------------------------------------------------------
-# the older kb-only profile
+# the older kb-only profile, deleted
+#
+# `profile: kb-only` was a second spelling of `optional_features["tasks"]`,
+# kept in step by `set_feature`. That is a maintenance obligation which has to
+# be discharged correctly at every write site forever, and it was not: `magi
+# setup --full` assigned `profile` on its own, the newer key still said False,
+# and the command printed "profile set to full" while changing nothing.
+#
+# It is gone rather than migrated — a clean break, per locked decision D9. What
+# these tests pin is that it is gone in every direction: not read, not written,
+# and not resurrected by the one function that rewrites the block.
 # --------------------------------------------------------------------------
 
-def test_the_legacy_kb_only_profile_still_turns_tasks_off(config_home):
-    """`profile: kb-only` predates this module and is how existing installs
-    say "no task tracking". It has to keep working, or those machines grow a
-    Balthasar panel back on upgrade."""
+def test_the_legacy_profile_key_no_longer_decides_anything(config_home):
+    """A machine that was kb-only and never touched the newer key reads as
+    "never asked", which is on. That is the cost of the break, stated."""
     from magi.kb_registry import save_settings
 
     save_settings({"profile": "kb-only"})
-    assert features.feature_enabled("tasks") is False
-    assert features.feature_enabled("radar") is True
-
-
-def test_turning_tasks_on_clears_the_legacy_profile(config_home):
-    """Otherwise the stale profile keeps overriding the answer just given, and
-    the button in the WebUI looks broken: you click it, and nothing changes."""
-    from magi.kb_registry import save_settings
-
-    save_settings({"profile": "kb-only"})
-    features.set_feature("tasks", True)
-
     assert features.feature_enabled("tasks") is True
-    assert _settings(config_home)["profile"] == "full"
 
 
-def test_turning_tasks_off_writes_the_legacy_profile_too(config_home):
-    """The reverse: anything still reading `profile` must agree."""
-    features.set_feature("tasks", False)
-    assert _settings(config_home)["profile"] == "kb-only"
-    assert features.feature_enabled("tasks") is False
-
-
-def test_the_radar_switch_does_not_touch_the_profile(config_home):
+def test_the_newer_key_is_the_only_answer(config_home):
+    """Both present and disagreeing used to be a state that needed resolving.
+    Now there is nothing to resolve, because only one of them is consulted."""
     from magi.kb_registry import save_settings
 
-    save_settings({"profile": "full"})
+    save_settings({"profile": "full", "optional_features": {"tasks": False}})
+    assert features.feature_enabled("tasks") is False
+
+    save_settings({"profile": "kb-only", "optional_features": {"tasks": True}})
+    assert features.feature_enabled("tasks") is True
+
+
+def test_writing_a_feature_removes_a_stale_profile(config_home):
+    """`set_feature` is the one function that rewrites this block, so it is the
+    cheapest place to make sure the dead key does not survive to confuse
+    somebody reading the file by hand."""
+    from magi.kb_registry import save_settings
+
+    save_settings({"profile": "kb-only"})
+    features.set_feature("tasks", False)
+    assert "profile" not in _settings(config_home)
+
+
+def test_nothing_writes_the_profile_key_back(config_home):
+    features.set_feature("tasks", True)
     features.set_feature("radar", False)
-    assert _settings(config_home)["profile"] == "full"
+    assert "profile" not in _settings(config_home)
+
+
+def test_no_module_reads_or_writes_the_profile_key():
+    """The structural guard, turned around.
+
+    It used to say "only `features.py` may assign `profile`", because the two
+    spellings had to be kept in step. With one spelling left, *reading* it is
+    the bug — a reader would be consulting a key nothing maintains.
+    """
+    import pathlib
+    import re
+
+    src = pathlib.Path(features.__file__).resolve().parent
+    touches = re.compile(r"""\[\s*['"]profile['"]\s*\]|"""
+                         r"""\.get\(\s*['"]profile['"]""")
+    offenders = []
+    for path in src.rglob("*.py"):
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            code = line.split("#", 1)[0]
+            if touches.search(code) and "pop(" not in code:
+                offenders.append(f"{path.relative_to(src)}:{n}: {line.strip()}")
+
+    assert not offenders, (
+        "`profile` is a dead key — nothing maintains it, so nothing may consult "
+        "it. Use features.feature_enabled('tasks'):\n  " + "\n  ".join(offenders))
 
 
 # --------------------------------------------------------------------------
@@ -209,7 +244,7 @@ def test_unreadable_settings_leave_features_on(config_home, monkeypatch, tmp_pat
 
 
 # --------------------------------------------------------------------------
-# the two setup flags that write the same fact
+# the two setup flags, which are now one spelling of one fact
 # --------------------------------------------------------------------------
 
 @pytest.fixture
@@ -242,17 +277,17 @@ def test_setup_full_actually_turns_task_tracking_back_on(quiet_setup, config_hom
     quiet_setup.main(["--full"] + NO_SIDE_EFFECTS)
 
     assert features.feature_enabled("tasks") is True
-    assert _settings(config_home)["profile"] == "full"
     assert _settings(config_home)["optional_features"]["tasks"] is True
+    assert "profile" not in _settings(config_home)
 
 
-def test_setup_kb_only_turns_task_tracking_off_in_both_places(quiet_setup, config_home):
+def test_setup_kb_only_turns_task_tracking_off(quiet_setup, config_home):
     features.set_feature("tasks", True)
     quiet_setup.main(["--kb-only"] + NO_SIDE_EFFECTS)
 
     assert features.feature_enabled("tasks") is False
-    assert _settings(config_home)["profile"] == "kb-only"
     assert _settings(config_home)["optional_features"]["tasks"] is False
+    assert "profile" not in _settings(config_home)
 
 
 def test_the_two_profile_flags_round_trip(quiet_setup, config_home):

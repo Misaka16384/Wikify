@@ -620,15 +620,14 @@ def main(argv: list[str] | None = None) -> int:
                         help="DELETE detected legacy Wikify skill/bin copies")
     args = parser.parse_args(argv)
 
+    from magi.features import feature_enabled
     from magi.kb_registry import load_settings
 
     settings = load_settings()
-    # Both flags go through set_feature, which writes `profile` *and*
-    # `optional_features["tasks"]`. Writing `profile` alone was not enough:
-    # `feature_enabled` only lets `profile: kb-only` veto, so once the newer
-    # key held False, `--full` flipped the profile, printed "profile set to
-    # full", and left task tracking off. The command reported success and did
-    # nothing. Two representations of one fact, exactly as D2 predicted.
+    # `--kb-only` / `--full` are the old two-word profile, kept as a spelling of
+    # one question: is task tracking on? They used to assign a separate
+    # `profile` key, and that second representation is what made `--full` print
+    # success and change nothing. There is one key now.
     if args.kb_only or args.full:
         from magi.features import set_feature
 
@@ -636,12 +635,10 @@ def main(argv: list[str] | None = None) -> int:
         set_feature("tasks", bool(args.full) and not args.kb_only)
         settings = load_settings()
         if args.kb_only:
-            print("[setup] profile set to kb-only (task tracking disabled; "
-                  "revert with 'magi setup --full')")
+            print("[setup] task tracking disabled "
+                  "(revert with 'magi setup --full')")
         else:
-            print("[setup] profile set to full (task tracking enabled)")
-    kb_only = settings.get("profile") == "kb-only"
-
+            print("[setup] task tracking enabled")
     # Prompting is for a person at a terminal. A CI run, a subprocess, or a
     # WebUI job would hang on input(), so those keep whatever was chosen before.
     interactive = (not args.yes) and sys.stdin.isatty() and sys.stdout.isatty()
@@ -673,14 +670,15 @@ def main(argv: list[str] | None = None) -> int:
 
     results: list[tuple[str, str]] = []
     if args.check:
-        results.append(("profile", settings.get("profile", "full")))
+        results.append(("task tracking",
+                        "on" if feature_enabled("tasks", settings) else "off"))
         results.append(("legacy", handle_legacy(remove=False)))
     else:
         # Features first: the answer to "do you want task tracking?" decides
         # whether the next few lines install anything at all.
         features = choose_features(interactive)
         choose_optionals(interactive)
-        want_tasks = features.get("tasks", not kb_only)
+        want_tasks = features.get("tasks", feature_enabled("tasks", settings))
         if not args.no_beads and want_tasks:
             results.append(("task tracking", install_beads()))
         elif not want_tasks:
