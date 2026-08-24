@@ -369,6 +369,16 @@ def cmd_run(args) -> int:
             result = ConversionResult.failed(f"{type(exc).__name__}: {exc}")
 
         findings = list(result.findings)
+        # The net under every route: a route that came back successful while
+        # carrying errors it never raised as a finding gets one here. See
+        # ConversionResult.silent_about — this is the seam every route passes
+        # through, so a route written later cannot quietly skip it.
+        silent = result.silent_about
+        if silent:
+            findings.append(Finding(
+                "route-errors-unreported",
+                "%s reported success but recorded %d error(s) without flagging "
+                "them: %s" % (route, len(silent), "; ".join(silent))))
         arxiv_id = None
         title = entry.title
         if result.success and result.markdown_path:
@@ -386,16 +396,28 @@ def cmd_run(args) -> int:
             m = re.search(r"^title:\s*(.+)$", md, re.MULTILINE)
             title = title or (m.group(1).strip() if m else None)
 
+        # A route can come back "successful" and still be carrying errors: the
+        # OCR route converts page by page, and a page that failed leaves the
+        # rest of the document intact. Gating the ledger's error field on
+        # ``success`` meant those errors were recorded as ``None`` — the item
+        # showed up in review as clean while missing whole pages. What the
+        # route said went wrong is recorded whenever it said anything.
+        error = "; ".join(result.errors) if result.errors else None
+        if not result.success and not error:
+            error = "failed"
+
         ledger.record_item(
             topic, batch_id, req_id=entry.req_id, route=route,
             source_type=entry.source_type, source_value=entry.value,
             title=title, arxiv_id=arxiv_id,
             staged_md=result.markdown_path if result.success else None,
             findings=findings,
-            error=None if result.success else "; ".join(result.errors) or "failed",
+            error=error,
             retry_of=entry.retry_of)
 
         status = "ok" if result.success else "FAILED"
+        if result.success and result.errors:
+            status = "ok (partial)"
         print(f"[batch]   {status}"
               + (f" — {len(findings)} finding(s)" if findings else ""))
 
@@ -505,6 +527,34 @@ def cmd_decide(args) -> int:
 # commit
 # --------------------------------------------------------------------------
 
+def _finalize(argv: list, *, what: str) -> bool:
+    """Run one `ingest finalize` pass and say so when it did not work.
+
+    Both calls used to be fire-and-forget with ``capture_output=True``, which
+    is the strongest possible way to lose an error: the return code was never
+    read and the captured stderr was never printed, so a finalize that failed
+    on a locked database looked exactly like one that succeeded.
+
+    The copy into ``raw/`` has already happened by the time this runs, so a
+    failure here does not mean "nothing was committed" — it means the document
+    is on disk but was not linted, graphed or indexed. Say that, rather than
+    implying either more or less than it does.
+
+    Known limit: ``ingest.pipeline`` prints warnings and still returns 0 for
+    several of its own sub-steps, so a zero return code is not proof that
+    every stage ran. This catches the outer failure only.
+    """
+    proc = subprocess.run(argv, capture_output=True, text=True)
+    if proc.returncode == 0:
+        return True
+    detail = (proc.stderr or proc.stdout or "").strip().splitlines()
+    print(f"    ! finalize failed for {what} (exit {proc.returncode}) — the file "
+          "is in raw/ but was not linted or indexed", file=sys.stderr)
+    for line in detail[-5:]:
+        print(f"      {line}", file=sys.stderr)
+    return False
+
+
 def cmd_commit(args) -> int:
     topic = _resolve_topic(args.topic_dir)
     if topic is None:
@@ -561,11 +611,11 @@ def cmd_commit(args) -> int:
                       f"({', '.join(sorted(collisions)[:5])}) — this document's "
                       "figures would have overwritten another document's")
 
-            subprocess.run(
+            _finalize(
                 [sys.executable, "-m", "magi", "ingest", "finalize", "none",
                  "--topic-dir", str(topic), "--md-file", str(dest), "--skip-lint",
                  "--log-msg", f"batch ingest ({item.route}): {dest.name}"],
-                capture_output=True, text=True)
+                what=dest.name)
 
             ledger.record_commit(topic, batch_id, item.item_id, str(dest))
             print(f"  + {dest.relative_to(topic)}")
@@ -574,10 +624,10 @@ def cmd_commit(args) -> int:
     if committed:
         # One lint/graph/index pass for the whole batch, the same shape
         # `ingest auto` already uses rather than paying it per file.
-        subprocess.run(
+        _finalize(
             [sys.executable, "-m", "magi", "ingest", "finalize", "none",
              "--topic-dir", str(topic), "--lint-only"],
-            capture_output=True, text=True)
+            what="the lint/graph/index pass")
         print(f"\n{committed} document(s) committed and indexed.")
     else:
         print("nothing to commit.")

@@ -401,6 +401,21 @@ class PDF2MarkdownAgent:
                 pages_processed=len(pages),
                 errors=errors
             )
+            if errors:
+                # A page that never came back is the loudest thing this route
+                # can know, and it used to go nowhere: success was True, so the
+                # batch recorded no error, and no finding was raised either.
+                # The document reached the review queue looking clean while
+                # missing whole pages — the exact shape this pipeline exists to
+                # refuse, pointed at the reviewer instead of the reader.
+                #
+                # The pages that did convert are still worth keeping, so this
+                # is a finding rather than a failure: the markdown stays, and
+                # the reviewer is told what is not in it.
+                outcome.flag("pages-failed",
+                             "%d of %d page(s) did not convert and are missing "
+                             "from the output: %s"
+                             % (len(errors), len(pages), "; ".join(errors)))
             if repairs:
                 # The reviewer is told a page had to be re-read. A repair that
                 # leaves no trace is the same silent degradation this pipeline
@@ -518,7 +533,14 @@ def main(argv=None):
         console.print(f"  Markdown: {result.markdown_path}")
         console.print(f"  图片目录: {result.images_dir}")
         if result.errors:
-            console.print(f"\n[yellow]警告: 有 {len(result.errors)} 个错误[/yellow]")
+            # Partial output is still output — the file is written and named
+            # above. But a caller that only checks the exit code must not read
+            # "0" as "the whole document is in there".
+            console.print(f"\n[yellow]警告: {len(result.errors)} 页没有转换成功，"
+                          f"输出里缺这些页[/yellow]")
+            for error in result.errors:
+                console.print(f"  - {error}")
+            return 1
         return 0
     else:
         console.print("\n[bold red]✗ 转换失败[/bold red]")

@@ -46,3 +46,29 @@ class ConversionResult:
 
     def flag(self, code: str, detail: str, severity: str = "flag") -> None:
         self.findings.append(Finding(code=code, detail=detail, severity=severity))
+
+    @property
+    def silent_about(self) -> List[str]:
+        """Errors this result is carrying that nobody downstream will see.
+
+        A route may succeed and still have errors — the OCR route converts
+        page by page, and one failed page leaves the rest of the document
+        intact and worth keeping. That is a legitimate state. What is not
+        legitimate is reaching a human reviewer without saying so, and that
+        is exactly what used to happen: ``success`` was True, the batch wrote
+        ``error=None`` because it gated on ``success``, and no finding was
+        raised. The document appeared in the review queue clean while missing
+        whole pages.
+
+        Two things make an error visible: the result failing outright, or a
+        finding loud enough that ``ledger.loud_findings`` counts it. Anything
+        else is silent, and ``batch`` turns a non-empty answer here into a
+        finding of its own — so a route added later that forgets to speak up
+        is caught by the seam every route already goes through, rather than by
+        somebody remembering this rule.
+        """
+        if not self.errors or not self.success:
+            return []
+        if any(f.severity != "info" for f in self.findings):
+            return []
+        return list(self.errors)
