@@ -179,18 +179,36 @@ def rewrite(md: str, resolve, *, prefix: str = IMAGE_DIR_NAME + "/") -> tuple[st
             mapping[target] = name
         return name
 
+    def _splice(m, group: int, replacement: str) -> str:
+        """Replace one capture group by its own position in the match.
+
+        Both callers used to search the matched text for the target string and
+        replace the first hit. The target is a filename, and a filename is
+        perfectly ordinary text to find elsewhere in the same match: an alt
+        text is the figure's caption, which may name the file, and an HTML
+        ``alt`` attribute sits before ``src`` inside the same tag. Then
+        ``![Figure 1 is in fig1.png](fig1.png)`` had its *caption* rewritten
+        and its URL left pointing at a file that no longer exists — a broken
+        image whose reference still parses, so every figure check called the
+        document clean.
+
+        A capture group knows where it is. Nothing else has to be inferred.
+        """
+        start, end = m.span(group)
+        base = m.start()
+        return m.group(0)[:start - base] + replacement + m.group(0)[end - base:]
+
     def _md_repl(m):
-        target = m.group(1) or m.group(2)
+        # `is not None`, not `or`: `![alt](<>)` captures an empty string in
+        # group 1, and `or` would fall through to a group that did not match.
+        group = 1 if m.group(1) is not None else 2
+        target = m.group(group)
         name = _local(target)
-        return m.group(0).replace(target, f"{prefix}{name}", 1) if name else m.group(0)
+        return _splice(m, group, f"{prefix}{name}") if name else m.group(0)
 
     def _html_repl(m):
-        quote, target = m.group(1), m.group(2)
-        name = _local(target)
-        if not name:
-            return m.group(0)
-        return m.group(0).replace(f"{quote}{target}{quote}",
-                                  f"{quote}{prefix}{name}{quote}", 1)
+        name = _local(m.group(2))
+        return _splice(m, 2, f"{prefix}{name}") if name else m.group(0)
 
     md = _MD_IMAGE_RE.sub(_md_repl, md)
     md = _HTML_IMAGE_RE.sub(_html_repl, md)

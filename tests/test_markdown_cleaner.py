@@ -75,3 +75,40 @@ def test_a_formula_on_its_own_line_after_prose_gains_a_blank_line(clean):
     """Consecutive non-table lines stay one block, so a `$$` matched across a
     line break behaves as it did before this became line-aware."""
     assert clean("A sentence\n$$x$$").startswith("A sentence\n\n$$")
+
+
+# --------------------------------------------------------------------------
+# and a fenced code block means what it says
+# --------------------------------------------------------------------------
+
+def test_a_code_block_containing_dollars_is_left_alone(clean):
+    """Same mistake as the table rows, one document element over: inside a
+    fence `$$` is two characters, not a delimiter."""
+    src = 'Before.\n\n```python\nx = "$$test$$"\n```\n\nAfter.'
+    assert 'x = "$$test$$"' in clean(src).splitlines()
+
+
+def test_a_table_drawn_inside_a_code_block_survives_as_written(clean):
+    src = "```\n| a | b$$ | c |\n```"
+    assert clean(src).splitlines() == ["```", "| a | b$$ | c |", "```"]
+
+
+def test_prose_after_a_code_block_is_still_processed(clean):
+    """Protecting a span must not turn into skipping everything after it."""
+    out = clean("```\nx\n```\nAfter.$$y$$")
+    assert "After.\n\n$$" in out
+
+
+# --------------------------------------------------------------------------
+# CRLF
+# --------------------------------------------------------------------------
+
+def test_a_windows_table_row_is_not_split(clean):
+    r"""`\r` sits exactly where `([^\n])\s*\$\$` looks — between the last
+    character of a line and its newline."""
+    out = clean("| $[[12,4,2]]$ | xy$$ | $xy$ |\r\n| $[[14,6,2]]$ | y | z |\r\n")
+    assert len([l for l in out.splitlines() if l.strip().startswith("|")]) == 2
+
+
+def test_carriage_returns_do_not_survive_into_the_output(clean):
+    assert "\r" not in clean("a\r\nb\r\n\r\nc")

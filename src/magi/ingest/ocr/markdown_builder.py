@@ -8,6 +8,8 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 
+from magi.core.md_blocks import map_prose, normalize_newlines
+
 
 @dataclass
 class Section:
@@ -107,7 +109,10 @@ class MarkdownCleaner:
         Returns:
             清理后的 Markdown 文本
         """
-        text = markdown
+        # 先统一换行符：下面每一条规则都按 `\n` 推理，而 Windows 上的 `\r`
+        # 正好落在"一行最后一个字符"和换行之间——`([^\n])\s*\$\$` 这类模式
+        # 找的就是那个位置。
+        text = normalize_newlines(markdown)
 
         # 移除多余的空行（超过2个连续空行）
         text = re.sub(r'\n{3,}', '\n\n', text)
@@ -124,15 +129,20 @@ class MarkdownCleaner:
         return text.strip()
 
     def _fix_latex(self, text: str) -> str:
-        """给行间公式前后补空行——但绝不在表格行里。
+        """给行间公式前后补空行——但绝不在表格行或代码块里。
 
-        `$$` 到处都是行间公式的定界符，唯独在表格单元格里不是：单元格装不下
-        一个行间公式块，而在那里插空行会**把一行表格劈成两行**。
+        `$$` 到处都是行间公式的定界符，唯独在表格单元格里不是（单元格装不下
+        一个行间公式块），在 fenced code block 里也不是（那里的字面意思就是
+        字面意思）。在这两处插空行都是**把一行劈成两行**。
 
         实测：模型吐出的 49 行表有 53 个 pipe 行，进到文件里变成 **72** 个——
         19 行单元格里带着一个多余 `$$` 的表格行，每一行都被劈开了。出来是一张
         读着很整齐、而且带着文档里根本不存在的行的表。**这正是本管线存在的
         理由所指的那种失败**，而且它在最后一步、在所有门后面发生。
+
+        受保护块的切分交给 `core.md_blocks`：这个判断本来在这里和
+        `format_math` 各写了一份，而**这一份认表格不认代码块，那一份反过来**——
+        各自漏掉的正好是对方有的。
 
         逐块处理而不是逐行：非表格的连续行仍然当成一整块，`$$` 跨行的匹配
         因此保持原来的行为。
@@ -141,22 +151,10 @@ class MarkdownCleaner:
             block = re.sub(r'([^\n])\s*\$\$', r'\1\n\n$$', block)
             return re.sub(r'\$\$\s*([^\n])', r'$$\n\n\1', block)
 
-        out, block = [], []
-        for line in text.split("\n"):
-            if line.lstrip().startswith("|"):
-                if block:
-                    out.append(fix("\n".join(block)))
-                    block = []
-                out.append(line)
-            else:
-                block.append(line)
-        if block:
-            out.append(fix("\n".join(block)))
-
         # 修复常见的 LaTeX 错误
         # Note: removed aggressive \int_N heuristic — it corrupts legitimate text like "int 10"
 
-        return "\n".join(out)
+        return map_prose(text, fix)
 
     def _fix_image_links(self, text: str) -> str:
         """修复图片链接"""

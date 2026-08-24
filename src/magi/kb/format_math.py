@@ -130,6 +130,43 @@ def safe_auto_fixes(content, is_raw=False):
 
     return content
 
+def _expand_single_display_lines(segment):
+    r"""Put a line that is one display formula onto three lines.
+
+    The guard is the point: **a line carrying more than one ``$$`` pair is
+    left exactly as it is.** ``$$A$$ and $$B$$`` is two formulas with prose
+    between them, and every rule here assumes there is one. The old pattern
+    ``\$\$(.+?)\$\$(?=\s*($|\n))`` ran from the *first* opening delimiter to
+    the *last* closing one, so that line came out as::
+
+        $$
+        A$$ and $$B
+        $$
+
+    — two independent expressions and the English word between them fused into
+    a single block containing illegal delimiters. Not a crash, not a gap: a
+    formula that renders as garbage and reads, in the source, like something
+    somebody meant.
+
+    Leaving such a line untouched is the only safe answer. Any rewrite has to
+    decide where the maths ends and the prose begins, and nothing here knows.
+
+    Applied per line rather than to the whole segment, which is what the
+    patterns already meant: ``.`` does not cross a newline, so a match was
+    always within one line anyway, and the ``($|\n)`` lookahead was spelling
+    "end of line" the long way round.
+    """
+    out = []
+    for line in segment.split("\n"):
+        if line.count("$$") > 2:
+            out.append(line)
+            continue
+        line = re.sub(r'(?<!\\)\$\{(.+?)\}(?<!\\)\$\$(?=\s*$)', r'$$\n\1\n$$', line)
+        line = re.sub(r'(?<!\\)\$\$(.+?)(?<!\\)\$\$(?=\s*$)', r'$$\n\1\n$$', line)
+        out.append(line)
+    return "\n".join(out)
+
+
 def clean_math_delimiters(content, is_raw=False):
     lines = content.split('\n')
     segments = []
@@ -167,8 +204,7 @@ def clean_math_delimiters(content, is_raw=False):
                 segment_content = re.sub(rf'(?<!\n)(\\begin\{{{env}\}})', r'\n\1', segment_content)
                 segment_content = re.sub(rf'(\\end\{{{env}\}})(?!\n)', r'\1\n', segment_content)
 
-            segment_content = re.sub(r'(?<!\\)\$\{(.+?)\}(?<!\\)\$\$(?=\s*($|\n))', r'$$\n\1\n$$', segment_content)
-            segment_content = re.sub(r'(?<!\\)\$\$(.+?)(?<!\\)\$\$(?=\s*($|\n))', r'$$\n\1\n$$', segment_content)
+            segment_content = _expand_single_display_lines(segment_content)
 
             seg_lines = segment_content.split('\n')
             new_lines = []
@@ -199,7 +235,14 @@ def clean_math_delimiters(content, is_raw=False):
                         in_block = False
                         i += 1
                         continue
-                    if stripped.startswith('$$') and stripped.endswith('$$') and len(stripped) > 4:
+                    # `stripped.count('$$') == 2` is the same guard as
+                    # `_expand_single_display_lines`, and it is needed at both
+                    # ends: without it `$$A$$ and $$B$$` slips past the regex
+                    # (which now declines to touch it) and gets torn apart here
+                    # instead, by a slice that assumes the only delimiters on
+                    # the line are the outermost two.
+                    if stripped.startswith('$$') and stripped.endswith('$$') \
+                            and stripped.count('$$') == 2 and len(stripped) > 4:
                         indent = line[:line.find('$$')]
                         math_part = stripped[2:-2].strip()
                         new_lines.append(f"{indent}$$")

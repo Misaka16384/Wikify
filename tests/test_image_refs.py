@@ -212,3 +212,33 @@ def test_an_escaped_reference_is_still_rewritable():
     assert "images/doc-f2.png" in md
     assert mapping == {"tmp/abs/f2.png": "doc-f2.png"}
     assert r"\[12\]" in md, "the alt text must survive untouched"
+
+
+# --------------------------------------------------------------------------
+# A filename is ordinary text, and it can legitimately appear twice in one
+# match. Rewriting used to search the matched text for the target string and
+# replace the first hit — so a caption that names its own file had its
+# *caption* rewritten and its URL left pointing at a file that no longer
+# exists. The reference still parsed, so every figure check called it clean.
+# --------------------------------------------------------------------------
+
+def test_an_alt_text_that_names_the_file_is_not_the_thing_rewritten():
+    md, _ = ir.rewrite("![Figure 1 is in fig1.png](fig1.png)",
+                       lambda t: "doc-f1.png")
+    assert md == "![Figure 1 is in fig1.png](images/doc-f1.png)"
+
+
+def test_a_title_that_names_the_file_is_not_the_thing_rewritten():
+    md, _ = ir.rewrite('![cap](old/x.png "old/x.png")', lambda t: "doc-x.png")
+    assert md == '![cap](images/doc-x.png "old/x.png")'
+
+
+def test_an_angle_bracketed_target_is_rewritten_in_place():
+    md, _ = ir.rewrite("![a b.png](<a b.png>)", lambda t: "doc-ab.png")
+    assert md == "![a b.png](<images/doc-ab.png>)"
+
+
+def test_an_html_alt_attribute_that_names_the_file_is_left_alone():
+    """`alt` sits before `src` inside the same tag, and both are quoted."""
+    md, _ = ir.rewrite('<img alt="x.png" src="x.png">', lambda t: "doc-x.png")
+    assert md == '<img alt="x.png" src="images/doc-x.png">'
