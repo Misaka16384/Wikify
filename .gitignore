@@ -32,3 +32,10 @@ EVA_pics/
 *.egg-info/
 dist/
 build/
+
+# Working notes, not published. The roadmap is the living handoff document and
+# the review/debug files are scratch for one session's work; all three are for
+# whoever picks the project up next, not for anyone reading the repository.
+ROADMAP.md
+docs/debug_plan.md
+docs/review_suggestions.md

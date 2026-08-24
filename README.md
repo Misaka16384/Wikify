@@ -396,4 +396,3 @@ uv venv && uv pip install -e .
 .venv\Scripts\python.exe tests\smoke_test.py     # 端到端冒烟（含回归锁）
 ```
 
-路线图与交接文档见 [ROADMAP.md](./ROADMAP.md)。

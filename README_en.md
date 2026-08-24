@@ -401,4 +401,3 @@ uv venv && uv pip install -e .
 .venv\Scripts\python.exe tests\smoke_test.py     # end-to-end smoke (with regression locks)
 ```
 
-Roadmap and handoff notes: [ROADMAP.md](./ROADMAP.md).

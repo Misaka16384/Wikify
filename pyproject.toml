@@ -65,7 +65,7 @@ textlayer = ["pymupdf4llm>=0.0.17", "onnxruntime>=1.18"]
 Homepage = "https://github.com/Misaka16384/magi"
 Repository = "https://github.com/Misaka16384/magi"
 Issues = "https://github.com/Misaka16384/magi/issues"
-Changelog = "https://github.com/Misaka16384/magi/blob/main/ROADMAP.md"
+Changelog = "https://github.com/Misaka16384/magi/releases"
 
 [project.scripts]
 magi = "magi.cli:main"

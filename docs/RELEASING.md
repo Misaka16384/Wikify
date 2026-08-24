@@ -36,6 +36,9 @@ back to the commit body.
 > The job skips a tag that already has a release, so re-running is safe.
 
 Prepend a dated entry to `ROADMAP.md` — it is the living handoff document.
+It is deliberately **not** tracked in git (see `.gitignore`): it is a working
+log for whoever picks the project up next, not a published document. The
+release notes on GitHub are what users read.
 
 **Wait for the simple index before upgrading anything.** `pypi.org/pypi/<pkg>/json`
 shows the new version within seconds of publishing; `pypi.org/simple/<pkg>/`,

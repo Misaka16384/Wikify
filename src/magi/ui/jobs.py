@@ -414,9 +414,12 @@ class TaskManager:
         return job
 
     def _run_job(self, job: Job) -> None:
-        # Declared before the try, because the finally below closes it and a
-        # Popen that raised never bound the name.
-        proc = None
+        """Run the job, and end it exactly once however it ends.
+
+        Read from ``job.process`` rather than a local, because a Popen that
+        raised never bound one — and this has to work on the path where there
+        is no process at all (a job cancelled while still pending).
+        """
         try:
             self._run_job_inner(job)
         finally:
