@@ -229,12 +229,36 @@ def test_a_uv_tool_install_uses_force_and_refresh():
     assert "--refresh" in how.command
 
 
+def test_a_plain_virtualenv_uses_its_own_pip():
+    how = update.detect_install(
+        prefix="/work/.venv", base_prefix="/usr",
+        package_file="/work/.venv/lib/site-packages/magi/update.py")
+    assert how.kind == "pip"
+    assert "pip" in how.command
+
+
 def test_an_unrecognised_install_refuses_to_guess():
-    how = update.detect_install(prefix="/usr",
+    """A system-wide install owned by something we cannot name.
+
+    `base_prefix` is passed explicitly, and that is the point: it used to be
+    read from the live interpreter no matter what the caller injected, so this
+    test's answer depended on whether the test runner was inside a venv. It
+    passed locally and failed in CI — a seam that is only half a seam is worse
+    than none, because it looks tested.
+    """
+    how = update.detect_install(prefix="/usr", base_prefix="/usr",
                                 package_file="/usr/lib/site-packages/magi/update.py")
     assert how.kind == "unknown"
     assert how.command is None
     assert how.note
+
+
+def test_detection_does_not_depend_on_the_running_interpreter():
+    """Same inputs, same answer, whether or not this process is in a venv."""
+    args = dict(prefix="/usr", base_prefix="/usr",
+                package_file="/usr/lib/site-packages/magi/update.py")
+    assert update.detect_install(**args).kind == "unknown"
+    assert update.detect_install(**args).kind == "unknown"
 
 
 # --------------------------------------------------------------------------

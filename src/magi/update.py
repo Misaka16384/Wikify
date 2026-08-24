@@ -149,14 +149,24 @@ class Install:
         return f"Install({self.kind!r}, {self.command!r})"
 
 
-def detect_install(prefix: str | None = None, package_file: str | None = None) -> Install:
+def detect_install(prefix: str | None = None, package_file: str | None = None,
+                   base_prefix: str | None = None) -> Install:
     """Work out which tool owns this install. Arguments exist for testing.
 
     The order matters: a uv tool venv and a pipx venv are both "a venv", so the
     path they sit in is the only thing that tells them apart, and that check has
     to come before the generic pip fallback.
+
+    All three inputs are parameters, including ``base_prefix``. An earlier
+    version took ``prefix`` for testing and then compared the *real*
+    ``sys.prefix`` against the real ``sys.base_prefix`` for the venv case — so
+    the injected value was ignored by exactly one branch, and that branch's
+    answer depended on whether the test runner happened to be inside a venv.
+    It passed locally and failed in CI, which is the only reason it was noticed.
+    A seam that is only half a seam is worse than none: it looks tested.
     """
     prefix = (prefix or sys.prefix).replace("\\", "/")
+    base = (base_prefix or getattr(sys, "base_prefix", sys.prefix)).replace("\\", "/")
     pkg = (package_file or __file__).replace("\\", "/")
     low = prefix.lower()
 
@@ -177,7 +187,7 @@ def detect_install(prefix: str | None = None, package_file: str | None = None) -
         return Install("uv", ["uv", "tool", "install", "--force", "--refresh",
                               PACKAGE])
 
-    if sys.prefix != getattr(sys, "base_prefix", sys.prefix):
+    if prefix != base:
         return Install("pip", [sys.executable, "-m", "pip", "install",
                                "--upgrade", PACKAGE],
                        "installed into a virtual environment")
