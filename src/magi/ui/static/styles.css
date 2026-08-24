@@ -502,6 +502,63 @@ body {
   vertical-align: 1px;
 }
 
+/* Sits next to the version badge and is hidden unless there is something to
+   say. It opens the dialog rather than upgrading: the WebUI must not replace
+   the package it is itself running from — on Windows this process holds those
+   files open, so it would fail halfway and take the CLI down with it, in front
+   of somebody who cannot see the error because the server just died. */
+.update-badge {
+  font-size: 0.7rem;
+  margin-left: 0.35rem;
+  padding: 0.12rem 0.55rem;
+  background-color: var(--warn-wash, rgba(217, 119, 6, 0.12));
+  color: var(--warn-fg, #b45309);
+  border: 1px solid var(--warn-border, rgba(217, 119, 6, 0.4));
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-weight: 600;
+  vertical-align: 1px;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+}
+
+.update-badge:hover {
+  filter: brightness(1.08);
+}
+
+.update-badge[hidden] {
+  display: none;
+}
+
+.kv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.kv-table td {
+  padding: 0.25rem 0.5rem 0.25rem 0;
+  vertical-align: top;
+}
+
+.kv-table td:first-child {
+  color: var(--text-muted, #6b7280);
+  white-space: nowrap;
+  width: 1%;
+}
+
+.update-command {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  padding: 0.55rem 0.7rem;
+  margin: 0.6rem 0;
+  border-radius: var(--radius-sm, 6px);
+  background-color: var(--bg-inset, rgba(127, 127, 127, 0.1));
+  border: 1px solid var(--border-subtle, rgba(127, 127, 127, 0.25));
+  overflow-x: auto;
+  white-space: pre;
+}
+
 .topbar-controls {
   display: flex;
   align-items: center;

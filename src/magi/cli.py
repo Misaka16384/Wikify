@@ -37,6 +37,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("skills", "install"): ("magi.skills_cmd", ["install"], "Install the skills into your agent CLI(s) (--scope global|project)"),
     ("skills", "uninstall"): ("magi.skills_cmd", ["uninstall"], "Remove magi's skills from an agent CLI"),
     ("setup",): ("magi.setup_cmd", [], "Provision the environment (beads, models, plugin) + doctor"),
+    ("update",): ("magi.update", [], "Check for a newer release and install it"),
     ("migrate",): ("magi.migrate", [], "Migrate a pre-magi (Wikify) workspace (hub or topic)"),
     # work state (Beads bridge)
     ("pm", "init"): ("magi.pm", ["init"], "Initialize beads with research issue types"),
@@ -191,7 +192,42 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except KeyboardInterrupt:
         return 130
+    finally:
+        _update_notice(argv)
     return int(result) if result is not None else 0
+
+
+def _update_notice(argv: list[str]) -> None:
+    """Tell a person about a newer release, after their command has finished.
+
+    Three rules, all of them about not being in the way:
+
+    * **It never waits on the network.** The line comes from a cache the
+      *previous* invocation filled, and the refresh runs on a daemon thread. The
+      worst case is hearing about a release a day late.
+    * **stderr, and only for a terminal.** ``--json`` output is a contract that
+      other programs parse; a version notice in the middle of it is a bug in
+      whatever reads it, caused by us.
+    * **Silence on every failure.** An update check that breaks a command has
+      already cost more than it could ever save.
+    """
+    try:
+        # Not after `magi update` itself, which has just said more about
+        # versions than one cached line could.
+        if not argv or argv[0] == "update":
+            return
+        if "--json" in argv or not sys.stderr.isatty():
+            return
+        from magi import update
+
+        if not update.notice_enabled():
+            return
+        line = update.pending_notice()
+        if line:
+            print(f"\n{line}", file=sys.stderr)
+        update.refresh_in_background()
+    except Exception:  # noqa: BLE001
+        pass
 
 
 if __name__ == "__main__":

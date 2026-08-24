@@ -556,6 +556,35 @@
       toast_accepted: "已写入 {path}（等待摄入）",
       toast_issue_created: "已创建阅读任务 (bd survey)",
 
+      // Update check. The WebUI reports; it never upgrades the package it is
+      // itself running from.
+      update_badge: "有新版本 {v}",
+      update_title: "有新版本可用",
+      update_current: "当前版本",
+      update_latest: "最新版本",
+      update_method: "安装方式",
+      update_run_it: "在终端里运行这条命令来升级：",
+      update_why_not_button:
+        "这里没有\"一键升级\"按钮，是有意的：这个面板正跑在要被替换的那个包里面。"
+        + "Windows 上运行中的 `magi ui` 会占住自己的文件，升级会中途失败并让 CLI 处于损坏状态——"
+        + "而那时服务器已经死了，你连错误都看不到。",
+      update_source_checkout: "这是源码检出，不要用包管理器升级。",
+      update_unknown: "认不出这是怎么装的，请用你当初用的工具升级（pipx / uv / pip）。",
+      update_windows_hint: "升级前先关掉所有 `magi ui` 进程，否则会因为文件被占用而失败。",
+      update_recheck: "重新检查",
+      update_apply: "立即升级",
+      update_confirm:
+        "升级会先关掉这个面板，因为运行中的 magi ui 占着自己要被替换的文件。"
+        + "升级完成后它会自动重新启动，这个页面会自己回来。继续？",
+      update_started: "已开始升级：面板正在关闭，升级完成后会自动重启。",
+      update_waiting_back: "正在等待面板重新启动…",
+      update_done: "已升级到 {v}。",
+      update_done_unchanged: "升级命令跑完了，但版本还是 {v}——升级没有生效。",
+      update_failed: "升级失败：{err}",
+      update_cannot_apply: "这个安装方式不能自动升级。",
+      update_checking: "正在检查…",
+      update_latest_already: "已经是最新版本 {v}。",
+      update_unreachable: "连不上 PyPI，查不到版本。这是网络问题，不是\"没有新版本\"。",
       // Ops catalog & danger confirm
       ops_loading: "正在加载操作目录...",
       op_stats: "工作区统计",
@@ -1185,6 +1214,38 @@
       toast_accepted: "Wrote {path} (queued for ingestion)",
       toast_issue_created: "Reading task created (bd survey)",
 
+      // Update check. The WebUI reports; it never upgrades the package it is
+      // itself running from.
+      update_badge: "{v} available",
+      update_title: "A newer release is available",
+      update_current: "Installed",
+      update_latest: "Latest",
+      update_method: "Install method",
+      update_run_it: "Run this in a terminal to upgrade:",
+      update_why_not_button:
+        "There is deliberately no upgrade button here: this dashboard is running "
+        + "from the package that would be replaced. On Windows a live `magi ui` "
+        + "holds its own files open, so the upgrade fails halfway and leaves the "
+        + "CLI broken — in front of somebody who cannot see the error, because "
+        + "the server just died.",
+      update_source_checkout: "This is a source checkout — do not upgrade it with a package manager.",
+      update_unknown: "Could not tell how this was installed; upgrade with the tool you used (pipx / uv / pip).",
+      update_windows_hint: "Stop every `magi ui` process first, or the upgrade fails on locked files.",
+      update_recheck: "Check again",
+      update_apply: "Upgrade now",
+      update_confirm:
+        "Upgrading closes this dashboard first, because a running magi ui holds "
+        + "open the very files being replaced. It restarts itself when the "
+        + "upgrade finishes and this page will come back on its own. Continue?",
+      update_started: "Upgrade started: the dashboard is shutting down and will restart itself.",
+      update_waiting_back: "Waiting for the dashboard to come back…",
+      update_done: "Upgraded to {v}.",
+      update_done_unchanged: "The upgrade command finished but the version is still {v} — it did not take effect.",
+      update_failed: "Upgrade failed: {err}",
+      update_cannot_apply: "This install cannot be upgraded automatically.",
+      update_checking: "Checking…",
+      update_latest_already: "You are on the latest release ({v}).",
+      update_unreachable: "Could not reach PyPI. That is a network problem, not an answer about versions.",
       // Ops catalog & danger confirm
       ops_loading: "Loading operations…",
       op_stats: "Workspace Stats",
@@ -1408,6 +1469,7 @@
     langBtnEn: document.getElementById("lang-btn-en"),
     workspaceSelect: document.getElementById("workspace-select"),
     appVersion: document.getElementById("app-version"),
+    updateBadge: document.getElementById("update-badge"),
     syncRatioBadge: document.getElementById("sync-ratio-badge"),
     syncRatioVal: document.getElementById("sync-ratio-val"),
     activeJobsBadge: document.getElementById("active-jobs-badge"),
@@ -2368,10 +2430,206 @@
     badge.style.display = browsing ? "" : "none";
   }
 
+
+  // ------------------------------------------------------------------
+  // Update check
+  //
+  // The badge is hidden unless there is something to say. `Upgrade now` is a
+  // real upgrade, but it does not happen inside this server: a running
+  // `magi ui` holds its own venv's python and loaded extension modules open,
+  // and on Windows a package manager simply cannot replace them. So the server
+  // hands the job to a detached helper that waits for it to exit, upgrades,
+  // and starts the dashboard again on the same address. This page then waits
+  // for it to answer and reads what happened.
+  // ------------------------------------------------------------------
+
+  let updateInfo = null;
+
+  async function loadUpdateStatus(refresh = false) {
+    try {
+      updateInfo = await apiFetch("/api/update" + (refresh ? "?refresh=1" : ""));
+    } catch (err) {
+      updateInfo = null;
+      return;
+    }
+    renderUpdateBadge();
+  }
+
+  function renderUpdateBadge() {
+    if (!els.updateBadge) return;
+    const show = !!(updateInfo && updateInfo.update_available);
+    els.updateBadge.hidden = !show;
+    if (show) {
+      els.updateBadge.textContent = t("update_badge").replace("{v}", "v" + updateInfo.latest);
+      els.updateBadge.title = t("update_title");
+    }
+  }
+
+  function updateModalBody(info, extraHtml) {
+    const rows = [
+      [t("update_current"), "v" + escapeHtml(info.installed || "?")],
+      [t("update_latest"), info.latest ? "v" + escapeHtml(info.latest) : "—"],
+      [t("update_method"), escapeHtml(info.install_method || "?")],
+    ];
+    let html = '<table class="kv-table">' + rows.map(
+      ([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${v}</td></tr>`).join("") + "</table>";
+
+    if (!info.checked) {
+      html += `<p class="muted">${escapeHtml(t("update_unreachable"))}</p>`;
+    } else if (!info.update_available) {
+      html += `<p>${escapeHtml(t("update_latest_already").replace("{v}", "v" + info.installed))}</p>`;
+    }
+
+    if (info.note) html += `<p class="muted">${escapeHtml(info.note)}</p>`;
+    if (info.command) {
+      html += `<p>${escapeHtml(t("update_run_it"))}</p>`;
+      html += `<div class="update-command">${escapeHtml(info.command)}</div>`;
+    }
+    if (extraHtml) html += extraHtml;
+    return html;
+  }
+
+  function openUpdateModal() {
+    const modal = document.getElementById("update-modal");
+    const body = document.getElementById("update-modal-body");
+    const apply = document.getElementById("update-apply-btn");
+    if (!modal || !body || !updateInfo) return;
+    body.innerHTML = updateModalBody(updateInfo, "");
+    if (apply) {
+      const can = !!(updateInfo.can_apply && updateInfo.update_available);
+      apply.hidden = !can;
+      apply.disabled = false;
+    }
+    modal.classList.add("open");
+  }
+
+  async function recheckUpdate() {
+    const body = document.getElementById("update-modal-body");
+    if (body) body.innerHTML = `<p>${escapeHtml(t("update_checking"))}</p>`;
+    await loadUpdateStatus(true);
+    openUpdateModal();
+  }
+
+  async function applyUpdate() {
+    if (!updateInfo || !updateInfo.can_apply) return;
+    if (!window.confirm(t("update_confirm"))) return;
+
+    const body = document.getElementById("update-modal-body");
+    const apply = document.getElementById("update-apply-btn");
+    const recheck = document.getElementById("update-recheck-btn");
+    if (apply) apply.disabled = true;
+    if (recheck) recheck.disabled = true;
+
+    // Raw fetch, not apiFetch: the server shuts itself down a beat after
+    // replying, so the connection dropping is the expected outcome here and
+    // apiFetch would both raise it as an error and toast it at the reader. A
+    // refusal that arrives *before* the shutdown is the only real failure, and
+    // it needs the status code to be told apart from the drop.
+    try {
+      const res = await fetch("/api/update/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        let detail = `HTTP ${res.status}`;
+        try {
+          const data = await res.json();
+          detail = data.detail || data.error || detail;
+        } catch (parseErr) { /* keep the status */ }
+        if (body) body.innerHTML = `<p class="error">${escapeHtml(String(detail))}</p>`;
+        if (apply) apply.disabled = false;
+        if (recheck) recheck.disabled = false;
+        return;
+      }
+    } catch (err) {
+      // Connection dropped: the server is going down, which is what we asked
+      // for. Fall through to waiting for it to come back.
+    }
+    if (body) {
+      body.innerHTML = `<p>${escapeHtml(t("update_started"))}</p>`
+        + `<p class="muted">${escapeHtml(t("update_waiting_back"))}</p>`;
+    }
+    waitForServerBack();
+  }
+
+  function waitForServerBack() {
+    // Poll until the relaunched dashboard answers. Deliberately long: pipx and
+    // uv resolve and download before they install anything, and giving up early
+    // would report a failure that has not happened.
+    const deadline = Date.now() + 5 * 60 * 1000;
+    const tick = async () => {
+      if (Date.now() > deadline) {
+        const body = document.getElementById("update-modal-body");
+        if (body) {
+          body.innerHTML += `<p class="error">${escapeHtml(
+            t("update_failed").replace("{err}", "timeout"))}</p>`;
+        }
+        return;
+      }
+      try {
+        const res = await fetch("/api/update/result", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && (data.state === "done" || data.state === "failed")) {
+            showUpdateResult(data);
+            return;
+          }
+        }
+      } catch (err) { /* still down */ }
+      setTimeout(tick, 2000);
+    };
+    setTimeout(tick, 3000);
+  }
+
+  function showUpdateResult(data) {
+    const body = document.getElementById("update-modal-body");
+    const modal = document.getElementById("update-modal");
+    if (!body || !modal) return;
+    modal.classList.add("open");
+
+    let html = "";
+    if (data.state === "failed") {
+      html = `<p class="error">${escapeHtml(
+        t("update_failed").replace("{err}", String(data.error || "")))}</p>`;
+    } else if (data.changed) {
+      html = `<p>${escapeHtml(t("update_done").replace("{v}", "v" + (data.now || "?")))}</p>`;
+    } else {
+      // A command that exits 0 is not proof: `pipx install --force` is
+      // documented to print "Installing to existing venv" and keep the old
+      // version. The helper re-reads the version from disk, so this branch is
+      // a real outcome and not a formality.
+      html = `<p class="error">${escapeHtml(
+        t("update_done_unchanged").replace("{v}", "v" + (data.now || data.installed || "?")))}</p>`;
+    }
+    if (data.output) {
+      html += `<div class="update-command">${escapeHtml(String(data.output))}</div>`;
+    }
+    body.innerHTML = html;
+    const apply = document.getElementById("update-apply-btn");
+    const recheck = document.getElementById("update-recheck-btn");
+    if (apply) apply.hidden = true;
+    if (recheck) recheck.disabled = false;
+    fetch("/api/update/result/clear", { method: "POST" }).catch(() => {});
+  }
+
+  async function reportPreviousUpgrade() {
+    // A helper that ran while this page was gone has no other way to speak.
+    try {
+      const res = await fetch("/api/update/result", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && (data.state === "done" || data.state === "failed")) {
+        showUpdateResult(data);
+      }
+    } catch (err) { /* nothing to report */ }
+  }
+
   async function loadInitialStatus() {
     try {
       const status = await apiFetch("/api/status");
       els.appVersion.textContent = `v${status.version}`;
+      loadUpdateStatus();
+      reportPreviousUpgrade();
       state.workspace = status.active_workspace || "";
       state.serverWorkspace = status.active_workspace || "";
 
@@ -6755,6 +7013,17 @@
 
   // Doctor check modal
   els.doctorBtn.addEventListener("click", openDoctorModal);
+  if (els.updateBadge) els.updateBadge.addEventListener("click", openUpdateModal);
+  const updateClose = document.getElementById("update-modal-close");
+  if (updateClose) {
+    updateClose.addEventListener("click", () =>
+      document.getElementById("update-modal").classList.remove("open"));
+  }
+  const updateRecheck = document.getElementById("update-recheck-btn");
+  if (updateRecheck) updateRecheck.addEventListener("click", recheckUpdate);
+  const updateApply = document.getElementById("update-apply-btn");
+  if (updateApply) updateApply.addEventListener("click", applyUpdate);
+
   const infoClose = document.getElementById("info-modal-close");
   if (infoClose) {
     infoClose.addEventListener("click", () =>

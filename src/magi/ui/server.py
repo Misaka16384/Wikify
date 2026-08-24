@@ -122,6 +122,11 @@ def main(argv: list[str] | None = None) -> int:
             uvicorn.run("magi.ui.api:create_app", host=args.host, port=args.port, reload=True, factory=True, log_level="info")
         else:
             app = create_app(extra_allowed_hosts=None if loopback else [args.host])
+            # Where to come back up. The upgrade path hands these to a detached
+            # helper so the dashboard reappears on the address the reader
+            # already has open, instead of on whatever port is free by then.
+            app.state.ui_host = args.host
+            app.state.ui_port = args.port
             uvicorn.run(app, host=args.host, port=args.port, log_level="info")
         return 0
     except KeyboardInterrupt:

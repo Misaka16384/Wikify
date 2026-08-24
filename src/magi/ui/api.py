@@ -11,6 +11,7 @@ import os
 import re
 import sqlite3
 import sys
+import time
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager
@@ -266,6 +267,35 @@ async def lifespan(app: FastAPI):
     yield
 
 
+def _shutdown_this_server() -> None:
+    """Stop this server a moment from now, so the HTTP reply gets out first.
+
+    SIGINT to our own process rather than ``os._exit``: uvicorn already knows
+    how to unwind on it, and a dashboard that is being replaced should still
+    close its files on the way out — those are the very files the upgrade is
+    about to overwrite.
+
+    Module level, not a closure inside ``create_app``, for one blunt reason: a
+    test that exercises the upgrade endpoint would otherwise send this signal
+    to the test runner. It did, once.
+    """
+    import os
+    import signal
+    import threading
+
+    def stop() -> None:
+        time.sleep(1.0)
+        try:
+            if os.name == "nt":
+                os.kill(os.getpid(), signal.CTRL_BREAK_EVENT)
+            else:
+                os.kill(os.getpid(), signal.SIGINT)
+        except Exception:  # noqa: BLE001
+            os._exit(0)
+
+    threading.Thread(target=stop, daemon=True).start()
+
+
 def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     app = FastAPI(
         title="MAGI Research Workspace WebUI",
@@ -315,6 +345,107 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             "doctor_ok": doc_ok,
             "active_jobs_count": len(active_jobs),
         }
+
+    @app.get("/api/update")
+    def get_update(refresh: bool = Query(False)) -> dict:
+        """Is there a newer release, and what would install it.
+
+        By default this answers from the cache — the same one the CLI notice
+        reads — so a page load never waits on pypi.org. `?refresh=1` is the
+        button, and it accepts the wait because somebody asked for it.
+        """
+        from magi import update
+
+        if refresh:
+            latest = update.fetch_latest()
+            if latest is not None:
+                update.write_cache(latest)
+            checked = latest is not None
+        else:
+            update.refresh_in_background()
+            cached = update.read_cache()
+            latest = cached.get("latest")
+            latest = latest if isinstance(latest, str) else None
+            checked = bool(cached)
+
+        how = update.detect_install()
+        return {
+            "installed": magi.__version__,
+            "latest": latest,
+            # "could not look" is not "nothing newer": the page must be able to
+            # tell the two apart, or a permanently offline machine reads as
+            # permanently up to date.
+            "checked": checked,
+            "update_available": bool(latest and update.is_newer(latest, magi.__version__)),
+            "install_method": how.kind,
+            "command": " ".join(how.command) if how.command else "",
+            "note": how.note,
+            "can_apply": bool(how.command),
+        }
+
+    @app.get("/api/update/result")
+    def get_update_result() -> dict:
+        """What the last upgrade did. Written by a process nobody was watching.
+
+        The helper runs after this server has exited, so this file is the only
+        channel its outcome has. The page reads it when it comes back up.
+        """
+        from magi import update
+
+        return update.read_result()
+
+    @app.post("/api/update/result/clear")
+    def clear_update_result() -> dict:
+        from magi import update
+
+        update.clear_result()
+        return {"cleared": True}
+
+    @app.post("/api/update/apply")
+    def apply_update() -> dict:
+        """Upgrade MAGI, by handing the job to something that outlives us.
+
+        The dashboard cannot upgrade the package it is running from. On Windows
+        this process holds its own venv's ``python.exe`` and every loaded
+        ``.pyd`` open, so pipx or uv cannot replace them: the upgrade fails
+        partway and leaves a half-written install — in front of somebody whose
+        page has just gone blank, because the server was the thing being
+        replaced.
+
+        So: spawn a detached helper, tell it our pid and how to start us again,
+        and shut down. It waits for us to go, upgrades, relaunches the dashboard
+        on the same address, and writes the outcome where the new server can
+        read it back. The page polls until it answers again.
+        """
+        import os
+
+        from magi import update
+
+        how = update.detect_install()
+        if how.command is None:
+            raise HTTPException(
+                status_code=400,
+                detail=how.note or "this install cannot be upgraded automatically")
+
+        relaunch = [sys.executable, "-m", "magi", "ui", "--no-open",
+                    "--host", str(getattr(app.state, "ui_host", "127.0.0.1")),
+                    "--port", str(getattr(app.state, "ui_port", 8737))]
+
+        update.clear_result()
+        if not update.spawn_detached_upgrade(wait_pid=os.getpid(),
+                                             relaunch=relaunch):
+            raise HTTPException(status_code=500,
+                                detail="could not start the upgrade helper")
+
+        # Only now. The helper is already waiting on this pid, so a shutdown
+        # that fails to happen is a stuck upgrade rather than a lost one — it
+        # gives up after a minute and says so, instead of upgrading underneath
+        # a process that is still running.
+        _shutdown_this_server()
+        return {"started": True, "command": " ".join(how.command),
+                "relaunch": " ".join(relaunch),
+                "reopen": f"http://{getattr(app.state, 'ui_host', '127.0.0.1')}:"
+                          f"{getattr(app.state, 'ui_port', 8737)}"}
 
     @app.get("/api/kb")
     def list_kbs() -> dict:

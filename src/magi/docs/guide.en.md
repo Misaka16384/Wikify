@@ -186,6 +186,44 @@ uv tool install --force git+https://github.com/Misaka16384/magi
 > [!WARN]
 > pipx and uv put their shims in the **same** directory (`~/.local/bin`). Installing MAGI with both, then uninstalling one, deletes the shim the other is still relying on — `magi` disappears from PATH while `uv tool list` still swears it is installed. Pick one and stay with it; if you did hit this, `uv tool install --force magi-research` (or the pipx equivalent) puts the shim back.
 
+### Staying current {#update}
+
+MAGI tells you when there is a newer release, and can install it for you.
+
+```powershell
+magi update            # check, then upgrade (asks first)
+magi update --check    # only tell me; change nothing
+magi update --json     # machine-readable
+```
+
+After any command, a one-line notice appears on stderr when a newer release
+exists. It never delays anything: the line comes from a cache the *previous*
+invocation filled in a background thread, so no run of `magi` ever waits on
+pypi.org. Turn it off with `MAGI_NO_UPDATE_CHECK=1`, or by setting
+`update_check: false` in the global settings file.
+
+The check reads `pypi.org/simple/`, the index installers actually resolve
+against — not the JSON API, which publishes a version minutes earlier. That
+gap is why a notice sourced from the JSON API can announce a version your
+package manager then correctly refuses to install.
+
+In the WebUI, a badge appears next to the version number; clicking it opens a
+dialog with **Upgrade now**.
+
+> [!NOTE]
+> The dashboard shuts itself down to upgrade, then starts again on the same
+> address, and the page comes back on its own. This is not caution: a running
+> `magi ui` holds its own environment's `python.exe` and every loaded extension
+> module open, and on Windows a package manager cannot replace files that are
+> open. Upgrading in place would fail halfway and leave a broken install — in
+> front of somebody whose page had just gone blank. So a detached helper waits
+> for the server to exit, upgrades, relaunches it, and writes down what
+> happened; the reopened dashboard reports the result, including the case where
+> the command succeeded but the version did not actually change.
+
+A source checkout is never upgraded by a package manager — `magi update` says
+so and stops.
+
 Health-check anytime after installing:
 
 ```powershell

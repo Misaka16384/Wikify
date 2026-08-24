@@ -29,6 +29,7 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("skills", "install"): "把技能装进你的 agent CLI（--scope global 全局 / project 仅当前目录）",
     ("skills", "uninstall"): "从某个 agent CLI 卸载 magi 的技能",
     ("setup",): "一键配置环境（beads、模型、插件）并做体检",
+    ("update",): "检查有没有新版本，并升级",
     ("migrate",): "迁移 magi 之前的 Wikify 工作区（中枢或单课题）",
     # 任务状态（Beads 桥接）
     ("pm", "init"): "初始化 beads 并写入科研专用的议题类型",

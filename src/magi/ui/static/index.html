@@ -48,6 +48,7 @@
       <div>
         <span class="brand-title">MAGI</span>
         <span class="brand-badge" id="app-version">v1.13.0</span>
+        <button class="update-badge" id="update-badge" type="button" hidden></button>
       </div>
       <span class="eva-clock" id="eva-clock" aria-hidden="true"></span>
     </div>
@@ -801,6 +802,22 @@
       <div class="modal-body markdown-body" id="info-modal-body"></div>
       <div class="modal-footer">
         <button class="btn btn-primary" id="info-modal-close" data-i18n="btn_doc_close">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Update. The button really upgrades — but not from inside this process:
+       it hands the job to a detached helper that waits for this server to exit
+       first, because on Windows a live `magi ui` holds its own venv files open
+       and a package manager cannot replace them. -->
+  <div class="modal-backdrop" id="update-modal">
+    <div class="modal-window">
+      <h3 class="modal-header" id="update-modal-title" data-i18n="update_title">A newer release is available</h3>
+      <div class="modal-body" id="update-modal-body"></div>
+      <div class="modal-footer">
+        <button class="btn" id="update-recheck-btn" data-i18n="update_recheck">Check again</button>
+        <button class="btn btn-primary" id="update-apply-btn" data-i18n="update_apply">Upgrade now</button>
+        <button class="btn" id="update-modal-close" data-i18n="btn_doc_close">Close</button>
       </div>
     </div>
   </div>
