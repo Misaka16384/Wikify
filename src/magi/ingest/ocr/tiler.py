@@ -19,11 +19,19 @@ against the 49 that exist — but only 12 were right, and seven were invented.
 Less page at full resolution is right; the same page at less resolution is the
 failure mode this whole ladder exists to avoid.
 
-Tiling is applied only to pages whose source PDF actually contains a table.
-That is not a guess: across the nine measured pages PyMuPDF reports tables on
-exactly the three where tiling helps and on none of the six where it does not,
-including the one page where splitting makes things dramatically worse (a
-32,785-character repetition loop, against 559 characters whole-page).
+Tiling is aimed, not applied everywhere. The aim comes from two places. Ahead
+of time, from the source PDF: across nine measured pages PyMuPDF reports tables
+on exactly the three where tiling helps and on none of the six where it does
+not, including the one page where splitting makes things dramatically worse (a
+32,785-character repetition loop, against 559 characters whole-page). After the
+fact, from the transcription itself, when the source could not be asked — see
+``OCREngine._needs_another_look``. A scan has no text layer for the first to
+read, and its table pages were silently losing half their rows.
+
+The ceiling is the model's and not the image's. The same 49-row table read
+whole gives 24 rows from the native page, 24 from a clean scan of it, and 24
+from a scan skewed, speckled and JPEG-60'd. Split, the same three give 49, 49
+and 45.
 """
 
 from __future__ import annotations
@@ -100,11 +108,22 @@ def stitch(parts: list[str], window: int = 40) -> str:
 def pages_with_tables(pdf_path) -> set[int]:
     """1-based page numbers whose text layer contains a table.
 
-    Best effort by nature: a scan has no text layer, so this returns nothing
-    and those pages are read whole, exactly as before. Being wrong here costs
-    accuracy on one page; being wrong the other way — tiling everything — costs
-    every page a third more time and makes the repetition loop worse where it
-    happens, so the quiet default is not to tile.
+    Exact where it can see, and blind where it cannot: a scan has no text layer,
+    so this returns nothing at all for one. That was a real hole — a scanned
+    table page was read whole and lost half its rows, silently. It is not
+    covered by tiling everything, which costs every page a third more time and
+    makes the repetition loop worse where it happens. It is covered downstream
+    instead, by ``OCREngine._needs_another_look``, which asks the transcription
+    whether it carries a truncated table and re-reads that page split. So this
+    function stays what it is — a cheap, exact, *pre-emptive* aim — and being
+    blind here now costs one extra read rather than half a table.
+
+    Detecting the table in the page *image* was tried first and abandoned on
+    the measurement: ruled lines separate the classes badly even on native
+    pages (18 of 29 real table pages have no rule spanning 30% of the width,
+    while 44 non-table pages have one), and on the very page that matters the
+    feature collapses under the degradation a scan actually has — 27 rules
+    found in a clean scan, none at all in the same scan skewed 0.4 degrees.
     """
     found: set[int] = set()
     try:

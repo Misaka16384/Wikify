@@ -241,7 +241,18 @@ class OCREngine:
             ],
             "stream": False,
             "options": {
-                "num_ctx": 8192
+                "num_ctx": 8192,
+                # The other endpoint has always set this and this one never
+                # did, so every model reaching Ollama through /api/chat --
+                # which is the *default* for any model without its own config
+                # entry, `qwen3-vl` included -- was transcribing at Ollama's
+                # default temperature of 0.8. Sampling is wrong here whatever
+                # the model: a transcription wants the likeliest token, not a
+                # varied one, and inventing a plausible number is this
+                # pipeline's worst failure. It also quietly undercut the page
+                # repair, which is built on the same page reading the same way
+                # twice.
+                "temperature": 0
             }
         }
 
@@ -411,26 +422,107 @@ class OCREngine:
     #: of them, so this is the specific configuration and not just "split it".
     REPAIR_TILES = (2, 2)
 
-    @staticmethod
-    def _alternative(tiles) -> Tuple[int, int] | None:
-        """The other configuration to try. Whole page repairs to 2x2; a page
-        already split repairs by being read whole, because splitting is what
-        amplified the loop on the one page where it got worse."""
-        current = tuple(tiles) if tiles else (1, 1)
-        return None if current == OCREngine.REPAIR_TILES else OCREngine.REPAIR_TILES
+    #: How much of a table the model will write from one page-sized image
+    #: before it emits end-of-sequence and considers itself finished.
+    #:
+    #: Measured on the same 49-row table three ways -- the native page, a clean
+    #: scan of it, and a scan degraded with 0.4 degrees of skew, noise and
+    #: JPEG-60: **24 rows every time**. The same number from three very
+    #: different images is what a budget looks like, not what difficulty looks
+    #: like, and it is why raising `num_ctx` fourfold changes nothing.
+    #:
+    #: So a whole-page read that comes back carrying a table this long is a
+    #: read that probably stopped in the middle of one. A shorter table
+    #: finished, and re-reading it would cost time for nothing.
+    TABLE_CEILING_ROWS = 20
+
+    @classmethod
+    def _needs_another_look(cls, markdown: str, tiles) -> str | None:
+        """Why this page should be read a second way, in words, or None.
+
+        Two symptoms, one response. Repetition is the loud one. The quiet one
+        is a table that stops halfway: nothing is malformed, nothing repeats,
+        the page reads as though it were complete, and half the rows are gone.
+        That is this pipeline's characteristic failure and the reason the whole
+        ladder exists, so it gets the same treatment as the loud one.
+
+        The table check applies only to a page read whole. A page that was
+        already split was split *because* its source holds a table, and it has
+        had the treatment.
+
+        This is also what covers scans, which is where the gap was. Tiling is
+        aimed by looking for tables in the PDF's text layer, and a scan has no
+        text layer -- so its table pages were read whole and quietly lost half
+        their rows. Asking the transcription instead of the source works
+        wherever the source cannot be asked, and it catches a born-digital
+        table that `find_tables` happened to miss as well.
+        """
+        from magi.ingest.gates import repetition_runs
+        from magi.ingest.ocr.tables import count_rows
+
+        if repetition_runs(markdown) > 1:
+            return "repeated itself"
+        if not tiles and count_rows(markdown) >= cls.TABLE_CEILING_ROWS:
+            return "came back with a table long enough to have been cut short"
+        return None
+
+    #: The repair for a page whose *table* stopped halfway: two tiles, left and
+    #: right, the same split the pre-emptive path already uses.
+    #:
+    #: The shape has to follow the symptom, and this is where measuring the
+    #: whole matrix rather than one cell paid for itself. On the same 49-row
+    #: table read from the native page, a clean scan and a degraded scan, left
+    #: and right gives 49, 49 and 45 of 49 rows. A 2x2 split scores 49, 47 and
+    #: -- end to end through the real pipeline -- 32, because the horizontal cut
+    #: lands in the middle of the table and each half-row is transcribed as its
+    #: own row. The document came back with a hundred rows where forty-nine
+    #: exist. It is a plausible-looking table and it is wrong, which is the
+    #: failure this ladder is built to refuse.
+    TABLE_REPAIR_TILES = (2, 1)
 
     @staticmethod
-    def _is_better(candidate: str, incumbent: str) -> bool:
+    def _alternative(tiles, *, has_table: bool = False) -> Tuple[int, int] | None:
+        """The other configuration to try, or None meaning "read it whole".
+
+        A repeating page repairs to 2x2 — that is the split measured to break
+        the loop. A truncated table repairs to left-and-right instead, because
+        2x2 cuts through the rows.
+
+        Not both, and not the same for both: a two-column split is also the one
+        measured to make a *prose* page dramatically worse, turning a
+        559-character answer into a 32,785-character loop. So the page has to
+        say which it is, and the transcription is what says so.
+
+        A page already split the way its symptom calls for is read whole, since
+        there is nothing left to vary in that direction.
+        """
+        want = (OCREngine.TABLE_REPAIR_TILES if has_table
+                else OCREngine.REPAIR_TILES)
+        current = tuple(tiles) if tiles else (1, 1)
+        return None if current == want else want
+
+    @staticmethod
+    def _is_better(candidate: str, incumbent: str, *,
+                   on_tables: bool = False) -> bool:
         """Which of two attempts at one page to keep.
 
         The gate that detects the failure is also the judge of the repair —
         "better" is not a second opinion invented here. A page that does not
-        repeat beats one that does; between two clean ones the longer has
-        simply transcribed more (measured: 6,362 characters and every table row
-        against 4,200 and half of them); between two repeating ones, less
+        repeat beats one that does; between two repeating ones, less
         repetition, and failing that less garbage.
+
+        ``on_tables`` says the detector was counting table rows, so the judge
+        counts them too. Length would in fact have ranked all nine measured
+        pages identically — but only because a longer transcription happened to
+        be a fuller one every time, and a tile seam that duplicates a paragraph
+        also makes a transcription longer. Judging on the thing that raised the
+        alarm does not depend on that coincidence holding.
+
+        Otherwise the longer attempt has simply transcribed more: measured,
+        6,362 characters and every table row against 4,200 and half of them.
         """
         from magi.ingest.gates import repetition_runs
+        from magi.ingest.ocr.tables import count_rows
 
         c_runs, i_runs = repetition_runs(candidate), repetition_runs(incumbent)
         if (c_runs > 1) != (i_runs > 1):
@@ -439,49 +531,66 @@ class OCREngine:
             return c_runs < i_runs
         if c_runs > 1:                      # both loop: prefer less of it
             return len(candidate) < len(incumbent)
+        if on_tables:
+            c_rows, i_rows = count_rows(candidate), count_rows(incumbent)
+            if c_rows != i_rows:
+                return c_rows > i_rows
         return len(candidate) > len(incumbent)
 
     def ocr_image_repaired(self, image_path: str, page_number: int = 1,
                            max_retries: int = 2,
                            tiles: Optional[Tuple[int, int]] = None
                            ) -> Tuple[OCRResult, str]:
-        """OCR a page, and if it comes back repeating, try it another way once.
+        """OCR a page, and if it came back wrong, try it another way once.
 
-        The whole reason this can work is that the loop is **not** random:
+        Two symptoms trigger this — a page that repeats itself, and a page
+        carrying a table long enough to have been cut off. See
+        ``_needs_another_look``.
+
+        The whole reason this can work is that neither failure is random:
         the same page through the same pipeline produces byte-identical output,
         twice over. So repeating the call unchanged would reproduce the failure
         exactly, and a repair has to change a parameter. Splitting the page is
-        the parameter, because it is measured to fix it — and measured to make
-        one page worse, which is why the result is judged rather than assumed.
+        the parameter, because it is measured to fix both — 24 of 49 table rows
+        whole against 45 to 49 split, on the native page and on two scans of it
+        — and measured to make one page worse, which is why the result is
+        judged rather than assumed.
 
-        One extra pass at most. A document where every page repeats would
+        One extra pass at most. A document where every page trips this would
         otherwise cost double for nothing.
 
         Returns the result and a sentence about what happened, empty when
         nothing did — a repair that says nothing is the silent degradation this
         pipeline exists to stop.
         """
-        from magi.ingest.gates import repetition_runs
-
         first = self.ocr_image_with_retry(image_path, page_number, max_retries,
                                           tiles=tiles)
         if not first.success or not first.markdown.strip():
             return first, ""
-        if repetition_runs(first.markdown) <= 1:
-            return first, ""
 
-        alt = self._alternative(tiles)
+        symptom = self._needs_another_look(first.markdown, tiles)
+        if symptom is None:
+            return first, ""
+        on_tables = symptom.startswith("came back with a table")
+
+        # Whether the page carries a table decides how to split it, and that is
+        # a different question from which symptom brought us here: a page can
+        # loop *and* be a table page, and splitting that one 2x2 cuts its rows
+        # in half while fixing the loop.
+        from magi.ingest.ocr.tables import count_rows
+
+        alt = self._alternative(tiles, has_table=count_rows(first.markdown) > 0)
         second = self.ocr_image_with_retry(image_path, page_number, max_retries,
                                            tiles=alt)
         how = "whole page" if alt is None else "%dx%d" % alt
         if not second.success or not second.markdown.strip():
-            return first, (f"page {page_number} repeated itself; reading it as "
+            return first, (f"page {page_number} {symptom}; reading it as "
                            f"{how} returned nothing, so the first result was kept")
-        if self._is_better(second.markdown, first.markdown):
-            return second, (f"page {page_number} repeated itself; re-read as "
+        if self._is_better(second.markdown, first.markdown, on_tables=on_tables):
+            return second, (f"page {page_number} {symptom}; re-read as "
                             f"{how} and kept that ({len(first.markdown)} → "
                             f"{len(second.markdown)} characters)")
-        return first, (f"page {page_number} repeated itself and re-reading it as "
+        return first, (f"page {page_number} {symptom} and re-reading it as "
                        f"{how} was no better, so it was kept as it was — "
                        f"the gates will flag it")
 
