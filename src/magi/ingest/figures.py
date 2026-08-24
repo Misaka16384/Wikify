@@ -9,6 +9,17 @@ Figure Extractor Module
   4. 仅渲染该裁剪区域并保存到 images/，并返回标题文本用于回填 Markdown。
 
 经 4 篇论文（2005-2024，PRB/PRX/Nature 风格）验证：85/86 图正确，无误检、无重复。
+
+This lived inside the OCR rung because that is where it was written, not
+because it has anything to do with OCR: it reads the PDF's own drawing boxes
+and text layer and never asks a model anything. Measured separately — 4 of 4
+figures on one paper, 8 of 8 on another, every one with its caption, in 0.3 to
+0.6 seconds. So it belongs to the ingest package, where any rung that starts
+from a PDF on disk can use it, and the text-layer rung now does.
+
+Its boundary is worth stating because it is not obvious: the anchor is caption
+*text*, so a scan returns nothing. That is the right answer rather than a
+failure — a scan has no text layer for any of this to read.
 """
 import re
 import sys
@@ -357,12 +368,27 @@ def extract_figures(pdf_path, images_dir, dpi=CROP_DPI,
     return out
 
 
+#: Alt text is delimited by brackets, so a bracket inside it ends it early.
+#: Captions in physics papers are full of them -- "FIG. 1. Polynomial
+#: representation of Pauli operators [36]." is an ordinary caption, and it
+#: produced `![FIG. 1. ... operators [36]. We choose ...](images/x.png)`, which
+#: is not an image reference at all: a reader sees the tail of the caption and
+#: a literal `](images/x.png)`, and the figure never renders.
+#:
+#: The reference also becomes invisible to `image_refs`, which is the worse
+#: half. Every check that exists to catch a broken figure -- portability,
+#: images-referenced-but-missing -- works by finding references, so one it
+#: cannot parse is reported as a clean document with no figures to check.
+_ALT_ESCAPE = {ord("["): r"\[", ord("]"): r"\]", ord("\\"): "\\\\"}
+
+
 def _alt_text(fig: Figure) -> str:
     cap = (fig.caption or "").strip().replace("\n", " ")
     cap = re.sub(r"\s+", " ", cap)
-    if cap:
-        return cap[:140]
-    return fig.label or "Figure"
+    if not cap:
+        cap = fig.label or "Figure"
+    # Truncate first: escaping afterwards cannot leave half an escape behind.
+    return cap[:140].translate(_ALT_ESCAPE)
 
 
 def figure_markdown(fig: Figure, images_dir_name="images") -> str:

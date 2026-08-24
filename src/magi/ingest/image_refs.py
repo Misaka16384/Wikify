@@ -50,8 +50,16 @@ NAME_MAX = 110
 
 #: Two alternatives: a target containing a space is legal Markdown when it is
 #: wrapped in angle brackets, and unquotable without them.
+#:
+#: The alt text accepts backslash escapes, because it has to contain them. A
+#: figure's alt text is its caption, and captions carry citation brackets --
+#: "FIG. 1. ... Pauli operators [36]." A bare `]` there ends the alt text early
+#: and the reference stops being one, so routes escape it; a pattern that then
+#: stopped at the backslashed bracket would miss the very references the escape
+#: was added to keep valid, and a reference this cannot see is a broken figure
+#: reported as a clean document.
 _MD_IMAGE_RE = re.compile(
-    r"!\[[^\]]*\]\(\s*(?:<([^>]*)>|([^)\s]+))(?:\s+[\"'][^\"']*[\"'])?\s*\)")
+    r"!\[(?:\\.|[^\]\\])*\]\(\s*(?:<([^>]*)>|([^)\s]+))(?:\s+[\"'][^\"']*[\"'])?\s*\)")
 
 #: Pandoc leaves any figure it cannot express in Markdown as raw HTML, which is
 #: what happens to essentially every real arXiv figure — they sit inside

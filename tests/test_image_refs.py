@@ -175,3 +175,40 @@ def test_the_surrounding_markup_survives_the_rewrite():
     md, _ = ir.rewrite('<img src="old/f.png" id="S2.F1" class="ltx_graphics"/>',
                        lambda t: "p-f.png")
     assert 'id="S2.F1"' in md and 'class="ltx_graphics"' in md
+
+
+# --------------------------------------------------------------------------
+# alt text that contains brackets
+# --------------------------------------------------------------------------
+#
+# A figure's alt text is its caption, and a physics caption cites: "FIG. 1.
+# Polynomial representation of Pauli operators [36]." That bare bracket closes
+# the alt text early, so the line stops being an image reference — the figure
+# does not render and the tail of the caption plus a literal `](images/x.png)`
+# appears in its place. Found on a real paper: eight figures on disk, eight
+# placed in the document, seven that any parser could see.
+#
+# Escaping is the fix on the writing side, and this is the reading side of the
+# same fix. A reference this module cannot parse is worse than a broken figure:
+# every check that guards figures works by finding references first, so an
+# unparseable one is reported as a clean document with nothing to check.
+
+def test_a_citation_bracket_in_alt_text_does_not_hide_the_reference():
+    md = r"![FIG. 1. Pauli operators \[36\]. We choose two edges.](images/p-f1.png)"
+    assert ir.iter_targets(md) == ["images/p-f1.png"]
+
+
+def test_an_unescaped_bracket_is_still_not_a_reference():
+    """Not a regression guard — a statement of why routes must escape. This
+    line is genuinely not an image reference to any Markdown reader, and this
+    module agreeing with the readers is the point."""
+    md = "![FIG. 1. Pauli operators [36]. We choose.](images/p-f1.png)"
+    assert ir.iter_targets(md) == []
+
+
+def test_an_escaped_reference_is_still_rewritable():
+    md, mapping = ir.rewrite(r"![Fig 2. See \[12\].](tmp/abs/f2.png)",
+                             lambda t: "doc-f2.png")
+    assert "images/doc-f2.png" in md
+    assert mapping == {"tmp/abs/f2.png": "doc-f2.png"}
+    assert r"\[12\]" in md, "the alt text must survive untouched"

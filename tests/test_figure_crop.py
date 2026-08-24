@@ -21,7 +21,7 @@ import pytest
 
 pymupdf = pytest.importorskip("pymupdf", reason="PyMuPDF is a hard dependency")
 
-from magi.ingest.ocr import figure_extractor as fx  # noqa: E402
+from magi.ingest import figures as fx  # noqa: E402
 
 
 def _page(draw, *, caption="Figure 1: A schematic of the lattice.",
@@ -164,3 +164,50 @@ def test_the_label_reach_is_shorter_than_a_line_of_prose():
     line away. That distance is the only thing separating them."""
     assert fx.LABEL_REACH_PT <= 20
     assert fx.LABEL_MAX_CHARS <= 60
+
+
+# --------------------------------------------------------------------------
+# The reference this writes has to be one
+# --------------------------------------------------------------------------
+#
+# The alt text is the caption, and captions cite. `FIG. 1. Polynomial
+# representation of Pauli operators [36].` is an ordinary caption; unescaped it
+# closes the alt text at `[36]` and the whole line stops being an image
+# reference. Measured on a real paper: eight figures cropped, eight placed, and
+# only seven that any Markdown parser could find. The eighth rendered as the
+# tail of its own caption followed by a literal `](images/....png)`.
+
+def _figure(caption):
+    return fx.Figure(page=1, index=1, label="Figure 1", caption=caption,
+                     filename="p-f1.png", path="/tmp/p-f1.png")
+
+
+def test_a_caption_that_cites_still_produces_a_reference():
+    from magi.ingest import image_refs
+
+    md = fx.figure_markdown(_figure("FIG. 1. Pauli operators [36] on a lattice."))
+    assert image_refs.iter_targets(md) == ["images/p-f1.png"]
+
+
+def test_the_caption_is_still_readable_after_escaping():
+    md = fx.figure_markdown(_figure("FIG. 1. Pauli operators [36] on a lattice."))
+    assert "Pauli operators" in md and "36" in md
+
+
+def test_a_backslash_in_a_caption_does_not_escape_the_bracket_after_it():
+    r"""A caption ending in a backslash would otherwise turn the `\[` that
+    follows into a literal backslash and a live bracket — the escape defeating
+    itself. Escaping happens in one pass, so it cannot."""
+    from magi.ingest import image_refs
+
+    md = fx.figure_markdown(_figure(r"FIG. 1. The operator \ acting on [2]."))
+    assert image_refs.iter_targets(md) == ["images/p-f1.png"]
+
+
+def test_a_very_long_caption_is_cut_before_it_is_escaped():
+    """Truncating escaped text can leave half an escape at the end, which is a
+    stray backslash that eats the closing bracket."""
+    from magi.ingest import image_refs
+
+    md = fx.figure_markdown(_figure("FIG. 1. " + "a [1] long caption " * 40))
+    assert image_refs.iter_targets(md) == ["images/p-f1.png"]

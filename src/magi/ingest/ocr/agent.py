@@ -25,7 +25,7 @@ from magi.ingest.ocr.pdf_processor import PDFProcessor, PDFPage
 from magi.ingest.ocr.ocr_engine import OCREngine, OCRResult
 from magi.ingest.ocr.image_handler import ImageHandler, ExtractedImage
 from magi.ingest.ocr.markdown_builder import MarkdownBuilder, MarkdownCleaner
-from magi.ingest.ocr.figure_extractor import extract_figures, inject_figures
+from magi.ingest.figures import extract_figures, inject_figures
 from magi.core.arxiv_id import abs_url, normalize_arxiv_id
 from magi.core.config_loader import load_config, get as cfg_get
 # Relocated so tex2md and mineru can share it without importing from inside the
@@ -406,7 +406,7 @@ class PDF2MarkdownAgent:
                 # leaves no trace is the same silent degradation this pipeline
                 # exists to stop, just pointed the other way.
                 outcome.flag("page-repaired",
-                             "%d page(s) came back repeating and were re-read: %s"
+                             "%d page(s) came back wrong and were re-read: %s"
                              % (len(repairs), "; ".join(repairs)),
                              severity="info")
             return outcome
