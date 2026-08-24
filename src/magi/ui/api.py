@@ -712,7 +712,8 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         # The same order the CLI shows, from the same function. Two renderings
         # of one queue that disagree about which item is most urgent is the
         # drift this codebase keeps paying for elsewhere.
-        for item in ledger.review_order(ledger.load_batch(ws, batch)):
+        ordered = ledger.review_order(ledger.load_batch(ws, batch))
+        for item in ordered:
             row = item._asdict()
             # Inline a preview rather than the whole document: a reviewer is
             # deciding whether the conversion worked, not reading the paper.
@@ -730,8 +731,12 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                         row["preview"] = staged.read_text(
                             encoding="utf-8", errors="replace")[:20_000]
             items.append(row)
+        # Counted off the items, not off the dicts they were flattened into:
+        # `BatchItem.decided` asks whether the decision is one of the two words
+        # that mean something, and `not row["decision"]` only agrees with that
+        # while nothing has ever written a third value.
         return {"workspace": str(ws), "batch_id": batch, "items": items,
-                "undecided": len([i for i in items if not i["decision"]])}
+                "undecided": len(ledger.undecided(ordered))}
 
     @app.post("/api/workspace/ingest/decide")
     def post_ingest_decide(req: IngestDecideRequest) -> dict:
@@ -750,11 +755,9 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
 
         requeued = None
         if req.decision == "reject":
-            nxt = ledger.next_rung(item.route)
-            if nxt:
-                ledger.enqueue(ws, source_type="arxiv", value=item.source_value,
-                               route=nxt, retry_of=item.item_id, title=item.title)
-                requeued = nxt
+            # The CLI's function, not a second copy of it. This endpoint used
+            # to inline the enqueue with source_type hardcoded to "arxiv".
+            requeued = ledger.requeue_next_rung(ws, item)
         return {"item_id": req.item_id, "decision": req.decision,
                 "requeued_on": requeued}
 

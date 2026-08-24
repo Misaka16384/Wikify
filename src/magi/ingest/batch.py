@@ -450,7 +450,7 @@ def cmd_list(args) -> int:
         # nothing is hidden and nothing is decided here, and an item with no
         # flags is not thereby checked. See `ledger.review_order`.
         items = ledger.review_order(ledger.load_batch(topic, batch_id))
-        undecided = [i for i in items if not i.decided]
+        undecided = ledger.undecided(items)
         payload.append({
             "batch_id": batch_id,
             "items": [i._asdict() for i in items],
@@ -496,17 +496,8 @@ def cmd_decide(args) -> int:
         print(f"{args.item}: {args.decision}")
 
         if args.decision == "reject":
-            nxt = ledger.next_rung(item.route)
+            nxt = ledger.requeue_next_rung(topic, item)
             if nxt:
-                # As what it actually is. This used to say "arxiv" for
-                # everything, so a rejected local PDF was requeued as an arXiv
-                # paper whose identifier was a file path. It did not break —
-                # the route is passed explicitly, so nothing re-derived it —
-                # but the ledger recorded something untrue, and the next piece
-                # of code to branch on source_type would have inherited it.
-                source_type = item.source_type or routing.infer_source_type(item.source_value)
-                ledger.enqueue(topic, source_type=source_type, value=item.source_value,
-                               route=nxt, retry_of=item.item_id, title=item.title)
                 print(f"  requeued on the next route down: {nxt} "
                       "(it will appear in the next batch)")
             else:
@@ -567,7 +558,7 @@ def cmd_commit(args) -> int:
         items = ledger.load_batch(topic, batch_id)
         if not items:
             continue
-        undecided = [i for i in items if not i.decided and not i.committed_path]
+        undecided = ledger.blocking_commit(items)
         if undecided:
             skipped_batches.append((batch_id, len(undecided)))
             continue

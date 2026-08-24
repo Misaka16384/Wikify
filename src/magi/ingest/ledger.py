@@ -358,6 +358,31 @@ def list_batches(topic) -> list[str]:
     return sorted(p.stem for p in d.glob("batch-*.jsonl"))
 
 
+def undecided(items: Iterable) -> list:
+    """The items still waiting on a person.
+
+    ``BatchItem.decided`` is stricter than truthiness: it asks whether the
+    decision is one of the two words that mean something. The CLI used that;
+    one of the two WebUI endpoints converted items to dicts first and then
+    asked ``not row["decision"]``, which agrees only as long as nothing has
+    ever written a third value. A hand-edited ledger, an older version, or a
+    decision word added later, and the two counts diverge — with the API
+    calling an item decided that the CLI, and ``review_order``, still put at
+    the top of the queue.
+    """
+    return [i for i in items if not i.decided]
+
+
+def blocking_commit(items: Iterable) -> list:
+    """The items that stop a batch from being committed.
+
+    Deliberately not the same question as :func:`undecided`: an item already
+    written into ``raw/`` is not waiting for anybody, whatever its decision
+    field says.
+    """
+    return [i for i in items if not i.decided and not i.committed_path]
+
+
 def next_rung(route: str) -> str | None:
     """The rung below ``route``, or None at the bottom.
 
@@ -370,3 +395,34 @@ def next_rung(route: str) -> str | None:
     except ValueError:
         return None
     return LADDER[idx + 1] if idx + 1 < len(LADDER) else None
+
+
+def requeue_next_rung(topic, item) -> str | None:
+    """Send a rejected item down one rung. Returns the rung, or None.
+
+    Rejecting is the only automatic downgrade in the system, so it is worth
+    exactly one implementation. It had two: the CLI inherited the item's own
+    source type and fell back to inferring it, while the WebUI passed the
+    literal string ``"arxiv"`` for everything — a rejected local PDF was
+    requeued as an arXiv paper whose identifier was a file path.
+
+    That did not break anything immediately, because the route is passed
+    explicitly and nothing re-derived it from the type. It wrote something
+    untrue into the ledger, and the next piece of code to branch on
+    ``source_type`` would have inherited the lie. Both halves of that sentence
+    matter: the bug was real and the failure it was predicted to cause was
+    not, and a fix argued from the wrong consequence is how a correct change
+    gets reverted later by someone who checked.
+
+    ``retry_of`` points at the *item* it is retrying, not the request — the
+    CLI, ``test_batch.py`` and ``test_ledger.py`` all already agree on that.
+    """
+    from magi.ingest import routing
+
+    nxt = next_rung(item.route)
+    if not nxt:
+        return None
+    source_type = item.source_type or routing.infer_source_type(item.source_value)
+    enqueue(topic, source_type=source_type, value=item.source_value,
+            route=nxt, retry_of=item.item_id, title=item.title)
+    return nxt
