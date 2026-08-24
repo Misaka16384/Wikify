@@ -147,7 +147,7 @@ def _textlayer_with_figures(source: Path, images_dir: Path, slug: str,
         "caption, each placed above the caption line that names it")
 
 
-def _run_route(route: str, entry, staging: Path) -> ConversionResult:
+def _run_route(route: str, entry, staging: Path, topic: Path | None = None) -> ConversionResult:
     """Convert one queued item on one rung.
 
     Each rung is a function call returning a ConversionResult, which is what the
@@ -237,7 +237,8 @@ def _run_route(route: str, entry, staging: Path) -> ConversionResult:
         # display equation. So the flag selects between them rather than adding
         # to the default, and the default is the one that answers the question
         # a reader is actually asking.
-        raw_objects = bool(cfg_get(load_config(), "ingest.textlayer_images", False))
+        raw_objects = bool(cfg_get(load_config(start=topic),
+                                   "ingest.textlayer_images", False))
         try:
             if raw_objects:
                 md = pymupdf4llm.to_markdown(str(source), write_images=True,
@@ -364,7 +365,7 @@ def cmd_run(args) -> int:
         print(f"[batch] {n}/{len(queued)} {entry.value} via {route} — {why}")
         staging = ledger.staging_dir(topic, batch_id) / entry.req_id
         try:
-            result = _run_route(route, entry, staging)
+            result = _run_route(route, entry, staging, topic)
         except Exception as exc:  # noqa: BLE001 — one bad item must not end the run
             result = ConversionResult.failed(f"{type(exc).__name__}: {exc}")
 

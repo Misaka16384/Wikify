@@ -278,9 +278,9 @@ def test_a_disabled_embedder_re_arms_after_the_cooldown(monkeypatch):
 
 
 def test_the_batch_size_is_configurable(monkeypatch):
-    monkeypatch.setattr(retrieval, "load_config", lambda: {"ollama": {"embed_batch": 4}})
+    monkeypatch.setattr(retrieval, "load_config", lambda *a, **k: {"ollama": {"embed_batch": 4}})
     assert retrieval.Embedder().batch == 4
-    monkeypatch.setattr(retrieval, "load_config", lambda: {"ollama": {"embed_batch": "junk"}})
+    monkeypatch.setattr(retrieval, "load_config", lambda *a, **k: {"ollama": {"embed_batch": "junk"}})
     assert retrieval.Embedder().batch == retrieval.EMBED_BATCH
 
 

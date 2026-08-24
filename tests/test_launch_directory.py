@@ -156,3 +156,48 @@ def test_every_workspace_panel_names_its_workspace():
         assert "workspace" in window, (
             f"{endpoint} is called without naming a workspace — it would fall "
             f"back to wherever the server was started")
+
+
+# --------------------------------------------------------------------------
+# and the same question, asked of every command rather than of one server
+# --------------------------------------------------------------------------
+
+def test_no_command_that_takes_a_workspace_reads_config_from_the_cwd():
+    r"""`load_config()` walks up from the process working directory.
+
+    That is the right default for a command that was not told where to work,
+    and wrong for every command that *was*. `magi ingest auto --topic-dir B`,
+    run from workspace A, read A's `config.yaml` and wrote B's library: the OCR
+    model, the MinerU token and the figure-extraction mode all came from the
+    wrong place, and nothing said so.
+
+    This is the shape v1.12.2 already fixed once for `magi ui` — "the launch
+    directory decided two things it had no business deciding". A point fix with
+    no guard came back within two releases, in six more places, so the guard is
+    the deliverable and the fixes are its consequence.
+
+    Reading ambient config is still fine in a module that has no workspace to
+    read from. The scan is deliberately narrow: it asks only about modules that
+    declare `--topic-dir`, i.e. modules that have been handed an answer and
+    then went and looked somewhere else.
+    """
+    import re
+
+    src = REPO / "src" / "magi"
+    declares = re.compile(r"""add_argument\(\s*['"]--topic-dir['"]""")
+    ambient = re.compile(r"""\bload_config\(\s*\)""")
+
+    offenders = []
+    for path in sorted(src.rglob("*.py")):
+        text = path.read_text(encoding="utf-8")
+        if not declares.search(text):
+            continue
+        for n, line in enumerate(text.splitlines(), 1):
+            code = line.split("#", 1)[0]
+            if ambient.search(code):
+                offenders.append(f"{path.relative_to(src)}:{n}: {line.strip()}")
+
+    assert not offenders, (
+        "these accept --topic-dir and then load config from the process "
+        "working directory instead; pass start=<workspace>:\n  "
+        + "\n  ".join(offenders))

@@ -182,7 +182,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(json.dumps({"error": msg, "ingested": []}, ensure_ascii=False) if args.json else msg)
         return 1
 
-    cfg = load_config()
+    # From the workspace this command was pointed at, not from wherever the
+    # shell happens to be. `magi ingest auto --topic-dir B`, run from A,
+    # used to read A's config and write B's library.
+    cfg = load_config(start=topic)
     results = [ingest_one(p, topic, cfg, args.raw_type, args.dry_run) for p in targets]
     done = [r for r in results if r["ok"] and r["route"] != "skip"]
 

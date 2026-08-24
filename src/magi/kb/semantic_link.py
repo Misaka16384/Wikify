@@ -39,7 +39,7 @@ def setup_argparse(argv=None):
         args.topic_dir = str(root)
 
     # Resolve defaults from unified config
-    cfg = load_config()
+    cfg = load_config(start=args.topic_dir)
     if args.model is None:
         args.model = cfg_get(cfg, "models.embedding", "qwen3-embedding:0.6b")
     if args.ollama_url is None:

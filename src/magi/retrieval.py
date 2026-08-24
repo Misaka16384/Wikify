@@ -229,20 +229,25 @@ QUERY_EMBED_TIMEOUT = 8.0
 # How long a failed embedder stays disabled before it is worth asking again.
 DISABLED_COOLDOWN = 30.0
 
-_shared_query_embedder: "Embedder | None" = None
+_shared_query_embedder: "tuple[str, Embedder] | None" = None
 
 
-def _query_embedder() -> "Embedder":
+def _query_embedder(start=None) -> "Embedder":
     """One Embedder for the whole process's searches.
 
     A fresh one per query re-ran the Ollama preflight — a round trip to
     /api/tags — before every single search, and threw away the pooled
     connection each time.
+
+    Keyed on the workspace it was built for. A process-wide singleton built
+    from ambient config is the same bug one level up: search two libraries in
+    one process and the second one silently uses the first one's model.
     """
     global _shared_query_embedder
-    if _shared_query_embedder is None:
-        _shared_query_embedder = Embedder()
-    return _shared_query_embedder
+    key = str(start) if start else ""
+    if _shared_query_embedder is None or _shared_query_embedder[0] != key:
+        _shared_query_embedder = (key, Embedder(start=start))
+    return _shared_query_embedder[1]
 
 
 class _EmbedGone(Exception):
@@ -292,8 +297,12 @@ def _embedding_api_key(cfg: dict) -> str:
 class Embedder:
     """Lazy Ollama embedding client; flips to disabled on first failure."""
 
-    def __init__(self) -> None:
-        cfg = load_config()
+    def __init__(self, start=None) -> None:
+        # `start` is the workspace this was created for. Without it the
+        # embedding model and endpoint come from whatever config sits
+        # above the process cwd, which is not necessarily the library
+        # being indexed.
+        cfg = load_config(start=start)
         # Two providers, one interface. `ollama` is a local install; `openai`
         # is any service speaking OpenAI's /v1/embeddings — which is what
         # SiliconFlow, Jina, Gemini's compat layer, DeepInfra, Together and
@@ -620,7 +629,7 @@ def cmd_index(args: argparse.Namespace) -> int:
     assert opened is not None
     conn, vec_loaded = opened
 
-    embedder = Embedder()
+    embedder = Embedder(start=root)
     dims: int | None = None
     if not args.no_vectors:
         probe = embedder.embed("magi index probe")
@@ -918,7 +927,7 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
         qvec = None
         vector_degraded = False
         if mode in ("hybrid", "vector"):
-            qvec = _query_embedder().embed(query, timeout=QUERY_EMBED_TIMEOUT)
+            qvec = _query_embedder(root).embed(query, timeout=QUERY_EMBED_TIMEOUT)
             vector_degraded = qvec is None
         sargs = argparse.Namespace(query=query, mode=mode, k=k,
                                    collection=collection, path=path)

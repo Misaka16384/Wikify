@@ -62,7 +62,7 @@ def test_a_clean_result_is_not_silent_about_anything():
 
 def _partial_route(monkeypatch, ws, *, findings=()):
     """A route that writes a real document and admits a page went missing."""
-    def fake(route, entry, staging):
+    def fake(route, entry, staging, topic=None):
         staging.mkdir(parents=True, exist_ok=True)
         md = staging / "2026-08-21-a-paper.md"
         md.write_text("---\ntitle: A Paper\n---\n\n" + "word " * 300,

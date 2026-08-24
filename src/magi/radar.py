@@ -447,7 +447,7 @@ def _score_candidates(topic: Path, cands: list[dict]) -> bool:
             return False
         centroid = centroid / norm
 
-        emb = Embedder()
+        emb = Embedder(start=topic)
         scored_any = False
         for c in cands:
             text = f"{c.get('title') or ''}\n{(c.get('abstract') or '')[:800]}".strip()
