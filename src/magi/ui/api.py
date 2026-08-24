@@ -709,7 +709,10 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail=f"no such batch: {batch}")
 
         items = []
-        for item in ledger.load_batch(ws, batch):
+        # The same order the CLI shows, from the same function. Two renderings
+        # of one queue that disagree about which item is most urgent is the
+        # drift this codebase keeps paying for elsewhere.
+        for item in ledger.review_order(ledger.load_batch(ws, batch)):
             row = item._asdict()
             # Inline a preview rather than the whole document: a reviewer is
             # deciding whether the conversion worked, not reading the paper.

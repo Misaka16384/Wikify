@@ -318,6 +318,39 @@ def load_batch(topic, batch_id: str) -> list[BatchItem]:
     return out
 
 
+def loud_findings(item) -> int:
+    """How many of an item's findings are asking for attention.
+
+    ``info`` findings are the route saying what it did — which rung ran, how
+    many figures it cropped. They are worth reading and they are not a reason
+    to look at one item before another.
+    """
+    return sum(1 for f in (item.findings or [])
+               if (f or {}).get("severity", "flag") != "info")
+
+
+def review_order(items: list) -> list:
+    """The order to work a batch in: what still needs a decision, flags first.
+
+    Measured before it was built, because the alternative was sorting on a
+    constant. Sixteen real conversions — two rungs, native PDFs and scans, each
+    with independently known quality — put through the actual gates: **four
+    carried a flag, and those four included all three of the known-bad ones.**
+    So flags are selective at 25%, and they point where they should.
+
+    The same measurement rules out the tempting next step. One document in that
+    corpus is missing half of a 49-row table and carries **no flag at all**, so
+    "unflagged" is not "checked" and this must stay an ordering rather than
+    become a licence to approve the rest unread. Nothing here hides an item,
+    drops one, or decides anything — it changes which one is on top.
+
+    Stable within a rank, on the id, so a list does not reshuffle between two
+    runs that found the same things.
+    """
+    return sorted(items, key=lambda i: (bool(i.decided), -loud_findings(i),
+                                        i.item_id))
+
+
 def list_batches(topic) -> list[str]:
     d = ingest_dir(topic)
     if not d.is_dir():
