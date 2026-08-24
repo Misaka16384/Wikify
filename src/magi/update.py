@@ -641,6 +641,15 @@ def main(argv: list[str] | None = None) -> int:
         print("\nIf this fails with a permission error, a `magi ui` process is "
               "holding the files — stop every one of them and try again.")
 
+    # Everything said so far, on the screen, before the child starts writing to
+    # the same descriptor. Without this the narration arrives *after* the output
+    # it introduces: Python block-buffers stdout when it is not a terminal — a
+    # pipe, a CI log, an agent's shell — so "Running: pipx upgrade …" sat in the
+    # buffer until exit while pipx's own lines went straight out. The result
+    # read as though pipx had run and magi then announced it was about to.
+    sys.stdout.flush()
+    sys.stderr.flush()
+
     try:
         proc = subprocess.run(how.command)
     except FileNotFoundError:

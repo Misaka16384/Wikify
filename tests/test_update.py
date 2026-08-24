@@ -611,3 +611,43 @@ def test_the_upgrade_result_is_written_before_the_relaunch_is_attempted(home, mo
     update._run_detached(1, ["py", "-m", "magi", "ui"])
     assert seen["state_at_relaunch"] == "done"
     assert update.read_result()["now"] == "9.9.9"
+
+
+def test_the_narration_is_flushed_before_the_child_writes(home, monkeypatch, capsys):
+    """Order matters, and it was wrong.
+
+    Python block-buffers stdout when it is not a terminal — a pipe, a CI log,
+    an agent's shell. `print()` therefore sat in the buffer while the child
+    process wrote straight to the same descriptor, so a real run came out as:
+
+        upgrading magi-research...
+        upgraded package magi-research from 1.14.1 to 1.14.2
+        magi 1.14.2 is available (you have 1.14.1).
+        Running: pipx upgrade magi-research
+
+    — pipx finishing before magi says it is about to start it.
+    """
+    import subprocess
+    import sys
+    import types
+
+    flushed_before_run = []
+    real_flush = sys.stdout.flush
+
+    def spy_flush():
+        flushed_before_run.append(True)
+        real_flush()
+
+    monkeypatch.setattr(update, "fetch_latest", lambda *a, **k: "99.0.0")
+    monkeypatch.setattr(update, "detect_install",
+                        lambda *a, **k: update.Install("pipx", ["pipx", "upgrade", "x"]))
+    monkeypatch.setattr(sys.stdout, "flush", spy_flush)
+
+    def fake_run(cmd, *a, **k):
+        assert flushed_before_run, "the child started with output still buffered"
+        return types.SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+
+    assert update.main([]) == 0
