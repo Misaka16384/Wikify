@@ -56,6 +56,13 @@ After resolving duplicates, you must synthesize their definitions to ensure no k
     *   **Post-Write Validation**: Run `magi lint <TOPIC_DIR>`.
 4.  **Log**: Update `log.md` with the deduplication and synthesis outcome.
 
+## Rules
+
+- **Never fan out without a number.** Say how many sub-agents you are about to start and what each one covers, before the first one starts. Never more than 10 at once. An unstated fan-out is how one 99-page paper spent a user's entire weekly quota.
+- **Never let a sub-agent ask the user.** It cannot — the question reaches nobody and the agent hangs or guesses. A sub-agent returns `NEEDS-DECISION: <question>`; you collect them and raise them together, once.
+- **Never rename a concept without `magi wiki refactor-concept`.** It updates every wikilink pointing at the old name. A rename done by hand leaves dangling links that `magi lint` will report as somebody else's problem.
+- **Never report a partial result as a whole one.** If three of eight sub-agents came back empty or failed, say which and why. A summary that reads as success while part of the work is missing is worse than no summary — it spends the reader's trust instead of their time.
+
 ## Task Tracking (Beads)
 
 Beads (`bd`) is the workspace's work-state store; `log.md` stays a one-line human narrative.

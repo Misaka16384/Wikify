@@ -55,6 +55,13 @@ When the user asks to compile the wiki or process raw files, follow this paralle
 6.  **Run Final Linting**: Run `magi lint --fix "<TOPIC_DIR>"` on the full topic workspace as a final structural pass.
 7.  **Log Activity**: Log the compile event in `log.md`, including the count of successful vs. failed compilations.
 
+## Rules
+
+- **Never fan out without a number.** Say how many sub-agents you are about to start and what each one covers, before the first one starts. Never more than 10 at once. An unstated fan-out is how one 99-page paper spent a user's entire weekly quota.
+- **Never let a sub-agent ask the user.** It cannot — the question reaches nobody and the agent hangs or guesses. A sub-agent returns `NEEDS-DECISION: <question>`; you collect them and raise them together, once.
+- **Never edit anything under `raw/`.** It is the source of record and the only thing here that cannot be regenerated. Compilation writes to `wiki/`, always.
+- **Never report a partial result as a whole one.** If three of eight sub-agents came back empty or failed, say which and why. A summary that reads as success while part of the work is missing is worse than no summary — it spends the reader's trust instead of their time.
+
 ## Task Tracking (Beads)
 
 Beads (`bd`) is the workspace's work-state store; `log.md` stays a one-line human narrative.

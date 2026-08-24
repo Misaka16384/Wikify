@@ -98,6 +98,13 @@ Ask before running any of these, and say exactly what they will change:
 
 `magi migrate`, `magi lint --fix`, `magi graph build`, and `magi index` are safe to re-run: they only add or fully rebuild derived state.
 
+## Rules
+
+- **Never fan out without a number.** Say how many sub-agents you are about to start and what each one covers, before the first one starts. Never more than 10 at once. An unstated fan-out is how one 99-page paper spent a user's entire weekly quota.
+- **Never let a sub-agent ask the user.** It cannot — the question reaches nobody and the agent hangs or guesses. A sub-agent returns `NEEDS-DECISION: <question>`; you collect them and raise them together, once.
+- **Never invent a flag.** If it is not in the manual and not in `magi <command> --help`, it does not exist. Several plausible ones genuinely do not.
+- **Never report a partial result as a whole one.** If three of eight sub-agents came back empty or failed, say which and why. A summary that reads as success while part of the work is missing is worse than no summary — it spends the reader's trust instead of their time.
+
 ## Error handling
 
 - `magi: unknown command 'guide'` → this installation predates the manual. Tell the user to upgrade: `pipx upgrade --install magi-research` (or `uv tool install --force magi-research`), then retry.

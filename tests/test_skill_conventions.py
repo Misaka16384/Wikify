@@ -130,3 +130,101 @@ def test_the_workspace_protocol_carries_the_same_rule():
     # Cost stated in the same breath as the question — "proceed?" is not a
     # question anyone can answer.
     assert "34 sub-agent calls" in source
+
+
+# --------------------------------------------------------------------------
+# D5: a skill is code with the highest cost per character, and no tests
+#
+# The checks above are about form — which tool names may appear, and who is
+# allowed to ask a question. They could not have caught the incident that
+# started this: `wiki_ingest/SKILL.md` listed MinerU first, native vision as
+# its fallback, and local OCR "only if the user explicitly requests it". An
+# unattended agent has no user to request anything, so it could never reach the
+# cheap route, and one 99-page paper cost a weekly token quota.
+#
+# What follows cannot check behaviour either. It checks that the three failure
+# modes this project has actually paid for are written down in the file an
+# agent reads, which is the cheapest thing that would have helped.
+# --------------------------------------------------------------------------
+
+FANS_OUT = [p for p in SKILL_FILES
+            if "sub-agent" in _body(p).lower() or "subagent" in _body(p).lower()]
+
+
+def test_some_skills_fan_out():
+    assert len(FANS_OUT) >= 10
+
+
+@pytest.mark.parametrize("path", FANS_OUT, ids=lambda p: p.parent.name)
+def test_a_skill_that_fans_out_carries_its_rules(path):
+    """Anything that can start N agents can spend N times what its author
+    imagined. The bar is that the file says so."""
+    body = _body(path)
+    assert re.search(r"^##+ Rules\s*$", body, re.MULTILINE) or \
+        re.search(r"^##+ Quality [Rr]ules\s*$", body, re.MULTILINE), \
+        f"{path.parent.name} spawns sub-agents but states no rules"
+
+
+@pytest.mark.parametrize("path", FANS_OUT, ids=lambda p: p.parent.name)
+def test_a_skill_that_fans_out_says_never_at_least_twice(path):
+    body = _body(path)
+    nevers = len(re.findall(r"\*\*Never\b", body))
+    assert nevers >= 2, (
+        f"{path.parent.name} has {nevers} explicit prohibition(s); the point of "
+        "the rules block is what must not happen, not what should")
+
+
+@pytest.mark.parametrize("path", FANS_OUT, ids=lambda p: p.parent.name)
+def test_a_skill_that_fans_out_bounds_the_fan_out(path):
+    """A number before the first agent starts, and a ceiling on concurrency.
+    The quota incident was a fan-out nobody had counted.
+
+    Forbidding the fan-out outright counts. `wiki_inbox` mentions sub-agents
+    only to say it must never start any, and "never" is a bound — this asks
+    that the ceiling be stated, not that it be greater than zero.
+    """
+    body = _body(path).lower()
+    bounded = ("10 at once" in body or "10 concurrent" in body
+               or "concurrency" in body
+               or "do not transcribe pages" in body)
+    assert bounded, \
+        f"{path.parent.name} involves sub-agents without stating any ceiling"
+
+
+@pytest.mark.parametrize("path", FANS_OUT, ids=lambda p: p.parent.name)
+def test_a_skill_that_fans_out_forbids_reporting_partial_work_as_whole(path):
+    """The shape this whole codebase is organised against: not a crash, not a
+    gap, but a result that reads as complete while part of it is missing."""
+    body = _body(path).lower()
+    assert "partial" in body or "say so plainly" in body, \
+        f"{path.parent.name} does not say what to do when part of the work fails"
+
+
+def test_the_expensive_route_is_never_offered_as_an_automatic_fallback():
+    """The incident itself, as a check.
+
+    Per-page vision transcription may appear in a skill — it is a real last
+    resort — but never as something an unattended agent falls into. Wherever
+    it is mentioned, the same file must state the cost and require a person to
+    have said yes.
+    """
+    offenders = []
+    for path in SKILL_FILES:
+        body = _body(path)
+        if not re.search(r"(?i)\bnative[ -]vision|vision transcription|"
+                         r"transcrib\w+ (?:the )?pages?\b", body):
+            continue
+        priced = re.search(r"(?i)one sub-?agent call per page", body)
+        # An outright prohibition is a stronger answer than a gate, and one
+        # skill gives it: `wiki_inbox` says never to transcribe pages at all.
+        gated = re.search(r"(?i)explicit(?:ly)? (?:asked|requested|said)|"
+                          r"after being told the page count|has said yes|"
+                          r"do not transcribe pages", body)
+        if not (priced and gated):
+            offenders.append(
+                f"{path.parent.name}: priced={bool(priced)} gated={bool(gated)}")
+
+    assert not offenders, (
+        "these mention per-page vision transcription without both stating its "
+        "cost and requiring an explicit yes — which is exactly the wording that "
+        "let an unattended agent spend a weekly quota:\n  " + "\n  ".join(offenders))

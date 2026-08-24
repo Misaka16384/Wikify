@@ -66,6 +66,13 @@ The deterministic radar (`magi radar harvest`, usually run nightly by the schedu
 - Every read-now/relevant verdict must name at least one existing concept card or open bd question it connects to; if you cannot name one, downgrade to skip. Exception: on an empty wiki (no concept cards yet), judge against the scope statement in `config.md` instead — do not skip-all.
 - Do not create duplicate bd issues: check `bd list --json` for an existing "Read arXiv:<id>" title first.
 
+## Rules
+
+- **Never fan out without a number.** Say how many sub-agents you are about to start and what each one covers, before the first one starts. Never more than 10 at once. An unstated fan-out is how one 99-page paper spent a user's entire weekly quota.
+- **Never let a sub-agent ask the user.** It cannot — the question reaches nobody and the agent hangs or guesses. A sub-agent returns `NEEDS-DECISION: <question>`; you collect them and raise them together, once.
+- **Never decide a candidate on the user's behalf.** The radar proposes; a person accepts. An accepted card becomes a queued ingest, and a queued ingest is work somebody has to review.
+- **Never report a partial result as a whole one.** If three of eight sub-agents came back empty or failed, say which and why. A summary that reads as success while part of the work is missing is worse than no summary — it spends the reader's trust instead of their time.
+
 ## Error Handling
 
 - If `magi radar status` reports no workspace, stop and tell the user to run from a topic directory.

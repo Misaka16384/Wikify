@@ -72,6 +72,13 @@ When the user asks to sync, reduce, deduplicate, or normalize tags and aliases:
 ### 4. Semantic Linker Integration (Optional but Recommended)
 *   After applying the new tags, ask the user if they want to re-run the `wiki_semantic_link` skill, as the newly normalized tags and aliases will now provide a massive accuracy boost to the semantic similarity engine.
 
+## Rules
+
+- **Never fan out without a number.** Say how many sub-agents you are about to start and what each one covers, before the first one starts. Never more than 10 at once. An unstated fan-out is how one 99-page paper spent a user's entire weekly quota.
+- **Never let a sub-agent ask the user.** It cannot — the question reaches nobody and the agent hangs or guesses. A sub-agent returns `NEEDS-DECISION: <question>`; you collect them and raise them together, once.
+- **Never apply tags you have not shown first.** `magi tags extract` proposes and `magi tags apply` writes. The step between them is a person looking at the list.
+- **Never report a partial result as a whole one.** If three of eight sub-agents came back empty or failed, say which and why. A summary that reads as success while part of the work is missing is worse than no summary — it spends the reader's trust instead of their time.
+
 ## Task Tracking (Beads)
 
 Beads (`bd`) is the workspace's work-state store; `log.md` stays a one-line human narrative.

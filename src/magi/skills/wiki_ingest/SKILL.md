@@ -100,3 +100,10 @@ When the user asks to ingest documents (or runs the command without a path):
     ```bash
     magi ingest finalize "none" --topic-dir "<TOPIC_DIR>" --lint-only
     ```
+
+## Rules
+
+- **Never fan out without a number.** Say how many sub-agents you are about to start and what each one covers, before the first one starts. Never more than 10 at once. An unstated fan-out is how one 99-page paper spent a user's entire weekly quota.
+- **Never let a sub-agent ask the user.** It cannot — the question reaches nobody and the agent hangs or guesses. A sub-agent returns `NEEDS-DECISION: <question>`; you collect them and raise them together, once.
+- **Never transcribe pages with your own vision as a fallback.** It costs roughly one sub-agent call per page and has burned a user's entire weekly quota. It is available only after the user has been told the page count and has said yes. If `magi ingest auto` reports no route, that is a finding to report, not a licence to spend.
+- **Never report a partial result as a whole one.** If three of eight sub-agents came back empty or failed, say which and why. A summary that reads as success while part of the work is missing is worse than no summary — it spends the reader's trust instead of their time.

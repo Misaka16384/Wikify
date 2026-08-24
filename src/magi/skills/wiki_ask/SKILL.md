@@ -88,6 +88,13 @@ Once you have gathered sufficient context using the strategies above:
 2.  Ensure every major claim is immediately followed by its source: "As demonstrated in [[2023-06-12-graph_gauge_theory]], the mechanism..."
 3.  If you cannot find the answer using these tools, explicitly state: "I could not find information regarding this in the current knowledge base." Do not attempt to fill in the blanks with external knowledge.
 
+## Rules
+
+- **Never fan out without a number.** Say how many sub-agents you are about to start and what each one covers, before the first one starts. Never more than 10 at once. An unstated fan-out is how one 99-page paper spent a user's entire weekly quota.
+- **Never let a sub-agent ask the user.** It cannot — the question reaches nobody and the agent hangs or guesses. A sub-agent returns `NEEDS-DECISION: <question>`; you collect them and raise them together, once.
+- **Never answer from memory.** Every sentence comes from `magi search`, `magi grep`, `magi graph query` or `magi wiki context` output in this session. If the library does not contain the answer, the answer is that it does not.
+- **Never report a partial result as a whole one.** If three of eight sub-agents came back empty or failed, say which and why. A summary that reads as success while part of the work is missing is worse than no summary — it spends the reader's trust instead of their time.
+
 ## Error Handling
 
 *   If any script exits with non-zero code, report the full stderr output to the user and stop.

@@ -112,6 +112,13 @@ When the user asks to research a topic:
 
 6.  **Log**: Append a log entry in `log.md` with: research query, subagent count, verified findings count, unverified findings count, output file path.
 
+## Rules
+
+- **Never fan out without a number.** Say how many sub-agents you are about to start and what each one covers, before the first one starts. Never more than 10 at once. An unstated fan-out is how one 99-page paper spent a user's entire weekly quota.
+- **Never let a sub-agent ask the user.** It cannot — the question reaches nobody and the agent hangs or guesses. A sub-agent returns `NEEDS-DECISION: <question>`; you collect them and raise them together, once.
+- **Never cite what you did not read.** Every claim in the synthesis traces to a source a sub-agent actually opened. `magi search` and `magi graph query` tell you what is in the library; neither is evidence that a paper says what you think it says.
+- **Never report a partial result as a whole one.** If three of eight sub-agents came back empty or failed, say which and why. A summary that reads as success while part of the work is missing is worse than no summary — it spends the reader's trust instead of their time.
+
 ## Task Tracking (Beads)
 
 Beads (`bd`) is the workspace's work-state store; `log.md` stays a one-line human narrative.
