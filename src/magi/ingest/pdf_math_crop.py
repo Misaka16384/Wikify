@@ -21,74 +21,82 @@ def extract_crop(pdf_path, search_text, output_path, expand_margin=150, page_num
     except Exception as e:
         print(f"Error opening PDF: {e}")
         return False
-    
-    target_rect = None
-    target_page = None
-    
-    if page_num is not None:
-        try:
-            target_page = doc[int(page_num)]
-        except Exception as e:
-            print(f"Error accessing page {page_num}: {e}")
-            return False
-            
-        if search_text:
-            text_instances = target_page.search_for(search_text)
-            if text_instances:
-                target_rect = text_instances[0]
-            else:
-                print(f"Text '{search_text}' not found on page {page_num}.")
-                return False
-        else:
-            # No search text: render the whole page. This is the fallback for
-            # scanned/OCR PDFs that have no selectable text layer to search.
-            target_rect = target_page.rect
-    else:
-        if not search_text:
-            print("Error: provide --text to search for, or --page to render a full page "
-                  "(scanned PDFs often have no text layer to search).")
-            return False
-        # Search all pages
-        for i in range(len(doc)):
-            page = doc[i]
-            text_instances = page.search_for(search_text)
-            if text_instances:
-                target_page = page
-                target_rect = text_instances[0]
-                print(f"Found '{search_text}' on page {i} (1-indexed: {i+1})")
-                break
-                
-    if not target_page or not target_rect:
-        print(f"Text '{search_text}' not found in the document.")
-        return False
-        
-    # Expand the bounding box
-    rect = target_rect
-    
-    # Allow expanding the bounding box to capture surrounding math/diagram
-    rect.x0 = max(0, rect.x0 - expand_margin)
-    rect.y0 = max(0, rect.y0 - expand_margin)
-    rect.x1 = min(target_page.rect.width, rect.x1 + expand_margin)
-    rect.y1 = min(target_page.rect.height, rect.y1 + expand_margin)
-    
-    # Render to image
-    # Increase resolution with a matrix
-    zoom = 3.0  # ~216 DPI (default is 72, 3x = 216)
-    mat = fitz.Matrix(zoom, zoom)
-    
+
+    # Seven exits out of this function and not one of them closed the
+    # document. On Windows an open PyMuPDF document holds the file until a
+    # garbage collection notices, so the next thing to overwrite or move
+    # that PDF fails — including the crop tool being run twice.
     try:
-        # Ensure the output directory exists (e.g. <TOPIC_DIR>/scratch/), since
-        # pix.save() will not create missing parent directories.
-        out_dir = os.path.dirname(output_path)
-        if out_dir:
-            os.makedirs(out_dir, exist_ok=True)
-        pix = target_page.get_pixmap(matrix=mat, clip=rect)
-        pix.save(output_path)
-        print(f"Successfully saved crop to {output_path}")
-        return True
-    except Exception as e:
-        print(f"Error rendering crop: {e}")
-        return False
+    
+        target_rect = None
+        target_page = None
+    
+        if page_num is not None:
+            try:
+                target_page = doc[int(page_num)]
+            except Exception as e:
+                print(f"Error accessing page {page_num}: {e}")
+                return False
+            
+            if search_text:
+                text_instances = target_page.search_for(search_text)
+                if text_instances:
+                    target_rect = text_instances[0]
+                else:
+                    print(f"Text '{search_text}' not found on page {page_num}.")
+                    return False
+            else:
+                # No search text: render the whole page. This is the fallback for
+                # scanned/OCR PDFs that have no selectable text layer to search.
+                target_rect = target_page.rect
+        else:
+            if not search_text:
+                print("Error: provide --text to search for, or --page to render a full page "
+                      "(scanned PDFs often have no text layer to search).")
+                return False
+            # Search all pages
+            for i in range(len(doc)):
+                page = doc[i]
+                text_instances = page.search_for(search_text)
+                if text_instances:
+                    target_page = page
+                    target_rect = text_instances[0]
+                    print(f"Found '{search_text}' on page {i} (1-indexed: {i+1})")
+                    break
+                
+        if not target_page or not target_rect:
+            print(f"Text '{search_text}' not found in the document.")
+            return False
+        
+        # Expand the bounding box
+        rect = target_rect
+    
+        # Allow expanding the bounding box to capture surrounding math/diagram
+        rect.x0 = max(0, rect.x0 - expand_margin)
+        rect.y0 = max(0, rect.y0 - expand_margin)
+        rect.x1 = min(target_page.rect.width, rect.x1 + expand_margin)
+        rect.y1 = min(target_page.rect.height, rect.y1 + expand_margin)
+    
+        # Render to image
+        # Increase resolution with a matrix
+        zoom = 3.0  # ~216 DPI (default is 72, 3x = 216)
+        mat = fitz.Matrix(zoom, zoom)
+    
+        try:
+            # Ensure the output directory exists (e.g. <TOPIC_DIR>/scratch/), since
+            # pix.save() will not create missing parent directories.
+            out_dir = os.path.dirname(output_path)
+            if out_dir:
+                os.makedirs(out_dir, exist_ok=True)
+            pix = target_page.get_pixmap(matrix=mat, clip=rect)
+            pix.save(output_path)
+            print(f"Successfully saved crop to {output_path}")
+            return True
+        except Exception as e:
+            print(f"Error rendering crop: {e}")
+            return False
+    finally:
+        doc.close()
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi ingest crop", description="Crop a region of a PDF containing specific text. Useful for multimodal LLM agents to view complex math/diagrams.")

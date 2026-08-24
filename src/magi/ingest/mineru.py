@@ -78,7 +78,17 @@ def convert(input_path, output_dir) -> ConversionResult:
     }
 
     print("Requesting MinerU upload URL...")
-    res = requests.post(url, headers=headers, json=data, timeout=(10, 60))
+    # Every exit from this function returns a ConversionResult — that was the
+    # whole point of removing the twelve sys.exit calls. A bare RequestException
+    # from DNS, a dropped connection or a proxy timeout walked straight past
+    # that contract and out of the process, so `batch-run` lost the rest of its
+    # queue to one unreachable host.
+    try:
+        res = requests.post(url, headers=headers, json=data, timeout=(10, 60))
+    except requests.RequestException as exc:
+        detail = f"could not reach MinerU to request an upload URL: {exc}"
+        print(f"Error: {detail}", file=sys.stderr)
+        return ConversionResult.failed(detail)
     try:
         body = res.json()
     except ValueError:
@@ -97,11 +107,20 @@ def convert(input_path, output_dir) -> ConversionResult:
     upload_url = file_urls[0]
 
     print(f"Uploading {base_name}...")
-    with open(input_path, "rb") as f:
-        res_upload = requests.put(upload_url, data=f, timeout=(10, 300))
-        if res_upload.status_code != 200:
-            print("Upload failed:", res_upload.status_code)
-            return ConversionResult.failed(f"upload failed with status {res_upload.status_code}")
+    try:
+        with open(input_path, "rb") as f:
+            res_upload = requests.put(upload_url, data=f, timeout=(10, 300))
+    except requests.RequestException as exc:
+        detail = f"upload failed: {exc}"
+        print(f"Error: {detail}", file=sys.stderr)
+        return ConversionResult.failed(detail)
+    except OSError as exc:
+        detail = f"could not read {input_path} to upload it: {exc}"
+        print(f"Error: {detail}", file=sys.stderr)
+        return ConversionResult.failed(detail)
+    if res_upload.status_code != 200:
+        print("Upload failed:", res_upload.status_code)
+        return ConversionResult.failed(f"upload failed with status {res_upload.status_code}")
 
     print("Upload complete. Waiting for extraction task to process (this may take a few minutes)...")
     
@@ -120,7 +139,15 @@ def convert(input_path, output_dir) -> ConversionResult:
             print("Error: MinerU extraction timed out after 30 minutes.", file=sys.stderr)
             return ConversionResult.failed("MinerU extraction timed out after 30 minutes.")
         time.sleep(10)
-        res_poll = requests.get(poll_url, headers=poll_headers, timeout=(10, 60))
+        # A failed poll is not a failed job. The conversion is running on
+        # MinerU's side and is already being paid for, so a transient network
+        # error here must behave like the non-200 below — keep waiting until
+        # the deadline — rather than abandoning work that is still in flight.
+        try:
+            res_poll = requests.get(poll_url, headers=poll_headers, timeout=(10, 60))
+        except requests.RequestException as exc:
+            print(f"Poll error ({type(exc).__name__}: {exc}); still waiting")
+            continue
         if res_poll.status_code != 200:
             print("Poll error:", res_poll.status_code)
             continue

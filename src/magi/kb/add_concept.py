@@ -227,12 +227,12 @@ summary: 'Dynamically mined concept tracking {args.name}.'
             except Exception as e:
                 print(f"Warning: Failed to update graph database or indexes: {e}")
 
-    # Clean up lock file if possible
-    try:
-        if os.path.exists(lock_file):
-            os.remove(lock_file)
-    except Exception as e:
-        print(f"Warning: lock cleanup failed: {e}", file=sys.stderr)
+    # The lock file stays. Deleting it after releasing the lock is not tidying
+    # up, it is a race: process B can be holding the old inode while A unlinks
+    # the path and C creates and locks a new one, putting B and C in the
+    # critical section together. On Windows the same code just raises
+    # WinError 32 when anyone else has it open. A FileLock's marker is meant to
+    # persist; an empty file is the whole cost.
 
 if __name__ == "__main__":
     sys.exit(main())

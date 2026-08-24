@@ -450,31 +450,43 @@ def convert(input_path, output_dir) -> ConversionResult:
     if _is_tar_archive(input_path):
         temp_dir_obj = tempfile.TemporaryDirectory()
         extract_dir = temp_dir_obj.name
-        print(f"Extracting {base_name} to {extract_dir}...")
-        # "r:*" not "r:gz": arXiv serves .tgz and the occasional uncompressed
-        # .tar, and guessing the compression by suffix is how this broke before.
-        with tarfile.open(input_path, "r:*") as tar:
-            # Safe extraction: prevent path traversal (CVE-2007-4559)
-            norm_extract = os.path.realpath(extract_dir)
-            for member in tar.getmembers():
-                member_path = os.path.realpath(os.path.join(extract_dir, member.name))
-                if member_path != norm_extract and not member_path.startswith(norm_extract + os.sep):
-                    raise ValueError(f"Attempted path traversal in tar: {member.name}")
-                if member.issym() or member.islnk() or member.isdev() or member.ischr() or member.isblk() or member.isfifo():
-                    raise ValueError(f"Refusing unsafe tar member: {member.name}")
-            try:
-                tar.extractall(path=extract_dir, filter='data')
-            except TypeError:
-                # Python < 3.12 fallback
-                safe_members = [m for m in tar.getmembers() if m.isreg() or m.isdir()]
-                tar.extractall(path=extract_dir, members=safe_members)
-        tex_path = find_main_tex(extract_dir, slug=slug)
-        if not tex_path:
-            print("Error: Could not find main .tex file in the archive.")
+        # The temporary directory exists from the line above, and unpacking
+        # can throw: a truncated tarball, a member that tries to escape the
+        # extraction root, an unreadable file. Those used to leave this
+        # function without touching the cleanup below — which starts a good
+        # 150 lines further down — and without producing a ConversionResult,
+        # so the caller learnt what happened from a traceback rather than
+        # from the contract every other exit here honours.
+        try:
+            print(f"Extracting {base_name} to {extract_dir}...")
+            # "r:*" not "r:gz": arXiv serves .tgz and the occasional uncompressed
+            # .tar, and guessing the compression by suffix is how this broke before.
+            with tarfile.open(input_path, "r:*") as tar:
+                # Safe extraction: prevent path traversal (CVE-2007-4559)
+                norm_extract = os.path.realpath(extract_dir)
+                for member in tar.getmembers():
+                    member_path = os.path.realpath(os.path.join(extract_dir, member.name))
+                    if member_path != norm_extract and not member_path.startswith(norm_extract + os.sep):
+                        raise ValueError(f"Attempted path traversal in tar: {member.name}")
+                    if member.issym() or member.islnk() or member.isdev() or member.ischr() or member.isblk() or member.isfifo():
+                        raise ValueError(f"Refusing unsafe tar member: {member.name}")
+                try:
+                    tar.extractall(path=extract_dir, filter='data')
+                except TypeError:
+                    # Python < 3.12 fallback
+                    safe_members = [m for m in tar.getmembers() if m.isreg() or m.isdir()]
+                    tar.extractall(path=extract_dir, members=safe_members)
+            tex_path = find_main_tex(extract_dir, slug=slug)
+            if not tex_path:
+                print("Error: Could not find main .tex file in the archive.")
+                temp_dir_obj.cleanup()
+                return ConversionResult.failed(
+                    "Could not find main .tex file in the archive.")
+            tex_dir = os.path.dirname(tex_path)
+        except Exception as exc:  # noqa: BLE001 — reported, not swallowed
             temp_dir_obj.cleanup()
-            return ConversionResult.failed(
-                "Could not find main .tex file in the archive.")
-        tex_dir = os.path.dirname(tex_path)
+            print(f"Error: could not unpack {base_name}: {exc}")
+            return ConversionResult.failed(f"could not unpack {base_name}: {exc}")
     else:
         tex_path = input_path
         tex_dir = os.path.dirname(os.path.abspath(tex_path))
@@ -620,8 +632,27 @@ def convert(input_path, output_dir) -> ConversionResult:
 
     print(f"Running Pandoc: {' '.join(cmd)}")
     
-    # Run from the tex directory to resolve image paths correctly
-    result = subprocess.run(cmd, capture_output=True, text=True, cwd=tex_dir)
+    # Run from the tex directory to resolve image paths correctly.
+    #
+    # Pandoc is an external binary and a stated prerequisite, but "stated" is
+    # not "present": on a machine without it this raised a bare
+    # FileNotFoundError naming the executable, which reads like a missing input
+    # document rather than a missing tool.
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=tex_dir)
+    except FileNotFoundError:
+        detail = (f"pandoc was not found (tried {cmd[0]!r}). It is required for the "
+                  "LaTeX route; install it or set pandoc.path in config.yaml.")
+        print(f"Error: {detail}", file=sys.stderr)
+        if temp_dir_obj:
+            temp_dir_obj.cleanup()
+        return ConversionResult.failed(detail)
+    except OSError as exc:
+        detail = f"could not run pandoc: {exc}"
+        print(f"Error: {detail}", file=sys.stderr)
+        if temp_dir_obj:
+            temp_dir_obj.cleanup()
+        return ConversionResult.failed(detail)
 
     try:
         if result.returncode != 0:

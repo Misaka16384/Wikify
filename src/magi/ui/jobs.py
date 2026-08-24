@@ -234,14 +234,26 @@ class Job:
             }
 
     def _fan_out(self, payload: dict, loop: asyncio.AbstractEventLoop | None) -> None:
+        """Push one line to every open log stream.
+
+        Jobs run on worker threads, and ``asyncio.Queue`` is documented as not
+        thread-safe. With a live loop the write is handed to it with
+        ``call_soon_threadsafe``, which is the whole point of that call. There
+        used to be an ``else`` that wrote to the queue from this thread when
+        the loop was missing or closed — a fallback whose *best* case is
+        touching asyncio internals from the wrong thread, and whose realistic
+        case is delivering to a queue that no coroutine will ever read again,
+        because the loop that would read it is gone.
+
+        Dropping the notification is what a closed loop means.
+        """
         with self._lock:
             active_listeners = list(self.listeners)
+        if not (loop and not loop.is_closed()):
+            return
         for q in active_listeners:
             try:
-                if loop and not loop.is_closed():
-                    loop.call_soon_threadsafe(_offer, q, payload)
-                else:
-                    _offer(q, payload)
+                loop.call_soon_threadsafe(_offer, q, payload)
             except Exception:
                 pass
 
@@ -402,6 +414,30 @@ class TaskManager:
         return job
 
     def _run_job(self, job: Job) -> None:
+        # Declared before the try, because the finally below closes it and a
+        # Popen that raised never bound the name.
+        proc = None
+        try:
+            self._run_job_inner(job)
+        finally:
+            proc = job.process
+            # The pipe is not closed by iterating it to EOF, and a job that
+            # was cancelled before its output was drained never got there at
+            # all. Either way the descriptor outlives the thread until a
+            # garbage collection notices.
+            if proc is not None and proc.stdout is not None:
+                try:
+                    proc.stdout.close()
+                except Exception:
+                    pass
+            # Early exits used to sit in front of this: a job cancelled while
+            # still pending returned before the lifecycle ran, so it was never
+            # archived and never appeared in the history. One exit path, one
+            # place that ends a job.
+            job.notify_status_change(self._loop)
+            self._persist_job(job)
+
+    def _run_job_inner(self, job: Job) -> None:
         with job._lock:
             if job.status == "cancelled":
                 return
@@ -441,7 +477,12 @@ class TaskManager:
             with job._lock:
                 job.process = proc
                 if job.status == "cancelled":
-                    proc.terminate()
+                    # The whole tree, not just the launcher. This one site
+                    # still called `proc.terminate()` while `cancel_job` had
+                    # already been fixed to use the tree — so a job cancelled
+                    # in the window between spawning and registering left
+                    # pandoc, MinerU or Ollama running with nothing watching.
+                    _terminate_tree(proc)
 
             if proc.stdout:
                 for line in proc.stdout:
@@ -464,9 +505,6 @@ class TaskManager:
                 job.exit_code = -1
                 job.finished_at = dt.datetime.now(dt.timezone.utc).isoformat()
             job.append_log(f"=== Job failed with error: {exc} ===", self._loop)
-        finally:
-            job.notify_status_change(self._loop)
-            self._persist_job(job)
 
     def get_job(self, job_id: str) -> Job | None:
         with self._lock:

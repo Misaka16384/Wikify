@@ -200,7 +200,21 @@ class open_readonly:
         self._conn: sqlite3.Connection | None = None
 
     def __enter__(self) -> sqlite3.Connection:
+        # Python does not call __exit__ when __enter__ itself raises, and this
+        # one has three ways to raise after the temporary directory exists: a
+        # permission error on copy2, a Zotero directory with no database, and
+        # a connect that fails. The finalizer usually catches the leak; "usually"
+        # is not a resource policy, and the failing paths are exactly the ones
+        # a user hits repeatedly while pointing this at the wrong folder.
         self._tmp = tempfile.TemporaryDirectory(prefix="magi-zotero-")
+        try:
+            return self._open()
+        except Exception:
+            self._tmp.cleanup()
+            self._tmp = None
+            raise
+
+    def _open(self) -> sqlite3.Connection:
         target = Path(self._tmp.name) / "zotero.sqlite"
         for suffix in _COPY_SUFFIXES:
             src = self.data_dir / f"zotero.sqlite{suffix}"

@@ -3,12 +3,17 @@ import sys
 import argparse
 import shutil
 import threading
-import queue
 from pathlib import Path
 
-# Thread-safe lock for stats/logging and stats queue
+# Thread-safe lock for stats/logging.
+#
+# There was a `_stats_queue = queue.Queue()` here that every call to
+# `chunk_markdown` pushed a dict onto and that nothing in the repository ever
+# read — no consumer, no drain, no reporting. In a short CLI run it cost
+# nothing; called in a loop or from a resident process it grew without bound.
+# Removed rather than capped: data with no consumer does not need a smaller
+# bucket, and the counts it held are already printed below.
 _stats_lock = threading.Lock()
-_stats_queue = queue.Queue()
 
 def chunk_markdown(filepath, topic_dir, max_lines=500):
     if not os.path.exists(filepath):
@@ -59,14 +64,6 @@ def chunk_markdown(filepath, topic_dir, max_lines=500):
         chunk_file = os.path.join(scratch_dir, f"chunk_{file_slug}_{pid}_{i:02d}.md")
         with open(chunk_file, 'w', encoding='utf-8') as f:
             f.write(chunk_data)
-            
-    # Push chunk generation statistics to the thread-safe queue
-    _stats_queue.put({
-        "filepath": filepath,
-        "file_slug": file_slug,
-        "pid": pid,
-        "chunks_count": len(chunks)
-    })
             
     with _stats_lock:
         print(f"Generated {len(chunks)} chunks in {scratch_dir} for {file_slug} (PID: {pid})")

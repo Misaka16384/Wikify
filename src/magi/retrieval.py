@@ -629,142 +629,150 @@ def cmd_index(args: argparse.Namespace) -> int:
     assert opened is not None
     conn, vec_loaded = opened
 
-    embedder = Embedder(start=root)
-    dims: int | None = None
-    if not args.no_vectors:
-        probe = embedder.embed("magi index probe")
-        dims = len(probe) if probe else None
-    ensure_schema(conn, dims, vec_loaded)
-    vec_on = dims is not None and _has_vec_table(conn, vec_loaded)
+    # The index is written under an open connection for the length of the
+    # whole run and there was no close on any path out. It matters most on
+    # Windows, where `--rebuild` unlinks this same file: a connection left
+    # open by an earlier in-process call makes that unlink fail.
+    try:
 
-    seen: set[str] = set()
-    changed = unchanged = embedded = 0
+        embedder = Embedder(start=root)
+        dims: int | None = None
+        if not args.no_vectors:
+            probe = embedder.embed("magi index probe")
+            dims = len(probe) if probe else None
+        ensure_schema(conn, dims, vec_loaded)
+        vec_on = dims is not None and _has_vec_table(conn, vec_loaded)
 
-    # Embedding is the long pole — minutes, sometimes tens of minutes. Saying
-    # nothing for that whole stretch is indistinguishable from being hung, and
-    # that is exactly how it was reported. Throttled so a terminal and a job
-    # log both stay readable.
-    progress = _Progress(quiet=getattr(args, "quiet", False))
+        seen: set[str] = set()
+        changed = unchanged = embedded = 0
 
-    # (chunk rowid, body) waiting for a vector. Flushed at every file boundary:
-    # SQLite can hand a deleted rowid to the next insert, so a pending vector
-    # must never outlive the DELETE of another file's chunks.
-    pending: list[tuple[int, str]] = []
+        # Embedding is the long pole — minutes, sometimes tens of minutes. Saying
+        # nothing for that whole stretch is indistinguishable from being hung, and
+        # that is exactly how it was reported. Throttled so a terminal and a job
+        # log both stay readable.
+        progress = _Progress(quiet=getattr(args, "quiet", False))
 
-    def flush_vectors(final: bool = False) -> None:
-        nonlocal embedded, vec_on
-        if not pending:
-            return
-        vecs = embedder.embed_many([body for _, body in pending])
-        if vecs is None:
-            vec_on = False          # BM25-only from here; next run backfills
-            pending.clear()
-            return
-        conn.executemany(
-            "INSERT INTO chunks_vec(rowid, embedding) VALUES(?,?)",
-            [(cid, _serialize(vec)) for (cid, _), vec in zip(pending, vecs)],
-        )
-        embedded += len(vecs)
-        pending.clear()
-        progress.tick(f"embedding: {embedded} chunks vectorized", force=final)
+        # (chunk rowid, body) waiting for a vector. Flushed at every file boundary:
+        # SQLite can hand a deleted rowid to the next insert, so a pending vector
+        # must never outlive the DELETE of another file's chunks.
+        pending: list[tuple[int, str]] = []
 
-    for p in _iter_corpus(root):
-        rel = p.relative_to(root).as_posix()
-        seen.add(rel)
-        try:
-            text = p.read_text(encoding="utf-8", errors="replace")
-        except OSError as exc:
-            print(f"warning: cannot read {rel}: {exc}", file=sys.stderr)
-            continue
-        digest = hashlib.sha1(text.encode("utf-8")).hexdigest()
-        row = conn.execute("SELECT hash FROM files WHERE path=?", (rel,)).fetchone()
-        if row and row[0] == digest:
-            unchanged += 1
-            continue
-        changed += 1
-        old_ids = [r[0] for r in conn.execute("SELECT id FROM chunks WHERE path=?", (rel,))]
-        if old_ids and _has_vec_table(conn, vec_loaded):
-            conn.executemany("DELETE FROM chunks_vec WHERE rowid=?", [(i,) for i in old_ids])
-        conn.execute("DELETE FROM chunks WHERE path=?", (rel,))
-        collection = _collection_of(Path(rel))
-        for heading, s, e, body in _chunk(text):
-            # Card-template boilerplate sections (See Also / Sources lists)
-            # otherwise crowd real content out of the BM25 top ranks.
-            if collection != "raw" and heading.strip().rstrip(":").lower() in _BOILERPLATE_HEADINGS:
-                continue
-            cur = conn.execute(
-                "INSERT INTO chunks(path, collection, heading, start_line, end_line, content, content_fts) "
-                "VALUES(?,?,?,?,?,?,?)",
-                (rel, collection, heading, s, e, body, fts_text(body)),
-            )
-            if vec_on:
-                pending.append((cur.lastrowid, body))
-                if len(pending) >= embedder.batch:
-                    flush_vectors()
-        flush_vectors()
-        conn.execute(
-            "INSERT OR REPLACE INTO files(path, hash, mtime) VALUES(?,?,?)",
-            (rel, digest, p.stat().st_mtime),
-        )
-        conn.commit()
-
-    # prune deleted files
-    gone = [r[0] for r in conn.execute("SELECT path FROM files").fetchall() if r[0] not in seen]
-    for rel in gone:
-        old_ids = [r[0] for r in conn.execute("SELECT id FROM chunks WHERE path=?", (rel,))]
-        if old_ids and _has_vec_table(conn, vec_loaded):
-            conn.executemany("DELETE FROM chunks_vec WHERE rowid=?", [(i,) for i in old_ids])
-        conn.execute("DELETE FROM chunks WHERE path=?", (rel,))
-        conn.execute("DELETE FROM files WHERE path=?", (rel,))
-    conn.commit()
-
-    # Backfill vectors for chunks missed in earlier BM25-only runs. On a
-    # library first indexed without Ollama this is the entire corpus, so it is
-    # the longest phase of the command by far — batched, reported, and
-    # committed as it goes, because an interrupted run that threw away twenty
-    # minutes of embedding was worse than one that stops half-done.
-    if dims is not None and _has_vec_table(conn, vec_loaded) and not args.no_vectors and embedder.available:
-        missing = conn.execute(
-            "SELECT id, content FROM chunks WHERE id NOT IN (SELECT rowid FROM chunks_vec)"
-        ).fetchall()
-        if missing:
-            progress.start(f"backfilling vectors for {len(missing)} chunks")
-        done = 0
-        for start in range(0, len(missing), embedder.batch):
-            batch = missing[start:start + embedder.batch]
-            vecs = embedder.embed_many([body for _, body in batch])
+        def flush_vectors(final: bool = False) -> None:
+            nonlocal embedded, vec_on
+            if not pending:
+                return
+            vecs = embedder.embed_many([body for _, body in pending])
             if vecs is None:
-                break
+                vec_on = False          # BM25-only from here; next run backfills
+                pending.clear()
+                return
             conn.executemany(
                 "INSERT INTO chunks_vec(rowid, embedding) VALUES(?,?)",
-                [(cid, _serialize(vec)) for (cid, _), vec in zip(batch, vecs)],
+                [(cid, _serialize(vec)) for (cid, _), vec in zip(pending, vecs)],
             )
-            conn.commit()       # survive a Ctrl-C with the work done so far
             embedded += len(vecs)
-            done += len(vecs)
-            progress.tick(f"backfill: {done}/{len(missing)} chunks",
-                          force=done == len(missing))
+            pending.clear()
+            progress.tick(f"embedding: {embedded} chunks vectorized", force=final)
+
+        for p in _iter_corpus(root):
+            rel = p.relative_to(root).as_posix()
+            seen.add(rel)
+            try:
+                text = p.read_text(encoding="utf-8", errors="replace")
+            except OSError as exc:
+                print(f"warning: cannot read {rel}: {exc}", file=sys.stderr)
+                continue
+            digest = hashlib.sha1(text.encode("utf-8")).hexdigest()
+            row = conn.execute("SELECT hash FROM files WHERE path=?", (rel,)).fetchone()
+            if row and row[0] == digest:
+                unchanged += 1
+                continue
+            changed += 1
+            old_ids = [r[0] for r in conn.execute("SELECT id FROM chunks WHERE path=?", (rel,))]
+            if old_ids and _has_vec_table(conn, vec_loaded):
+                conn.executemany("DELETE FROM chunks_vec WHERE rowid=?", [(i,) for i in old_ids])
+            conn.execute("DELETE FROM chunks WHERE path=?", (rel,))
+            collection = _collection_of(Path(rel))
+            for heading, s, e, body in _chunk(text):
+                # Card-template boilerplate sections (See Also / Sources lists)
+                # otherwise crowd real content out of the BM25 top ranks.
+                if collection != "raw" and heading.strip().rstrip(":").lower() in _BOILERPLATE_HEADINGS:
+                    continue
+                cur = conn.execute(
+                    "INSERT INTO chunks(path, collection, heading, start_line, end_line, content, content_fts) "
+                    "VALUES(?,?,?,?,?,?,?)",
+                    (rel, collection, heading, s, e, body, fts_text(body)),
+                )
+                if vec_on:
+                    pending.append((cur.lastrowid, body))
+                    if len(pending) >= embedder.batch:
+                        flush_vectors()
+            flush_vectors()
+            conn.execute(
+                "INSERT OR REPLACE INTO files(path, hash, mtime) VALUES(?,?,?)",
+                (rel, digest, p.stat().st_mtime),
+            )
+            conn.commit()
+
+        # prune deleted files
+        gone = [r[0] for r in conn.execute("SELECT path FROM files").fetchall() if r[0] not in seen]
+        for rel in gone:
+            old_ids = [r[0] for r in conn.execute("SELECT id FROM chunks WHERE path=?", (rel,))]
+            if old_ids and _has_vec_table(conn, vec_loaded):
+                conn.executemany("DELETE FROM chunks_vec WHERE rowid=?", [(i,) for i in old_ids])
+            conn.execute("DELETE FROM chunks WHERE path=?", (rel,))
+            conn.execute("DELETE FROM files WHERE path=?", (rel,))
         conn.commit()
 
-    total = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
-    vec_total = (
-        conn.execute("SELECT COUNT(*) FROM chunks_vec").fetchone()[0]
-        if _has_vec_table(conn, vec_loaded) else 0
-    )
-    print(f"index: {total} chunks ({changed} files updated, {unchanged} unchanged, "
-          f"{len(gone)} pruned) · vectors {vec_total}/{total}"
-          + ("" if dims else (" · BM25-only (--no-vectors)" if args.no_vectors
-                             else " · BM25-only (Ollama unavailable)")))
+        # Backfill vectors for chunks missed in earlier BM25-only runs. On a
+        # library first indexed without Ollama this is the entire corpus, so it is
+        # the longest phase of the command by far — batched, reported, and
+        # committed as it goes, because an interrupted run that threw away twenty
+        # minutes of embedding was worse than one that stops half-done.
+        if dims is not None and _has_vec_table(conn, vec_loaded) and not args.no_vectors and embedder.available:
+            missing = conn.execute(
+                "SELECT id, content FROM chunks WHERE id NOT IN (SELECT rowid FROM chunks_vec)"
+            ).fetchall()
+            if missing:
+                progress.start(f"backfilling vectors for {len(missing)} chunks")
+            done = 0
+            for start in range(0, len(missing), embedder.batch):
+                batch = missing[start:start + embedder.batch]
+                vecs = embedder.embed_many([body for _, body in batch])
+                if vecs is None:
+                    break
+                conn.executemany(
+                    "INSERT INTO chunks_vec(rowid, embedding) VALUES(?,?)",
+                    [(cid, _serialize(vec)) for (cid, _), vec in zip(batch, vecs)],
+                )
+                conn.commit()       # survive a Ctrl-C with the work done so far
+                embedded += len(vecs)
+                done += len(vecs)
+                progress.tick(f"backfill: {done}/{len(missing)} chunks",
+                              force=done == len(missing))
+            conn.commit()
 
-    # Register this workspace in the global KB registry so other
-    # workspaces can federate over it (magi kb list / disable to manage).
-    try:
-        from magi.kb_registry import register_kb
+        total = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+        vec_total = (
+            conn.execute("SELECT COUNT(*) FROM chunks_vec").fetchone()[0]
+            if _has_vec_table(conn, vec_loaded) else 0
+        )
+        print(f"index: {total} chunks ({changed} files updated, {unchanged} unchanged, "
+              f"{len(gone)} pruned) · vectors {vec_total}/{total}"
+              + ("" if dims else (" · BM25-only (--no-vectors)" if args.no_vectors
+                                 else " · BM25-only (Ollama unavailable)")))
 
-        register_kb(root, quiet=True)
-    except Exception:
-        pass
-    return 0
+        # Register this workspace in the global KB registry so other
+        # workspaces can federate over it (magi kb list / disable to manage).
+        try:
+            from magi.kb_registry import register_kb
+
+            register_kb(root, quiet=True)
+        except Exception:
+            pass
+        return 0
+    finally:
+        conn.close()
 
 
 # --------------------------------------------------------------------------

@@ -122,13 +122,21 @@ def melchior_status(topic: Path, scan: _WikiScan | None = None) -> dict:
     if graph_db.is_file():
         import sqlite3
 
+        # `closing`, not a bare close at the end of the try: the close used to
+        # be the last statement inside it, so a query that raised — "database
+        # is locked" is the realistic one, since `magi index` holds a write
+        # lock and this is polled by a dashboard — jumped straight to the
+        # except and left the handle open. (`with sqlite3.connect(...)` would
+        # not help: that context manager commits or rolls back a transaction
+        # and never closes the connection.)
+        from contextlib import closing
+
         try:
-            conn = sqlite3.connect(graph_db)
-            row = conn.execute(
-                "SELECT COUNT(*), SUM(CASE WHEN status IN ('verified','web-verified') "
-                "THEN 1 ELSE 0 END) FROM claims").fetchone()
-            claims_total, claims_verified = row[0] or 0, row[1] or 0
-            conn.close()
+            with closing(sqlite3.connect(graph_db)) as conn:
+                row = conn.execute(
+                    "SELECT COUNT(*), SUM(CASE WHEN status IN ('verified','web-verified') "
+                    "THEN 1 ELSE 0 END) FROM claims").fetchone()
+                claims_total, claims_verified = row[0] or 0, row[1] or 0
         except sqlite3.Error:
             pass
     claim_health = (claims_verified / claims_total) if claims_total else 1.0
@@ -150,6 +158,7 @@ def casper_status(topic: Path, scan: _WikiScan | None = None) -> dict:
     if not idx.is_file():
         return {"state": "missing", "chunks": 0, "vectors": 0, "score": 0.0}
     import sqlite3
+    from contextlib import closing
 
     newest = scan.newest if scan is not None else _newest_md_mtime(topic / "wiki")
     freshness = 1.0 if idx.stat().st_mtime >= newest else 0.3
@@ -159,15 +168,14 @@ def casper_status(topic: Path, scan: _WikiScan | None = None) -> dict:
         # for the length of its run, and the dashboard polls this. Without a
         # timeout SQLite raises immediately; with a long one the UI would hang
         # instead. Two seconds is long enough to ride out a commit.
-        conn = sqlite3.connect(idx, timeout=2.0)
-        chunks = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
-        # count via vec0's shadow table — readable without the sqlite-vec
-        # extension loaded (the virtual table itself is not)
-        has_vec = conn.execute(
-            "SELECT name FROM sqlite_master WHERE name='chunks_vec_rowids'").fetchone()
-        if has_vec:
-            vectors = conn.execute("SELECT COUNT(*) FROM chunks_vec_rowids").fetchone()[0]
-        conn.close()
+        with closing(sqlite3.connect(idx, timeout=2.0)) as conn:
+            chunks = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]
+            # count via vec0's shadow table — readable without the sqlite-vec
+            # extension loaded (the virtual table itself is not)
+            has_vec = conn.execute(
+                "SELECT name FROM sqlite_master WHERE name='chunks_vec_rowids'").fetchone()
+            if has_vec:
+                vectors = conn.execute("SELECT COUNT(*) FROM chunks_vec_rowids").fetchone()[0]
     except sqlite3.Error:
         pass
     coverage = (vectors / chunks) if chunks else 0.0
