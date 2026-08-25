@@ -39,20 +39,97 @@ def test_the_scale_token_exists_and_folds_in_the_floor():
     assert "--glass-weight" in expr, "the per-theme density knob is gone"
 
 
-def test_the_light_theme_carries_a_heavier_veil():
-    """Dark text on a pale photograph has far less contrast headroom than pale
-    text on a dark one, so the light variant needs more veil at the same
-    slider position. Without it the restored hierarchy is unreadable."""
-    block = CSS[CSS.index('[data-theme="eva"][data-eva="blue"]'):]
+def _tokens(selector: str) -> dict:
+    block = CSS[CSS.index(selector):]
     block = block[:block.index("\n}")]
-    m = re.search(r"--glass-weight:\s*([0-9.]+)", block)
-    assert m, "the light MAGI variant lost its glass weight"
-    assert float(m.group(1)) > 1.0
+    return {k: float(v) for k, v in
+            re.findall(r"--glass-(weight|brightness|saturate|floor):\s*([0-9.]+)", block)}
+
+
+def test_only_the_lift_is_mirrored_between_the_variants():
+    """Three numbers separate the light MAGI variant from the dark one. Exactly
+    one of them was ever wrong, and each attempt to "make it symmetric" broke
+    something visible. The history is the point of this test.
+
+    **The lift — mirrored, and this was the whole bug.** Dark pulls luminance
+    down to 0.8; light was lifting by 1.08, which is not enough for a panel to
+    read as sitting *above* the picture rather than smeared over it. The mirror
+    of 0.8 is 1/0.8. 1.7 was tried on the way and blew the photograph out.
+
+    **The veil — not mirrored, and must not be.** Dark text over a photograph
+    has far less headroom than pale text over the same photograph darkened: in
+    a dark theme the veil and the text push the same way, in a light theme they
+    push opposite ways. Setting the weights equal was tried; below full slider
+    the panels stopped separating from the picture and the graph beneath them
+    became unreadable. Raising it instead was tried too, to 1.95, and turned
+    the glass into frosted plastic.
+
+    **Saturation — not mirrored either.** It exists to replace the chroma a
+    blur destroys, and this theme's blur is small (2px at the setting people
+    use). Dark can carry 1.8 because it crushes everything toward black
+    afterwards and the excess never shows; light lifts toward white, a white
+    veil does not hide an over-saturated backdrop, and at a low slider the veil
+    is thin — the photograph came through turquoise.
+    """
+    dark = _tokens('[data-theme="eva"] {')
+    light = _tokens('[data-theme="eva"][data-eva="blue"] {')
+
+    assert dark["brightness"] < 1.0, (
+        f"dark must pull luminance down; it is {dark['brightness']}")
+    assert 0.98 <= light["brightness"] <= 1.02, (
+        f"light brightness is {light['brightness']} and must be neutral. "
+        "brightness() is a multiply: on a pale backdrop the high channels clip "
+        "at 255 before red does, and the panel comes out cyan. 1.25 was "
+        "reported as 'obviously cyan'; the original 1.08 was the same fault in "
+        "a smaller dose. The lift belongs to the white veil.")
+
+    assert light["weight"] > dark["weight"], (
+        "the light variant needs more veil than the dark one — dark text has "
+        "less headroom over a photograph than pale text over a darkened one")
+
+    assert 1.0 < light["saturate"] <= dark["saturate"], (
+        f"light saturation is {light['saturate']} against dark's "
+        f"{dark['saturate']}: it must restore some chroma, and it must not "
+        "exceed dark's, because a white veil cannot hide the excess the way a "
+        "near-black one does")
+
+
+def test_shadow_is_a_theme_token_not_a_literal():
+    """Eight rules in MAGI cast near-black at 0.4 to 0.95 and none was mirrored
+    for the light variant. On a pale ground that is a smudge, not depth — and
+    `.card:hover` stepping 0.5 -> 0.75 is why hovering a panel visibly
+    *darkened* it, which took three passes to find because the search kept
+    going to background fills instead.
+
+    They go through --eva-shadow-rgb / --eva-shadow-strength now, so a new one
+    written as a literal is a new unmirrored device.
+    """
+    offenders = []
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", CSS):
+        sel = m.group(1).strip().splitlines()[-1].strip()
+        if '[data-theme="eva"]' not in sel or sel.endswith(('{', '"eva"]')):
+            continue
+        for d in re.finditer(
+                r"(?:box-shadow|filter|text-shadow)\s*:\s*([^;]+);", m.group(2)):
+            for a in re.findall(r"rgba\(\s*0\s*,\s*0\s*,\s*0\s*,\s*([0-9.]+)\)",
+                                d.group(1)):
+                if float(a) >= 0.4:
+                    line = CSS[:m.start(2)].count("\n") + 1
+                    offenders.append(f"styles.css:{line} {sel[:46]} a={a}")
+    assert not offenders, (
+        "near-black shadows hard-coded in MAGI, invisible in dark and a smudge "
+        "in light:\n  " + "\n  ".join(offenders))
 
 
 def test_the_densest_surface_stays_under_opaque():
     """A weight that pushes a surface past 1.0 makes it a solid block, which
-    is the flat-grey problem again from the other end."""
+    is the flat-grey problem again from the other end.
+
+    Briefly replaced by a laxer rule to allow a weight of 1.95 in the light
+    variant. That weight was the wrong answer to "the panels look like grey
+    film" — the answer was to mirror dark's parameters instead of inflating
+    the veil — so the ceiling is back and unchanged.
+    """
     weight = float(re.search(
         r'\[data-theme="eva"\]\[data-eva="blue"\][^}]*?--glass-weight:\s*([0-9.]+)',
         CSS, re.S).group(1))
@@ -62,6 +139,31 @@ def test_the_densest_surface_stays_under_opaque():
     assert max(coefficients) * weight <= 1.0, (
         f"the densest surface reaches {max(coefficients) * weight:.2f} at full "
         f"slider and renders opaque")
+
+
+def test_magi_hover_is_never_an_opaque_fill():
+    """Every surface in MAGI mode is glass, so a hover has to be a tint *in*
+    the material. An opaque colour on glass is a hole cut in it — and in the
+    light variant it is also darker than the plate it lands on, which is what
+    "hovering still darkens it" was. Five rules had no MAGI override and
+    inherited `--bg-hover` or `--bg-surface`, both opaque.
+    """
+    block = CSS[CSS.index('[data-theme="eva"]'):]
+    offenders = []
+    for rule in re.finditer(
+            r'(\[data-theme="eva"\][^{}]*:hover[^{}]*)\{([^}]*)\}', block, re.S):
+        sel, body = rule.group(1).strip(), rule.group(2)
+        m = re.search(r"background(?:-color)?\s*:\s*([^;]+);", body)
+        if not m:
+            continue
+        value = m.group(1).strip()
+        if value in ("none", "transparent") or value.startswith("linear-gradient"):
+            continue
+        if "rgba(" in value or "color-mix(" in value:
+            continue
+        offenders.append(f"{sel.splitlines()[-1].strip()} -> {value}")
+    assert not offenders, (
+        "opaque hover fills on glass:\n  " + "\n  ".join(offenders))
 
 
 @pytest.mark.parametrize("alpha", [1.0, 0.6, 0.3, 0.0])
