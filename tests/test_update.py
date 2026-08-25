@@ -456,6 +456,176 @@ def test_a_failed_upgrade_keeps_its_output(home, monkeypatch):
 
 
 # --------------------------------------------------------------------------
+# the file in the way is us
+# --------------------------------------------------------------------------
+
+def test_a_console_script_is_a_file_the_upgrade_replaces():
+    """pipx symlinks ~/.local/bin/magi.exe at the venv's Scripts/magi.exe, so
+    typing `magi` maps that exact file — and the upgrade rewrites it."""
+    assert update._running_image(
+        argv0="C:/Users/u/pipx/venvs/magi-research/Scripts/magi.exe",
+        executable="C:/Users/u/pipx/venvs/magi-research/Scripts/python.exe")
+
+
+def test_the_launcher_strips_the_extension_from_argv0():
+    """Found by reproducing the customer's failure, not by a test.
+
+    Every test here fed `_running_image` a path a person had typed, and all of
+    them ended `.exe`. The real console-script launcher reports
+    `...Scripts/magi` with no extension at all, so matching on a `.exe` suffix
+    found nothing, the recovery never ran, and the upgrade failed exactly as it
+    had before the fix. The suite was green the whole time.
+    """
+    image = update._running_image(
+        argv0=r"C:\Users\u\pipx\venvs\magi-research\Scripts\magi",
+        executable=r"C:\Users\u\pipx\venvs\magi-research\Scripts\python.exe")
+    assert image.endswith("magi.exe")
+
+
+def test_a_bare_interpreter_flag_names_no_program():
+    """`python -c ...` puts `-c` in argv[0]. Appending `.exe` to that would
+    invent a file and then blame it in the message."""
+    assert update._running_image(argv0="-c", executable="/usr/bin/python") == ""
+
+
+def test_python_dash_m_is_not_a_file_the_upgrade_replaces():
+    """`python -m magi` runs python.exe; the package underneath it is data, and
+    no package manager replaces the interpreter."""
+    assert update._running_image(
+        argv0="C:/Users/u/pipx/venvs/magi-research/Lib/site-packages/magi/__main__.py",
+        executable="C:/Users/u/pipx/venvs/magi-research/Scripts/python.exe") == ""
+
+
+def test_the_interpreter_itself_is_not_a_console_script():
+    """`python.exe -c ...` puts an .exe in argv[0] that is not ours."""
+    assert update._running_image(argv0="C:/Python312/python.exe",
+                                 executable="C:/Python312/python.exe") == ""
+
+
+def test_only_windows_can_be_blocked_by_its_own_running_program():
+    """POSIX unlinks a running binary without complaint. Claiming otherwise
+    would send a Linux user chasing a lock that cannot exist."""
+    args = dict(argv0="/home/u/.local/bin/magi.exe",
+                executable="/home/u/.local/share/uv/tools/m/bin/python")
+    assert update.upgrade_replaces_us(os_name="posix", **args) is False
+    assert update.upgrade_replaces_us(os_name="nt", **args) is True
+
+
+def test_a_failed_upgrade_that_is_our_own_lock_is_handed_off(home, monkeypatch, capsys):
+    """The whole point: `magi update` finishes the job on every install method.
+
+    Windows will not delete a mapped image, so uv's uninstall step dies with
+    `os error 5` and the upgrade is over before it began — with nothing holding
+    the file but the command trying to replace it. Stepping out of the way is
+    the entire fix, so the failure is handed to the helper rather than reported
+    to somebody who would have to run a second command by hand.
+    """
+    import subprocess
+    import types
+
+    handed: dict = {}
+    monkeypatch.setattr(update, "fetch_latest", lambda *a, **k: "99.0.0")
+    monkeypatch.setattr(update, "detect_install",
+                        lambda *a, **k: update.Install("pipx", ["pipx", "upgrade", "x"]))
+    monkeypatch.setattr(subprocess, "run",
+                        lambda *a, **k: types.SimpleNamespace(returncode=1))
+    monkeypatch.setattr(update, "upgrade_replaces_us", lambda *a, **k: True)
+    monkeypatch.setattr(update, "_running_image",
+                        lambda *a, **k: "C:/pipx/venvs/m/Scripts/magi.exe")
+    monkeypatch.setattr(update, "spawn_detached_upgrade",
+                        lambda **kw: handed.update(kw) or True)
+
+    assert update.main(["--yes"]) == 0
+    assert handed["origin"] == "cli"
+    assert handed["relaunch"] is None
+    err = capsys.readouterr().err
+    assert "magi.exe" in err
+
+
+def test_a_failed_upgrade_that_is_not_our_lock_still_reports_failure(home, monkeypatch, capsys):
+    """Handing every failure to a background retry would bury the real ones."""
+    import subprocess
+    import types
+
+    monkeypatch.setattr(update, "fetch_latest", lambda *a, **k: "99.0.0")
+    monkeypatch.setattr(update, "detect_install",
+                        lambda *a, **k: update.Install("pipx", ["pipx", "upgrade", "x"]))
+    monkeypatch.setattr(subprocess, "run",
+                        lambda *a, **k: types.SimpleNamespace(returncode=1))
+    monkeypatch.setattr(update, "upgrade_replaces_us", lambda *a, **k: False)
+
+    assert update.main(["--yes"]) == 1
+    assert "upgrade failed" in capsys.readouterr().err
+
+
+def test_the_helper_is_told_who_handed_off(home, monkeypatch):
+    import subprocess
+    import types
+
+    seen: dict = {}
+    monkeypatch.setattr(update, "_pid_alive", lambda pid: False)
+    monkeypatch.setattr(update.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(update, "detect_install",
+                        lambda *a, **k: update.Install("pipx", ["pipx", "upgrade", "x"]))
+    monkeypatch.setattr(subprocess, "run",
+                        lambda *a, **k: seen.update(argv=a[0]) or types.SimpleNamespace(
+                            returncode=0, stdout="", stderr=""))
+    monkeypatch.setattr(update, "_installed_version_on_disk", lambda: "9.9.9")
+
+    update._run_detached(1, None, "cli")
+    assert update.read_result()["origin"] == "cli"
+
+
+# --------------------------------------------------------------------------
+# reporting an upgrade nobody watched
+# --------------------------------------------------------------------------
+
+def test_a_finished_background_upgrade_is_reported_once(home):
+    update._write_result(state="done", origin="cli", now="9.9.9", changed=True)
+    line = update.pending_upgrade_report()
+    assert "9.9.9" in line
+    # Once. A second command must not repeat news the first already delivered.
+    assert update.pending_upgrade_report() == ""
+
+
+def test_an_upgrade_that_did_not_move_the_version_is_not_called_a_success(home):
+    """Exit 0 is not proof: `pipx install --force` prints "Installing to
+    existing venv" and leaves the old version exactly where it was."""
+    update._write_result(state="done", origin="cli", now="1.0.0", changed=False)
+    line = update.pending_upgrade_report()
+    assert "did not move" in line
+
+
+def test_a_failed_background_upgrade_says_why(home):
+    update._write_result(state="failed", origin="cli", error="exit 1")
+    assert "exit 1" in update.pending_upgrade_report()
+
+
+def test_an_upgrade_still_running_is_not_reported_or_cleared(home):
+    update._write_result(state="running", origin="cli")
+    assert update.pending_upgrade_report() == ""
+    assert update.read_result()["state"] == "running"
+
+
+def test_the_dashboards_result_is_never_swallowed_by_the_cli(home):
+    """The dashboard clears this file from its own endpoint after the page has
+    shown it. An unrelated `magi` command eating it would leave a reopened
+    dashboard reporting an upgrade as still running forever."""
+    update._write_result(state="done", now="9.9.9", changed=True)
+    assert update.pending_upgrade_report() == ""
+    assert update.read_result()["state"] == "done"
+
+
+def test_json_carries_the_report_it_just_consumed(home, monkeypatch, capsys):
+    """Reading it clears it, so a --json caller that never saw it would have
+    lost it — and a --json caller is exactly who handed the upgrade off."""
+    monkeypatch.setattr(update, "fetch_latest", lambda *a, **k: "1.0.0")
+    update._write_result(state="done", origin="cli", now="9.9.9", changed=True)
+    update.main(["--json"])
+    assert "9.9.9" in json.loads(capsys.readouterr().out)["last_upgrade"]
+
+
+# --------------------------------------------------------------------------
 # the command
 # --------------------------------------------------------------------------
 

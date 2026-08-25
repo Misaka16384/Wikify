@@ -220,6 +220,14 @@ def _update_notice(argv: list[str]) -> None:
             return
         from magi import update
 
+        # An upgrade a previous `magi update` handed to the background helper.
+        # This is not the update *check* and none of its opt-outs apply: it is
+        # the outcome of something the person explicitly asked for, and until
+        # it is said nobody knows whether it worked.
+        done = update.pending_upgrade_report()
+        if done:
+            print(f"\n{done}", file=sys.stderr)
+
         if not update.notice_enabled():
             return
         line = update.pending_notice()

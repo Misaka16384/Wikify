@@ -137,6 +137,14 @@ uv publish --token pypi-<your-token>
   --upgrade magi-research`. Since v1.14.4 `magi update` detects pip installs
   (user site and interpreter-wide) and runs it; before that they detected as
   `unknown` and got a notice naming no command at all.
+- On Windows, whether `magi update` can upgrade a pipx install depends on
+  something pipx does not promise: if `~/.local/bin/magi.exe` is a **copy**
+  the upgrade works inline, and if it is a **symlink** into the venv the
+  running image *is* `Scripts/magi.exe` and uv dies with `os error 5`. Both
+  shapes have been seen on the same machine days apart. Since v1.14.5 that
+  failure is handed to the detached helper instead of reported, so do not
+  treat an inline success as proof the recovery path still works — test it
+  by running the venv's `Scripts/magi.exe` directly.
 - 100 MB per file; the wheel is ~3.9 MB (mostly MAGI MODE artwork).
 - README images must be absolute URLs — relative paths 404 on PyPI.
 - The install instructions in `README.md`, `README_en.md`,

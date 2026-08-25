@@ -238,6 +238,16 @@ so and stops.
 > says so instead of running a command that was never going to work, and
 > points you at pipx.
 
+> [!NOTE]
+> **On Windows the upgrade can be blocked by `magi` itself.** pipx may point
+> `~/.local/bin/magi.exe` at the venv's `Scripts/magi.exe` with a symlink, so
+> typing `magi` maps the very file the upgrade has to replace — and Windows
+> will not delete a program that is running. Nothing else is holding it; the
+> command in the way is the one doing the upgrading. You do not have to run
+> anything by hand: the upgrade is handed to a helper that waits for the
+> command to exit, does the work, and writes down the result. Your shell comes
+> back immediately, and the next `magi` command tells you how it went.
+
 Health-check anytime after installing:
 
 ```powershell

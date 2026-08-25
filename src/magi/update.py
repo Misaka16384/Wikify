@@ -26,6 +26,18 @@ used to fall through to "unknown", which handed somebody a notice with no
 command and sent them back to the exact command that had already silently done
 nothing. Both are detected now.
 
+**On Windows the upgrade can be blocked by this very process.** pipx points
+``~/.local/bin/magi.exe`` at the venv's ``Scripts/magi.exe`` with a symlink, so
+typing ``magi`` maps that exact file — and every package manager rewrites the
+console script when it upgrades. Windows refuses to delete a mapped image, uv's
+uninstall step dies with ``os error 5``, and nothing is holding the file except
+the command trying to replace it. Telling somebody to run the upgrade from
+their own shell would work and is not good enough: `magi update` has to be the
+one command that works whatever the install is. So a failure that shape is
+handed to the detached helper the dashboard already uses — it waits for this
+process to exit, upgrades, and writes down what happened for the next run to
+report.
+
 The startup notice is deliberately one release behind the network: the check
 runs in a background thread and writes a cache, and the *next* invocation reads
 that cache. Nothing about starting `magi` ever waits on PyPI.
@@ -430,6 +442,52 @@ def _detached_kwargs(log: Path | None = None) -> dict:
     return kwargs
 
 
+def _running_image(argv0: str | None = None,
+                   executable: str | None = None) -> str:
+    """The program file this process is *running as*, or "" if that is not a
+    file an upgrade would replace. Arguments exist for testing.
+
+    A console script runs its own ``magi.exe``; ``python -m magi`` runs
+    ``python.exe`` and the package underneath it is merely data. Only the first
+    is a file a package manager rewrites, so only the first can be held open by
+    us.
+
+    **The launcher strips the extension from argv[0].** The process really is
+    running ``Scripts/magi.exe`` and reports ``Scripts/magi``. The first
+    version of this matched on a ``.exe`` suffix, found none, and so did
+    nothing at all on the one platform it exists for — the upgrade failed
+    exactly as before and the recovery never ran. Caught by reproducing the
+    customer's failure rather than by any test, because every test fed it a
+    path a person had typed.
+    """
+    argv0 = sys.argv[0] if argv0 is None else argv0
+    exe = sys.executable if executable is None else executable
+    if not argv0 or argv0.startswith("-"):
+        return ""                       # `python -c ...`, and nothing to name
+    candidate = Path(argv0)
+    if candidate.suffix.lower() in (".py", ".pyw"):
+        return ""                       # `python -m magi`, or a plain script
+    if exe and candidate.stem.lower() == Path(exe).stem.lower():
+        return ""                       # the interpreter itself
+    # Name the file that is actually mapped, not the argv[0] that hides it.
+    return str(candidate if candidate.suffix
+               else candidate.with_name(candidate.name + ".exe"))
+
+
+def upgrade_replaces_us(argv0: str | None = None, executable: str | None = None,
+                        os_name: str | None = None) -> bool:
+    """Windows: is the file we are running the one the upgrade has to replace?
+
+    POSIX unlinks a running binary without complaint, so this is only ever true
+    on Windows. It is consulted *after* an upgrade has already failed, never
+    before — a false positive then costs one retry in the background, where a
+    false positive up front would cost a refusal that was not warranted.
+    """
+    if (os.name if os_name is None else os_name) != "nt":
+        return False
+    return bool(_running_image(argv0, executable))
+
+
 def _port_of(argv: list[str]) -> tuple[str, int] | None:
     """The (host, port) a `magi ui` argv asks for, if it names one."""
     host, port = "127.0.0.1", None
@@ -483,6 +541,34 @@ def clear_result() -> None:
         pass
 
 
+def pending_upgrade_report(clear: bool = True) -> str:
+    """One line about an upgrade a helper finished for us, or "".
+
+    Only what the CLI itself handed off. The dashboard hands off through the
+    same helper and clears the file from its own endpoint once the page has
+    shown it; letting an unrelated `magi` command swallow that would leave a
+    reopened dashboard reporting an upgrade as still running forever.
+    """
+    data = read_result()
+    if data.get("origin") != "cli":
+        return ""
+    state = data.get("state")
+    if state == "running":
+        return ""                       # still going; there is nothing to say
+    if clear:
+        clear_result()
+    if state == "done":
+        now = data.get("now")
+        if data.get("changed") and now:
+            return f"the upgrade you started finished — magi {now}"
+        # Exit 0 is not proof: `pipx install --force` prints "Installing to
+        # existing venv" and leaves the old version exactly where it was.
+        return ("the upgrade you started ran but the version did not move "
+                f"(still {now or __version__}) — try `magi update` again")
+    return (f"the upgrade you started did not finish: "
+            f"{data.get('error') or 'no reason recorded'}")
+
+
 def _pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
@@ -504,7 +590,8 @@ def _pid_alive(pid: int) -> bool:
     return True
 
 
-def spawn_detached_upgrade(*, wait_pid: int, relaunch: list[str] | None) -> bool:
+def spawn_detached_upgrade(*, wait_pid: int, relaunch: list[str] | None,
+                           origin: str = "") -> bool:
     """Start the helper that will upgrade once ``wait_pid`` has exited.
 
     Detached in the strong sense: its own process group / session, no inherited
@@ -513,10 +600,14 @@ def spawn_detached_upgrade(*, wait_pid: int, relaunch: list[str] | None) -> bool
     """
     import subprocess
 
+    # `sys.executable -m magi`, never the console script: the helper must not
+    # run from the same file it is about to replace.
     argv = [sys.executable, "-m", "magi", "update", "--_run-detached",
             "--_wait-pid", str(wait_pid)]
     if relaunch:
         argv += ["--_relaunch", json.dumps(relaunch)]
+    if origin:
+        argv += ["--_origin", origin]
 
     try:
         subprocess.Popen(argv, **_detached_kwargs())
@@ -525,7 +616,8 @@ def spawn_detached_upgrade(*, wait_pid: int, relaunch: list[str] | None) -> bool
         return False
 
 
-def _run_detached(wait_pid: int, relaunch: list[str] | None) -> int:
+def _run_detached(wait_pid: int, relaunch: list[str] | None,
+                  origin: str = "") -> int:
     """The helper. Runs with nobody watching, so everything it learns is written
     down — this file is the only way the outcome ever reaches a person."""
     import subprocess
@@ -539,9 +631,9 @@ def _run_detached(wait_pid: int, relaunch: list[str] | None) -> int:
     while _pid_alive(wait_pid) and time.time() < deadline:
         time.sleep(0.5)
     if _pid_alive(wait_pid):
-        _write_result(state="failed", installed=__version__,
-                      error=f"the dashboard (pid {wait_pid}) was still running "
-                            "after 60s; nothing was upgraded")
+        _write_result(state="failed", installed=__version__, origin=origin,
+                      error=f"the process that started this (pid {wait_pid}) "
+                            "was still running after 60s; nothing was upgraded")
         return 1
 
     # Windows releases handles asynchronously after the process object goes.
@@ -549,22 +641,22 @@ def _run_detached(wait_pid: int, relaunch: list[str] | None) -> int:
 
     how = detect_install()
     if how.command is None:
-        _write_result(state="failed", installed=__version__,
+        _write_result(state="failed", installed=__version__, origin=origin,
                       error=how.note or "no upgrade command for this install")
         return 1
 
-    _write_result(state="running", installed=__version__,
+    _write_result(state="running", installed=__version__, origin=origin,
                   command=" ".join(how.command))
     try:
         proc = subprocess.run(how.command, capture_output=True, text=True)
     except Exception as exc:  # noqa: BLE001
-        _write_result(state="failed", installed=__version__,
+        _write_result(state="failed", installed=__version__, origin=origin,
                       command=" ".join(how.command), error=str(exc))
         return 1
 
     output = ((proc.stdout or "") + (proc.stderr or "")).strip()
     if proc.returncode != 0:
-        _write_result(state="failed", installed=__version__,
+        _write_result(state="failed", installed=__version__, origin=origin,
                       command=" ".join(how.command),
                       error=f"exit {proc.returncode}", output=output[-4000:])
         return proc.returncode
@@ -573,7 +665,7 @@ def _run_detached(wait_pid: int, relaunch: list[str] | None) -> int:
     # documented to print "Installing to existing venv" and leave the old
     # version behind, so a command that exits 0 is not proof of anything.
     now = _installed_version_on_disk()
-    done = dict(state="done", installed=__version__, now=now,
+    done = dict(state="done", installed=__version__, now=now, origin=origin,
                 changed=bool(now and now != __version__),
                 command=" ".join(how.command), output=output[-4000:])
 
@@ -671,6 +763,8 @@ def main(argv: list[str] | None = None) -> int:
                         help=argparse.SUPPRESS)
     parser.add_argument("--_relaunch", dest="relaunch", default="",
                         help=argparse.SUPPRESS)
+    parser.add_argument("--_origin", dest="origin", default="",
+                        help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
 
     if args.run_detached:
@@ -681,7 +775,14 @@ def main(argv: list[str] | None = None) -> int:
                 relaunch = parsed if isinstance(parsed, list) else None
             except ValueError:
                 relaunch = None
-        return _run_detached(args.wait_pid, relaunch)
+        return _run_detached(args.wait_pid, relaunch, args.origin)
+
+    # An upgrade handed off by an earlier run has an outcome nobody has seen.
+    # Say it before anything else: it is the answer to the command they typed
+    # last time, and it decides whether the version below is news at all.
+    report = pending_upgrade_report()
+    if report and not args.json:
+        print(report)
 
     how = detect_install()
     latest = fetch_latest()
@@ -701,6 +802,9 @@ def main(argv: list[str] | None = None) -> int:
             "install_method": how.kind,
             "command": how.command,
             "note": how.note,
+            # Cleared by the read above, so it has to be reported here or it is
+            # lost — a --json caller is exactly who handed the upgrade off.
+            "last_upgrade": report or None,
         }, indent=2, ensure_ascii=False))
         return 0
 
@@ -743,8 +847,10 @@ def main(argv: list[str] | None = None) -> int:
     # venv python, and whatever launched it all keep the directory open, and the
     # upgrade fails halfway with a permission error that leaves the CLI broken.
     if os.name == "nt":
-        print("\nIf this fails with a permission error, a `magi ui` process is "
-              "holding the files — stop every one of them and try again.")
+        print("\nOn Windows nothing can replace a program while it is running. "
+              "Stop any `magi ui` first — those nobody can wait out. If the "
+              "file in the way turns out to be `magi` itself, this hands the "
+              "upgrade to a helper and tells you.")
 
     # Everything said so far, on the screen, before the child starts writing to
     # the same descriptor. Without this the narration arrives *after* the output
@@ -763,6 +869,19 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if proc.returncode != 0:
+        # The one failure `magi update` can still finish: on Windows the file
+        # the upgrade must replace is the program running the upgrade. Nothing
+        # is holding it but us, so stepping out of the way is the whole fix.
+        image = _running_image() if upgrade_replaces_us() else ""
+        if image and spawn_detached_upgrade(wait_pid=os.getpid(),
+                                            relaunch=None, origin="cli"):
+            print(f"\nThat is Windows refusing to replace a running program, "
+                  f"and the program is this one:\n  {image}\n"
+                  "Nothing else is holding it.", file=sys.stderr)
+            print("Handed to a helper that waits for this command to exit and "
+                  "then upgrades. Your shell comes back now; the next `magi` "
+                  "command tells you how it went.", file=sys.stderr)
+            return 0
         print(f"\nupgrade failed (exit {proc.returncode}). Nothing was changed "
               "by magi itself.", file=sys.stderr)
         return proc.returncode
