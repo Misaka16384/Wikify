@@ -224,6 +224,20 @@ dialog with **Upgrade now**.
 A source checkout is never upgraded by a package manager — `magi update` says
 so and stops.
 
+> [!NOTE]
+> **If you installed with plain `pip`**, the upgrade command is
+> `python -m pip install --upgrade magi-research` — and the `--upgrade` is
+> the whole point. pip is the one tool here whose *install* command does not
+> install: run `pip install magi-research` over a copy you already have and
+> it prints `Requirement already satisfied`, exits 0, and changes nothing.
+> That reads exactly like a successful upgrade, and the version number is the
+> only thing that gives it away. `magi update` detects a pip install — user
+> site or interpreter-wide — and runs the right command for you. Where the
+> Python marks itself externally managed (PEP 668: Debian, Fedora, Homebrew,
+> and any Python `uv` installed for you), pip refuses either way — so MAGI
+> says so instead of running a command that was never going to work, and
+> points you at pipx.
+
 Health-check anytime after installing:
 
 ```powershell

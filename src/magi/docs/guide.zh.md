@@ -224,6 +224,17 @@ WebUI 里版本号旁边会出现一个徽章，点开有 **立即升级**。
 
 源码检出永远不会被包管理器升级——`magi update` 会说明并停下。
 
+> [!NOTE]
+> **如果你是用裸 `pip` 装的**，升级命令是
+> `python -m pip install --upgrade magi-research`——关键在那个 `--upgrade`。
+> pip 是这里唯一一个「install 命令不会装」的工具：对着已经装好的包再跑一次
+> `pip install magi-research`，它只会打印 `Requirement already satisfied`，
+> 然后**退出码 0**，什么都没改。这看起来和升级成功一模一样，只有版本号会露馅。
+> `magi update` 现在能认出 pip 安装——用户 site 或者装进解释器本身——并替你跑
+> 对的那条命令。如果这个 Python 被标成了「外部管理」（PEP 668：Debian、Fedora、
+> Homebrew，以及 `uv` 帮你装的那个 Python），pip 两条路都会拒绝，所以 MAGI 会
+> 直接说明并指向 pipx，而不是去跑一条注定失败的命令。
+
 `magi setup` 的开关：
 
 | 开关 | 作用 |

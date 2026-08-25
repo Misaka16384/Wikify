@@ -130,6 +130,13 @@ uv publish --token pypi-<your-token>
 ### Things that bite
 
 - A version number can never be reused on PyPI, even after deleting the file.
+- `pip install magi-research` over an existing copy prints `Requirement
+  already satisfied` and **exits 0** without upgrading anything — the same
+  shape of trap as `pipx install --force`, and the one users installing with
+  pip actually hit. The command to give them is `python -m pip install
+  --upgrade magi-research`. Since v1.14.4 `magi update` detects pip installs
+  (user site and interpreter-wide) and runs it; before that they detected as
+  `unknown` and got a notice naming no command at all.
 - 100 MB per file; the wheel is ~3.9 MB (mostly MAGI MODE artwork).
 - README images must be absolute URLs — relative paths 404 on PyPI.
 - The install instructions in `README.md`, `README_en.md`,

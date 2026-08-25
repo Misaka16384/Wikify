@@ -231,14 +231,98 @@ def test_a_uv_tool_install_uses_force_and_refresh():
 
 def test_a_plain_virtualenv_uses_its_own_pip():
     how = update.detect_install(
-        prefix="/work/.venv", base_prefix="/usr",
+        prefix="/work/.venv", base_prefix="/usr", user_site="",
         package_file="/work/.venv/lib/site-packages/magi/update.py")
     assert how.kind == "pip"
     assert "pip" in how.command
 
 
+def test_a_bare_pip_install_gets_a_pip_command():
+    """The bug this covers: `pip install magi-research` into the interpreter
+    itself used to detect as "unknown", so the notice named no command and the
+    reader went back to `pip install magi-research` — which prints "Requirement
+    already satisfied", exits 0, and upgrades nothing. Reported by somebody
+    several releases behind who was sure the upgrade had worked."""
+    how = update.detect_install(
+        prefix="/usr", base_prefix="/usr", user_site="", externally_managed=False,
+        package_file="/usr/lib/python3.11/site-packages/magi/update.py")
+    assert how.kind == "pip-system"
+    assert how.command[1:] == ["-m", "pip", "install", "--upgrade",
+                               "magi-research"]
+
+
+def test_a_user_site_install_upgrades_the_user_site():
+    """Without --user pip picks the target itself, and on a machine where the
+    system site is writable it puts the new version there while the old one
+    goes on shadowing it from the user site."""
+    site = "/home/u/.local/lib/python3.11/site-packages"
+    how = update.detect_install(
+        prefix="/usr", base_prefix="/usr", user_site=site,
+        externally_managed=False, package_file=site + "/magi/update.py")
+    assert how.kind == "pip-user"
+    assert "--user" in how.command
+    assert "--upgrade" in how.command
+
+
+def test_the_user_site_wins_over_the_venv_it_is_visible_from():
+    """A venv made with --system-site-packages imports magi from the user site
+    while sys.prefix still says venv. Upgrading the venv would install a second
+    copy beside the one actually in use, and the version would not move."""
+    site = "/home/u/.local/lib/python3.11/site-packages"
+    how = update.detect_install(
+        prefix="/work/.venv", base_prefix="/usr", user_site=site,
+        externally_managed=False, package_file=site + "/magi/update.py")
+    assert how.kind == "pip-user"
+
+
+def test_the_user_site_is_matched_case_insensitively():
+    """Windows, where --user installs are most common: `site` answers with a
+    capitalised drive and user name, and `__file__` does not."""
+    how = update.detect_install(
+        prefix="C:/Python311", base_prefix="C:/Python311",
+        user_site="C:/Users/Jerry/AppData/Roaming/Python/Python311/site-packages",
+        externally_managed=False,
+        package_file="c:/users/jerry/appdata/roaming/python/python311/"
+                     "site-packages/magi/update.py")
+    assert how.kind == "pip-user"
+
+
+def test_a_sibling_directory_is_not_inside_the_user_site():
+    """A prefix match without the separator would swallow `site-packages-old`."""
+    how = update.detect_install(
+        prefix="/usr", base_prefix="/usr", externally_managed=False,
+        user_site="/home/u/.local/lib/python3.11/site-packages",
+        package_file="/home/u/.local/lib/python3.11/site-packages-old/magi/update.py")
+    assert how.kind != "pip-user"
+
+
+def test_an_externally_managed_python_is_never_handed_to_pip():
+    """PEP 668 — Debian, Fedora and Homebrew all ship the marker. pip exits 1
+    with a wall of text about --break-system-packages, so running it would
+    report an impossible upgrade as a failed one."""
+    how = update.detect_install(
+        prefix="/usr", base_prefix="/usr", user_site="", externally_managed=True,
+        package_file="/usr/lib/python3.11/site-packages/magi/update.py")
+    assert how.kind == "pip-system"
+    assert how.command is None
+    assert "pipx" in how.note
+
+
+def test_a_venv_ignores_the_marker_of_the_python_it_was_built_from():
+    """From inside a venv `sysconfig` reports the *base* stdlib, so a Debian
+    venv looks externally managed and is not: a venv is exactly where PEP 668
+    tells people to go, and pip upgrades there happily."""
+    how = update.detect_install(
+        prefix="/work/.venv", base_prefix="/usr", user_site="",
+        externally_managed=True,
+        package_file="/work/.venv/lib/python3.11/site-packages/magi/update.py")
+    assert how.kind == "pip"
+    assert how.command is not None
+
+
 def test_an_unrecognised_install_refuses_to_guess():
-    """A system-wide install owned by something we cannot name.
+    """Not a checkout, not a venv, not in any site-packages: a zipapp, a frozen
+    bundle, something dropped on PYTHONPATH.
 
     `base_prefix` is passed explicitly, and that is the point: it used to be
     read from the live interpreter no matter what the caller injected, so this
@@ -246,19 +330,45 @@ def test_an_unrecognised_install_refuses_to_guess():
     passed locally and failed in CI — a seam that is only half a seam is worse
     than none, because it looks tested.
     """
-    how = update.detect_install(prefix="/usr", base_prefix="/usr",
-                                package_file="/usr/lib/site-packages/magi/update.py")
+    how = update.detect_install(prefix="/usr", base_prefix="/usr", user_site="",
+                                package_file="/opt/magi-bundle/magi/update.py")
     assert how.kind == "unknown"
     assert how.command is None
     assert how.note
 
 
 def test_detection_does_not_depend_on_the_running_interpreter():
-    """Same inputs, same answer, whether or not this process is in a venv."""
-    args = dict(prefix="/usr", base_prefix="/usr",
-                package_file="/usr/lib/site-packages/magi/update.py")
+    """Same inputs, same answer, whether or not this process is in a venv.
+
+    Every input is a parameter for this reason. `user_site` and
+    `externally_managed` joined the signature later and are read the same way:
+    the injected value when there is one, the live interpreter only when there
+    is not.
+    """
+    args = dict(prefix="/usr", base_prefix="/usr", user_site="",
+                externally_managed=False,
+                package_file="/opt/magi-bundle/magi/update.py")
     assert update.detect_install(**args).kind == "unknown"
     assert update.detect_install(**args).kind == "unknown"
+
+
+@pytest.mark.parametrize("args", [
+    dict(prefix="/work/.venv", base_prefix="/usr", user_site="",
+         package_file="/work/.venv/lib/site-packages/magi/update.py"),
+    dict(prefix="/usr", base_prefix="/usr", user_site="", externally_managed=False,
+         package_file="/usr/lib/python3.11/site-packages/magi/update.py"),
+    dict(prefix="/usr", base_prefix="/usr", externally_managed=False,
+         user_site="/home/u/.local/lib/python3.11/site-packages",
+         package_file="/home/u/.local/lib/python3.11/site-packages/magi/update.py"),
+])
+def test_no_pip_command_is_ever_missing_upgrade(args):
+    """The whole failure mode in one assertion. `pip install magi-research`
+    exits 0 saying "Requirement already satisfied" and changes nothing, which
+    is indistinguishable from a successful upgrade unless you go and check the
+    version afterwards."""
+    how = update.detect_install(**args)
+    assert how.command is not None
+    assert "--upgrade" in how.command
 
 
 # --------------------------------------------------------------------------

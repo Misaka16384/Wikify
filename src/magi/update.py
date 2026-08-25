@@ -14,10 +14,17 @@ is available really is installable.
 **How MAGI was installed decides how it upgrades, and guessing wrong is
 destructive.** ``pipx install --force`` over an existing install prints
 ``Installing to existing venv``, exits 1, and **leaves the old version in
-place** — a failure whose message reads like success. A source checkout must
-not be touched by a package manager at all. So the install method is detected
-and the wrong command is never run; when it cannot be detected, the command is
-printed for a person to run rather than guessed at.
+place** — a failure whose message reads like success. ``pip install <pkg>``
+without ``--upgrade`` fails the same way from the other side: it prints
+``Requirement already satisfied``, exits 0, and changes nothing. A source
+checkout must not be touched by a package manager at all. So the install method
+is detected and the wrong command is never run; when it cannot be detected, the
+command is printed for a person to run rather than guessed at.
+
+A plain ``pip install`` — into the interpreter itself or into the user site —
+used to fall through to "unknown", which handed somebody a notice with no
+command and sent them back to the exact command that had already silently done
+nothing. Both are detected now.
 
 The startup notice is deliberately one release behind the network: the check
 runs in a background thread and writes a cache, and the *next* invocation reads
@@ -41,6 +48,15 @@ SIMPLE_INDEX = f"https://pypi.org/simple/{PACKAGE}/"
 #: How long a cached answer stays fresh. A day: new releases are not urgent,
 #: and a check per invocation would be a request per shell command.
 CACHE_TTL_S = 24 * 60 * 60
+
+#: PEP 668 marks an interpreter as the OS's, not pip's, and pip obeys: it exits
+#: 1 with a wall of text about `--break-system-packages`. Saying so up front,
+#: with the way out, beats running the command and reporting a refusal that was
+#: never going to be anything else as a failed upgrade.
+MANAGED_NOTE = (
+    f"this Python is externally managed (PEP 668), so pip will not upgrade "
+    f"{PACKAGE} here — `python -m pip uninstall {PACKAGE}` then "
+    f"`pipx install {PACKAGE}`")
 
 #: The background fetch gets this long. It is not on anyone's critical path —
 #: if it does not finish, the cache stays stale and the next run tries again.
@@ -141,7 +157,8 @@ class Install:
     """Where this `magi` lives and what upgrades it."""
 
     def __init__(self, kind: str, command: list[str] | None, note: str = ""):
-        self.kind = kind            # pipx | uv | pip | source | unknown
+        self.kind = kind            # pipx | uv | pip | pip-user |
+                                    # pip-system | source | unknown
         self.command = command      # None when nothing may be run automatically
         self.note = note
 
@@ -149,15 +166,74 @@ class Install:
         return f"Install({self.kind!r}, {self.command!r})"
 
 
+def _user_site() -> str:
+    """Where ``pip install --user`` puts things, or "" when there is no such
+    place.
+
+    Wrapped because ``site`` is not always the module the docs describe: under
+    ``python -S`` it has no ``getusersitepackages`` at all, and a trimmed-down
+    interpreter can raise from it. "No user site" is the right answer to that,
+    not a traceback out of a version check.
+    """
+    try:
+        import site
+
+        got = site.getusersitepackages()
+    except Exception:  # noqa: BLE001
+        return ""
+    # Documented as a str, but a patched `site` (some distro builds) hands back
+    # the list that `getsitepackages` returns.
+    if isinstance(got, (list, tuple)):
+        got = got[0] if got else ""
+    return got if isinstance(got, str) else ""
+
+
+def _externally_managed() -> bool:
+    """PEP 668: this interpreter belongs to the OS, and pip refuses to write to
+    it.
+
+    Debian, Fedora and Homebrew all ship the marker now. Without this the
+    system-pip branch would hand `magi update` a command that cannot succeed,
+    and its refusal would be reported as a failed upgrade — a different thing
+    from an impossible one, and the difference decides whether the person
+    retries or moves to pipx.
+    """
+    try:
+        import sysconfig
+
+        stdlib = sysconfig.get_path("stdlib", sysconfig.get_default_scheme())
+        return bool(stdlib) and (Path(stdlib) / "EXTERNALLY-MANAGED").exists()
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _inside(path: str, directory: str) -> bool:
+    """Is ``path`` under ``directory``? Slash-normalised, case-insensitively.
+
+    Case-insensitive because Windows is: the user site can come back with a
+    capitalised drive and user name while ``__file__`` has neither, often
+    enough that an exact compare would answer "no" on the one platform where
+    ``--user`` installs are most common.
+    """
+    d = directory.replace("\\", "/").rstrip("/").casefold()
+    return bool(d) and (path.casefold() + "/").startswith(d + "/")
+
+
 def detect_install(prefix: str | None = None, package_file: str | None = None,
-                   base_prefix: str | None = None) -> Install:
+                   base_prefix: str | None = None,
+                   user_site: str | None = None,
+                   externally_managed: bool | None = None) -> Install:
     """Work out which tool owns this install. Arguments exist for testing.
 
-    The order matters: a uv tool venv and a pipx venv are both "a venv", so the
-    path they sit in is the only thing that tells them apart, and that check has
-    to come before the generic pip fallback.
+    The order matters twice. A uv tool venv and a pipx venv are both "a venv",
+    so the path they sit in is the only thing telling them apart, and that
+    check has to come before the generic pip fallback. And the user site is
+    tested against the *package* path before the venv test, because a venv made
+    with ``--system-site-packages`` can import magi from the user site while
+    ``sys.prefix`` still says venv — upgrading the venv would then install a
+    second copy beside the one actually in use rather than replace it.
 
-    All three inputs are parameters, including ``base_prefix``. An earlier
+    All five inputs are parameters, including ``base_prefix``. An earlier
     version took ``prefix`` for testing and then compared the *real*
     ``sys.prefix`` against the real ``sys.base_prefix`` for the venv case — so
     the injected value was ignored by exactly one branch, and that branch's
@@ -168,6 +244,8 @@ def detect_install(prefix: str | None = None, package_file: str | None = None,
     prefix = (prefix or sys.prefix).replace("\\", "/")
     base = (base_prefix or getattr(sys, "base_prefix", sys.prefix)).replace("\\", "/")
     pkg = (package_file or __file__).replace("\\", "/")
+    site_dir = _user_site() if user_site is None else user_site
+    managed = _externally_managed() if externally_managed is None else externally_managed
     low = prefix.lower()
 
     # A checkout, editable or not: the package is not inside the environment it
@@ -187,11 +265,38 @@ def detect_install(prefix: str | None = None, package_file: str | None = None,
         return Install("uv", ["uv", "tool", "install", "--force", "--refresh",
                               PACKAGE])
 
+    if _inside(pkg, site_dir):
+        if managed:
+            return Install("pip-user", None, MANAGED_NOTE)
+        return Install("pip-user",
+                       [sys.executable, "-m", "pip", "install", "--user",
+                        "--upgrade", PACKAGE],
+                       "installed with pip into your user site-packages")
+
     if prefix != base:
+        # `managed` is deliberately not consulted here. From inside a venv
+        # `sysconfig` reports the *base* interpreter's stdlib, so on a Debian
+        # whose system Python carries the marker this branch would refuse an
+        # upgrade that pip performs perfectly happily — the venv is precisely
+        # the place PEP 668 tells people to go.
         return Install("pip", [sys.executable, "-m", "pip", "install",
                                "--upgrade", PACKAGE],
                        "installed into a virtual environment")
 
+    # A plain `pip install magi-research` into the interpreter itself. This
+    # used to land in "unknown", which was the bug: the person got a notice
+    # naming no command and went back to `pip install magi-research`, which
+    # prints "Requirement already satisfied", exits 0, and upgrades nothing.
+    if "/site-packages/" in pkg or "/dist-packages/" in pkg:
+        if managed:
+            return Install("pip-system", None, MANAGED_NOTE)
+        return Install("pip-system",
+                       [sys.executable, "-m", "pip", "install", "--upgrade",
+                        PACKAGE],
+                       "installed with pip into this Python itself")
+
+    # Not a checkout, not a venv, not in any site-packages: a zipapp, a frozen
+    # bundle, something on PYTHONPATH. There is no command that is safe to run.
     return Install("unknown", None,
                    "could not tell how this was installed; upgrade with the "
                    "tool you used (pipx / uv / pip)")
