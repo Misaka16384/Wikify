@@ -3390,6 +3390,30 @@ details.advanced-sql > summary {
 }
 [data-theme="eva"] .doc-preview-side-head.side-flash { border-radius: 0; }
 
+/* Inner surfaces that had no MAGI rule and fell through to an opaque --bg-*
+   token. They are rungs on the same ladder as everything else in this theme. */
+[data-theme="eva"] .stat-pill,
+[data-theme="eva"] .lang-toggle,
+[data-theme="eva"] .search-hit-snippet,
+[data-theme="eva"] .ingest-preview pre {
+  background-color: rgba(var(--eva-bg-rgb), calc(0.32 * var(--glass-scale)));
+}
+
+[data-theme="eva"] .pane-list {
+  background-color: rgba(var(--eva-bg-rgb), calc(0.3 * var(--glass-scale)));
+}
+
+[data-theme="eva"] .lang-pill.active {
+  background-color: rgba(var(--eva-bg-rgb), calc(0.55 * var(--glass-scale)));
+}
+
+/* These two float over the graph canvas rather than sitting in a card, and the
+   canvas underneath is busy, so they carry more veil than an inner surface. */
+[data-theme="eva"] .graph-map-toggle,
+[data-theme="eva"] .graph-map-note {
+  background-color: rgba(var(--eva-bg-rgb), calc(0.5 * var(--glass-scale)));
+}
+
 /* Hover on glass is a tint in the material, never a fill on top of it. The
    opaque tokens these used are darker than the plate in the light variant and
    punch a flat hole in it in the dark one. */
@@ -3855,12 +3879,12 @@ details.advanced-sql > summary {
 [data-theme="eva"] .action-row,
 [data-theme="eva"] .banner-pill {
   border-radius: 0;
-  background: rgba(var(--eva-bg-rgb), 0.75);
+  background: rgba(var(--eva-bg-rgb), calc(0.55 * var(--glass-scale)));
   border-color: rgba(var(--eva-p), 0.14);
 }
 
 [data-theme="eva"] .data-table th {
-  background-color: rgba(var(--eva-bg-rgb), 0.96);
+  background-color: rgba(var(--eva-bg-rgb), calc(0.72 * var(--glass-scale)));
   color: var(--eva-p-soft);
   font-family: var(--font-mono);
   letter-spacing: 0.06em;
@@ -3874,7 +3898,7 @@ details.advanced-sql > summary {
 [data-theme="eva"] .select-input,
 [data-theme="eva"] .text-input,
 [data-theme="eva"] .search-input {
-  background-color: rgba(var(--eva-bg-rgb), 0.92);
+  background-color: rgba(var(--eva-bg-rgb), calc(0.68 * var(--glass-scale)));
   border: 1px solid var(--border-default);
   color: var(--text-primary);
   font-family: var(--font-mono);
@@ -4066,7 +4090,7 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"] .terminal-btn {
-  background-color: rgba(var(--eva-bg-rgb), 0.9);
+  background-color: rgba(var(--eva-bg-rgb), calc(0.66 * var(--glass-scale)));
   color: var(--term-text);
   border-color: rgba(53, 239, 126, 0.3);
 }
@@ -4243,7 +4267,10 @@ details.advanced-sql > summary {
   color: var(--text-secondary);
 }
 
-[data-theme="eva"] .markdown-body th { background: rgba(var(--eva-bg-rgb), 0.9); color: var(--eva-p-soft); }
+[data-theme="eva"] .markdown-body th {
+  background: rgba(var(--eva-bg-rgb), calc(0.66 * var(--glass-scale)));
+  color: var(--eva-p-soft);
+}
 [data-theme="eva"] .markdown-body th, [data-theme="eva"] .markdown-body td {
   border-color: rgba(var(--eva-p), 0.18);
 }
@@ -4273,7 +4300,7 @@ details.advanced-sql > summary {
 
 [data-theme="eva"] .code-wrap .copy-btn {
   border-color: rgba(var(--eva-p), 0.3);
-  background: rgba(var(--eva-bg-rgb), 0.85);
+  background: rgba(var(--eva-bg-rgb), calc(0.63 * var(--glass-scale)));
   color: var(--eva-p-soft);
 }
 

@@ -94,6 +94,51 @@ def test_only_the_lift_is_mirrored_between_the_variants():
         "near-black one does")
 
 
+#: The only MAGI surfaces allowed a fixed alpha, and why. Everything else is
+#: part of the material and moves with the slider.
+FIXED_ALPHA_ALLOWED = {
+    # Not a panel: the ground the glass sits on. Thinning it with the slider
+    # would just uncover more photograph everywhere at once.
+    ".app-bg-shade",
+    # Not a panel either: the scrim that has to dim the page behind a modal
+    # whatever the glass is set to.
+    ".modal-backdrop",
+    # The control you move the slider with. If it tracked the slider, dragging
+    # opacity to zero would make it disappear out from under the cursor.
+    ".glass-tuner-btn",
+    ".glass-tuner-panel",
+}
+
+
+def test_every_magi_surface_tracks_the_slider():
+    """A surface pinned at a fixed alpha is invisible as a bug in the dark
+    variant and obvious in the light one.
+
+    `rgba(5, 6, 8, 0.96)` over a near-black panel *is* the panel, so the sticky
+    table header looked correct for as long as anyone only used MAGI dark. The
+    identical rule in the light variant is `rgba(244, 248, 252, 0.96)` over
+    glass: a solid bright band across a translucent card, and it stays solid
+    while everything around it thins out. Reported as "these header bars have
+    no transparency at all, very jarring", and there were ten of them.
+    """
+    offenders = []
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", CSS):
+        sel = m.group(1).strip().splitlines()[-1].strip()
+        if '[data-theme="eva"]' not in sel:
+            continue
+        if any(a in sel for a in FIXED_ALPHA_ALLOWED):
+            continue
+        for b in re.finditer(r"background(?:-color)?\s*:\s*([^;]+);", m.group(2)):
+            for a in re.findall(
+                    r"rgba\(var\(--eva-bg-rgb\),\s*([0-9.]+)\s*\)", b.group(1)):
+                line = CSS[:m.start(2)].count("\n") + 1
+                offenders.append(f"styles.css:{line} {sel[:44]} alpha={a}")
+    assert not offenders, (
+        "MAGI surfaces pinned at a fixed alpha — they will read as solid "
+        "blocks inside glass at any slider setting below full:\n  "
+        + "\n  ".join(offenders))
+
+
 def test_shadow_is_a_theme_token_not_a_literal():
     """Eight rules in MAGI cast near-black at 0.4 to 0.95 and none was mirrored
     for the light variant. On a pale ground that is a smudge, not depth — and
