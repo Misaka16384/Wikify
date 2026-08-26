@@ -145,7 +145,11 @@ uv publish --token pypi-<your-token>
   failure is handed to the detached helper instead of reported, so do not
   treat an inline success as proof the recovery path still works — test it
   by running the venv's `Scripts/magi.exe` directly.
-- 100 MB per file; the wheel is ~3.9 MB (mostly MAGI MODE artwork).
+- 100 MB per file; the wheel is ~5.4 MB as of v1.15.0. Nearly all of it is
+  `ui/static/` (7.1 MB before compression): `vendor/mermaid.min.js` at 2.6 MB
+  and the MAGI MODE backgrounds. The figure said 3.9 MB for several releases
+  after it stopped being true — check it against `uv build`'s output rather
+  than against this line.
 - README images must be absolute URLs — relative paths 404 on PyPI.
 - The install instructions in `README.md`, `README_en.md`,
   `src/magi/docs/guide.*.md`, `install.ps1`, `install.sh` and both
