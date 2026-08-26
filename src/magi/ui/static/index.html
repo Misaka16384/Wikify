@@ -686,6 +686,17 @@
       </div>
 
       <div class="card">
+        <label class="field-label" for="ingest-upload-file" data-i18n="ingest_upload_label">Or upload a file from this computer</label>
+        <div class="ingest-add-row">
+          <input type="file" id="ingest-upload-file" class="text-input"
+                 accept=".pdf,.md,.markdown,.txt,.tex,.tar.gz,.tgz">
+          <button class="btn btn-secondary btn-sm" id="btn-ingest-upload" data-i18n="btn_ingest_upload">Upload</button>
+        </div>
+        <p class="card-subtitle" data-i18n="ingest_upload_hint">Lands in inbox/ and joins the queue below, so it goes through the same review as everything else.</p>
+        <p class="card-subtitle" id="ingest-upload-status"></p>
+      </div>
+
+      <div class="card">
         <div class="ingest-toolbar">
           <div>
             <h3 data-i18n="ingest_batches_title">Batches</h3>

@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -164,6 +164,59 @@ DOC_PREVIEW_SUFFIXES = {
 
 # Figures a card can embed. Same door, different keyring.
 ASSET_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".avif"}
+
+def _upload_suffixes() -> set:
+    """Exactly what an ingest route can handle, asked rather than restated.
+
+    A hand-written list here accepted `.zip` and `.ltx`, which no route reads:
+    the file would land in `inbox/`, be skipped by every pass forever, and read
+    to whoever uploaded it exactly like the upload having failed silently.
+    """
+    from magi.ingest import routing
+
+    return set(routing.TEXT_SUFFIXES) | set(routing.TEX_SUFFIXES) | {".pdf"}
+
+
+UPLOAD_SUFFIXES = _upload_suffixes()
+
+# A local PDF is routinely tens of megabytes and occasionally a few hundred.
+# The cap exists so a mistake is refused rather than filling a disk.
+UPLOAD_MAX_BYTES = 512 * 1024 * 1024
+
+
+def upload_suffix(name: str) -> str:
+    lower = name.lower()
+    return ".tar.gz" if lower.endswith(".tar.gz") else os.path.splitext(lower)[1]
+
+
+def safe_upload_name(raw: str) -> str:
+    """A filename that can only ever name a file directly inside inbox/.
+
+    Everything structural is stripped rather than escaped: take the last
+    path-ish component under either separator, drop anything that is not a
+    plain name character, and refuse the results that are still not a name.
+    `..`, absolute paths, drive letters, NTFS streams and reserved device
+    names all end here rather than being passed to `open()` and reasoned about
+    later.
+    """
+    name = str(raw).replace("\\", "/").split("/")[-1].strip()
+    # `\w` is Unicode-aware, so a paper called 拓扑序.pdf keeps its name. An
+    # ASCII allow-list here renamed every non-Latin document to underscores,
+    # which is not sanitising, it is losing the title.
+    name = re.sub(r"[^\w.+\- ]", "_", name).strip(". ")
+    if not name or set(name) <= {".", "_", " "}:
+        raise HTTPException(status_code=400, detail="unusable filename")
+    if name.split(".")[0].upper() in {
+            "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4",
+            "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3",
+            "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"}:
+        name = "_" + name
+    # Trim the stem, never the suffix: a plain `name[:180]` truncated
+    # `<176 a's>.pdf` to `<180 a's>` and handed on a document with no
+    # extension, which every router downstream reads as "no route for this".
+    suffix = upload_suffix(name)
+    stem = name[:len(name) - len(suffix)] if suffix else name
+    return (stem[:180 - len(suffix)] or "upload") + suffix
 
 
 def _safe_workspace_file(ws: Path, rel: str, suffixes: set[str] | None = None) -> Path:
@@ -947,6 +1000,85 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                 "workspace": str(target),
                 "status": "already-queued" if already else "queued",
                 "pending": len(ledger.pending(target))}
+
+    @app.post("/api/ingest/upload")
+    async def post_ingest_upload(
+        request: Request,
+        name: str = Query(..., description="the file's own name, no path"),
+        workspace: Optional[str] = Query(None),
+    ) -> dict:
+        """Put one local document into a workspace's `inbox/`. Nothing else.
+
+        The WebUI had no way to get a file off the reader's own disk. Every
+        ingest door it did have took an identifier — a URL, a DOI, an arXiv id
+        — so someone holding a PDF that is not on arXiv, which is most PDFs,
+        had no path into their library at all without opening a terminal. The
+        two surfaces meant for feeding a library were the two that could not.
+
+        Deliberately as small as the enqueue door next to it: this writes a
+        file and does not import a converter, a subprocess or the job manager,
+        so a loopback server exposes no more than "a file can appear in
+        inbox/". Getting it *out* of inbox/ is a separate, visible step.
+
+        Raw bytes rather than multipart, because multipart would mean adding
+        `python-multipart` to everyone's install for one endpoint, and a
+        browser can send a File as a fetch body as it stands.
+        """
+        ws = _resolve_workspace(workspace)
+        if not (ws / "inbox").is_dir():
+            raise HTTPException(
+                status_code=400,
+                detail=f"{ws} is not a MAGI workspace (no inbox/) — pick one first")
+
+        filename = safe_upload_name(name)
+        suffix = upload_suffix(filename)
+        if suffix not in UPLOAD_SUFFIXES:
+            raise HTTPException(
+                status_code=415,
+                detail=f"no ingest route for '{suffix or filename}' — accepted: "
+                       + ", ".join(sorted(UPLOAD_SUFFIXES)))
+
+        declared = request.headers.get("content-length")
+        if declared and declared.isdigit() and int(declared) > UPLOAD_MAX_BYTES:
+            raise HTTPException(status_code=413, detail="file is too large")
+
+        inbox = ws / "inbox"
+        dest = inbox / filename
+        # inbox/ is ORIGINAL. Landing on a name that is already there would
+        # destroy a document waiting to be ingested, so take the next free one
+        # and say which it was.
+        stem, n = dest.stem, 2
+        while dest.exists():
+            dest = inbox / f"{stem}-{n}{suffix}"
+            n += 1
+
+        # Stream to a temp file in the same directory and rename: a connection
+        # that dies half way must not leave a truncated PDF looking like a
+        # document ready to convert.
+        tmp = inbox / f".upload_{os.getpid()}_{dest.name}"
+        written = 0
+        try:
+            with open(tmp, "wb") as fh:
+                async for chunk in request.stream():
+                    written += len(chunk)
+                    if written > UPLOAD_MAX_BYTES:
+                        raise HTTPException(status_code=413, detail="file is too large")
+                    fh.write(chunk)
+            if not written:
+                raise HTTPException(status_code=400, detail="empty upload")
+            os.replace(tmp, dest)
+        except BaseException:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+            raise
+
+        return {"workspace": str(ws), "path": str(dest),
+                "name": dest.name, "bytes": written,
+                "renamed": dest.name != filename,
+                "inbox_pending": sum(1 for p in inbox.iterdir() if p.is_file()
+                                     and not p.name.startswith("."))}
 
     @app.post("/api/workspace/radar/review")
     def post_radar_review(req: RadarReviewRequest) -> dict:

@@ -255,6 +255,12 @@
       ingest_undecided_sub: "已转换，但还没进库",
       btn_ingest_run: "跑队列",
       btn_ingest_commit: "提交已批准的",
+      btn_ingest_upload: "上传",
+      ingest_upload_label: "或者,从这台电脑上传一个文件",
+      ingest_upload_hint: "先落进 inbox/,再汇入下面的队列——和其他来源走同一道审批。",
+      ingest_upload_working: "正在上传 {name}……",
+      ingest_upload_queued: "{name} 已上传并入队,跑一次队列就会转换。",
+      ingest_upload_text_done: "{name} 已放进 inbox/。它已经是文本,不用转换——下次 magi ingest auto 会把它归档。",
       btn_ingest_add: "排队",
       ingest_add_label: "按链接 / DOI / arXiv 号加一篇",
       ingest_add_hint: "排队不会抓任何东西。跑完队列，再审批转出来的结果。",
@@ -917,6 +923,12 @@
       ingest_undecided_sub: "Converted, nothing in the library yet",
       btn_ingest_run: "Run the Queue",
       btn_ingest_commit: "Commit Approved",
+      btn_ingest_upload: "Upload",
+      ingest_upload_label: "Or upload a file from this computer",
+      ingest_upload_hint: "Lands in inbox/ and joins the queue below, so it goes through the same review as everything else.",
+      ingest_upload_working: "Uploading {name}…",
+      ingest_upload_queued: "{name} uploaded and queued — run the queue to convert it.",
+      ingest_upload_text_done: "{name} is in inbox/. It is already text, so there is nothing to convert — the next 'magi ingest auto' files it.",
       btn_ingest_add: "Queue it",
       ingest_add_label: "Add a paper by link, DOI, or arXiv id",
       ingest_add_hint: "Queuing fetches nothing. Run the queue, then approve what came out.",
@@ -6878,6 +6890,58 @@
     els.ingestAddUrl.addEventListener("keydown", (e) => {
       // Enter in a one-field form should submit it.
       if (e.key === "Enter") els.ingestAdd.click();
+    });
+  }
+
+  // Upload a document off this machine. Every other door on this page takes
+  // an identifier — a link, a DOI, an arXiv id — so a PDF that is not on
+  // arXiv, which is most PDFs, had no way in without a terminal.
+  //
+  // Two steps on purpose, both reusing what is already here: the file goes
+  // into inbox/, then the same enqueue call the link field makes puts it in
+  // the queue below. It reaches the library through the same convert →
+  // approve → commit gate as everything else rather than a second path with
+  // its own rules.
+  const uploadBtn = document.getElementById("btn-ingest-upload");
+  const uploadInput = document.getElementById("ingest-upload-file");
+  const uploadStatus = document.getElementById("ingest-upload-status");
+  if (uploadBtn && uploadInput) {
+    // Text is filed, not converted — the conversion ladder has nothing to do
+    // with a Markdown file and says so by failing. Say it here instead.
+    const TEXT_RE = /\.(md|markdown|txt)$/i;
+    uploadBtn.addEventListener("click", async () => {
+      const file = uploadInput.files && uploadInput.files[0];
+      if (!file) return;
+      const kb = (state.kbs || []).find((k) => k.path === state.workspace);
+      if (!kb) {
+        showToast(t("ingest_no_workspace"), "error");
+        return;
+      }
+      uploadBtn.disabled = true;
+      if (uploadStatus) uploadStatus.textContent = t("ingest_upload_working", { name: file.name });
+      try {
+        const up = await apiFetch(
+          `/api/ingest/upload?name=${encodeURIComponent(file.name)}` +
+          `&workspace=${encodeURIComponent(state.workspace)}`,
+          { method: "POST", body: file, headers: {} });
+        if (TEXT_RE.test(up.name)) {
+          if (uploadStatus) uploadStatus.textContent = t("ingest_upload_text_done", { name: up.name });
+        } else {
+          await apiFetch("/api/ingest/enqueue", {
+            method: "POST",
+            body: JSON.stringify({ value: up.path, library: kb.name }),
+          });
+          if (uploadStatus) uploadStatus.textContent = t("ingest_upload_queued", { name: up.name });
+        }
+        uploadInput.value = "";
+        loadIngest();
+      } catch (err) {
+        // apiFetch has already shown the toast and re-thrown; a second one
+        // here would just say the same thing twice.
+        if (uploadStatus) uploadStatus.textContent = "";
+      } finally {
+        uploadBtn.disabled = false;
+      }
     });
   }
 
