@@ -222,7 +222,7 @@
       btn_radar_settings: "设置…",
       btn_dismiss: "跳过",
       tip_dismiss: "只记一条「不感兴趣」的决定，不动任何文件。可用 Undo 撤销。",
-      tip_accept_inbox: "在本工作区 inbox/ 写一张卡片，里面是抓取这篇的命令。此刻不下载任何东西。",
+      tip_accept_inbox: "把这篇加进本工作区的摄入队列。此刻不下载任何东西——跑一次队列才会抓取和转换，进库前仍要你审批。",
       tip_create_issue: "在 Hub 的任务库里建一条 survey 任务（该 Hub 下所有课题共用）。不下载、也不写 inbox/。",
       tip_create_issue_no_store: "本工作区所属 Hub 还没有任务库——先到 Balthasar 标签页初始化。",
       btn_undo: "撤销",
@@ -557,11 +557,12 @@
 
       // Radar review actions
       radar_actions_title: "候选操作",
-      btn_accept_inbox: "收入 inbox",
+      btn_accept_inbox: "加入摄入队列",
       btn_create_issue: "建阅读任务",
       btn_mark_reviewed: "✓ 标记本报告已审",
       toast_marked_reviewed: "已标记为已审：{file}",
-      toast_accepted: "已写入 {path}（等待摄入）",
+      toast_accepted: "已入队，识别为{kind}：{value}",
+      toast_already_queued: "已经在队列里了，识别为{kind}：{value}",
       toast_issue_created: "已创建阅读任务 (bd survey)",
 
       // Update check. The WebUI reports; it never upgrades the package it is
@@ -890,7 +891,7 @@
       btn_radar_settings: "Settings…",
       btn_dismiss: "Skip",
       tip_dismiss: "Records a 'not interested' decision. Touches no files, and Undo reverses it.",
-      tip_accept_inbox: "Writes a card into this workspace's inbox/ holding the command to fetch this paper. Downloads nothing now.",
+      tip_accept_inbox: "Adds this paper to the workspace's ingest queue. Downloads nothing now — running the queue fetches and converts it, and it still needs your approval before entering the library.",
       tip_create_issue: "Opens a survey task in the task store at the hub, shared by every topic under it. No download, nothing written to inbox/.",
       tip_create_issue_no_store: "The hub for this workspace has no task store yet — initialize it on the Balthasar tab.",
       btn_undo: "Undo",
@@ -1225,11 +1226,12 @@
 
       // Radar review actions
       radar_actions_title: "Candidate Actions",
-      btn_accept_inbox: "Accept to inbox",
+      btn_accept_inbox: "Queue for ingest",
       btn_create_issue: "Create reading task",
       btn_mark_reviewed: "✓ Mark report reviewed",
       toast_marked_reviewed: "Marked reviewed: {file}",
-      toast_accepted: "Wrote {path} (queued for ingestion)",
+      toast_accepted: "Queued as {kind}: {value}",
+      toast_already_queued: "Already waiting as {kind}: {value}",
       toast_issue_created: "Reading task created (bd survey)",
 
       // Update check. The WebUI reports; it never upgrades the package it is
@@ -6025,7 +6027,8 @@
         body: JSON.stringify({ file, index, action, workspace: state.workspace }),
       });
       if (action === "accept-to-inbox") {
-        showToast(t("toast_accepted", { path: res.created }), "success");
+        showToast(t(res.status === "already-queued" ? "toast_already_queued" : "toast_accepted",
+                    { kind: res.source_type, value: res.value }), "success");
       } else if (action === "create-issue") {
         showToast(t("toast_issue_created"), "success");
       }

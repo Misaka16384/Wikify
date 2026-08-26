@@ -1113,39 +1113,40 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             record_triage(ws, req.file, cid, req.action)
             return {"candidate": cand, "decision": None if req.action == "reset" else "dismiss"}
 
-        if req.action == "accept-to-inbox":
-            import yaml
+        if req.action in ("accept-to-inbox", "queue"):
+            # Accepting used to write `inbox/radar-accept-<slug>.md` — a stub
+            # whose body was a paragraph of instructions telling somebody to go
+            # and run `magi ingest url`. Nothing ran them. What did happen is
+            # that `magi ingest auto` routes any .md in inbox/ to `add`, so the
+            # note got filed into `raw/notes/` as a document: counted by
+            # `magi wiki uncompiled`, indexed by `magi search`, and reported as
+            # part of the library. Accepting ten candidates manufactured ten
+            # empty papers whose entire content was a request to fetch the real
+            # one.
+            #
+            # A radar candidate is an arXiv id or a URL, which is exactly what
+            # the queue takes — the same door the browser extension and the
+            # upload button use. So queue it, and let the pipeline fetch,
+            # convert and gate it like anything else.
+            from magi.ingest import ledger
+            from magi.ingest.enqueue import classify, clean_title
 
-            slug = re.sub(r"[^\w\-]+", "-", (cand["title"] or "paper").lower()).strip("-")[:60] or "paper"
-            dest = ws / "inbox" / f"radar-accept-{slug}.md"
-            if dest.exists():
-                raise HTTPException(status_code=409, detail=f"Already accepted: {dest.name}")
-            # arXiv first, S2 second: the card tells the reader to go download
-            # the PDF, and a Semantic Scholar landing page is not where that is.
-            url = (f"https://arxiv.org/abs/{cand['arxiv_id']}"
-                   if cand["arxiv_id"] else cand["url"])
-            fm = {"title": cand["title"], "type": "papers", "source": "radar",
-                  "id": cand["id"], "arxiv_id": cand["arxiv_id"], "url": url,
-                  "status": "to-ingest"}
-            fm = {k: v for k, v in fm.items() if v is not None}
-            body = ("---\n" + yaml.safe_dump(fm, allow_unicode=True, sort_keys=False)
-                    + "---\n\n" + f"# {cand['title']}\n\n"
-                    + (f"{url}\n\n" if url else "")
-                    + f"Accepted from {req.file} via WebUI radar review.\n\n"
-                    # This line used to read "download the PDF/source into
-                    # inbox/ and run the wiki_ingest skill" — an instruction to
-                    # an agent, which one duly improvised its way through into a
-                    # per-page vision transcription. A command is not an
-                    # invitation to improvise.
-                    + "Ingest it with:\n\n"
-                    + f"    magi ingest url {url or cand['id']}\n"
-                    + "    magi ingest batch-run\n\n"
-                    + "Then review and approve the batch: `magi ingest batch-list`.\n")
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            dest.write_text(body, encoding="utf-8")
+            value = (f"arXiv:{cand['arxiv_id']}" if cand["arxiv_id"]
+                     else (cand["url"] or cand["id"]))
+            if not value:
+                raise HTTPException(
+                    status_code=409,
+                    detail="This candidate carries no arXiv id, URL or id to queue")
+            source_type, resolved = classify(value)
+            already = ledger.find_pending(ws, source_type, resolved)
+            req_id = ledger.enqueue(ws, source_type=source_type, value=resolved,
+                                    title=clean_title(cand["title"]))
             if cand.get("id"):
                 record_triage(ws, req.file, cand["id"], "accept")
-            return {"created": f"inbox/{dest.name}", "candidate": cand, "decision": "accept"}
+            return {"req_id": req_id, "source_type": source_type, "value": resolved,
+                    "status": "already-queued" if already else "queued",
+                    "pending": len(ledger.pending(ws)),
+                    "candidate": cand, "decision": "accept"}
 
         if req.action == "create-issue":
             from magi.pm import _run_bd, bd_available, find_beads_root

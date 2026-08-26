@@ -49,9 +49,17 @@ When the user asks to ingest documents (or runs the command without a path):
         ```
         magi ingest url "<URL or DOI or arXiv id>"
         magi ingest batch-run
-        magi ingest batch-list          # then approve what looks right
+        magi ingest batch-list                                        # show the user what came out
+        magi ingest batch-decide --item <ITEM_ID> --decision approve  # or reject, per item
+        magi ingest batch-commit                                      # only this writes into raw/
         ```
         This tries arXiv's own LaTeXML HTML first, where every formula carries its original LaTeX verbatim, then the source tarball, then the PDF's own text layer where that suffices, then MinerU, then local OCR. It costs you no tokens beyond reading the report. **Everything it produces waits for a human to approve it before entering the library**, so you are not deciding on anyone's behalf.
+
+        **All five commands, in that order.** `batch-run` converts into a staging area and writes nothing into the library; `batch-decide` records the human's answer per item; `batch-commit` is the only step that moves anything into `raw/`, and it refuses a batch that still has an undecided item. Stopping after `batch-list` — which is how this used to be written — leaves the whole batch staged forever, looking to the user exactly like an ingest that worked.
+
+        Rejecting is not discarding: the item is requeued on the **next route down** and reappears in the next `batch-run`, so "this conversion is bad, try another way" is one word.
+
+        Committing is not the end either. It does not run `magi index`, so the documents are not yet findable by `magi search`, and it does not compile anything into `wiki/references/`. Say so, and name both as the next steps.
     *   **For a `.pdf` file already on disk with no identifier**: use the router — it picks the best available converter and never picks anything expensive:
         `magi ingest auto "<PDF_PATH>" --topic-dir "<TOPIC_DIR>"`
         Add `--dry-run` first to see which route it would take. For a born-digital PDF with no mathematics it reads the document's own text layer — free, and faithful because it is the text itself rather than a reading of it. A PDF *with* mathematics goes to a model even though its text reads perfectly: the characters survive and the two-dimensional structure does not. This is not a judgement call you need to make; the gate decides and prints what it decided. If it reports that it cannot route the file, that is a real answer: it means neither a MinerU token nor Ollama is available. **Say so and stop.** Do not work around it.

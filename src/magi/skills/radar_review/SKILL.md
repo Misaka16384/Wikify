@@ -42,14 +42,28 @@ The deterministic radar (`magi radar harvest`, usually run nightly by the schedu
    - Run `magi search "<candidate title + key abstract phrases>" -k 5 --json` to see how strongly the candidate overlaps existing knowledge.
    - Classify: **read-now** (directly advances an active question — check `bd ready`), **relevant** (extends the wiki's core topics), **skip** (out of scope).
    - Judge from the abstract against the workspace scope (`config.md`); do NOT fetch full PDFs during triage.
-4. **Convert decisions to durable state**:
-   - For each **read-now** and **relevant** candidate, file a bd issue:
+4. **Record every decision where both surfaces can see it**:
+
+   ```bash
+   magi radar triage --report <DIGEST_NAME> --id <CANDIDATE_ID> --decision accept
+   magi radar triage --report <DIGEST_NAME> --id <CANDIDATE_ID> --decision dismiss
+   magi radar triage --report <DIGEST_NAME>            # list what is recorded so far
+   ```
+
+   Use `accept` for **read-now** and **relevant**, `dismiss` for **skip**. Record *every* candidate, not just the keepers — the point of writing "no" down is that triage does not finish in one sitting, and an unrecorded "no" is indistinguishable from an unread candidate.
+
+   **Do not hand-edit the digest's frontmatter to record decisions.** That is what this skill used to do, and it wrote them into a file nothing else reads: the WebUI's radar panel reads `output/radar/triage.jsonl`, so an agent could triage forty candidates and the panel would still show forty undecided. `magi radar triage` writes exactly where the panel reads, and the panel writes there too, so the two agree in both directions.
+
+5. **Turn the keepers into work and into queued papers**:
+   - File a bd issue for each **read-now** / **relevant** candidate:
      `bd create -t survey "Read arXiv:<id> — <short title>" -d "<one-line why it matters + which concepts/questions it touches>"`
      Give **read-now** items `-p 1`.
-   - For **read-now** items the user will likely ingest: note the arXiv link in the issue description; ingestion happens later via the wiki_ingest skill (PDF into `inbox/`).
-   - **skip** items need no action — the ledger already prevents re-surfacing.
-5. **Close out the digest**: edit its frontmatter `status: pending-review` → `status: reviewed`, and append a one-line summary at the top of the digest body: how many read-now / relevant / skip.
-6. **Report** to the user: counts per class, the read-now titles with one-line justifications, and the created bd issue ids.
+   - Queue the ones the user actually wants in the library. This skill's own description promises it, and it is one command — do not defer it to another skill:
+     `magi ingest url "arXiv:<id>" --library "<LIBRARY_NAME>"`
+     Queuing fetches nothing. Converting and committing are `magi ingest batch-run` and the approval steps after it (see the `wiki_inbox` skill), and nothing enters the library until a human approves it.
+   - **skip** items need no further action — the `dismiss` you recorded plus the seen-ledger keep them from resurfacing.
+6. **Close out the digest**: edit its frontmatter `status: pending-review` → `status: reviewed`, and append a one-line summary at the top of the digest body: how many read-now / relevant / skip. This is the one frontmatter edit this skill still makes — it marks the *report* done, and is not where per-candidate decisions go.
+7. **Report** to the user: counts per class, the read-now titles with one-line justifications, which papers you queued, and the created bd issue ids.
 
 ## Citation-Gap Reports (feature B)
 

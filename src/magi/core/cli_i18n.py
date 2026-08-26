@@ -88,6 +88,7 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("radar", "harvest"): "抓取并去重新的候选论文",
     ("radar", "citation-gap"): "侦察应当引用我们却没有引用的论文",
     ("radar", "status"): "查看雷达台账与待审阅简报",
+    ("radar", "triage"): "记录或查看对雷达候选论文的审阅决定",
     ("radar", "install-schedule"): "注册每日自动扫描任务",
     # 标签
     ("tags", "extract"): "抽取标签/别名倒排索引",

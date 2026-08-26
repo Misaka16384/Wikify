@@ -1060,18 +1060,30 @@ def test_radar_review_write_actions(client):
     assert c0["relevance"] == 0.61
     assert c0["url"] == "https://arxiv.org/abs/2508.01234"
 
-    # accept-to-inbox writes the queue file
+    # Accepting queues the paper. It used to write a stub markdown into
+    # inbox/ whose body was a paragraph telling somebody to run `magi ingest
+    # url` — which `magi ingest auto` then filed into raw/notes/ as a
+    # document, so accepting ten candidates manufactured ten empty "papers"
+    # whose whole content was a request to fetch the real one.
+    from magi.ingest import ledger
+
     body = {"file": f.name, "index": 0, "action": "accept-to-inbox", "workspace": str(ws)}
     res = client.post("/api/workspace/radar/candidate", json=body)
     assert res.status_code == 200
-    created = res.json()["created"]
-    accepted = ws / created
-    assert accepted.is_file()
-    text = accepted.read_text(encoding="utf-8")
-    assert "to-ingest" in text and "2508.01234" in text
+    assert res.json()["status"] == "queued"
+    assert res.json()["source_type"] == "arxiv"
+    assert [p.value for p in ledger.pending(ws)] == ["2508.01234"]
+    assert not list((ws / "inbox").glob("radar-accept-*.md")), \
+        "accepting must not leave a note that reads as a source document"
 
-    # duplicate accept -> 409; bad index -> 404
-    assert client.post("/api/workspace/radar/candidate", json=body).status_code == 409
+    # Accepting twice is idempotent, the same as every other door into the
+    # queue — it reports that it was already waiting rather than erroring.
+    again = client.post("/api/workspace/radar/candidate", json=body)
+    assert again.status_code == 200
+    assert again.json()["status"] == "already-queued"
+    assert len(ledger.pending(ws)) == 1
+
+    # bad index -> 404
     assert client.post("/api/workspace/radar/candidate",
                        json={**body, "index": 99}).status_code == 404
 
@@ -1592,7 +1604,10 @@ def test_preview_reports_a_node_with_no_card_behind_it(client):
     ("../../../etc/passwd", 403),
     ("wiki/../../outside.md", 403),
     ("C:/Windows/win.ini", 400),        # absolute on Windows, "relative" to a Linux Path
-    ("C:\Windows\win.ini", 400),
+    # Raw: `\W` and `\w` are not escape sequences, so this was only the string
+    # it looks like by accident — and a SyntaxWarning today is an error in a
+    # later Python.
+    (r"C:\Windows\win.ini", 400),
     ("", 400),
     ("output/graph.db", 415),
     ("wiki/concepts/nope.md", 404),

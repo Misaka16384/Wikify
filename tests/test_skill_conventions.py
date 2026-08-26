@@ -228,3 +228,116 @@ def test_the_expensive_route_is_never_offered_as_an_automatic_fallback():
         "these mention per-page vision transcription without both stating its "
         "cost and requiring an explicit yes — which is exactly the wording that "
         "let an unattended agent spend a weekly quota:\n  " + "\n  ".join(offenders))
+
+
+# --------------------------------------------------------------------------
+# A skill may only name commands and flags that exist
+# --------------------------------------------------------------------------
+#
+# Skills are prose that gets executed, and nothing type-checks prose. Every
+# instance found so far was the same shape: a command that used to take a flag,
+# or never took it. `wiki_inbox` told an agent to queue with `--library` and
+# then to run `batch-run`, `batch-list`, `batch-decide` and `batch-commit`
+# bare — none of which has ever accepted `--library` — so the queue it had just
+# filled sat untouched while a different library's queue was processed.
+# `wiki_enrich` called `magi wiki reindex` "the concept builder" and said it
+# generates missing concept files, which it has never done.
+
+import functools
+import subprocess
+import sys
+
+_MAGI_CMD_RE = re.compile(r"`?\bmagi ((?:[a-z][a-z0-9-]*)(?: [a-z][a-z0-9-]*)?)")
+_FLAG_RE = re.compile(r"(--[a-z][a-z0-9-]*)")
+
+# Placeholders and shell noise that are not commands.
+_NOT_A_COMMAND = {"<command>", "<cmd>"}
+
+
+def _commands():
+    from magi.cli import _COMMANDS
+    return _COMMANDS
+
+
+@functools.lru_cache(maxsize=None)
+def _accepted_flags(key: tuple) -> frozenset:
+    """The long options `magi <key> --help` advertises."""
+    res = subprocess.run([sys.executable, "-m", "magi", *key, "--help"],
+                         capture_output=True, text=True, encoding="utf-8",
+                         errors="replace", timeout=120)
+    return frozenset(_FLAG_RE.findall(res.stdout or ""))
+
+
+#: A line that exists to say a flag is *not* real. `magi_guide` carries one on
+#: purpose — "there is no `magi migrate --dry-run`, no `magi index --force`" —
+#: and reading it as usage would make the manual's own warning the thing that
+#: fails this test.
+_NEGATION_RE = re.compile(
+    "there is no|no such|does not exist|never invent|not a real",
+    re.IGNORECASE)
+
+
+def _code_spans(text: str):
+    """Every `backticked` span and fenced code line, with its line intact.
+
+    A command reference is written as code. Prose is not: magi_guide's own
+    description sentence contains the words "magi command errors", which is
+    English, and reading it as an invocation is how this test would spend its
+    credibility on noise instead of on the four real ones it found.
+    """
+    fenced = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fenced = not fenced
+            continue
+        # Judged on the whole line, before it is cut into spans: magi_guide
+        # carries a deliberate list of flags that do NOT exist, and each one
+        # is backticked, so a span-level check would never see the "there is
+        # no" that governs them.
+        if _NEGATION_RE.search(line):
+            continue
+        if fenced:
+            yield line
+        else:
+            for span in re.findall(r"`([^`]+)`", line):
+                yield span
+
+
+def _invocations(text: str):
+    """(command key, flags used) for every `magi ...` usage in a skill."""
+    for line in _code_spans(text):
+        hits = list(_MAGI_CMD_RE.finditer(line))
+        for i, m in enumerate(hits):
+            words = m.group(1).split()
+            if not words or words[0] in _NOT_A_COMMAND:
+                continue
+            key = tuple(words[:2])
+            if key not in _commands():
+                key = (words[0],)
+            # Stop at the next `magi ...`: one sentence naming two commands
+            # used to hand the second one's flags to the first.
+            end = hits[i + 1].start() if i + 1 < len(hits) else len(line)
+            yield key, set(_FLAG_RE.findall(line[m.end():end]))
+
+
+@pytest.mark.parametrize("path", SKILL_FILES, ids=lambda p: p.parent.name)
+def test_a_skill_only_names_commands_that_exist(path):
+    unknown = sorted({" ".join(key) for key, _ in _invocations(_body(path))
+                      if key not in _commands()})
+    assert not unknown, (
+        f"{path.parent.name} names commands that are not in the CLI: {unknown}")
+
+
+@pytest.mark.parametrize("path", SKILL_FILES, ids=lambda p: p.parent.name)
+def test_a_skill_only_passes_flags_the_command_accepts(path):
+    bad = []
+    for key, flags in _invocations(_body(path)):
+        if key not in _commands():
+            continue        # the other test reports these
+        accepted = _accepted_flags(key)
+        if not accepted:
+            continue        # --help produced nothing parseable; not this test's job
+        for flag in sorted(flags - accepted):
+            bad.append(f"magi {' '.join(key)} {flag}")
+    assert not bad, (
+        f"{path.parent.name} passes flags the command does not accept: {bad}")

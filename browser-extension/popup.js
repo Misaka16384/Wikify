@@ -18,7 +18,11 @@
  * local API — and this must not be the reason that gets weakened.
  */
 
-const PORTS = [8737, 8738, 8739, 8740, 8741];
+// The same ten `magi ui` probes when 8737 is busy (src/magi/ui/server.py).
+// This listed five, so a machine with four servers already up — or four stale
+// sockets — started one the extension could not find, and the popup reported
+// "no MAGI server" about a server that was running.
+const PORTS = [8737, 8738, 8739, 8740, 8741, 8742, 8743, 8744, 8745, 8746];
 const STORE = { port: "magi-port", library: "magi-library", lang: "magi-lang" };
 
 /* Same shape as the WebUI's I18N table and the same storage key, so the two
@@ -41,7 +45,7 @@ const I18N = {
     queued: (kind, value) => `Queued as ${kind}: ${value}`,
     already: (kind, value) => `Already waiting as ${kind}: ${value}`,
     waiting: (n, lib) => `${n} waiting in ${lib}.`,
-    hint: "Queuing only adds it to a list. Run <code>magi ingest batch-run</code>, then approve what came out — nothing enters your library until you do.",
+    hint: "Queuing only adds it to a list. Open the MAGI dashboard's Ingest Queue panel to run it and approve what came out — nothing enters your library until you do.",
     kind: { arxiv: "arXiv paper", doi: "DOI", url: "page", file: "file" },
   },
   zh: {
@@ -58,7 +62,7 @@ const I18N = {
     queued: (kind, value) => `已入队，识别为${kind}：${value}`,
     already: (kind, value) => `已经在队列里了，识别为${kind}：${value}`,
     waiting: (n, lib) => `${lib} 里现在有 ${n} 项待处理。`,
-    hint: "入队只是加进一个清单。跑 <code>magi ingest batch-run</code>，然后审批转换结果——在你批准之前，什么都不会进库。",
+    hint: "入队只是加进一个清单。到 MAGI 面板的「摄入队列」里跑它、审批转换结果——在你批准之前，什么都不会进库。",
     kind: { arxiv: "arXiv 论文", doi: "DOI", url: "网页", file: "文件" },
   },
 };

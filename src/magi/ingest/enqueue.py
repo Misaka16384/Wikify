@@ -151,7 +151,14 @@ def cmd_url(args) -> int:
                           "pending": pending}, ensure_ascii=False))
     else:
         print(f"\n{pending} item(s) waiting in {topic}")
-        print("Run them:  magi ingest batch-run")
+        # `batch-run` and everything after it take `--topic-dir` and have never
+        # taken `--library`. Printing the bare command after queueing into a
+        # library *by name* sent the reader to run the pipeline against
+        # whichever workspace they happened to be standing in — so the queue
+        # they had just filled sat untouched, and a different library's queue
+        # got processed instead.
+        where = f' --topic-dir "{topic}"' if args.library else ""
+        print(f"Run them:  magi ingest batch-run{where}")
     return 0
 
 

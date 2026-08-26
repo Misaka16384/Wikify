@@ -1144,6 +1144,84 @@ def cmd_install_schedule(args: argparse.Namespace) -> int:
         return 0
 
 
+def cmd_triage(args: argparse.Namespace) -> int:
+    """Record a review decision where the WebUI reads it, or list what is there.
+
+    There was no command for this. `record_triage`/`load_triage` existed and
+    were called only from `magi.ui.api`, so the `radar_review` skill did the
+    only thing left to it and hand-edited the digest's frontmatter — a second
+    store nothing else reads. An agent could triage forty candidates and the
+    radar panel would still show forty undecided, because the two surfaces
+    were writing to different files and neither knew about the other.
+    """
+    topic = _resolve_topic(args)
+    if topic is None:
+        return 1
+
+    reports = scan_reports(topic)
+    if not reports:
+        print("no radar reports under inbox/radar/", file=sys.stderr)
+        return 1
+    if args.report:
+        match = [r for r in reports if r["name"] == args.report]
+        if not match:
+            print(f"no such report: {args.report}\navailable: "
+                  + ", ".join(r["name"] for r in reports), file=sys.stderr)
+            return 1
+        report = match[0]
+    else:
+        pending = [r for r in reports if r["status"] == "pending-review"]
+        report = (pending or reports)[0]
+
+    text = Path(report["path"]).read_text(encoding="utf-8", errors="replace")
+    cands = parse_digest_candidates(text)
+    recorded = load_triage(topic, report["name"])
+
+    if not args.decision:
+        rows = [{"index": c["index"], "id": c["id"], "title": c["title"],
+                 "decision": recorded.get(c["id"] or "")} for c in cands]
+        if args.json:
+            print(json.dumps({"report": report["name"], "candidates": rows},
+                             ensure_ascii=False))
+        else:
+            print(f"{report['name']} — {len(rows)} candidate(s)")
+            for r in rows:
+                print(f"  [{r['index']:>2}] {r['decision'] or '-':<8} "
+                      f"{(r['id'] or '?'):<24} {r['title']}")
+        return 0
+
+    if args.cand_id:
+        cand = next((c for c in cands if c["id"] == args.cand_id), None)
+        if cand is None:
+            print(f"no candidate with id {args.cand_id} in {report['name']}",
+                  file=sys.stderr)
+            return 1
+    elif args.index is not None:
+        if not (0 <= args.index < len(cands)):
+            print(f"no candidate #{args.index} in {report['name']} "
+                  f"({len(cands)} present)", file=sys.stderr)
+            return 1
+        cand = cands[args.index]
+    else:
+        print("name a candidate with --id or --index", file=sys.stderr)
+        return 2
+
+    if not cand["id"]:
+        print("that candidate carries no id to record a decision against",
+              file=sys.stderr)
+        return 1
+
+    record_triage(topic, report["name"], cand["id"], args.decision)
+    if args.json:
+        print(json.dumps({"report": report["name"], "id": cand["id"],
+                          "decision": None if args.decision == "reset" else args.decision},
+                         ensure_ascii=False))
+    else:
+        verb = "cleared" if args.decision == "reset" else f"recorded {args.decision}"
+        print(f"{verb}: {cand['title']}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="magi radar", description=__doc__)
     sub = parser.add_subparsers(dest="radar_command", required=True)
@@ -1163,6 +1241,19 @@ def main(argv: list[str] | None = None) -> int:
     p_s.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
     p_s.add_argument("--json", action="store_true")
     p_s.set_defaults(func=cmd_status)
+
+    p_t = sub.add_parser("triage", help="Record or list review decisions on a report's candidates")
+    p_t.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    p_t.add_argument("--report", help="Report file name under inbox/radar/ (default: newest pending)")
+    p_t.add_argument("--id", dest="cand_id", help="Candidate id (see the report, or --json)")
+    p_t.add_argument("--index", type=int, help="Candidate position instead of its id")
+    # The same three words the WebUI stores. A CLI that wrote "keep" where the
+    # panel writes "accept" would put two vocabularies in one ledger, which is
+    # the shape of the bug this command exists to close.
+    p_t.add_argument("--decision", choices=["accept", "dismiss", "reset"],
+                     help="Omit to list what is recorded so far")
+    p_t.add_argument("--json", action="store_true")
+    p_t.set_defaults(func=cmd_triage)
 
     p_i = sub.add_parser("install-schedule", help="Register a daily harvest (Task Scheduler / launchd)")
     p_i.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")

@@ -73,8 +73,8 @@ When the user asks to enrich, deep-dive, or查漏补缺 (fill gaps) on a paper:
     *   Refresh the navigation tables so the concept cards you just wrote are listed:
         `magi wiki reindex "<TOPIC_DIR>"`
         This rebuilds `_index.md` in each wiki directory. It does **not** create
-        concept files — a missing concept card is made with `magi wiki
-        add-concept`, and reindex only lists what already exists.
+        concept files — a missing concept card is made with
+        `magi wiki add-concept`, and reindex only lists what already exists.
     *   Run the reference verifier to check that all new `[[Concept]]` links point to existing files:
         `magi stats <TOPIC_DIR> verify-refs "<compiled_file>"`
 

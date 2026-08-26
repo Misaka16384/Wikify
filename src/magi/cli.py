@@ -96,6 +96,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("radar", "harvest"): ("magi.radar", ["harvest"], "Fetch + dedupe new paper candidates"),
     ("radar", "citation-gap"): ("magi.radar", ["citation-gap"], "Scout papers that should cite ours but don't"),
     ("radar", "status"): ("magi.radar", ["status"], "Radar ledger + pending digests"),
+    ("radar", "triage"): ("magi.radar", ["triage"], "Record/list review decisions on radar candidates"),
     ("radar", "install-schedule"): ("magi.radar", ["install-schedule"], "Register a daily harvest job"),
     # tags
     ("tags", "extract"): ("magi.kb.tag_reducer", ["extract"], "Extract tag/alias inverted index"),

@@ -53,7 +53,13 @@ When the user asks to compile the wiki or process raw files, follow this paralle
 5.  **Run Structural Linting**: Run `magi lint --fix "<TOPIC_DIR>"` on the full topic workspace. This comes *before* the index rebuild, not after: `lint --fix` fills in frontmatter a freshly compiled card is missing, and the index tables are built from that frontmatter. Reindexing first meant every card lint had just repaired was listed with the summary, tags and date it had *before* the repair — until something rebuilt the index again.
 6.  **Rebuild Navigation Indexes**: Run the index builder to deterministically rebuild all `_index.md` files:
     `magi wiki reindex "<TOPIC_DIR>"`
-7.  **Log Activity**: Log the compile event in `log.md`, including the count of successful vs. failed compilations.
+7.  **Rebuild the graph and the retrieval index**: compiling is the step that creates concept cards and the `[[wikilinks]]` between them, so it is also the step that makes both stale. Neither rebuilds itself.
+    ```
+    magi graph build "<TOPIC_DIR>"   # the concept graph the dashboard and 'magi graph query' read
+    magi index --topic-dir "<TOPIC_DIR>"  # what 'magi search' searches
+    ```
+    Skipping these used to end the compile with a graph that did not contain the cards just written and a search that could not find them — with nothing saying so. `magi index` is the expensive one (it embeds every changed document); if Ollama is unreachable it degrades to keyword-only and backfills on the next run, which is fine. Say which of the two you ran.
+8.  **Log Activity**: Log the compile event in `log.md`, including the count of successful vs. failed compilations.
 
 ## Rules
 

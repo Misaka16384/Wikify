@@ -69,10 +69,18 @@ Takes any number of targets. `--library` routes to a registered knowledge base b
 
 This writes **one line per paper to a queue and does nothing else** — no network, no conversion, nothing touched in the library. It is safe to run before you are certain, because nothing happens until the next step and nothing is permanent until the one after that.
 
+**If you used `--library`, resolve it to a path now and carry that path through every remaining step.** `--library` is understood by `magi ingest url` and by nothing else: `batch-run`, `batch-list`, `batch-decide` and `batch-commit` take `--topic-dir` and have never taken `--library`. Running them bare after queueing into a named library processes whichever workspace you are standing in — so the queue you just filled sits untouched while a different library's queue gets converted and committed.
+
+```bash
+magi kb list --json      # find the path for "<LIBRARY_NAME>"
+```
+
+Every command below is written with `--topic-dir "<TOPIC_DIR>"` for that reason. Drop it only when you are certain you are already inside the right workspace.
+
 ### 4. Run the pipeline
 
 ```bash
-magi ingest batch-run
+magi ingest batch-run --topic-dir "<TOPIC_DIR>"
 ```
 
 Deterministic and unattended. It tries, in order: arXiv's own LaTeXML HTML (where every formula carries its original LaTeX verbatim), the arXiv source tarball, the PDF text layer, MinerU, then local OCR. It stops at the first that works and never escalates to anything expensive on its own.
@@ -84,7 +92,7 @@ Deterministic and unattended. It tries, in order: arXiv's own LaTeXML HTML (wher
 ### 5. Show the user what came out, and let them decide
 
 ```bash
-magi ingest batch-list --json
+magi ingest batch-list --topic-dir "<TOPIC_DIR>" --json
 ```
 
 Summarise it for them — do not paste the JSON. For each item: the title, which route succeeded, and any findings. Findings are the pipeline telling you what it is unsure about; the ones worth mentioning out loud:
@@ -100,8 +108,8 @@ Summarise it for them — do not paste the JSON. For each item: the title, which
 Then **ask** which to keep. For a clean batch, "all of these look fine, approve them?" is a reasonable single question. For anything carrying a finding, name it and let them choose.
 
 ```bash
-magi ingest batch-decide --item <ITEM_ID> --decision approve
-magi ingest batch-decide --item <ITEM_ID> --decision reject
+magi ingest batch-decide --topic-dir "<TOPIC_DIR>" --item <ITEM_ID> --decision approve
+magi ingest batch-decide --topic-dir "<TOPIC_DIR>" --item <ITEM_ID> --decision reject
 ```
 
 Rejecting is not discarding: the item is automatically requeued on the **next route down**, and shows up in the next `batch-run`. So "this conversion is bad, try another way" is one word.
@@ -109,7 +117,7 @@ Rejecting is not discarding: the item is automatically requeued on the **next ro
 ### 6. Commit
 
 ```bash
-magi ingest batch-commit
+magi ingest batch-commit --topic-dir "<TOPIC_DIR>"
 ```
 
 Moves approved documents into `raw/`, brings their figures, and runs lint + graph build + `wiki reindex` once for the batch.
