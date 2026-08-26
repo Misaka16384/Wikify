@@ -1956,6 +1956,22 @@ def resolve_wiki_root(args: argparse.Namespace) -> Path:
 
 def run_lint(args: argparse.Namespace) -> int:
     root = resolve_wiki_root(args)
+    if not args.fix:
+        # Reporting touches nothing but output/.lint_cache.json, and a
+        # report that blocks behind a repair is a report nobody runs.
+        return _run_lint(args, root)
+
+    # `--fix` rewrites frontmatter and bodies across the whole tree with
+    # plain writes. It is also the deepest node of the re-entrant chain —
+    # `batch-commit -> finalize -> lint --fix` is three processes — which
+    # is what the lock's environment handoff is for.
+    from magi.core.worklock import guard
+
+    with guard(root, "lint --fix"):
+        return _run_lint(args, root)
+
+
+def _run_lint(args: argparse.Namespace, root) -> int:
     ctx = LintContext(root, fix=args.fix)
     hub_root = is_hub(root)
 

@@ -234,8 +234,23 @@ def sync_semantic_links(filepath, target_links):
 def main(argv=None):
     args = setup_argparse(argv)
     topic_dir = os.path.abspath(args.topic_dir)
+
+    # A dedup-only pass with no auto-merge reports and writes nothing, so it
+    # must not queue behind — or block — a run that does. Everything else
+    # rewrites every concept card in place, and two of those at once means
+    # one run's links silently lose to the other's.
+    if args.dedup_only and not args.auto_merge:
+        return _link(args, topic_dir)
+
+    from magi.core.worklock import guard
+
+    with guard(topic_dir, "link"):
+        return _link(args, topic_dir)
+
+
+def _link(args, topic_dir):
     concepts_dir = os.path.join(topic_dir, "wiki", "concepts")
-    
+
     if not os.path.exists(concepts_dir):
         print(f"[Error] Concepts directory not found at {concepts_dir}")
         sys.exit(1)

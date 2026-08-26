@@ -640,6 +640,40 @@ def _resolve_topic(args: argparse.Namespace) -> Path | None:
     return topic
 
 
+def _append_jsonl(path: Path, records) -> None:
+    """Append records to one of the radar ledgers, one writer at a time.
+
+    These are the same shape as `output/ingest/queue.jsonl`, which has been
+    written under a lock since the browser extension gave it a second writer —
+    and its docstring says why: concurrent appends interleave, and a torn line
+    is a paper that silently never gets ingested.
+
+    The radar ledgers gained a second writer in v1.15.0 and no lock went with
+    it. `magi radar triage` was added in that release, so the WebUI's triage
+    endpoint and the CLI now write `triage.jsonl` together; `harvest` can be
+    running from the scheduled task while somebody runs it by hand. A lost line
+    here is a rejected paper that comes back, or a decision nobody recorded.
+
+    On timeout it writes anyway, for the reason `ingest/ledger.py` gives: the
+    fold over these files is last-write-wins per id, so a duplicate line is
+    survivable in a way a missing one is not.
+    """
+    from filelock import FileLock, Timeout
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
+    if not body:
+        return
+    lock = FileLock(str(path.parent / ".lock"), timeout=10)
+    try:
+        with lock:
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write(body)
+    except Timeout:
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(body)
+
+
 def _triage_path(topic: Path) -> Path:
     return topic / "output" / "radar" / "triage.jsonl"
 
@@ -682,12 +716,10 @@ def load_triage(topic: Path, report: str) -> dict[str, str]:
 
 def record_triage(topic: Path, report: str, cand_id: str, decision: str) -> None:
     """Append one triage decision. `reset` clears a previous one."""
-    path = _triage_path(topic)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps({"report": report, "id": cand_id, "decision": decision,
-                            "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")},
-                           ensure_ascii=False) + "\n")
+    _append_jsonl(_triage_path(topic), [{
+        "report": report, "id": cand_id, "decision": decision,
+        "at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+    }])
 
 
 def last_harvest_date(topic: Path) -> str | None:
@@ -842,15 +874,11 @@ def cmd_harvest(args: argparse.Namespace) -> int:
     # candidates recorded as harvested but never marked seen — so every later
     # run re-offered them, and the digest that would have carried them was
     # never written either.
-    with open(ledger_path, "a", encoding="utf-8") as f:
-        for c in fresh:
-            f.write(json.dumps({"id": c["id"], "first_seen": today, "source": c["source"]},
-                               ensure_ascii=False) + "\n")
+    _append_jsonl(ledger_path, [{"id": c["id"], "first_seen": today,
+                                 "source": c["source"]} for c in fresh])
     # candidates.jsonl is a cumulative log of harvested candidates — append,
     # never truncate (the per-digest list lives in the digest itself).
-    with open(radar_dir / "candidates.jsonl", "a", encoding="utf-8") as f:
-        for c in fresh:
-            f.write(json.dumps(c, ensure_ascii=False) + "\n")
+    _append_jsonl(radar_dir / "candidates.jsonl", fresh)
 
     if failed_sources:
         print(f"warning: some sources failed this harvest: {', '.join(failed_sources)}",

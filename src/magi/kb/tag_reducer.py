@@ -189,9 +189,15 @@ def main(argv=None):
     topic_dir = Path(args.topic_dir).resolve()
     
     if args.command == "extract":
+        # Read-only: it writes an inverted index into output/, nothing in wiki/.
         cmd_extract(topic_dir)
     elif args.command == "apply":
-        cmd_apply(topic_dir, Path(args.tag_map), Path(args.alias_map), no_rebuild=args.no_rebuild)
+        # Rewrites every document a mapping matches, in place.
+        from magi.core.worklock import guard
+
+        with guard(topic_dir, "tags apply"):
+            cmd_apply(topic_dir, Path(args.tag_map), Path(args.alias_map),
+                      no_rebuild=args.no_rebuild)
 
 if __name__ == "__main__":
     sys.exit(main())

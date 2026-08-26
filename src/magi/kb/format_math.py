@@ -389,8 +389,15 @@ def main(argv=None):
         print(f"Path not found: {target}")
         return 1
     if os.path.isdir(target):
-        process_directory(target)
+        # Each file is written atomically, which stops a torn file but not two
+        # passes disagreeing about the same one.
+        from magi.core.worklock import guard
+
+        with guard(target, "math format"):
+            process_directory(target)
     else:
+        # One named file: not a tree-wide rewrite, and `magi ingest finalize`
+        # calls it per document inside a chain that already holds the lock.
         process_file(target)
     return 0
 
