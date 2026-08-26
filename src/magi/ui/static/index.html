@@ -299,6 +299,17 @@
           <p class="empty-note" data-i18n="cfg_loading">Loading config...</p>
         </div>
       </div>
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title" data-i18n="ops_here_dashboard">Workspace maintenance</h3>
+          <span class="card-subtitle" data-i18n="ops_here_dashboard_sub">Reports about this workspace</span>
+        </div>
+        <!-- Buttons come from GET /api/ops. The catalog's `home` field decides
+             which panel each one lands on, so this file names no operation. -->
+        <div class="ops-grid" id="ops-mount-dashboard">
+          <span class="empty-note" data-i18n="ops_loading">Loading operations…</span>
+        </div>
+      </div>
     </section>
 
     <!-- Tab 2: Melchior -->
@@ -461,6 +472,17 @@
           <li class="file-li muted" data-i18n="drafts_none">No drafts yet — the wiki_draft skill sets up the writing workflow.</li>
         </ul>
       </div>
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title" data-i18n="ops_here_melchior">Rebuild what this panel reads</h3>
+          <span class="card-subtitle" data-i18n="ops_here_melchior_sub">The graph, the concept links and the wiki tables</span>
+        </div>
+        <!-- Buttons come from GET /api/ops. The catalog's `home` field decides
+             which panel each one lands on, so this file names no operation. -->
+        <div class="ops-grid" id="ops-mount-melchior">
+          <span class="empty-note" data-i18n="ops_loading">Loading operations…</span>
+        </div>
+      </div>
     </section>
 
     <!-- Tab 3: Balthasar -->
@@ -579,6 +601,17 @@
           <p class="empty-note search-empty" data-i18n="search_prompt">Enter a search query to inspect hybrid ranking and excerpts.</p>
         </div>
       </div>
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title" data-i18n="ops_here_casper">Rebuild what search reads</h3>
+          <span class="card-subtitle" data-i18n="ops_here_casper_sub">Run this when something you just added cannot be found</span>
+        </div>
+        <!-- Buttons come from GET /api/ops. The catalog's `home` field decides
+             which panel each one lands on, so this file names no operation. -->
+        <div class="ops-grid" id="ops-mount-casper">
+          <span class="empty-note" data-i18n="ops_loading">Loading operations…</span>
+        </div>
+      </div>
     </section>
 
     <!-- Tab 5: Literature Radar -->
@@ -614,6 +647,20 @@
                     data-i18n="btn_radar_settings">Settings…</button>
           </div>
           <span class="btn-caption" data-i18n="radar_gap_caption">Citation Gaps: recent papers that arguably should cite yours · Settings: which queries and authors the radar watches</span>
+        </div>
+      </div>
+
+      <!-- Scheduling is a radar feature, so it lives with the radar. It spent
+           its life on the Operations tab, a tab away from the thing it turns
+           on, which is a good way to make sure nobody ever schedules a
+           harvest. -->
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title" data-i18n="ops_here_radar">Scheduled harvesting</h3>
+          <span class="card-subtitle" data-i18n="ops_here_radar_sub">Registers a daily run with this machine's scheduler</span>
+        </div>
+        <div class="ops-grid" id="ops-mount-radar">
+          <span class="empty-note" data-i18n="ops_loading">Loading operations…</span>
         </div>
       </div>
 
@@ -723,20 +770,6 @@
       </div>
 
       <div class="grid-2">
-        <!-- Common Tasks Panel -->
-        <div class="card">
-          <div class="card-header">
-            <h3 class="card-title" data-i18n="ops_common_title">Common Maintenance Operations</h3>
-          <span class="card-subtitle" id="ops-scope"></span>
-            <span class="card-subtitle" data-i18n="ops_common_sub">Non-destructive routines</span>
-          </div>
-          <!-- Buttons rendered from GET /api/ops — the server-side whitelist
-               is the single source of truth for what can run. -->
-          <div class="ops-grid" id="ops-common-grid">
-            <span class="empty-note" data-i18n="ops_loading">Loading operations…</span>
-          </div>
-        </div>
-
         <!-- Danger Zone Panel -->
         <div class="danger-card">
           <h3 class="danger-card-title" data-i18n="danger_title">Danger Zone</h3>

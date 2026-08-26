@@ -23,29 +23,49 @@ class JobConflict(Exception):
 # argv is relative to `magi`; params maps a boolean param name -> CLI flag.
 # label_i18n/desc_i18n are frontend dictionary keys — the ops catalog drives
 # the UI buttons, so the frontend holds zero op-specific knowledge.
+#
+# `home` says which panel a generic button for this op belongs on, and is the
+# rest of keeping that promise. The frontend used to render every non-danger op
+# into one grid on the Operations tab, minus a two-item blacklist written by op
+# id — which is precisely the frontend holding op-specific knowledge. The
+# result was a panel whose organising principle was "everything that has not
+# been excluded": seven of its buttons already existed on the tab they belong
+# to, `install-tasks` and `pull-models` appeared twice on the same screen, and
+# what was left over was three index-rebuilding commands with confusingly
+# similar names.
+#
+#   "<tab>"  render a generic button into that panel's ops mount
+#   None     that panel already has a better, more contextual control for this
+#            op — do not render a second one
+#   "danger" the Danger Zone grid, behind the type-the-name confirm
+#
+# An op's home is the tab where a reader would go looking for its *effect*,
+# not the tab named after its implementation: `index` rebuilds what Casper
+# searches, so it lives next to the search box, where someone who cannot find
+# a document they just added will actually be.
 OPS: dict[str, dict] = {
     # kb-scoped maintenance
-    "index": {"argv": ["index"], "scope": "kb", "danger": False,
+    "index": {"home": "casper", "argv": ["index"], "scope": "kb", "danger": False,
               "label_i18n": "op_rebuild_index",
               "desc_i18n": "op_desc_index"},
-    "graph-build": {"argv": ["graph", "build"], "scope": "kb", "danger": False,
+    "graph-build": {"home": "melchior", "argv": ["graph", "build"], "scope": "kb", "danger": False,
                     "label_i18n": "op_build_graph",
                     "desc_i18n": "op_desc_graph_build"},
-    "wiki-reindex": {"argv": ["wiki", "reindex"], "scope": "kb", "danger": False,
+    "wiki-reindex": {"home": "melchior", "argv": ["wiki", "reindex"], "scope": "kb", "danger": False,
                      "label_i18n": "op_reindex_wiki",
                      "desc_i18n": "op_desc_wiki_reindex"},
-    "link": {"argv": ["link"], "scope": "kb", "danger": False,
+    "link": {"home": "melchior", "argv": ["link"], "scope": "kb", "danger": False,
              "label_i18n": "op_semantic_link",
              "desc_i18n": "op_desc_link"},
-    "lint-fix": {"argv": ["lint", "--fix"], "scope": "kb", "danger": False,
+    "lint-fix": {"home": "melchior", "argv": ["lint", "--fix"], "scope": "kb", "danger": False,
                  "label_i18n": "op_lint_fix",
                  "desc_i18n": "op_desc_lint_fix"},
     # `magi stats` alone is ambiguous (three different reports); the button
     # means "summarize this workspace".
-    "stats": {"argv": ["stats", "wiki-summary"], "scope": "kb", "danger": False,
+    "stats": {"home": "dashboard", "argv": ["stats", "wiki-summary"], "scope": "kb", "danger": False,
               "label_i18n": "op_stats",
               "desc_i18n": "op_desc_stats"},
-    "backlog-sync": {"argv": ["pm", "backlog-sync"], "scope": "kb", "danger": False,
+    "backlog-sync": {"home": None, "argv": ["pm", "backlog-sync"], "scope": "kb", "danger": False,
                      "label_i18n": "op_backlog_sync",
                      "desc_i18n": "op_desc_backlog_sync"},
     # Additive and idempotent — `magi pm init` checks for .beads/metadata.json
@@ -57,31 +77,31 @@ OPS: dict[str, dict] = {
     # other one. It is not the sentence to show a reader: `magi pm init`
     # writes at the hub root, which is wider than the workspace in the picker
     # but narrower than the machine. `badge_i18n` names the real reach.
-    "pm-init": {"argv": ["pm", "init"], "scope": "global", "danger": False,
+    "pm-init": {"home": None, "argv": ["pm", "init"], "scope": "global", "danger": False,
                 "badge_i18n": "scope_badge_hub",
                 "label_i18n": "btn_danger_pm_init", "desc_i18n": "danger_pm_init_desc"},
-    "radar-harvest": {"argv": ["radar", "harvest"], "scope": "kb", "danger": False,
+    "radar-harvest": {"home": None, "argv": ["radar", "harvest"], "scope": "kb", "danger": False,
                       "label_i18n": "btn_radar_harvest",
                       "desc_i18n": "op_desc_radar_harvest"},
     # Both are long-running and subprocess-heavy, so they want the SSE log
     # stream and the concurrency gate this machinery already provides. Neither
     # is destructive: batch-run writes only into staging, and batch-commit
     # refuses any batch with an undecided item.
-    "ingest-batch-run": {
+    "ingest-batch-run": {"home": None, 
         "argv": ["ingest", "batch-run"],
         "scope": "kb",
         "danger": False,
         "label_i18n": "op_ingest_batch_run",
         "desc_i18n": "op_desc_ingest_batch_run",
     },
-    "ingest-batch-commit": {
+    "ingest-batch-commit": {"home": None, 
         "argv": ["ingest", "batch-commit"],
         "scope": "kb",
         "danger": False,
         "label_i18n": "op_ingest_batch_commit",
         "desc_i18n": "op_desc_ingest_batch_commit",
     },
-    "radar-citation-gap": {"argv": ["radar", "citation-gap"], "scope": "kb", "danger": False,
+    "radar-citation-gap": {"home": None, "argv": ["radar", "citation-gap"], "scope": "kb", "danger": False,
                            "label_i18n": "btn_radar_citation_gap",
                            "desc_i18n": "op_desc_radar_citation_gap"},
     # Turning an optional feature on. Narrow on purpose: `magi setup` is far
@@ -89,27 +109,27 @@ OPS: dict[str, dict] = {
     # user clicking that has not consented to re-provisioning their machine.
     # Both are machine-wide because what they install is machine-wide, and both
     # are idempotent — clicking twice is not a mistake.
-    "install-tasks": {"argv": ["setup", "--install-tasks"], "scope": "global",
+    "install-tasks": {"home": None, "argv": ["setup", "--install-tasks"], "scope": "global",
                       "danger": False, "badge_i18n": "ops_badge_global",
                       "label_i18n": "btn_install_tasks",
                       "desc_i18n": "op_desc_install_tasks"},
-    "pull-models": {"argv": ["setup", "--pull-models"], "scope": "global",
+    "pull-models": {"home": None, "argv": ["setup", "--pull-models"], "scope": "global",
                     "danger": False, "badge_i18n": "ops_badge_global",
                     "label_i18n": "btn_pull_models",
                     "desc_i18n": "op_desc_pull_models"},
     # danger zone (server re-verifies confirm == op id)
-    "setup": {"argv": ["setup"], "scope": "global", "danger": True,
+    "setup": {"home": "danger", "argv": ["setup"], "scope": "global", "danger": True,
               "label_i18n": "btn_danger_setup", "desc_i18n": "danger_setup_desc"},
-    "migrate": {"argv": ["migrate"], "scope": "global", "danger": True,
+    "migrate": {"home": "danger", "argv": ["migrate"], "scope": "global", "danger": True,
                 "label_i18n": "btn_danger_migrate", "desc_i18n": "danger_migrate_desc"},
-    "setup-remove-legacy": {"argv": ["setup", "--remove-legacy"], "scope": "global", "danger": True,
+    "setup-remove-legacy": {"home": "danger", "argv": ["setup", "--remove-legacy"], "scope": "global", "danger": True,
                             "label_i18n": "btn_danger_legacy", "desc_i18n": "danger_remove_legacy_desc"},
     # Not a danger-zone operation. It registers or removes a daily scheduled
     # harvest: reversible, idempotent, and it touches no workspace data. It sat
     # behind the same type-the-exact-name modal as `migrate` and
     # `setup --remove-legacy`, on a different tab from the feature it turns on,
     # which is a good way to make sure nobody ever schedules anything.
-    "radar-install-schedule": {"argv": ["radar", "install-schedule"], "scope": "kb", "danger": False,
+    "radar-install-schedule": {"home": "radar", "argv": ["radar", "install-schedule"], "scope": "kb", "danger": False,
                                "label_i18n": "btn_danger_install_schedule",
                                "desc_i18n": "danger_install_schedule_desc",
                                "params": {"uninstall": "--uninstall"}},

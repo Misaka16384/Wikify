@@ -1695,6 +1695,10 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                 "op": op_id,
                 "scope": spec["scope"],
                 "danger": spec["danger"],
+                # Which panel a generic button for this op belongs on. `None`
+                # means the panel already has a better-contextualised control
+                # and must not get a second one.
+                "home": spec.get("home"),
                 "label_i18n": spec["label_i18n"],
                 "desc_i18n": spec.get("desc_i18n"),
                 # What to call this op's reach on screen; `scope` is the

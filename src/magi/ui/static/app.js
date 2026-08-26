@@ -244,8 +244,6 @@
       status_reviewed: "已审阅",
 
       // Operations & Danger Zone
-      ops_common_title: "常用维护操作",
-      ops_common_sub: "非破坏性例行程序",
       op_rebuild_index: "重建检索索引",
       tab_ingest: "摄入队列",
       loading: "加载中…",
@@ -269,8 +267,6 @@
       ingest_empty: "队列里还没有东西。",
       ingest_no_workspace: "先在上方选一个知识库，才能看它的摄入队列。",
       ingest_scope: "本工作区：{name}",
-      ops_scope: "以下操作作用于：{name}",
-      ops_scope_none: "先在上方选一个知识库。",
       ops_badge_global: "全机生效",
       feature_off_quiet: "这个功能已关闭。",
       cfg_get_one: "去哪儿拿 ↗",
@@ -595,6 +591,15 @@
       update_latest_already: "已经是最新版本 {v}。",
       update_unreachable: "连不上 PyPI，查不到版本。这是网络问题，不是\"没有新版本\"。",
       // Ops catalog & danger confirm
+      ops_none_here: "这个面板的操作都在别处了。",
+      ops_here_dashboard: "工作区维护",
+      ops_here_dashboard_sub: "关于这个工作区的报表",
+      ops_here_melchior: "重建这个面板读的东西",
+      ops_here_melchior_sub: "图谱、概念链接,以及 wiki 目录表",
+      ops_here_casper: "重建搜索读的东西",
+      ops_here_casper_sub: "刚加的东西搜不到时,跑这个",
+      ops_here_radar: "定时收割",
+      ops_here_radar_sub: "在本机的任务计划里注册每日运行",
       ops_loading: "正在加载操作目录...",
       op_stats: "工作区统计",
       btn_danger_install_schedule: "注册/卸载定时收割",
@@ -913,8 +918,6 @@
       status_reviewed: "reviewed",
 
       // Operations & Danger Zone
-      ops_common_title: "Common Maintenance Operations",
-      ops_common_sub: "Non-destructive routines",
       op_rebuild_index: "Rebuild Index",
       tab_ingest: "Ingest Queue",
       loading: "Loading…",
@@ -938,8 +941,6 @@
       ingest_empty: "Nothing queued yet.",
       ingest_no_workspace: "Pick a knowledge base above to see its ingest queue.",
       ingest_scope: "This workspace: {name}",
-      ops_scope: "These act on: {name}",
-      ops_scope_none: "Pick a knowledge base above first.",
       ops_badge_global: "machine-wide",
       feature_off_quiet: "This feature is turned off.",
       cfg_get_one: "where to get one \u2197",
@@ -1267,6 +1268,15 @@
       update_latest_already: "You are on the latest release ({v}).",
       update_unreachable: "Could not reach PyPI. That is a network problem, not an answer about versions.",
       // Ops catalog & danger confirm
+      ops_none_here: "Everything this panel used to hold now lives where it belongs.",
+      ops_here_dashboard: "Workspace maintenance",
+      ops_here_dashboard_sub: "Reports about this workspace",
+      ops_here_melchior: "Rebuild what this panel reads",
+      ops_here_melchior_sub: "The graph, the concept links and the wiki tables",
+      ops_here_casper: "Rebuild what search reads",
+      ops_here_casper_sub: "Run this when something you just added cannot be found",
+      ops_here_radar: "Scheduled harvesting",
+      ops_here_radar_sub: "Registers a daily run with this machine's scheduler",
       ops_loading: "Loading operations…",
       op_stats: "Workspace Stats",
       btn_danger_install_schedule: "Install/Remove Schedule",
@@ -2360,8 +2370,7 @@
       case "operations":
         // Terminal stays persistent; the scope line is not — it has to follow
         // the picker like everything else.
-        refreshOpsScope();
-        renderOptionalComponents();
+            renderOptionalComponents();
         break;
       case "docs":
         loadDocs(currentDocKey());
@@ -6285,62 +6294,78 @@
   // Its own function because the ops catalog loads before the workspace is
   // known: rendering the grid once left this reading "pick a knowledge base"
   // under a topbar that was already naming one.
-  function refreshOpsScope() {
-    const scopeNote = document.getElementById("ops-scope");
-    if (!scopeNote) return;
-    const kb = (state.kbs || []).find((k) => k.path === state.workspace);
-    scopeNote.textContent = state.workspace
-      ? t("ops_scope", { name: kb ? kb.name : state.workspace })
-      : t("ops_scope_none");
+  // Where a generic op button goes is the server catalog's answer, not this
+  // file's. Each panel that hosts any declares one mount; an op whose `home`
+  // is null has a better-contextualised control on its own tab already and
+  // must not get a second, blander copy of itself.
+  const OPS_MOUNTS = {
+    dashboard: "ops-mount-dashboard",
+    melchior: "ops-mount-melchior",
+    casper: "ops-mount-casper",
+    radar: "ops-mount-radar",
+    danger: "ops-danger-grid",
+  };
+
+  function opButton(entry) {
+    const btn = document.createElement("button");
+    btn.setAttribute("data-i18n", entry.label_i18n);
+    // Label, what it does, and the exact command it runs. A three-word verb
+    // asks the reader to infer "Reindex Wiki Tables" from three words; the
+    // Suggested Actions panel already shows the command and is the clearest
+    // thing on the dashboard, so do the same here.
+    btn.innerHTML =
+      `<span class="op-label">${escapeHtml(t(entry.label_i18n))}</span>` +
+      (entry.desc_i18n
+        ? `<span class="op-desc">${escapeHtml(t(entry.desc_i18n))}</span>` : "") +
+      // /api/ops already prepends "magi" to argv — see api.py's ops handler.
+      `<code class="op-cmd">${escapeHtml(entry.argv.join(" "))}</code>`;
+    // A global op does not touch the selected workspace — it touches the
+    // machine. `pm-init` reads as "set up tasks here" and is not; setup and
+    // migrate sit beside workspace-scoped actions looking identical.
+    const badge = entry.scope === "global"
+      ? t(entry.badge_i18n || "ops_badge_global")
+      : (entry.badge_i18n ? t(entry.badge_i18n) : null);
+    if (badge) {
+      btn.classList.add("op-global");
+      const label = btn.querySelector(".op-label");
+      if (label) {
+        label.insertAdjacentHTML("beforeend",
+          ` <span class="badge badge-muted op-scope-badge">${escapeHtml(badge)}</span>`);
+      }
+    }
+    btn.title = badge ? `${badge} — ${entry.argv.join(" ")}` : entry.argv.join(" ");
+    if (entry.danger) {
+      btn.className = "btn btn-danger danger-action-btn";
+      btn.addEventListener("click", () => openDangerConfirm(entry));
+    } else {
+      btn.className = "btn btn-secondary op-task-btn";
+      btn.addEventListener("click", () => launchJob(entry.op, t(entry.label_i18n), null, { stay: true }));
+    }
+    return btn;
   }
 
   function renderOpsPanels() {
-    const common = document.getElementById("ops-common-grid");
-    const danger = document.getElementById("ops-danger-grid");
-    if (!common || !danger) return;
-    common.innerHTML = "";
-    danger.innerHTML = "";
-    refreshOpsScope();
+    const mounts = {};
+    Object.entries(OPS_MOUNTS).forEach(([home, id]) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.innerHTML = "";
+        mounts[home] = el;
+      }
+    });
+    if (!Object.keys(mounts).length) return;
 
     OPS_CATALOG.forEach((entry) => {
-      const btn = document.createElement("button");
-      btn.setAttribute("data-i18n", entry.label_i18n);
-      // Label, what it does, and the exact command it runs. A three-word verb
-      // asks the reader to infer "Reindex Wiki Tables" from three words; the
-      // Suggested Actions panel already shows the command and is the clearest
-      // thing on the dashboard, so do the same here.
-      btn.innerHTML =
-        `<span class="op-label">${escapeHtml(t(entry.label_i18n))}</span>` +
-        (entry.desc_i18n
-          ? `<span class="op-desc">${escapeHtml(t(entry.desc_i18n))}</span>` : "") +
-        // /api/ops already prepends "magi" to argv — see api.py's ops handler.
-        `<code class="op-cmd">${escapeHtml(entry.argv.join(" "))}</code>`;
-      // A global op does not touch the selected workspace — it touches the
-      // machine. `pm-init` reads as "set up tasks here" and is not; setup and
-      // migrate sit beside workspace-scoped actions looking identical.
-      // "machine-wide" on `pm-init` overstated it and disagreed with the same
-      // op's badge on the Balthasar tab. The op names its own word.
-      const badge = entry.scope === "global"
-        ? t(entry.badge_i18n || "ops_badge_global") : null;
-      if (badge) {
-        btn.classList.add("op-global");
-        const label = btn.querySelector(".op-label");
-        if (label) {
-          label.insertAdjacentHTML("beforeend",
-            ` <span class="badge badge-muted op-scope-badge">${escapeHtml(badge)}</span>`);
-        }
-      }
-      btn.title = badge ? `${badge} — ${entry.argv.join(" ")}` : entry.argv.join(" ");
-      if (entry.danger) {
-        btn.className = "btn btn-danger danger-action-btn";
-        btn.addEventListener("click", () => openDangerConfirm(entry));
-        danger.appendChild(btn);
-      } else {
-        // radar ops already have dedicated buttons on the radar tab
-        if (entry.op === "radar-harvest" || entry.op === "radar-citation-gap") return;
-        btn.className = "btn btn-secondary op-task-btn";
-        btn.addEventListener("click", () => launchJob(entry.op, t(entry.label_i18n)));
-        common.appendChild(btn);
+      const mount = entry.home ? mounts[entry.home] : null;
+      if (!mount) return;
+      mount.appendChild(opButton(entry));
+    });
+
+    // A mount whose ops all went elsewhere should say so rather than sit
+    // blank looking broken.
+    Object.values(mounts).forEach((el) => {
+      if (!el.children.length) {
+        el.innerHTML = `<span class="empty-note">${escapeHtml(t("ops_none_here"))}</span>`;
       }
     });
   }
