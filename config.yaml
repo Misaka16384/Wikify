@@ -33,10 +33,18 @@ embedding:
 # OCR 处理参数
 ocr:
   # MinerU 云端 API 配置（可选，公式/版面质量更高）。
-  # 默认关闭：需先在 mineru_api_token 填入有效 Token，再将 use_mineru 设为 true 才会启用；
-  # 未配置 Token 时保持 false，wiki_ingest 会自动回退到本地/原生 OCR 路径。
-  mineru_api_token: "" # 填入您的 MinerU API Token（从 https://mineru.net 获取）
-  use_mineru: true     # 设为 true 并填入 Token 后启用 MinerU 云端 OCR
+  #
+  # Token 刻意不写在这里，而不是留一个空值。配置是逐键覆盖的，一个显式的 ""
+  # 也是一个值：它会盖掉你在 ~/.config/magi/config.yaml 里设过一次的 Token，
+  # 于是在这个目录下跑 magi 就会连不上 MinerU，而且看不出原因。Token 放用户级
+  # 文件里设一次，全机通用；只有想给某个课题用不同的 Token 时，才在那个工作区
+  # 的 config.yaml 里取消注释。
+  #
+  # （magi init 生成的工作区模板早就是这么写的，这里是把同一条规则补齐。）
+  # mineru_api_token: ""   # 从 https://mineru.net 获取
+  #
+  # 有 Token 时走 MinerU，没有时 wiki_ingest 自动回退到本地/原生 OCR 路径。
+  use_mineru: true
 
   # 每次 OCR 的超时时间（秒）
   timeout: 180

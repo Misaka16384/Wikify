@@ -31,6 +31,35 @@ from typing import NamedTuple
 from magi.core.workspace import find_hub_root, find_workspace_root
 
 
+def _graph_written_at(graph_db: Path) -> float:
+    """When the graph was last built, which is not always its own mtime.
+
+    `graph build` runs in WAL mode, and SQLite folds the write-ahead log back
+    into the main file only when the *last* connection closes. Anything else
+    holding the database open — the Melchior graph tab, `magi graph query` in
+    a second terminal — means the build's own close is not the last one, so
+    the write sits in `graph.db-wal` and `graph.db`'s mtime never moves.
+
+    Reading freshness from the main file alone therefore called the graph
+    stale directly after a build that had just succeeded, and offered
+    `magi graph build` as the remedy for having run `magi graph build`.
+    Rebuilding did not help; closing the other window did.
+
+    Checkpointing at the end of the build does not fix it — measured, with a
+    reader holding a snapshot: PASSIVE copies 0 of 16 frames, FULL and
+    TRUNCATE both come back busy. The data is committed and every reader can
+    see it; it is only the file's timestamp that is behind. So read the pair.
+    """
+    newest = graph_db.stat().st_mtime
+    wal = graph_db.with_name(graph_db.name + "-wal")
+    try:
+        if wal.is_file():
+            newest = max(newest, wal.stat().st_mtime)
+    except OSError:
+        pass
+    return newest
+
+
 def _newest_md_mtime(root: Path) -> float:
     """Newest content mtime under root. Excludes _index.md (regenerated
     AFTER graph build by every standard pipeline — counting it would make
@@ -105,7 +134,7 @@ def melchior_status(topic: Path, scan: _WikiScan | None = None) -> dict:
         # missing-with-content scores like stale (both mean "run magi graph
         # build") so compiling the first card never drops the sync ratio
         freshness = 0.3 if newest else 1.0
-    elif graph_db.stat().st_mtime >= newest:
+    elif _graph_written_at(graph_db) >= newest:
         graph_state, freshness = "fresh", 1.0
     else:
         graph_state, freshness = "stale", 0.3

@@ -126,6 +126,21 @@ def cmd_url(args) -> int:
               "(see 'magi kb list')", file=sys.stderr)
         return 1
 
+    # One title cannot describe several papers. Applied to a multi-target call
+    # it was given to every entry, and downstream it *overrides* the title
+    # parsed out of the converted document (`ingest/batch.py`), so a review
+    # list showed twenty papers under one name. For local PDFs it is worse:
+    # the staging filename is built from that title, so N conversions land on
+    # one path and overwrite each other before anyone reviews them.
+    #
+    # A single target keeps the override — someone naming one paper by hand
+    # knows more than the parser, and that is the case the flag exists for.
+    if args.title and len(args.targets) > 1:
+        print(f"--title names one paper, and {len(args.targets)} were given. "
+              "Queue them without it (each document is titled from its own "
+              "content), or pass one target at a time.", file=sys.stderr)
+        return 2
+
     queued = []
     for target in args.targets:
         source_type, value = classify(target)

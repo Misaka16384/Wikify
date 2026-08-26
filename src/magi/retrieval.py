@@ -623,7 +623,19 @@ def cmd_index(args: argparse.Namespace) -> int:
     # has to go. Nothing else in the workspace is touched — the index is
     # derived data, rebuilt from wiki/ and raw/ every time.
     if getattr(args, "rebuild", False) and db_path.exists():
-        db_path.unlink()
+        try:
+            db_path.unlink()
+        except PermissionError:
+            # Windows refuses to unlink a file another *process* has open, and
+            # something usually does: the WebUI opens the index read-only per
+            # request, `magi search` holds it for the length of a query, a DB
+            # browser holds it indefinitely. The comment below covers the
+            # in-process case; this is the one a person actually hits, and it
+            # used to surface as a raw traceback out of pathlib with no hint
+            # that closing a window would fix it.
+            return _die(f"{db_path} is open in another process — close the "
+                        f"WebUI (or any other magi command using this "
+                        f"workspace) and run it again")
         print(f"magi index: removed {db_path} — rebuilding from scratch")
     opened = open_db(db_path, create=True)
     assert opened is not None
