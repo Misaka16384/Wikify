@@ -831,7 +831,7 @@ The corresponding deterministic commands:
 ```powershell
 magi wiki uncompiled                      # Which raw sources are still uncompiled (this is how you track compile progress)
 magi lint --fix                           # Self-heal structure: fill in frontmatter, relocate files, rebuild directory indexes
-magi wiki reindex .                       # Rebuild only the _index.md files under concepts/ and references/
+magi wiki reindex .                       # Rebuild the _index.md tables under concepts/, references/, topics/ and theses/
 magi stats . wiki-summary                 # Structural stats for the whole wiki
 magi map wiki/concepts                    # Section and equation-block layout for every file in a directory
 magi wiki placeholders wiki/concepts/x.md # Find unfinished placeholder sections

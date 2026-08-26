@@ -50,9 +50,9 @@ When the user asks to compile the wiki or process raw files, follow this paralle
 
 ### Phase 3: Coordination and Cleanup (Main Agent)
 4.  **Wait for Completion**: The main agent must wait until all spawned subagents have successfully reported completion. If any subagent fails or times out, log the failure and continue. **Collect their `NEEDS-DECISION:` lines** as you go: a sub-agent cannot reach the human, so anything it was unsure about is sitting in its report. Ask the user about all of them together, once, at the end — not one interruption per sub-agent.
-5.  **Rebuild Navigation Indexes**: Run the index builder to deterministically rebuild all `_index.md` files:
+5.  **Run Structural Linting**: Run `magi lint --fix "<TOPIC_DIR>"` on the full topic workspace. This comes *before* the index rebuild, not after: `lint --fix` fills in frontmatter a freshly compiled card is missing, and the index tables are built from that frontmatter. Reindexing first meant every card lint had just repaired was listed with the summary, tags and date it had *before* the repair — until something rebuilt the index again.
+6.  **Rebuild Navigation Indexes**: Run the index builder to deterministically rebuild all `_index.md` files:
     `magi wiki reindex "<TOPIC_DIR>"`
-6.  **Run Final Linting**: Run `magi lint --fix "<TOPIC_DIR>"` on the full topic workspace as a final structural pass.
 7.  **Log Activity**: Log the compile event in `log.md`, including the count of successful vs. failed compilations.
 
 ## Rules

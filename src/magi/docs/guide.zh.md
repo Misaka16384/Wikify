@@ -807,7 +807,7 @@ magi graph build        # 把新卡片刷进图谱
 ```powershell
 magi wiki uncompiled                      # 还有哪些 raw 源没编译（编译进度就看它）
 magi lint --fix                           # 结构自愈：补 frontmatter、归位文件、重建目录表
-magi wiki reindex .                       # 只重建 concepts/ 与 references/ 的 _index.md
+magi wiki reindex .                       # 重建 concepts/、references/、topics/、theses/ 的 _index.md 目录表
 magi stats . wiki-summary                 # 全库结构统计
 magi map wiki/concepts                    # 某个目录里每个文件的章节与公式块分布
 magi wiki placeholders wiki/concepts/x.md # 找出没写完的占位段落

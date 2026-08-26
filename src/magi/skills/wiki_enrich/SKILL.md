@@ -70,8 +70,11 @@ When the user asks to enrich, deep-dive, or查漏补缺 (fill gaps) on a paper:
         ```
 
 6.  **Post-Enrichment Verification (MANDATORY)**:
-    *   Run the concept builder to sequentially generate any missing concept files correctly:
+    *   Refresh the navigation tables so the concept cards you just wrote are listed:
         `magi wiki reindex "<TOPIC_DIR>"`
+        This rebuilds `_index.md` in each wiki directory. It does **not** create
+        concept files — a missing concept card is made with `magi wiki
+        add-concept`, and reindex only lists what already exists.
     *   Run the reference verifier to check that all new `[[Concept]]` links point to existing files:
         `magi stats <TOPIC_DIR> verify-refs "<compiled_file>"`
 
