@@ -61,12 +61,56 @@ NEIGHBOR_BUDGET = 20
 _NO_THROTTLE = _CoreThrottle({})
 
 
-def _http_json(url: str, payload: dict | None = None, timeout: int = 60) -> dict:
-    return core_http_json(url, payload, timeout, throttle=_NO_THROTTLE)
+#: Only this host is ever sent the key. Deciding per host rather than per call
+#: site is the whole safety property: `radar.py` talks to Semantic Scholar and
+#: to arXiv through the same two helpers, and a key attached at the helper
+#: without this check would be a key mailed to arxiv.org on every harvest.
+S2_HOST = "api.semanticscholar.org"
 
 
-def _http_text(url: str, timeout: int = 60) -> str:
-    return core_http_text(url, timeout, throttle=_NO_THROTTLE)
+def s2_api_key(cfg: dict | None = None) -> str:
+    """The Semantic Scholar key, env var first.
+
+    Same shape as `embedding.api_key`: `radar.s2_api_key_env` names a variable
+    that wins when set, and the config value is the fallback. A key pasted into
+    config.yaml is a key in a file people put in git, so the env var is offered
+    first and named in the comment beside the field — but refusing to read the
+    config at all would just push people to hardcode it somewhere worse.
+
+    *cfg* is the workspace's config and is never loaded here. Loading it
+    without a ``start=`` reads from the process working directory, and the key
+    lives in the workspace being harvested — so a scheduled run, whose working
+    directory is wherever the scheduler put it, would have quietly gone back to
+    being unauthenticated. Without a cfg only the environment is consulted,
+    which is the one source that does not depend on where the process stands.
+    """
+    import os
+
+    cfg = cfg or {}
+    env_name = cfg_get(cfg, "radar.s2_api_key_env", "SEMANTIC_SCHOLAR_API_KEY")
+    if env_name:
+        from_env = os.environ.get(str(env_name), "")
+        if from_env.strip():
+            return from_env.strip()
+    return str(cfg_get(cfg, "radar.s2_api_key", "") or "").strip()
+
+
+def _auth_headers(url: str, cfg: dict | None = None) -> dict | None:
+    if urllib.parse.urlsplit(url).hostname != S2_HOST:
+        return None
+    key = s2_api_key(cfg)
+    return {"x-api-key": key} if key else None
+
+
+def _http_json(url: str, payload: dict | None = None, timeout: int = 60,
+               cfg: dict | None = None) -> dict:
+    return core_http_json(url, payload, timeout, throttle=_NO_THROTTLE,
+                          headers=_auth_headers(url, cfg))
+
+
+def _http_text(url: str, timeout: int = 60, cfg: dict | None = None) -> str:
+    return core_http_text(url, timeout, throttle=_NO_THROTTLE,
+                          headers=_auth_headers(url, cfg))
 
 
 def _ellipsize(text: str, budget: int) -> str:
@@ -125,14 +169,14 @@ def seed_ids(topic: Path, cfg: dict) -> list[str]:
 # sources
 # --------------------------------------------------------------------------
 
-def harvest_s2(seeds: list[str], limit: int) -> list[dict]:
+def harvest_s2(seeds: list[str], limit: int, cfg: dict | None = None) -> list[dict]:
     if not seeds:
         return []
     url = ("https://api.semanticscholar.org/recommendations/v1/papers"
            f"?fields=title,externalIds,abstract,year,url,authors&limit={limit}")
     body = {"positivePaperIds": [f"ArXiv:{s}" for s in seeds]}
     try:
-        data = _http_json(url, body)
+        data = _http_json(url, body, cfg=cfg)
     except Exception as exc:
         print(f"warning: S2 recommendations failed: {exc}", file=sys.stderr)
         return []
@@ -161,6 +205,68 @@ def harvest_s2(seeds: list[str], limit: int) -> list[dict]:
             "authors": [a.get("name") for a in (p.get("authors") or []) if a.get("name")],
         })
     return out
+
+
+def harvest_s2_bulk(queries: list[str], limit: int, years: str | None = None,
+                    cfg: dict | None = None) -> tuple[list[dict], list[str]]:
+    """Keyword search over the whole Semantic Scholar corpus. Returns (candidates, failed).
+
+    The radar's other two legs can only ever see new things. S2's
+    recommendations endpoint draws from a fixed 60-day window (`from=recent`,
+    its default and the only useful value outside computer science), and the
+    arXiv leg reads a rolling listing. So a paper published last year that is
+    squarely on topic — the kind you find by realising six months late that a
+    subfield exists — was structurally unreachable: no amount of running the
+    radar would surface it, because neither source was ever looking there.
+
+    `/paper/search/bulk` is the endpoint that looks. It takes a query and a
+    year range rather than a recency window, returns up to 1000 per page, and
+    is free on the same key (or none).
+
+    Empty `queries` disables the leg. It is off by default because a query
+    list is a statement about what you are looking for, and guessing one from
+    the library would produce confident noise.
+    """
+    if not queries:
+        return [], []
+    out: list[dict] = []
+    failed: list[str] = []
+    per_query = max(1, limit // len(queries))
+    for i, query in enumerate(queries):
+        if i:
+            time.sleep(1.1)     # same politeness the rest of the S2 calls keep
+        params = {
+            "query": query,
+            "fields": "title,externalIds,abstract,year,url,authors",
+            "limit": str(min(per_query, 100)),
+        }
+        if years:
+            params["year"] = str(years)
+        url = ("https://api.semanticscholar.org/graph/v1/paper/search/bulk?"
+               + urllib.parse.urlencode(params))
+        try:
+            data = _http_json(url, cfg=cfg)
+        except Exception as exc:
+            print(f"warning: S2 bulk search failed for {query!r}: {exc}", file=sys.stderr)
+            failed.append(f"s2-bulk:{query}")
+            continue
+        for p_ in data.get("data", []) or []:
+            ext = p_.get("externalIds") or {}
+            title = (p_.get("title") or "").strip()
+            if not title:
+                continue
+            out.append({
+                "id": ext.get("ArXiv") or ext.get("DOI") or p_.get("paperId"),
+                "arxiv_id": ext.get("ArXiv"),
+                "doi": ext.get("DOI"),
+                "title": re.sub(r"\s+", " ", title),
+                "year": p_.get("year"),
+                "abstract": re.sub(r"\s+", " ", (p_.get("abstract") or "")).strip()[:1500],
+                "url": p_.get("url"),
+                "source": "s2-bulk-search",
+                "authors": [a.get("name") for a in (p_.get("authors") or []) if a.get("name")],
+            })
+    return out, failed
 
 
 def _arxiv_entry_authors(entry: str) -> list[str]:
@@ -672,11 +778,27 @@ def cmd_harvest(args: argparse.Namespace) -> int:
     print(f"fingerprint: {len(seeds)} seeds ({from_library} of them from the library's "
           f"{len(lib_ids)} arXiv references)")
 
+    bulk_queries = [str(q) for q in (cfg_get(cfg, "radar.bulk_queries", None) or [])]
+    bulk_years = cfg_get(cfg, "radar.bulk_years", None)
+
     print("[radar] harvesting S2 recommendations...", file=sys.stderr)
-    s2_cands = harvest_s2(seeds, limit=min(max(max_c // 2, 10), max_c))
+    s2_cands = harvest_s2(seeds, limit=min(max(max_c // 2, 10), max_c), cfg=cfg)
     print(f"[radar] harvesting arXiv listings ({len(categories)} categories)...", file=sys.stderr)
     arxiv_cands, failed_sources = harvest_arxiv(categories, days)
-    candidates = s2_cands + arxiv_cands
+
+    # The third leg, and the only one that can look backwards. Off unless
+    # somebody wrote a query list, so a workspace that has not opted in pays
+    # nothing and sees no change.
+    bulk_cands: list[dict] = []
+    if bulk_queries:
+        print(f"[radar] searching S2 corpus ({len(bulk_queries)} queries"
+              + (f", years {bulk_years}" if bulk_years else "") + ")...", file=sys.stderr)
+        bulk_cands, bulk_failed = harvest_s2_bulk(
+            bulk_queries, limit=min(max(max_c // 2, 10), max_c),
+            years=str(bulk_years) if bulk_years else None, cfg=cfg)
+        failed_sources = list(failed_sources) + bulk_failed
+
+    candidates = s2_cands + arxiv_cands + bulk_cands
 
     radar_dir = topic / "output" / "radar"
     radar_dir.mkdir(parents=True, exist_ok=True)
@@ -786,10 +908,10 @@ def _s2_paper_ids(payload_rows: list[dict], key: str) -> set[str]:
     return out
 
 
-def _s2_get(url: str, retries: int = 1) -> dict:
+def _s2_get(url: str, retries: int = 1, cfg: dict | None = None) -> dict:
     for attempt in range(retries + 1):
         try:
-            return _http_json(url)
+            return _http_json(url, cfg=cfg)
         except Exception as exc:
             if attempt < retries and "429" in str(exc):
                 time.sleep(5)
@@ -838,7 +960,7 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
         pid = f"ArXiv:{own}"
         meta_failed = False
         try:
-            meta = _s2_get(f"{base}/{pid}?fields=title,abstract")
+            meta = _s2_get(f"{base}/{pid}?fields=title,abstract", cfg=cfg)
             time.sleep(1.1)
         except Exception as exc:
             print(f"warning: S2 metadata lookup failed for {own}: {exc}", file=sys.stderr)
@@ -847,9 +969,9 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
         own_meta[own] = {"title": (meta.get("title") or "").strip(),
                         "abstract": meta.get("abstract") or ""}
         try:
-            refs = _s2_get(f"{base}/{pid}/references?fields=paperId,title&limit=200")
+            refs = _s2_get(f"{base}/{pid}/references?fields=paperId,title&limit=200", cfg=cfg)
             time.sleep(1.1)
-            cits = _s2_get(f"{base}/{pid}/citations?fields=paperId&limit=500")
+            cits = _s2_get(f"{base}/{pid}/citations?fields=paperId&limit=500", cfg=cfg)
             time.sleep(1.1)
         except Exception as exc:
             print(f"warning: S2 lookup failed for {own}: {exc}", file=sys.stderr)
@@ -877,7 +999,7 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
         url = (f"https://api.semanticscholar.org/recommendations/v1/papers"
                f"?fields=title,externalIds,abstract,year,url,paperId&limit=30")
         try:
-            recs = _http_json(url, {"positivePaperIds": [pid]})
+            recs = _http_json(url, {"positivePaperIds": [pid]}, cfg=cfg)
             time.sleep(1.1)
         except Exception as exc:
             print(f"warning: recommendations failed for {own}: {exc}", file=sys.stderr)
@@ -904,7 +1026,7 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
             print(f"[radar]   neighbor {checked}/{budget}: {(cand.get('title') or '')[:60]}",
                   file=sys.stderr)
             try:
-                cand_refs = _s2_get(f"{base}/{cand_pid}/references?fields=paperId&limit=200")
+                cand_refs = _s2_get(f"{base}/{cand_pid}/references?fields=paperId&limit=200", cfg=cfg)
                 time.sleep(1.1)
             except Exception:
                 continue

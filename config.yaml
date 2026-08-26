@@ -80,6 +80,12 @@ output:
 
 # 文献雷达（magi radar）
 radar:
+  # Semantic Scholar 的 key 是免费的(semanticscholar.org/product/api 上申请)。
+  # 不填照样跑:不带 key 是和全世界共享一个匿名配额,带了是每端点每秒一次的
+  # 独立配额。所以它不是为了更快,是为了别在高峰期被别人的流量拖垮。
+  # 环境变量优先。刻意不在这里留空值——显式的 "" 会盖掉用户级配置里的 key。
+  s2_api_key_env: SEMANTIC_SCHOLAR_API_KEY
+  # s2_api_key: ""
   # arXiv 分类（核心 + 次级）
   arxiv_categories:
     - cond-mat.str-el
@@ -102,6 +108,16 @@ radar:
   # 排序信号而不是概率——设一个「安全」的阈值等于什么都不过滤,设一个真能
   # 过滤的阈值会切掉真命中。
   min_relevance:
+  # 第三条腿:对 Semantic Scholar 全库做关键词检索。前两条腿结构上只能看新
+  # 东西——S2 推荐固定 60 天窗口,arXiv 那条读的是滚动列表——所以一篇去年发
+  # 表、正好在题上的论文,是任何次数的收割都碰不到的。这条能碰到。
+  # 留空 = 这条腿关闭(默认)。查询语句是一份「我在找什么」的声明,从文库里
+  # 猜一份出来只会产出自信的噪音。
+  bulk_queries: []
+  #   - "fracton topological order"
+  #   - "non-invertible symmetry"
+  # 年份范围,交给 S2 的 year 参数,例如 "2023-" 或 "2020-2024"。留空 = 不限。
+  bulk_years:
   # 我方已发表论文（citation-gap 侦察的锚点；默认回退到 seed_arxiv_ids）
   own_arxiv_ids:
     - "2606.25340"

@@ -261,6 +261,11 @@ semantic_link:
 
 # Literature radar (magi radar harvest)
 radar:
+  # A Semantic Scholar key is free and optional; without one the radar
+  # shares an anonymous quota with everybody. $SEMANTIC_SCHOLAR_API_KEY
+  # wins over this file. Deliberately absent rather than empty — see the
+  # note on ocr.mineru_api_token above for why.
+  # s2_api_key: ""
   arxiv_categories:
     - cond-mat.str-el
     - hep-th
@@ -270,12 +275,53 @@ radar:
   days: 7              # the arXiv leg only; S2 recommends within a fixed 60 days
   max_candidates: 40
   min_relevance:       # drop candidates below this score; empty = keep all
+  # A third leg: keyword search over the whole Semantic Scholar corpus.
+  # The other two can only ever see new papers — S2 recommends within 60
+  # days and the arXiv leg reads a rolling listing — so this is the only
+  # one that can find something published last year. Empty = off.
+  bulk_queries: []     # e.g. ["fracton topological order"]
+  bulk_years:          # e.g. "2023-"; empty = any year
   # Your own papers, for `magi radar citation-gap`. Left empty it falls
   # back to seed_arxiv_ids above — which are usually other people's, and
   # the report then asks who failed to cite them.
   own_arxiv_ids: []
 """
     safe_write(topic_path / "config.yaml", config_yaml, args.force)
+
+    # 8. .gitignore. A topic workspace is a directory of markdown a researcher
+    #    will very reasonably push somewhere, and nothing here said which parts
+    #    of it are rebuildable and which are the only copy of a decision.
+    #
+    #    The two exclusions are the point. `output/` looks entirely generated
+    #    and mostly is, but `output/ingest/` records what was queued, converted
+    #    and approved, and `output/radar/` records which candidates a person
+    #    said no to — re-running rebuilds neither, because the upstream windows
+    #    have moved on. A blanket `output/` would quietly drop both.
+    gitignore = """# What `magi` will make again. Everything else here is yours.
+
+scratch/
+output/*.db
+output/*.db-wal
+output/*.db-shm
+output/.lint_cache.json
+output/.embeddings_cache*
+
+# Deliberately NOT ignored, and not an oversight:
+#   output/ingest/   what was queued, converted, decided and committed
+#   output/radar/    which candidates you already said no to
+# Neither can be regenerated — a re-run returns a different world — so they
+# are tracked alongside the library they describe.
+
+# Ingest leaves the originals here until they are filed.
+inbox/.processed/
+
+# Backups taken before a pass that rewrites cards in place.
+**/.backup/
+
+.DS_Store
+Thumbs.db
+"""
+    safe_write(topic_path / ".gitignore", gitignore, args.force)
 
     print(f"Workspace initialized successfully at: {topic_path}")
 

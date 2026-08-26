@@ -275,6 +275,7 @@
       cfg_secret_empty: "空的不保存——留空不会清除已存的 key。",
       cfg_provider_ollama: "Ollama（本机）",
       cfg_provider_openai: "云端（OpenAI 兼容接口）",
+      cfg_f_s2_api_key: "Semantic Scholar 的 key(免费,可不填)。不带 key 是和所有人共享一个匿名配额。环境变量 SEMANTIC_SCHOLAR_API_KEY 优先",
       cfg_f_mineru_token: "MinerU 的 API token，云端 PDF 转换要用",
       cfg_f_embedding_provider: "向量从哪儿来：本机 Ollama，还是任何 OpenAI 兼容的云端接口",
       cfg_f_embedding_base_url: "云端接口地址，要带 /v1（例：https://api.siliconflow.com/v1）",
@@ -949,6 +950,7 @@
       cfg_secret_empty: "Nothing to save — leaving it blank does not clear a stored key.",
       cfg_provider_ollama: "Ollama (this machine)",
       cfg_provider_openai: "Cloud (any OpenAI-compatible endpoint)",
+      cfg_f_s2_api_key: "Semantic Scholar key (free, optional). Without one the radar shares an anonymous quota with everybody. $SEMANTIC_SCHOLAR_API_KEY wins over this",
       cfg_f_mineru_token: "MinerU API token, for cloud PDF conversion",
       cfg_f_embedding_provider: "Where vectors come from: local Ollama, or any OpenAI-compatible cloud endpoint",
       cfg_f_embedding_base_url: "Cloud endpoint, including /v1 (e.g. https://api.siliconflow.com/v1)",
@@ -3953,6 +3955,7 @@
     "radar.own_arxiv_ids": "cfg_f_radar_own_arxiv_ids",
     "ocr.use_mineru": "cfg_f_ocr_use_mineru",
     "ocr.mineru_api_token": "cfg_f_mineru_token",
+    "radar.s2_api_key": "cfg_f_s2_api_key",
     "models.embedding": "cfg_f_models_embedding",
     "embedding.provider": "cfg_f_embedding_provider",
     "embedding.base_url": "cfg_f_embedding_base_url",
@@ -3968,6 +3971,7 @@
   // Where a token comes from. Verified against each provider's own live page.
   const CFG_SIGNUP = {
     "ocr.mineru_api_token": "https://mineru.net/",
+    "radar.s2_api_key": "https://www.semanticscholar.org/product/api",
     "embedding.api_key": "https://docs.siliconflow.com/",
   };
 

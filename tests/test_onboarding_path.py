@@ -129,3 +129,63 @@ def test_registering_twice_does_not_make_a_second_entry(tmp_path):
     init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T", "--force"])
 
     assert len(load_registry()["kbs"]) == 1
+
+
+# --------------------------------------------------------------------------
+# what a workspace tells git about itself
+# --------------------------------------------------------------------------
+
+@pytest.fixture
+def git_workspace(tmp_path):
+    """A scaffolded workspace that is also a git repo, so check-ignore works."""
+    import subprocess
+
+    from magi.hub import init_workspace
+
+    init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T"])
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True,
+                   capture_output=True)
+    for rel in ("output/graph.db", "output/index.db", "output/.lint_cache.json",
+                "scratch/chunk.md", "output/ingest/queue.jsonl",
+                "output/radar/triage.jsonl", "wiki/concepts/.backup/a.md"):
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("x", encoding="utf-8")
+    return tmp_path
+
+
+def _ignored(ws, rel):
+    import subprocess
+
+    return subprocess.run(["git", "check-ignore", "-q", rel], cwd=ws,
+                          capture_output=True).returncode == 0
+
+
+def test_a_new_workspace_gets_a_gitignore(git_workspace):
+    """A topic workspace is a directory of markdown a researcher will very
+    reasonably push somewhere, and nothing said which parts of it are
+    rebuildable."""
+    assert (git_workspace / ".gitignore").is_file()
+
+
+@pytest.mark.parametrize("rel", ["output/graph.db", "output/index.db",
+                                 "output/.lint_cache.json", "scratch/chunk.md",
+                                 "wiki/concepts/.backup/a.md"])
+def test_what_magi_will_make_again_is_ignored(git_workspace, rel):
+    assert _ignored(git_workspace, rel), rel
+
+
+@pytest.mark.parametrize("rel", ["output/ingest/queue.jsonl",
+                                 "output/radar/triage.jsonl"])
+def test_the_two_ledgers_that_record_decisions_are_kept(git_workspace, rel):
+    """`output/` looks entirely generated and mostly is. These two are not:
+    they record what a person queued, approved and rejected, and a re-run
+    returns a different world rather than the same records. A blanket
+    `output/` would drop both without anyone noticing until they were gone."""
+    assert not _ignored(git_workspace, rel), rel
+
+
+@pytest.mark.parametrize("rel", ["config.yaml", "config.md", "log.md",
+                                 "wiki/concepts/_index.md"])
+def test_nothing_a_person_wrote_is_ignored(git_workspace, rel):
+    assert not _ignored(git_workspace, rel), rel

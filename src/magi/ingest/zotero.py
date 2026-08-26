@@ -32,7 +32,11 @@ from magi.core.arxiv_id import normalize_arxiv_id
 # a second on an 80 MB file.
 _COPY_SUFFIXES = ("", "-wal", "-shm", "-journal")
 
-LOCAL_API = "http://localhost:23119/api/users/0"
+# There was a `LOCAL_API = "http://localhost:23119/api/users/0"` here, unused by
+# anything in the tree. It read as a supported second access path — one that
+# would need Zotero to be running and its local API switched on — beside the
+# one that is actually implemented. Everything here goes through a copy of
+# `zotero.sqlite`, which works whether or not Zotero is open.
 
 
 class ZoteroItem(NamedTuple):
@@ -292,16 +296,76 @@ def _attachments(conn) -> dict[int, str]:
     return out
 
 
-def read_items(data_dir, collection: str | None = None) -> list[ZoteroItem]:
-    """Every bibliographic item, or just one collection's."""
+def collection_tree_ids(conn, name: str) -> list[int]:
+    """Every collectionID under *name*, including *name* itself.
+
+    Two things the old `WHERE c.collectionName = ?` got wrong, both silently.
+
+    It did not descend. A collection is a folder and people put folders in it;
+    selecting "Fractons" and getting none of the papers filed under
+    "Fractons/2024" is not a filter, it is a surprise.
+
+    And it matched on the name, so two collections called "Reading" in
+    different parts of the tree were one collection as far as this was
+    concerned — the import quietly contained a second, unrelated pile.
+    Matching by id and walking down is the same query without either.
+    """
+    rows = conn.execute(
+        "SELECT collectionID, parentCollectionID, collectionName FROM collections"
+    ).fetchall()
+    children: dict = {}
+    roots = []
+    for r in rows:
+        children.setdefault(r["parentCollectionID"], []).append(r["collectionID"])
+        if r["collectionName"] == name:
+            roots.append(r["collectionID"])
+    if len(roots) > 1:
+        print(f"warning: {len(roots)} collections are called {name!r}; importing "
+              f"all of them. Rename one, or pass --collection-id.", file=sys.stderr)
+    out: list[int] = []
+    stack = list(roots)
+    while stack:
+        cid = stack.pop()
+        if cid in out:
+            continue
+        out.append(cid)
+        stack.extend(children.get(cid, ()))
+    return out
+
+
+def read_items(data_dir, collection: str | None = None, *,
+               collection_id: int | None = None,
+               tag: str | None = None,
+               keys: list[str] | None = None) -> list[ZoteroItem]:
+    """Every bibliographic item, or the subset the selectors name.
+
+    Selectors are ANDed. `collection` names a folder and includes everything
+    beneath it; `collection_id` does the same without the name lookup, for when
+    two folders share a name. `tag` and `keys` were the two ways people
+    actually pick a handful of papers and neither existed, so "import these
+    five" meant "make a temporary collection in Zotero first".
+    """
     data_dir = Path(data_dir)
     with open_readonly(data_dir) as conn:
         sql = _ITEM_SQL
         params: tuple = ()
-        if collection:
-            sql += (" AND i.itemID IN (SELECT ci.itemID FROM collectionItems ci "
-                    "JOIN collections c USING (collectionID) WHERE c.collectionName = ?)")
-            params = (collection,)
+        ids = ([collection_id] if collection_id is not None
+               else collection_tree_ids(conn, collection) if collection else [])
+        if (collection or collection_id is not None) and not ids:
+            return []
+        if ids:
+            marks = ",".join("?" * len(ids))
+            sql += (f" AND i.itemID IN (SELECT ci.itemID FROM collectionItems ci "
+                    f"WHERE ci.collectionID IN ({marks}))")
+            params = params + tuple(ids)
+        if tag:
+            sql += (" AND i.itemID IN (SELECT it.itemID FROM itemTags it "
+                    "JOIN tags t USING (tagID) WHERE t.name = ?)")
+            params = params + (tag,)
+        if keys:
+            marks = ",".join("?" * len(keys))
+            sql += f" AND i.key IN ({marks})"
+            params = params + tuple(keys)
 
         gathered: dict[int, dict] = {}
         for row in conn.execute(sql, params):

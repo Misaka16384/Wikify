@@ -1575,6 +1575,9 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         # `secret`, which the WebUI renders masked and never echoes back once
         # set — the value is write-only from the browser's point of view.
         "ocr.mineru_api_token": {"type": "secret"},
+        # Free, optional, and the difference between a private per-endpoint
+        # quota and sharing an anonymous one with everybody.
+        "radar.s2_api_key": {"type": "secret"},
         "models.embedding": {"type": "str"},
         "embedding.provider": {"type": "str", "choices": ["ollama", "openai"]},
         "embedding.base_url": {"type": "str", "nullable": True},

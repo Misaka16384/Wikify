@@ -82,27 +82,44 @@ class Throttle:
 THROTTLE = Throttle()
 
 
-def _request(url: str, data: bytes | None = None, *, json_body: bool = False):
-    headers = {"User-Agent": USER_AGENT}
+def _request(url: str, data: bytes | None = None, *, json_body: bool = False,
+             headers: dict | None = None):
+    """One request object. *headers* is merged over the defaults.
+
+    There was no way to add a header at all: every caller got the fixed
+    User-Agent and nothing else, so an API that authenticates by header — a
+    Semantic Scholar key, say — could not be reached through these helpers
+    without writing a second HTTP layer beside them.
+
+    Callers pass a header per *host*, never globally. A key added to every
+    request is a key sent to arxiv.org.
+    """
+    merged = {"User-Agent": USER_AGENT}
     if json_body:
-        headers["Content-Type"] = "application/json"
-    return urllib.request.Request(url, data=data, headers=headers)
+        merged["Content-Type"] = "application/json"
+    if headers:
+        merged.update({k: v for k, v in headers.items() if v})
+    return urllib.request.Request(url, data=data, headers=merged)
 
 
 def http_json(url: str, payload: dict | None = None, timeout: int = 60,
-              *, throttle: Throttle | None = None) -> dict:
+              *, throttle: Throttle | None = None,
+              headers: dict | None = None) -> dict:
     """GET (or POST, when ``payload`` is given) and parse JSON."""
     (throttle or THROTTLE).wait(url)
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     with urllib.request.urlopen(
-            _request(url, data, json_body=True), timeout=timeout) as r:
+            _request(url, data, json_body=True, headers=headers),
+            timeout=timeout) as r:
         return json.load(r)
 
 
 def http_text(url: str, timeout: int = 60,
-              *, throttle: Throttle | None = None) -> str:
+              *, throttle: Throttle | None = None,
+              headers: dict | None = None) -> str:
     (throttle or THROTTLE).wait(url)
-    with urllib.request.urlopen(_request(url), timeout=timeout) as r:
+    with urllib.request.urlopen(
+            _request(url, headers=headers), timeout=timeout) as r:
         return r.read().decode("utf-8", errors="replace")
 
 

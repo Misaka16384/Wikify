@@ -72,18 +72,27 @@ def cmd_import(args) -> int:
             print(f"  {col['n']:>5}  {col['collectionName']}")
         return 0
 
-    if not args.collection and not args.all:
-        print("name a collection with --collection, or --all for the whole library.\n"
+    selectors = (args.collection, args.collection_id, args.tag, args.keys)
+    if not any(v for v in selectors) and not args.all:
+        print("name what to import: --collection NAME, --collection-id N, --tag NAME,\n"
+              "--key KEY (repeatable), or --all for the whole library.\n"
               "Collections available:", file=sys.stderr)
         for col in zotero.list_collections(data_dir):
             print(f"  {col['n']:>5}  {col['collectionName']}", file=sys.stderr)
         return 1
 
     print(f"[zotero] reading {data_dir}...")
-    items = zotero.read_items(data_dir, collection=args.collection)
+    items = zotero.read_items(data_dir, collection=args.collection,
+                              collection_id=args.collection_id,
+                              tag=args.tag, keys=args.keys)
     if not items:
-        where = f"collection {args.collection!r}" if args.collection else "this library"
-        print(f"nothing in {where}.")
+        named = [w for w in (
+            f"collection {args.collection!r}" if args.collection else None,
+            f"collection id {args.collection_id}" if args.collection_id else None,
+            f"tag {args.tag!r}" if args.tag else None,
+            f"{len(args.keys)} key(s)" if args.keys else None,
+        ) if w]
+        print(f"nothing matched {' + '.join(named) if named else 'this library'}.")
         return 0
 
     cov = zotero.coverage(items)
@@ -163,7 +172,13 @@ def main(argv=None) -> int:
         prog="magi ingest zotero",
         description="Queue a Zotero collection through the deterministic ingest "
                     "pipeline, preferring arXiv source over Zotero's stored PDF.")
-    parser.add_argument("--collection", help="Collection name (see --list-collections)")
+    parser.add_argument("--collection", help="Collection name, including everything "
+                                             "filed beneath it (see --list-collections)")
+    parser.add_argument("--collection-id", type=int,
+                        help="Collection by id, for when two share a name")
+    parser.add_argument("--tag", help="Only items carrying this Zotero tag")
+    parser.add_argument("--key", action="append", dest="keys", metavar="KEY",
+                        help="A single item by its Zotero key; repeatable")
     parser.add_argument("--all", action="store_true", help="The whole library")
     parser.add_argument("--list-collections", action="store_true",
                         help="Show collections and their item counts, then stop")

@@ -21,12 +21,16 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _editable_keys() -> set:
-    """The dotted keys `POST /api/workspace/config` accepts."""
+def _config_fields_block() -> str:
+    """The source text of the CONFIG_FIELDS whitelist."""
     api = (ROOT / "src" / "magi" / "ui" / "api.py").read_text(
         encoding="utf-8", errors="replace")
-    block = api.split("CONFIG_FIELDS: Dict[str, dict] = {", 1)[1].split("\n    }", 1)[0]
-    return set(re.findall(r'"([\w.]+)":\s*\{', block))
+    return api.split("CONFIG_FIELDS: Dict[str, dict] = {", 1)[1].split("\n    }", 1)[0]
+
+
+def _editable_keys() -> set:
+    """The dotted keys `POST /api/workspace/config` accepts."""
+    return set(re.findall(r'"([\w.]+)":\s*\{', _config_fields_block()))
 
 
 def _shipped_config() -> dict:
@@ -50,13 +54,23 @@ def _has(tree, dotted: str) -> bool:
     return True
 
 
-EDITABLE = sorted(_editable_keys())
+def _secret_keys() -> set:
+    """Which editable fields are secrets, asked rather than restated.
 
-#: Secrets are deliberately absent from the workspace template — an explicit
-#: "" there shadows a token the user set once in the user-level file and leaves
-#: every new workspace unable to reach the service for no visible reason. The
-#: template says so in a comment where the key would have been.
-SECRET_KEYS = {"ocr.mineru_api_token", "embedding.api_key"}
+    Secrets are deliberately absent from the config files — an explicit "" is
+    a value, and it shadows a token the user set once in the user-level file,
+    leaving every new workspace unable to reach the service for no visible
+    reason. Both templates say so in a comment where the key would have been.
+
+    Hand-listing them here would be a fourth copy of the same fact, and the
+    first new secret added would be checked against the wrong rule.
+    """
+    return set(re.findall(r'"([\w.]+)":\s*\{"type":\s*"secret"\}',
+                          _config_fields_block()))
+
+
+EDITABLE = sorted(_editable_keys())
+SECRET_KEYS = _secret_keys()
 
 
 def test_there_are_editable_fields_to_check():
@@ -72,10 +86,13 @@ def test_an_editable_field_appears_in_the_shipped_config(key):
         f"reader opening the file cannot tell the setting exists")
 
 
-@pytest.mark.parametrize("key", [k for k in EDITABLE if k.startswith("radar.")])
+@pytest.mark.parametrize("key", [k for k in EDITABLE
+                                 if k.startswith("radar.") and k not in SECRET_KEYS])
 def test_a_radar_field_appears_in_the_workspace_template(key):
     """Radar config is per-topic — that is the whole point of it being in the
-    workspace file — so a new workspace should show every radar knob it has."""
+    workspace file — so a new workspace should show every radar knob it has.
+
+    Secrets are the exception, for the reason the next test states."""
     assert _has(_workspace_template(), key), (
         f"{key} is editable in the WebUI but `magi init` does not scaffold it")
 
