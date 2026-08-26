@@ -1055,7 +1055,12 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         # inbox/ is ORIGINAL. Landing on a name that is already there would
         # destroy a document waiting to be ingested, so take the next free one
         # and say which it was.
-        stem, n = dest.stem, 2
+        # Not `dest.stem`: pathlib strips only the last suffix, so a second
+        # `paper.tar.gz` became `paper.tar-2.tar.gz`. `safe_upload_name` above
+        # already slices compound suffixes correctly — the two places in this
+        # function that take a name apart have to agree about where it ends.
+        stem = filename[:len(filename) - len(suffix)] if suffix else filename
+        n = 2
         while dest.exists():
             dest = inbox / f"{stem}-{n}{suffix}"
             n += 1
@@ -1089,27 +1094,25 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                                      and not p.name.startswith("."))}
 
     def _zotero_data_dir():
-        """The Zotero library, or a 409 saying how to choose one.
+        """The Zotero library, or a 409 carrying the CLI's own explanation.
 
-        Same resolution order the CLI uses: the directory somebody picked with
-        `magi ingest zotero-dirs --set`, else the only candidate on the
-        machine. Two candidates and no choice is a question, not a guess — the
-        wrong Zotero library is a whole second bibliography.
+        This calls the CLI's resolver rather than restating its rules. The
+        first version restated them and got both halves wrong while carrying a
+        docstring claiming parity: it accepted a stored setting on
+        `Path(chosen).is_dir()` alone, where the CLI requires `zotero.sqlite`
+        to actually be in there, and it silently picked a lone candidate —
+        which the CLI refuses to do, for a reason written down beside the
+        refusal: a machine with a live library and an abandoned sync folder is
+        ordinary, and importing the frozen one looks exactly like success.
+
+        A claim of parity is worth less than an import.
         """
-        from magi.ingest.zotero import candidate_data_dirs
-        from magi.kb_registry import load_settings
+        from magi.ingest.zotero_import import _chosen_data_dir
 
-        chosen = (load_settings() or {}).get("zotero_data_dir")
-        if chosen and Path(chosen).is_dir():
-            return Path(chosen)
-        found = candidate_data_dirs()
-        if len(found) == 1:
-            return Path(found[0])
-        raise HTTPException(
-            status_code=409,
-            detail=("no Zotero library chosen — run 'magi ingest zotero-dirs' "
-                    "to see the candidates, then '--set <PATH>' to pick one"
-                    + (f" ({len(found)} found)" if found else " (none found)")))
+        data_dir, err = _chosen_data_dir(None)
+        if data_dir is None:
+            raise HTTPException(status_code=409, detail=err)
+        return data_dir
 
     @app.get("/api/zotero/collections")
     def get_zotero_collections() -> dict:

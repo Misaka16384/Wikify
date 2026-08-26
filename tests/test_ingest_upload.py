@@ -181,3 +181,16 @@ def test_an_uploaded_file_can_be_queued_by_the_door_that_already_exists(client, 
 
     pending = ledger.pending(ws)
     assert [p.value for p in pending] == [up["path"]]
+
+
+def test_a_compound_suffix_survives_a_collision_rename(client, ws):
+    """`dest.stem` strips only the last suffix, so a second `paper.tar.gz`
+    landed as `paper.tar-2.tar.gz`. `safe_upload_name` right above already
+    slices compound suffixes correctly — the two places in one function that
+    take a filename apart have to agree about where it ends."""
+    _put(client, ws, "paper.tar.gz", b"FIRST")
+    res = _put(client, ws, "paper.tar.gz", b"SECOND")
+
+    assert res.json()["renamed"] is True
+    assert res.json()["name"] == "paper-2.tar.gz"
+    assert (ws / "inbox" / "paper.tar.gz").read_bytes() == b"FIRST"

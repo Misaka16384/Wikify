@@ -158,13 +158,53 @@ def test_a_directory_that_is_not_a_workspace_is_refused(client, zotero_library, 
     assert res.status_code == 400
 
 
-def test_no_chosen_library_asks_rather_than_picking_one(client, monkeypatch):
-    """Two Zotero data directories and no stored choice is a question. The
-    wrong one is a whole second bibliography."""
+@pytest.mark.parametrize("candidates", [
+    ["/one", "/two"],
+    # The one that was missed. A lone candidate is the *more* dangerous case,
+    # not the safe one: a machine whose only discovered directory is an
+    # abandoned OneDrive sync folder, while the real library sits somewhere the
+    # fallback list does not guess, imports a bibliography frozen years ago and
+    # looks exactly like success. The CLI refuses to pick here and says so in a
+    # comment; the WebUI picked, under a docstring claiming it did not.
+    ["/only-one"],
+    [],
+])
+def test_no_chosen_library_asks_rather_than_picking_one(client, monkeypatch, candidates):
     monkeypatch.setattr("magi.kb_registry.load_settings", lambda: {})
     monkeypatch.setattr("magi.ingest.zotero.candidate_data_dirs",
-                        lambda *a, **k: ["/one", "/two"])
+                        lambda *a, **k: list(candidates))
 
     res = client.get("/api/zotero/collections")
     assert res.status_code == 409
     assert "zotero-dirs" in res.json()["detail"]
+
+
+def test_a_stored_setting_whose_library_moved_is_refused_up_front(client, tmp_path,
+                                                                  monkeypatch):
+    """The directory still being there is not the same as the library being
+    there. Accepting it on `is_dir()` alone turned a fixable misconfiguration
+    into a 502 out of sqlite with no mention of how to re-point it."""
+    stale = tmp_path / "moved-away"
+    stale.mkdir()                      # exists, but holds no zotero.sqlite
+    monkeypatch.setattr("magi.kb_registry.load_settings",
+                        lambda: {"zotero_data_dir": str(stale)})
+    monkeypatch.setattr("magi.ingest.zotero.candidate_data_dirs", lambda *a, **k: [])
+
+    res = client.get("/api/zotero/collections")
+    assert res.status_code == 409
+    assert "zotero-dirs" in res.json()["detail"]
+
+
+def test_the_webui_and_the_cli_resolve_the_library_the_same_way(monkeypatch):
+    """Not "the same rules" — the same function. The first version restated
+    the rules and got both halves wrong."""
+    import inspect
+
+    from magi.ui import api
+
+    src = inspect.getsource(api)
+    body = src.split("def _zotero_data_dir(", 1)[1].split("@app.get", 1)[0]
+    assert "_chosen_data_dir" in body, (
+        "the WebUI resolves the Zotero library on its own again")
+    assert "candidate_data_dirs" not in body, (
+        "the WebUI is re-deciding what to do with the candidate list")
