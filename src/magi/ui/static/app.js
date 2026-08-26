@@ -491,6 +491,8 @@
       hint_pm_init: "还没有任务追踪库（可选，不用任务追踪就可以忽略）",
       hint_radar_review: "{pending} 份文献雷达简报等待审阅",
       hint_radar_gaps: "{pending} 份引用缺口报告等待审阅",
+      hint_radar_overdue: "文献雷达上次收割是 {days} 天前（窗口 {window} 天）——跑一次,或检查定时任务",
+      hint_compile_pending: "{backlog} 篇原始文献还没编译成参考卡片",
       hint_claims_unverified: "有学术命题尚未验证（到 Melchior 面板查看）",
       hint_bd_ready: "有可直接开工的任务（到 Balthasar 面板查看）",
       hint_install_beads: "任务引擎 (beads) 未安装——见安装指引",
@@ -1151,6 +1153,8 @@
       hint_pm_init: "No task-tracking database yet (optional — skip it if you do not want task tracking)",
       hint_radar_review: "{pending} literature radar digest(s) waiting for review",
       hint_radar_gaps: "{pending} citation-gap report(s) waiting for review",
+      hint_radar_overdue: "Last radar harvest was {days}d ago (the window is {window}d) — run one, or check the scheduled task",
+      hint_compile_pending: "{backlog} raw source(s) are not compiled into reference cards yet",
       hint_claims_unverified: "Some claims are still unverified (see Melchior)",
       hint_bd_ready: "There is actionable work ready (see Balthasar)",
       hint_install_beads: "Task engine (beads) is not installed — see install guide",
@@ -2738,6 +2742,11 @@
     // worded, with identical buttons, and nothing to tell them apart.
     "radar-digests-pending": { i18n: "hint_radar_review", action: { type: "tab", tab: "radar" } },
     "radar-gaps-pending": { i18n: "hint_radar_gaps", action: { type: "tab", tab: "radar" } },
+    // `magi radar harvest` is a whitelisted op, so there was never a reason
+    // for this row to be the one that rendered raw untranslated English prose
+    // in a <code> element with nothing to click. The code was simply missing
+    // from this table, and from the test that is supposed to catch that.
+    "radar-harvest-overdue": { i18n: "hint_radar_overdue", action: { type: "job", op: "radar-harvest", nameKey: "btn_radar_harvest" } },
     "claims-unverified": { i18n: "hint_claims_unverified", action: { type: "tab", tab: "melchior" } },
     "bd-ready": { i18n: "hint_bd_ready", action: { type: "tab", tab: "balthasar" } },
     // The panel says "click to run" and this was the one inert row — and the
@@ -2745,6 +2754,10 @@
     // It is an agent-skill step, not a job, so it opens the chapter that
     // explains how to trigger one.
     "ingest-start": { i18n: "hint_ingest_start", action: { type: "docs", anchor: "ingest" } },
+    // The step the panel never mentioned. Like ingest-start it is an
+    // agent-skill step rather than a job, so it opens the chapter that
+    // explains how to run one.
+    "compile-pending": { i18n: "hint_compile_pending", action: { type: "docs", anchor: "compile" } },
     "beads-missing": { i18n: "hint_install_beads", action: { type: "docs", anchor: "pm" } },
     "hub-topics": { i18n: null, action: null },
   };

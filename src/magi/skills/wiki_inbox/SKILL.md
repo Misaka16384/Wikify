@@ -112,7 +112,9 @@ Rejecting is not discarding: the item is automatically requeued on the **next ro
 magi ingest batch-commit
 ```
 
-Moves approved documents into `raw/`, brings their figures, and runs lint + graph + index once for the batch.
+Moves approved documents into `raw/`, brings their figures, and runs lint + graph build + `wiki reindex` once for the batch.
+
+It does **not** run `magi index`, so the documents are in the library but not yet findable by `magi search`, and it does **not** compile anything into `wiki/references/`. Both are separate steps — finish with them rather than stopping here.
 
 **It refuses to commit a batch that still has undecided items** — that is the human gate, and it is the whole point. If it tells you something is undecided, go back to step 5 rather than working around it.
 

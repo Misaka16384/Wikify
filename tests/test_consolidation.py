@@ -74,9 +74,12 @@ def test_sync_fix_only_automates_the_deterministic_repairs():
 
     assert set(FIXABLE) == {"graph-stale", "index-missing", "index-stale",
                             "backlog-untracked", "pm-uninit"}
-    # Things that need a human or an agent must stay out of it.
+    # Things that need a human or an agent must stay out of it. `--fix` runs
+    # deterministic commands; compiling is an LLM authoring pass and saying
+    # "fixed" about it would be a lie in the one report a new user trusts.
     for code in ("beads-missing", "ingest-start", "claims-unverified",
-                 "radar-digests-pending", "bd-ready"):
+                 "radar-digests-pending", "bd-ready", "compile-pending",
+                 "radar-harvest-overdue"):
         assert code not in FIXABLE
 
     for cmd, _why in FIXABLE.values():

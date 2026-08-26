@@ -626,13 +626,22 @@ def cmd_commit(args) -> int:
             committed += 1
 
     if committed:
-        # One lint/graph/index pass for the whole batch, the same shape
+        # One lint/graph/reindex pass for the whole batch, the same shape
         # `ingest auto` already uses rather than paying it per file.
         _finalize(
             [sys.executable, "-m", "magi", "ingest", "finalize", "none",
              "--topic-dir", str(topic), "--lint-only"],
-            what="the lint/graph/index pass")
-        print(f"\n{committed} document(s) committed and indexed.")
+            what="the lint/graph/reindex pass")
+        # "and indexed" was not true. The finalize pass runs lint, graph build
+        # and wiki reindex, and deliberately not `magi index` — the expensive
+        # embedding pass, and the only thing that makes a document findable by
+        # `magi search`. Nor does committing compile anything into
+        # `wiki/references/`. Both were left for the reader to discover by
+        # noticing the paper they just committed could not be found.
+        print(f"\n{committed} document(s) committed to raw/. Wiki tables and "
+              "the concept graph are refreshed.")
+        print("Next: 'magi index' to make them searchable, and the "
+              "magi:wiki_compile skill to turn them into reference cards.")
     else:
         print("nothing to commit.")
     for batch_id, n in skipped_batches:

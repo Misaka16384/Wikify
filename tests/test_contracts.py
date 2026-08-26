@@ -16,11 +16,28 @@ from magi.radar import pending_names, scan_reports
 from magi.sync import build_report
 from magi.ui.api import create_app
 
-KNOWN_HINT_CODES = {
-    "graph-stale", "backlog-untracked", "ingest-start", "claims-unverified",
-    "beads-missing", "pm-uninit", "bd-ready", "index-missing", "index-stale",
-    "radar-digests-pending", "radar-gaps-pending", "hub-topics",
-}
+def _emitted_hint_codes() -> set[str]:
+    """Every hint code `magi sync` can emit, read out of its own source.
+
+    This used to be a hand-copied set, which is a fourth place the same list
+    lived. `radar-harvest-overdue` shipped in neither the copy nor the WebUI's
+    HINT_ACTIONS table, so the guard below passed without ever seeing it and
+    an overdue radar rendered untranslated English prose in a <code> element
+    with nothing to click — while `radar-harvest` sat in the ops whitelist the
+    whole time. Deriving the set means adding a hint to sync.py now fails here
+    until the UI knows what to do with it.
+    """
+    import inspect
+    import re
+
+    from magi import sync
+
+    codes = set(re.findall(r'_hint\(\s*"([a-z0-9-]+)"', inspect.getsource(sync)))
+    assert codes, "no hint codes found — did _hint()'s call shape change?"
+    return codes
+
+
+KNOWN_HINT_CODES = _emitted_hint_codes()
 
 
 @pytest.fixture

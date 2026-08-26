@@ -271,6 +271,23 @@ radar:
     safe_write(topic_path / "config.yaml", config_yaml, args.force)
 
     print(f"Workspace initialized successfully at: {topic_path}")
+
+    # Put it in the global registry now rather than as a side effect of the
+    # first `magi index`. Until that ran, a freshly created workspace was
+    # absent from /api/kb — so it did not appear in the WebUI's workspace
+    # picker or to the browser extension, and the two surfaces that exist to
+    # get material *into* a new library were the two that could not see it.
+    # register_kb is idempotent on the resolved path, and takes no name so it
+    # picks the same one `magi index` would.
+    try:
+        from magi.kb_registry import register_kb
+
+        register_kb(topic_path, quiet=True)
+        print(f"Registered as a knowledge base — it will show up in 'magi kb list' "
+              f"and the WebUI workspace picker.")
+    except Exception as exc:  # non-fatal: the workspace itself is scaffolded
+        print(f"Warning: could not register this workspace: {exc}")
+
     print("Next: cd into it, then 'magi skills install' to give your agent CLI "
           "this workspace's skills, and 'magi sync' to see what to do first.")
 

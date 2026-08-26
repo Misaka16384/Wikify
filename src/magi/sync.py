@@ -231,26 +231,6 @@ def build_report(cwd: Path | None = None) -> dict:
     # casper (index freshness), instead of four.
     scan = _scan_wiki(topic / "wiki") if topic else None
 
-    if topic:
-        m = melchior_status(topic, scan)
-        cores["melchior"] = m
-        weights["melchior"] = 1.0
-        if m["graph"] in ("missing", "stale"):
-            _hint("graph-stale", "magi graph build   # refresh the knowledge graph")
-        if m["backlog"] > 0:
-            _hint("backlog-untracked",
-                  "magi pm backlog-sync (idempotent) && bd ready   # ensure uncompiled sources are tracked",
-                  backlog=m["backlog"])
-        if m["concepts"] == 0 and m["references"] == 0 and m["backlog"] == 0:
-            _hint("ingest-start",
-                  "drop sources in inbox/ and run the wiki_ingest skill to start building the library")
-        if m.get("claims") and m["claims_verified"] < m["claims"]:
-            n_unv = m["claims"] - m["claims_verified"]
-            _hint("claims-unverified",
-                  f"claims: {n_unv} unverified — inspect with magi graph query "
-                  "\"SELECT text, status FROM claims WHERE status NOT IN ('verified','web-verified')\"",
-                  unverified=n_unv)
-
     try:
         from magi.features import feature_enabled
 
@@ -260,6 +240,41 @@ def build_report(cwd: Path | None = None) -> dict:
         # An unreadable settings file must not turn features off — absent has
         # always meant on, and a read error is less information than absent.
         tasks_on = radar_on = True
+
+    if topic:
+        m = melchior_status(topic, scan)
+        cores["melchior"] = m
+        weights["melchior"] = 1.0
+        if m["graph"] in ("missing", "stale"):
+            _hint("graph-stale", "magi graph build   # refresh the knowledge graph")
+        if m["backlog"] > 0:
+            # The step this report never named. Once a source lands in raw/,
+            # the only thing the dashboard said was "track them as tasks" —
+            # so a user who ingested 18 papers through the WebUI was told to
+            # file 18 issues about them and never told to compile any, and
+            # `wiki/concepts/` stayed empty. Compiling is the work; tracking
+            # it is bookkeeping, and it comes second.
+            _hint("compile-pending",
+                  f"{m['backlog']} source(s) in raw/ are not compiled yet — run the "
+                  "wiki_compile skill to turn them into reference cards",
+                  backlog=m["backlog"])
+            # Only worth saying when the task store is something this machine
+            # actually uses. With tasks switched off this told people to run
+            # `magi pm backlog-sync`, which needs a beads store they had
+            # deliberately not set up.
+            if tasks_on:
+                _hint("backlog-untracked",
+                      "magi pm backlog-sync (idempotent) && bd ready   # ensure uncompiled sources are tracked",
+                      backlog=m["backlog"])
+        if m["concepts"] == 0 and m["references"] == 0 and m["backlog"] == 0:
+            _hint("ingest-start",
+                  "drop sources in inbox/ and run the wiki_ingest skill to start building the library")
+        if m.get("claims") and m["claims_verified"] < m["claims"]:
+            n_unv = m["claims"] - m["claims_verified"]
+            _hint("claims-unverified",
+                  f"claims: {n_unv} unverified — inspect with magi graph query "
+                  "\"SELECT text, status FROM claims WHERE status NOT IN ('verified','web-verified')\"",
+                  unverified=n_unv)
 
     if not tasks_on:
         # Not a core that is failing: a core that was switched off. It carries
@@ -362,14 +377,36 @@ FIXABLE = {
     "pm-uninit": (["pm", "init"], "initialize the task store (creates .beads/)"),
 }
 
+#: The order repairs run in. The report emits hints core by core — melchior
+#: first, then balthasar — and `run_fixes` used to follow that, so
+#: `backlog-untracked` was always attempted before `pm-uninit`. But
+#: `magi pm backlog-sync` exits 1 when there is no beads store, which means
+#: `magi sync --fix` failed by construction on the one situation it exists to
+#: repair: a fresh workspace with `bd` installed and not yet initialised. It
+#: reported "1 failed", synced nothing, and worked on the second run.
+#:
+#: A code missing from this list still runs, after the ones named here — the
+#: list is about dependencies, not about being exhaustive.
+FIX_ORDER = (
+    "pm-uninit",          # creates .beads/ — backlog-sync is useless without it
+    "graph-stale",
+    "index-missing",
+    "index-stale",
+    "backlog-untracked",  # needs the store pm-uninit makes
+)
+
 
 def run_fixes(report: dict, dry_run: bool = False) -> tuple[int, int]:
     """Run the deterministic repairs the report asked for. Returns (ran, failed)."""
     import subprocess
 
+    def _rank(hint: dict) -> int:
+        code = hint.get("code")
+        return FIX_ORDER.index(code) if code in FIX_ORDER else len(FIX_ORDER)
+
     seen: set[tuple[str, ...]] = set()
     ran = failed = 0
-    for hint in report.get("hints_structured", []):
+    for hint in sorted(report.get("hints_structured", []), key=_rank):
         entry = FIXABLE.get(hint.get("code"))
         if entry is None:
             continue

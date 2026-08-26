@@ -59,7 +59,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("ingest", "tex"): ("magi.ingest.tex2md", [], "LaTeX / arXiv source -> Markdown (pandoc)"),
     ("ingest", "ocr"): ("magi.ingest.ocr.agent", [], "PDF -> Markdown via local Ollama OCR"),
     ("ingest", "crop"): ("magi.ingest.pdf_math_crop", [], "Crop a PDF region to PNG for visual math checks"),
-    ("ingest", "finalize"): ("magi.ingest.pipeline", [], "Post-ingest cleanup + lint + graph + index"),
+    ("ingest", "finalize"): ("magi.ingest.pipeline", [], "Post-ingest cleanup + lint + graph + wiki reindex (not 'magi index')"),
     # knowledge base
     ("wiki", "add-concept"): ("magi.kb.add_concept", [], "Create or append a concept card"),
     ("wiki", "refactor-concept"): ("magi.kb.refactor_concept", [], "Merge/rename a concept across the wiki"),
