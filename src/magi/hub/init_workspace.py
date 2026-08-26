@@ -3,15 +3,44 @@
 """
 
 import os
+import shutil
 import sys
 import argparse
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
+def keep_a_copy(p: Path) -> Path:
+    """Put the current contents of *p* somewhere recoverable, and say where.
+
+    `.backup` is the convention the rest of the workspace already uses — every
+    scanner skips a path with it as a component, and `magi wiki
+    refactor-concept` and `magi link` both write there. A second-granularity
+    stamp is not a unique name, so take the first free one rather than
+    overwriting the copy an earlier call in this same run just made.
+    """
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    backup_dir = p.parent / ".backup"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    dest = backup_dir / f"{p.stem}_{stamp}{p.suffix}"
+    n = 2
+    while dest.exists():
+        dest = backup_dir / f"{p.stem}_{stamp}-{n}{p.suffix}"
+        n += 1
+    shutil.copy2(p, dest)
+    return dest
+
 def safe_write(p: Path, content: str, force: bool):
-    if p.exists() and not force:
-        print(f"Skipping existing {p}")
-        return
+    if p.exists():
+        if not force:
+            print(f"Skipping existing {p}")
+            return
+        # --force is the only way to reach this line, and what it lands on is
+        # ORIGINAL: config.md is the scope a person wrote, log.md is the
+        # running record, config.yaml is their settings. "Overwrite existing
+        # config/log/index files" is an honest description of the flag and
+        # still leaves no way back from a mistyped one.
+        kept = keep_a_copy(p)
+        print(f"Overwriting {p} (previous contents kept at {kept})")
     p.write_text(content, encoding="utf-8")
 
 def create_minimal_index(path: Path, title: str, today: str, force: bool = False):
