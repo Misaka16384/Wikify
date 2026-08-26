@@ -100,7 +100,7 @@ created: {today}
 |-----------|---------|
 | [raw/](raw/) | Raw source materials |
 | [wiki/](wiki/) | Compiled knowledge base |
-| [output/](output/) | Generated artifacts |
+| [output/](output/) | Generated artifacts — except `output/ingest/` and `output/radar/`, which record decisions you made and cannot be rebuilt |
 | [inbox/](inbox/) | Pending ingestion |
 
 ## Statistics

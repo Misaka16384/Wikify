@@ -293,6 +293,70 @@ def test_an_identical_image_from_two_documents_is_not_a_collision(ws, monkeypatc
 
 
 # --------------------------------------------------------------------------
+# The document itself, which had no collision check at all
+# --------------------------------------------------------------------------
+
+def _two_docs_one_name(ws, monkeypatch, bodies):
+    """Two queued sources whose conversions land on the same filename."""
+    def fake(route, entry, staging, topic=None):
+        staging.mkdir(parents=True, exist_ok=True)
+        md = staging / "a-paper.md"
+        md.write_text(f"---\ntitle: T\n---\n\n{bodies[entry.value]}\n" + "word " * 300,
+                      encoding="utf-8")
+        return ConversionResult(success=True, markdown_path=str(md))
+
+    monkeypatch.setattr(batch, "_run_route", fake)
+    monkeypatch.setattr(batch, "_resolve_topic", lambda explicit: ws)
+    monkeypatch.setattr(batch.subprocess, "run",
+                        lambda *a, **k: types.SimpleNamespace(returncode=0, stdout="", stderr=""))
+
+    for value in bodies:
+        ledger.enqueue(ws, source_type="arxiv", value=value)
+    batch.main(["run"])
+    for item in ledger.load_batch(ws, ledger.list_batches(ws)[0]):
+        batch.main(["decide", "--item", item.item_id, "--decision", "approve"])
+    batch.main(["commit"])
+
+
+def test_a_second_document_cannot_overwrite_the_first(ws, monkeypatch, capsys):
+    """The same hazard the image copy has guarded against for a while, one
+    level up and far more expensive: `raw/` is ORIGINAL, so the document that
+    loses this race is gone. A v1/v2 re-ingest, two papers sharing a title, or
+    a route that does not namespace its filenames all land here.
+
+    Keeping both and naming which is which beats refusing the commit: a
+    refused item is approved forever with nowhere to go."""
+    _two_docs_one_name(ws, monkeypatch, {"a": "BODY-A", "b": "BODY-B"})
+
+    papers = ws / "raw" / "papers"
+    survived = sorted(p.read_text(encoding="utf-8").split("\n\n")[1].split("\n")[0]
+                      for p in papers.glob("*.md"))
+    assert survived == ["BODY-A", "BODY-B"], "one document overwrote the other"
+    assert (papers / "a-paper.md").is_file()          # the first keeps the plain name
+    out = capsys.readouterr().out
+    assert "already exists with different content" in out
+
+
+def test_a_byte_identical_document_is_not_a_collision(ws, monkeypatch, capsys):
+    """Re-converting the same source is not a conflict — it lands on itself."""
+    _two_docs_one_name(ws, monkeypatch, {"a": "SAME", "b": "SAME"})
+
+    papers = ws / "raw" / "papers"
+    assert [p.name for p in papers.glob("*.md")] == ["a-paper.md"]
+    assert "already exists" not in capsys.readouterr().out
+
+
+def test_the_renamed_document_is_what_the_ledger_records(ws, monkeypatch):
+    """Whatever name the document ended up under is the one the audit trail and
+    the finalize pass have to point at, or the commit is recorded against a
+    file that is not there."""
+    _two_docs_one_name(ws, monkeypatch, {"a": "BODY-A", "b": "BODY-B"})
+
+    for item in ledger.load_batch(ws, ledger.list_batches(ws)[0]):
+        assert pathlib.Path(item.committed_path).is_file()
+
+
+# --------------------------------------------------------------------------
 # The text-layer route's image references
 # --------------------------------------------------------------------------
 

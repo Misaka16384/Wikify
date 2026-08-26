@@ -11,6 +11,7 @@ import numpy as np
 import yaml
 import subprocess
 import sqlite3
+from datetime import datetime
 from sklearn.metrics.pairwise import cosine_similarity
 from pathlib import Path
 
@@ -83,10 +84,35 @@ def check_model_available(ollama_url, model):
     sys.exit(1)
 
 def backup_concepts(topic_dir, concepts_dir):
-    # Store backups OUTSIDE the scanned wiki/ tree (under scratch/) so backup
-    # copies are never parsed as concept files by the graph/lint/density tools.
-    backup_dir = os.path.join(topic_dir, "scratch", "concept_backups")
-    os.makedirs(backup_dir, exist_ok=True)
+    """Copy every concept card aside before this run rewrites them.
+
+    Two things this has to get right, and the old location got neither:
+
+    The backups must not be read back as concept cards by the graph, lint,
+    density or retrieval passes. `.backup` is the convention that already says
+    so — six scanners skip any path with it as a component, and `magi wiki
+    refactor-concept` (which *this* module shells out to) has always written
+    there. Putting them under `scratch/` solved the same problem a second way
+    and filed the only copy of the pre-merge wiki under a directory whose
+    documented meaning is "deleting this costs time, never information".
+
+    And each run needs its own directory. The old code copied every card to
+    the same flat destination, so running `magi link` twice replaced the
+    backup of the good state with a backup of the already-merged one — the
+    backup was reliable exactly until the moment you needed it.
+    """
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
+    root = os.path.join(concepts_dir, ".backup")
+    # A second-granularity stamp is not a unique name, and "one run must not
+    # destroy another run's backup" does not get to be true only when the runs
+    # are far enough apart. Take the first free directory rather than
+    # `exist_ok=True` onto somebody else's.
+    backup_dir = os.path.join(root, f"link-{stamp}")
+    n = 2
+    while os.path.exists(backup_dir):
+        backup_dir = os.path.join(root, f"link-{stamp}-{n}")
+        n += 1
+    os.makedirs(backup_dir)
     count = 0
     for filename in os.listdir(concepts_dir):
         if filename.endswith(".md"):

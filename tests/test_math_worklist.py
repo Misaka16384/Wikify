@@ -47,8 +47,15 @@ def library(tmp_path):
         encoding="utf-8")
     (ws / "raw" / "papers" / "env.md").write_text(
         "# P\n\n$$\n\\begin{aligned}\n1 & 2\n\\end{pmatrix}\n$$\n", encoding="utf-8")
-    # Same defect, in a backup. Must never appear in the worklist.
+    # Same defect, in a backup. Must never appear in the worklist — in either
+    # place a backup has ever lived. `wiki/concepts/.backup/` is where `magi
+    # link` and `magi wiki refactor-concept` write now, and it is inside the
+    # scanned tree, so it is the one that would actually break this.
     (ws / "scratch" / "concept_backups" / "brace.md").write_text(
+        "Here $\\mathcal{A}_{\\mathrm{SSB}}^{\\mathrm{diag}}} = 11$ appears.\n",
+        encoding="utf-8")
+    (ws / "wiki" / "concepts" / ".backup" / "link-2026-01-01_000000").mkdir(parents=True)
+    (ws / "wiki" / "concepts" / ".backup" / "link-2026-01-01_000000" / "brace.md").write_text(
         "Here $\\mathcal{A}_{\\mathrm{SSB}}^{\\mathrm{diag}}} = 11$ appears.\n",
         encoding="utf-8")
     return ws
@@ -104,17 +111,20 @@ def test_backups_and_generated_output_stay_out_of_the_worklist(library):
     paths = {e["path"] for e in entries}
     assert not any(p.startswith("scratch/") for p in paths), paths
     assert not any(p.startswith("output/") for p in paths), paths
+    assert not any(".backup" in p.split("/") for p in paths), paths
     assert "wiki/concepts/brace.md" in paths, "the original was missed"
 
 
 def test_math_format_does_not_rewrite_the_backups(library):
-    """It edits in place with no dry-run; scratch/ is the copy you would want
-    back if a formatting pass went wrong."""
-    backup = library / "scratch" / "concept_backups" / "brace.md"
-    before = backup.read_text(encoding="utf-8")
+    """It edits in place with no dry-run, so a backup it reformats is a backup
+    that no longer says what the wiki said before the run that made it."""
+    backups = [library / "scratch" / "concept_backups" / "brace.md",
+               library / "wiki" / "concepts" / ".backup"
+               / "link-2026-01-01_000000" / "brace.md"]
+    before = [b.read_text(encoding="utf-8") for b in backups]
     res = _magi(library, "math", "format")
     assert res.returncode == 0, res.stderr
-    assert backup.read_text(encoding="utf-8") == before
+    assert [b.read_text(encoding="utf-8") for b in backups] == before
 
 
 def test_a_valid_card_is_never_flagged(library):

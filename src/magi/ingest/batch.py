@@ -574,6 +574,18 @@ def cmd_commit(args) -> int:
             dest_dir = topic / "raw" / "papers"
             dest_dir.mkdir(parents=True, exist_ok=True)
             dest = dest_dir / src.name
+            # raw/ is ORIGINAL — nothing regenerates a document that is already
+            # in the library. The image copy below has refused to overwrite a
+            # different file of the same name for a while; the document itself
+            # had no such check, so a second conversion landing on the same
+            # slug — a v1/v2 re-ingest, two papers sharing a title, a route
+            # that does not namespace its filenames — destroyed the earlier
+            # one with no message at all. Keep both and say which is which;
+            # an identical re-commit still just lands on itself.
+            if dest.is_file() and dest.read_bytes() != src.read_bytes():
+                dest = dest_dir / f"{src.stem}--{item.item_id}{src.suffix}"
+                print(f"    ! raw/papers/{src.name} already exists with different "
+                      f"content — kept both, this one as {dest.name}")
             shutil.copy2(src, dest)
 
             staged_images = Path(src).parent / "images"

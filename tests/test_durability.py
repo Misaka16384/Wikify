@@ -32,7 +32,6 @@ def test_things_a_person_made(path):
     "output/graph.db",
     "output/index.db",
     "output/.lint_cache.json",
-    "output/radar/seen.jsonl",
     "scratch/chunk_a_01.md",
 ])
 def test_things_a_command_will_make_again(path):
@@ -46,6 +45,25 @@ def test_the_ingest_ledger_is_neither():
     library."""
     assert durability.classify("output/ingest/batch-abc.jsonl") == "transactional"
     assert durability.is_regenerable("output/ingest/batch-abc.jsonl") is False
+
+
+@pytest.mark.parametrize("path", [
+    "output/radar/triage.jsonl",
+    "output/radar/seen.jsonl",
+    "output/radar/candidates.jsonl",
+    "output/radar/citation-gaps.jsonl",
+])
+def test_the_radar_ledgers_are_neither(path):
+    """Same shape as the ingest ledger, and it used to be filed as derived.
+
+    `triage.jsonl` is one line per human decision and the weekly triage is not
+    finished in one sitting; `seen.jsonl` is the only record of `first_seen`.
+    Re-running does not rebuild either: Semantic Scholar recommends within 60
+    days and the arXiv listing is a rolling window, so a re-harvest returns a
+    different world and every rejected paper comes back.
+    """
+    assert durability.classify(path) == "transactional"
+    assert durability.is_regenerable(path) is False
 
 
 def test_the_specific_answer_beats_the_containing_one():

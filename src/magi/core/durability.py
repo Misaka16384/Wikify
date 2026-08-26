@@ -27,11 +27,22 @@ it records decisions a person made; but it is also not the artefact — the
 artefacts it points at have already been copied into ``raw/``. Deleting it
 loses the audit trail and the queue, not the library.
 
+``output/radar/`` is the same shape and was, until this was written down,
+sitting in DERIVED — which is how "delete ``output/`` and re-run" became advice
+that silently throws away a reviewer's work. ``triage.jsonl`` is one line per
+human decision and the weekly triage is explicitly not finished in one sitting;
+``seen.jsonl`` is the cumulative dedupe ledger, and it is the only record of
+``first_seen``. Re-running does not rebuild either of them: the upstream
+windows have moved on (Semantic Scholar recommends within 60 days, the arXiv
+listing is a rolling few days), so a re-harvest returns a different world and
+every paper already rejected comes back.
+
 The practical consequences, which are the reason to write this down:
 
-* "delete ``output/`` and re-run" is safe **except for ``output/ingest/``**;
-* a backup that covers ``raw/``, ``wiki/``, the two config files and the global
-  config directory is complete;
+* "delete ``output/`` and re-run" is safe **except for ``output/ingest/`` and
+  ``output/radar/``**;
+* a backup that covers ``raw/``, ``wiki/``, the two config files, the global
+  config directory and the two transactional trees is complete;
 * anything ORIGINAL needs an atomic write and a lock; anything DERIVED does not.
 """
 
@@ -51,12 +62,12 @@ DERIVED = (
     "output/graph.db",
     "output/index.db",
     "output/.lint_cache.json",
-    "output/radar/",
     "scratch/",
 )
 
 TRANSACTIONAL = (
     "output/ingest/",
+    "output/radar/",
 )
 
 
