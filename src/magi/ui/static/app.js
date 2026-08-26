@@ -254,6 +254,16 @@
       btn_ingest_run: "跑队列",
       btn_ingest_commit: "提交已批准的",
       btn_ingest_upload: "上传",
+      zotero_label: "或者,从 Zotero 导入",
+      zotero_loading: "正在读取你的 Zotero 库……",
+      zotero_pick: "选一个分类",
+      zotero_whole_library: "整个库",
+      zotero_tag_ph: "标签(可选)",
+      zotero_hint: "选中一个分类会连同它下面的所有子分类一起。入队不抓取任何东西——下面的队列负责转换,你负责审批。",
+      zotero_pick_something: "先选一个分类,或者填一个标签。",
+      zotero_working: "正在读取并入队……",
+      zotero_queued: "已入队 {n} 篇（{already} 篇本来就在队列里,{skipped} 篇没有可抓取的标识符）",
+      btn_zotero_import: "加入队列",
       ingest_upload_label: "或者,从这台电脑上传一个文件",
       ingest_upload_hint: "先落进 inbox/,再汇入下面的队列——和其他来源走同一道审批。",
       ingest_upload_working: "正在上传 {name}……",
@@ -929,6 +939,16 @@
       btn_ingest_run: "Run the Queue",
       btn_ingest_commit: "Commit Approved",
       btn_ingest_upload: "Upload",
+      zotero_label: "Or import from Zotero",
+      zotero_loading: "Reading your Zotero library…",
+      zotero_pick: "Pick a collection",
+      zotero_whole_library: "The whole library",
+      zotero_tag_ph: "tag (optional)",
+      zotero_hint: "A folder includes everything filed beneath it. Queuing fetches nothing — the queue below converts, and you approve.",
+      zotero_pick_something: "Pick a collection, or type a tag.",
+      zotero_working: "Reading and queuing…",
+      zotero_queued: "Queued {n} ({already} were already waiting, {skipped} had nothing to fetch them by)",
+      btn_zotero_import: "Queue them",
       ingest_upload_label: "Or upload a file from this computer",
       ingest_upload_hint: "Lands in inbox/ and joins the queue below, so it goes through the same review as everything else.",
       ingest_upload_working: "Uploading {name}…",
@@ -6077,6 +6097,11 @@
   // ------------------------------------------------------------------------
 
   async function loadIngest() {
+    // Reading the Zotero tree is a SQLite copy of a file that can be 80 MB, so
+    // it happens the first time this panel is looked at rather than on page
+    // load. Deliberately not awaited: a slow or absent Zotero must not hold up
+    // the queue the panel is actually about.
+    loadZoteroCollections();
     // "0 waiting, nothing queued yet" is a confident answer, and with no
     // workspace chosen it is not the true one — the truth is that we do not
     // know which library to look at. This panel showed a reassuring zero over a
@@ -6973,6 +6998,87 @@
         if (uploadStatus) uploadStatus.textContent = "";
       } finally {
         uploadBtn.disabled = false;
+      }
+    });
+  }
+
+  // Zotero. The tree is read once when the panel first needs it; a library
+  // with no chosen data directory answers 409 with the command that chooses
+  // one, and that sentence is more useful than an empty dropdown.
+  const zoteroSelect = document.getElementById("zotero-collection");
+  const zoteroTag = document.getElementById("zotero-tag");
+  const zoteroBtn = document.getElementById("btn-zotero-import");
+  const zoteroStatus = document.getElementById("zotero-status");
+  let zoteroLoaded = false;
+
+  async function loadZoteroCollections() {
+    if (zoteroLoaded || !zoteroSelect) return;
+    zoteroLoaded = true;
+    try {
+      const res = await fetch("/api/zotero/collections");
+      const data = await res.json();
+      if (!res.ok) {
+        zoteroSelect.innerHTML = "";
+        if (zoteroStatus) zoteroStatus.textContent = data.detail || `HTTP ${res.status}`;
+        return;
+      }
+      // Depth-first with indentation, so "Fractons / 2024" reads as nested
+      // rather than as two unrelated folders that happen to sort together.
+      const byParent = new Map();
+      (data.collections || []).forEach((c) => {
+        const k = c.parentCollectionID == null ? "root" : String(c.parentCollectionID);
+        if (!byParent.has(k)) byParent.set(k, []);
+        byParent.get(k).push(c);
+      });
+      const opts = [`<option value="">${escapeHtml(t("zotero_pick"))}</option>`];
+      const walk = (key, depth) => {
+        (byParent.get(key) || []).forEach((c) => {
+          const pad = "  ".repeat(depth);
+          opts.push(`<option value="${c.collectionID}">${pad}${escapeHtml(c.collectionName)}` +
+                    ` (${c.n})</option>`);
+          walk(String(c.collectionID), depth + 1);
+        });
+      };
+      walk("root", 0);
+      opts.push(`<option value="__all__">${escapeHtml(t("zotero_whole_library"))}</option>`);
+      zoteroSelect.innerHTML = opts.join("");
+      if (zoteroBtn) zoteroBtn.disabled = false;
+    } catch (err) {
+      if (zoteroStatus) zoteroStatus.textContent = err.message;
+    }
+  }
+
+  if (zoteroBtn) {
+    zoteroBtn.addEventListener("click", async () => {
+      const pick = zoteroSelect ? zoteroSelect.value : "";
+      const tag = zoteroTag ? zoteroTag.value.trim() : "";
+      if (!pick && !tag) {
+        if (zoteroStatus) zoteroStatus.textContent = t("zotero_pick_something");
+        return;
+      }
+      const body = { workspace: state.workspace };
+      if (pick === "__all__") body.all = true;
+      else if (pick) body.collection_id = Number(pick);
+      if (tag) body.tag = tag;
+
+      zoteroBtn.disabled = true;
+      if (zoteroStatus) zoteroStatus.textContent = t("zotero_working");
+      try {
+        const res = await apiFetch("/api/zotero/import", {
+          method: "POST", body: JSON.stringify(body),
+        });
+        const fresh = (res.queued || []).filter((q) => q.status !== "already-queued").length;
+        if (zoteroStatus) {
+          zoteroStatus.textContent = t("zotero_queued", {
+            n: fresh, already: (res.queued || []).length - fresh,
+            skipped: (res.skipped || []).length,
+          });
+        }
+        loadIngest();
+      } catch (err) {
+        if (zoteroStatus) zoteroStatus.textContent = "";
+      } finally {
+        zoteroBtn.disabled = false;
       }
     });
   }

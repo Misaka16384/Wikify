@@ -68,6 +68,14 @@ class KBToggleRequest(BaseModel):
     enabled: bool
 
 
+class ZoteroImportRequest(BaseModel):
+    collection_id: Optional[int] = None
+    tag: Optional[str] = None
+    keys: Optional[List[str]] = None
+    all: bool = False
+    workspace: Optional[str] = None
+
+
 class RadarReviewRequest(BaseModel):
     file: str
     action: str = "mark-reviewed"
@@ -1079,6 +1087,99 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                 "renamed": dest.name != filename,
                 "inbox_pending": sum(1 for p in inbox.iterdir() if p.is_file()
                                      and not p.name.startswith("."))}
+
+    def _zotero_data_dir():
+        """The Zotero library, or a 409 saying how to choose one.
+
+        Same resolution order the CLI uses: the directory somebody picked with
+        `magi ingest zotero-dirs --set`, else the only candidate on the
+        machine. Two candidates and no choice is a question, not a guess — the
+        wrong Zotero library is a whole second bibliography.
+        """
+        from magi.ingest.zotero import candidate_data_dirs
+        from magi.kb_registry import load_settings
+
+        chosen = (load_settings() or {}).get("zotero_data_dir")
+        if chosen and Path(chosen).is_dir():
+            return Path(chosen)
+        found = candidate_data_dirs()
+        if len(found) == 1:
+            return Path(found[0])
+        raise HTTPException(
+            status_code=409,
+            detail=("no Zotero library chosen — run 'magi ingest zotero-dirs' "
+                    "to see the candidates, then '--set <PATH>' to pick one"
+                    + (f" ({len(found)} found)" if found else " (none found)")))
+
+    @app.get("/api/zotero/collections")
+    def get_zotero_collections() -> dict:
+        """The Zotero folder tree, for picking one to import.
+
+        Zotero import was CLI-only, which made it the one source of papers the
+        dashboard could not touch — and it is the source most people's papers
+        are already in.
+        """
+        from magi.ingest.zotero import list_collections
+
+        data_dir = _zotero_data_dir()
+        try:
+            cols = list_collections(data_dir)
+        except Exception as exc:
+            raise HTTPException(status_code=502,
+                                detail=f"could not read the Zotero library: {exc}")
+        return {"data_dir": str(data_dir), "collections": cols}
+
+    @app.post("/api/zotero/import")
+    def post_zotero_import(req: ZoteroImportRequest) -> dict:
+        """Queue a Zotero selection. Queues only — nothing is fetched here.
+
+        Same door every other source uses: what this writes is queue entries a
+        human still has to approve, so the panel's existing convert → approve →
+        commit flow applies unchanged.
+        """
+        from magi.ingest import ledger
+        from magi.ingest.zotero import read_items
+        from magi.ingest.zotero_import import plan_routes
+
+        ws = _resolve_workspace(req.workspace)
+        if not (ws / "output").is_dir() and not (ws / "wiki").is_dir():
+            raise HTTPException(status_code=400,
+                                detail=f"{ws} is not a MAGI workspace")
+        if req.collection_id is None and not req.tag and not req.keys and not req.all:
+            raise HTTPException(
+                status_code=400,
+                detail="name what to import: a collection, a tag, some item keys, "
+                       "or all=true for the whole library")
+
+        data_dir = _zotero_data_dir()
+        try:
+            items = read_items(data_dir, collection_id=req.collection_id,
+                               tag=req.tag, keys=req.keys or None)
+        except Exception as exc:
+            raise HTTPException(status_code=502,
+                                detail=f"could not read the Zotero library: {exc}")
+
+        # The DOI->arXiv lookup the CLI does is a live Semantic Scholar call.
+        # A click in a dashboard should not silently become a network round
+        # trip of unpredictable length, so the WebUI queues on what the library
+        # already knows and lets `batch-run` resolve the rest.
+        plan, skipped = plan_routes(items)
+
+        queued = []
+        for item, source_type, value in plan:
+            already = ledger.find_pending(ws, source_type, value)
+            req_id = ledger.enqueue(ws, source_type=source_type, value=value,
+                                    title=item.title)
+            queued.append({"req_id": req_id, "title": item.title,
+                           "source_type": source_type, "value": value,
+                           "status": "already-queued" if already else "queued"})
+
+        by_route: Dict[str, int] = {}
+        for q in queued:
+            by_route[q["source_type"]] = by_route.get(q["source_type"], 0) + 1
+        return {"workspace": str(ws), "queued": queued, "by_route": by_route,
+                "skipped": [i.title for i in skipped],
+                "pending": len(ledger.pending(ws))}
 
     @app.post("/api/workspace/radar/review")
     def post_radar_review(req: RadarReviewRequest) -> dict:

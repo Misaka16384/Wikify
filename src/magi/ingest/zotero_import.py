@@ -49,6 +49,33 @@ def _chosen_data_dir(explicit: str | None) -> tuple[Path | None, str | None]:
                   "\n  Choose with: magi ingest zotero-dirs --set <PATH>")
 
 
+def plan_routes(items, resolved_by_doi: dict[str, str] | None = None):
+    """Decide how each item should be acquired. Returns (plan, skipped).
+
+    *plan* is a list of ``(item, source_type, value)``; *skipped* is the items
+    carrying nothing to fetch them by.
+
+    The order is a preference ladder, and it is the reason this is one function
+    rather than a rule each caller reimplements: arXiv source beats a publisher
+    PDF because the conversion routes above it read LaTeX rather than a
+    rendering of it, and Zotero's stored PDF beats a bare DOI because the file
+    is already on disk.
+    """
+    resolved_by_doi = resolved_by_doi or {}
+    plan, skipped = [], []
+    for item in items:
+        arxiv = item.arxiv_id() or resolved_by_doi.get((item.doi or "").lower())
+        if arxiv:
+            plan.append((item, "arxiv", arxiv))
+        elif item.pdf_path:
+            plan.append((item, "file", item.pdf_path))
+        elif item.doi:
+            plan.append((item, "doi", item.doi))
+        else:
+            skipped.append(item)
+    return plan, skipped
+
+
 def cmd_import(args) -> int:
     data_dir, err = _chosen_data_dir(args.data_dir)
     if err:
@@ -112,18 +139,10 @@ def cmd_import(args) -> int:
                                for doi, ident in found.items() if ident.arxiv_id}
             print(f"[zotero] {len(resolved_by_doi)} of them are on arXiv")
 
-    queued, skipped = [], []
-    for item in items:
-        arxiv = item.arxiv_id() or (resolved_by_doi.get((item.doi or "").lower()))
-        if arxiv:
-            source_type, value = "arxiv", arxiv
-        elif item.pdf_path:
-            source_type, value = "file", item.pdf_path
-        elif item.doi:
-            source_type, value = "doi", item.doi
-        else:
-            skipped.append(item)
-            continue
+    plan, skipped = plan_routes(items, resolved_by_doi)
+
+    queued = []
+    for item, source_type, value in plan:
         if args.dry_run:
             queued.append({"title": item.title, "source_type": source_type,
                            "value": value})

@@ -296,8 +296,14 @@ def _attachments(conn) -> dict[int, str]:
     return out
 
 
-def collection_tree_ids(conn, name: str) -> list[int]:
-    """Every collectionID under *name*, including *name* itself.
+def collection_tree_ids(conn, name: str | None = None, *,
+                        root_id: int | None = None) -> list[int]:
+    """Every collectionID under a collection, including that collection itself.
+
+    Named by *name* or by *root_id*. Both descend, because "this folder" means
+    the same thing however you pointed at it — an id that selected only the
+    folder and none of its contents would be a second, quieter version of the
+    bug below.
 
     Two things the old `WHERE c.collectionName = ?` got wrong, both silently.
 
@@ -315,10 +321,15 @@ def collection_tree_ids(conn, name: str) -> list[int]:
     ).fetchall()
     children: dict = {}
     roots = []
+    known = set()
     for r in rows:
         children.setdefault(r["parentCollectionID"], []).append(r["collectionID"])
-        if r["collectionName"] == name:
+        known.add(r["collectionID"])
+        if name is not None and r["collectionName"] == name:
             roots.append(r["collectionID"])
+    if root_id is not None:
+        # An id nobody has selects nothing, the same as a name nobody has.
+        roots = [root_id] if root_id in known else []
     if len(roots) > 1:
         print(f"warning: {len(roots)} collections are called {name!r}; importing "
               f"all of them. Rename one, or pass --collection-id.", file=sys.stderr)
@@ -349,8 +360,11 @@ def read_items(data_dir, collection: str | None = None, *,
     with open_readonly(data_dir) as conn:
         sql = _ITEM_SQL
         params: tuple = ()
-        ids = ([collection_id] if collection_id is not None
-               else collection_tree_ids(conn, collection) if collection else [])
+        ids: list[int] = []
+        if collection_id is not None:
+            ids = collection_tree_ids(conn, root_id=collection_id)
+        elif collection:
+            ids = collection_tree_ids(conn, collection)
         if (collection or collection_id is not None) and not ids:
             return []
         if ids:

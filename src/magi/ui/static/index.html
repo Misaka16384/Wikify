@@ -743,6 +743,23 @@
         <p class="card-subtitle" id="ingest-upload-status"></p>
       </div>
 
+      <!-- Zotero. For most researchers this is where the papers already are,
+           and it was the one source the dashboard could not reach. -->
+      <div class="card" id="zotero-card">
+        <label class="field-label" for="zotero-collection" data-i18n="zotero_label">Or import from Zotero</label>
+        <div class="ingest-add-row">
+          <select id="zotero-collection" class="select-input grow-1">
+            <option value="" data-i18n="zotero_loading">Reading your Zotero library…</option>
+          </select>
+          <input type="text" id="zotero-tag" class="text-input"
+                 placeholder="tag (optional)" data-i18n-placeholder="zotero_tag_ph">
+          <button class="btn btn-secondary btn-sm" id="btn-zotero-import"
+                  data-i18n="btn_zotero_import" disabled>Queue them</button>
+        </div>
+        <p class="card-subtitle" data-i18n="zotero_hint">A folder includes everything filed beneath it. Queuing fetches nothing — the queue below converts, and you approve.</p>
+        <p class="card-subtitle" id="zotero-status"></p>
+      </div>
+
       <div class="card">
         <div class="ingest-toolbar">
           <div>
