@@ -16,6 +16,20 @@ models:
   # 嵌入模型（semantic_linker 使用）
   embedding: "qwen3-embedding:0.6b"
 
+# 向量化用哪个服务(magi index / magi search / magi link 共用)
+embedding:
+  # ollama = 本机(默认);openai = 任何 OpenAI 兼容的云端接口
+  provider: ollama
+  # provider: openai 时才用得上。留空则沿用 models.embedding。
+  base_url:
+  model:
+  # 云端接口的 key。环境变量 MAGI_EMBEDDING_API_KEY 优先于这里——
+  # 写进本文件的密钥是一个躺在 git 里的密钥。
+  # 刻意不写在这里,而不是留空。配置是逐键覆盖的,一个显式的 "" 也是一个值,
+  # 会盖掉你在 ~/.config/magi/config.yaml 里设过一次的 key,然后每个新工作区
+  # 都连不上云端接口而看不出原因。要用就写进用户级文件,或者用环境变量。
+  # api_key: ""
+
 # OCR 处理参数
 ocr:
   # MinerU 云端 API 配置（可选，公式/版面质量更高）。
@@ -82,6 +96,12 @@ radar:
   days: 7
   # 单次 harvest 最多产出候选数
   max_candidates: 40
+  # 相关度阈值:低于此分的候选被丢弃。留空 = 不过滤(默认)。
+  # 实测参考:一个 67 篇的真实文库,四十个候选全部落在 0.55-0.70;明显无关
+  # 的文本要低得多(通用凝聚态 0.45、机器学习 0.37、乱码 0.31)。所以这是个
+  # 排序信号而不是概率——设一个「安全」的阈值等于什么都不过滤,设一个真能
+  # 过滤的阈值会切掉真命中。
+  min_relevance:
   # 我方已发表论文（citation-gap 侦察的锚点；默认回退到 seed_arxiv_ids）
   own_arxiv_ids:
     - "2606.25340"

@@ -264,9 +264,16 @@ radar:
   arxiv_categories:
     - cond-mat.str-el
     - hep-th
-  seed_arxiv_ids: []   # e.g. ["2606.25340"]; library arXiv IDs auto-merge in
-  days: 7
+  # Papers that describe what you care about — often other people's. May stay
+  # empty: every arXiv ID on a reference card is merged in automatically.
+  seed_arxiv_ids: []   # e.g. ["2606.25340"]
+  days: 7              # the arXiv leg only; S2 recommends within a fixed 60 days
   max_candidates: 40
+  min_relevance:       # drop candidates below this score; empty = keep all
+  # Your own papers, for `magi radar citation-gap`. Left empty it falls
+  # back to seed_arxiv_ids above — which are usually other people's, and
+  # the report then asks who failed to cite them.
+  own_arxiv_ids: []
 """
     safe_write(topic_path / "config.yaml", config_yaml, args.force)
 
