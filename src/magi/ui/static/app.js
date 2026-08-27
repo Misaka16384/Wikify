@@ -7400,10 +7400,13 @@
   // ------------------------------------------------------------------------
 
   // Only surfaces whose CSS actually paints a pointer specular belong here.
-  // The topbar, core band, icon buttons and stat pills were in the old list but
-  // have no specular layer, so tracking them was pure work for no pixels.
+  // Icon buttons and stat pills are deliberately absent: they have no specular
+  // layer, so tracking them was pure work for no pixels. The top bar, the core
+  // band and the MAGI HUD monolith do paint one, on their own background rather
+  // than a pseudo-element so it stays underneath their contents.
   const SPECULAR_SURFACES =
-    ".card, .modal-window, .modal-content, .glass-tuner-panel, .doc-preview-side, .doc-preview-window, .toast";
+    ".card, .modal-window, .modal-content, .glass-tuner-panel, .doc-preview-side, " +
+    ".doc-preview-window, .toast, .topbar, .core-band, .eva-hud-frame";
 
   function initLiquidGlassEngine() {
     if (typeof window === "undefined" || typeof document === "undefined") return;

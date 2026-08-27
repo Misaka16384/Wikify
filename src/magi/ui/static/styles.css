@@ -453,14 +453,18 @@
   --glass-shadow-lg: 0 20px 48px rgba(var(--eva-shadow-rgb), calc(0.85 * var(--eva-shadow-strength))), 0 4px 16px rgba(var(--eva-p), 0.12);
   --glass-specular-color: rgba(var(--eva-p), 0.24);
   --glass-specular-size: 300px;
-  --glass-edge-width: 2.5px;
+  --glass-edge-width: 4px;
   --glass-edge-filter: blur(0.5px) brightness(2) saturate(2.8) contrast(1.15);
+  /* Asymmetric on purpose. A rim that is bright the whole way round reads as a
+     neon outline; a slab is lit on the side facing the light and dark on the
+     side facing away, and it is that falloff that says the edge has depth. */
   --glass-edge-sheen: linear-gradient(135deg,
-    rgba(var(--eva-p), 0.8) 0%,
-    rgba(255, 255, 255, 0.2) 28%,
-    rgba(var(--eva-shadow-rgb), calc(0.4 * var(--eva-shadow-strength))) 56%,
-    rgba(var(--eva-p), 0.22) 78%,
-    rgba(var(--eva-p), 0.65) 100%);
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(var(--eva-p), 0.95) 8%,
+    rgba(var(--eva-p), 0.30) 28%,
+    rgba(var(--eva-shadow-rgb), calc(0.65 * var(--eva-shadow-strength))) 56%,
+    rgba(var(--eva-shadow-rgb), calc(0.45 * var(--eva-shadow-strength))) 78%,
+    rgba(var(--eva-p), 0.30) 100%);
   --eva-glow-rgb: 255, 148, 33;
   --eva-glow-boost: 1;
 
@@ -614,11 +618,12 @@
   --glass-specular-size: 320px;
   --glass-edge-filter: blur(0.5px) saturate(3.2) brightness(0.9) contrast(1.2);
   --glass-edge-sheen: linear-gradient(135deg,
-    rgba(255, 255, 255, 0.96) 0%,
-    rgba(255, 255, 255, 0.45) 26%,
-    rgba(var(--eva-p), 0.34) 54%,
-    rgba(var(--eva-p), 0.2) 74%,
-    rgba(255, 255, 255, 0.82) 100%);
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(255, 255, 255, 0.6) 14%,
+    rgba(var(--eva-p), 0.42) 38%,
+    rgba(var(--eva-p), 0.55) 60%,
+    rgba(var(--eva-p), 0.26) 80%,
+    rgba(255, 255, 255, 0.9) 100%);
   --eva-glow-rgb: 10, 158, 215;
   --eva-glow-boost: 0.86;
 }
@@ -805,6 +810,16 @@ html:not([data-theme="eva"]) .glass-tuner-panel {
 
 .topbar {
   background-color: var(--glass-bg);
+  /* Pointer specular. On the element's own background rather than a pseudo-
+     element: a background layer always paints below the element's content,
+     whereas an absolutely positioned ::after would sit on top of the bar's
+     buttons and labels. Gated the same way as .card -- app.js writes
+     --specular-x/y onto this element only, and the -999px fallback parks the
+     glint off-canvas everywhere else. */
+  background-image: radial-gradient(circle var(--glass-specular-size, 320px)
+    at var(--specular-x, -999px) var(--specular-y, -999px),
+    var(--glass-specular-color, rgba(255, 255, 255, 0.25)), transparent 70%);
+  background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.1)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(calc(var(--glass-blur) * 1.1)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border-bottom: 1px solid var(--glass-border);
@@ -1074,8 +1089,10 @@ html:not([data-theme="eva"]) .glass-tuner-panel {
 .lang-toggle {
   display: inline-flex;
   align-items: center;
-  background-color: var(--bg-subtle);
-  border: 1px solid var(--border-default);
+  background-color: var(--glass-bg-subtle);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-pill);
   padding: 2px;
   gap: 2px;
@@ -1118,6 +1135,16 @@ html:not([data-theme="eva"]) .glass-tuner-panel {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   column-gap: clamp(1rem, 3vw, 2.75rem);
   background-color: var(--glass-bg-subtle);
+  /* Pointer specular. On the element's own background rather than a pseudo-
+     element: a background layer always paints below the element's content,
+     whereas an absolutely positioned ::after would sit on top of the bar's
+     buttons and labels. Gated the same way as .card -- app.js writes
+     --specular-x/y onto this element only, and the -999px fallback parks the
+     glint off-canvas everywhere else. */
+  background-image: radial-gradient(circle var(--glass-specular-size, 320px)
+    at var(--specular-x, -999px) var(--specular-y, -999px),
+    var(--glass-specular-color, rgba(255, 255, 255, 0.25)), transparent 70%);
+  background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border-bottom: 1px solid var(--glass-border);
@@ -1248,8 +1275,10 @@ html:not([data-theme="eva"]) .glass-tuner-panel {
    -------------------------------------------------------------------------- */
 
 .tabs-nav {
-  background-color: var(--bg-surface);
-  border-bottom: 1px solid var(--border-default);
+  background-color: var(--glass-bg-subtle);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  border-bottom: 1px solid var(--glass-border);
   padding: 0 clamp(0.5rem, 2vw, 1.5rem);
   display: flex;
   gap: 0.25rem;
@@ -1744,7 +1773,7 @@ textarea.text-input {
   padding: 0.5rem 0.75rem;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
-  background: var(--bg-subtle);
+  background: var(--bg-inset);
   min-width: 0;
   flex-wrap: wrap;
 }
@@ -2051,7 +2080,10 @@ details.advanced-sql > summary {
   height: clamp(360px, 56vh, 640px);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-sm);
-  background-color: var(--bg-subtle);
+  background-color: var(--glass-bg-subtle);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+
   overflow: hidden;
 }
 
@@ -2072,7 +2104,9 @@ details.advanced-sql > summary {
   padding: 0.28rem 0.55rem;
   font-size: 0.72rem;
   color: var(--text-muted);
-  background-color: var(--bg-card);
+  background-color: var(--glass-bg-elevated);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(var(--glass-saturate));
   border: 1px solid var(--border-subtle);
   border-radius: 3px;
   cursor: pointer;
@@ -2086,7 +2120,9 @@ details.advanced-sql > summary {
   /* chip-styled and width-bounded so it never runs under .graph-map-note */
   max-width: 45%;
   padding: 0.2rem 0.5rem;
-  background-color: var(--bg-card);
+  background-color: var(--glass-bg-elevated);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(var(--glass-saturate));
   border: 1px solid var(--border-subtle);
   border-radius: 3px;
   font-family: var(--font-mono);
@@ -2103,7 +2139,9 @@ details.advanced-sql > summary {
   font-family: var(--font-mono);
   font-size: 0.66rem;
   color: var(--text-muted);
-  background-color: var(--bg-card);
+  background-color: var(--glass-bg-elevated);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(var(--glass-saturate));
   border: 1px solid var(--border-subtle);
   border-radius: 3px;
   padding: 0.2rem 0.5rem;
@@ -2338,9 +2376,12 @@ details.advanced-sql > summary {
 }
 
 .search-hit-card {
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  background-color: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-glass);
+  box-shadow: var(--glass-shadow-sm), var(--glass-rim-top);
   padding: 0.9rem 1rem;
   margin-bottom: 0.75rem;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
@@ -2387,7 +2428,7 @@ details.advanced-sql > summary {
   font-size: 0.83rem;
   color: var(--text-secondary);
   line-height: 1.55;
-  background-color: var(--bg-subtle);
+  background-color: var(--bg-inset);
   padding: 0.5rem 0.75rem;
   border-radius: var(--radius-sm);
   margin-top: 0.45rem;
@@ -3130,7 +3171,7 @@ html:not([data-theme="eva"]) .modal-content::after {
 .doc-preview-toc-link.lv3 { padding-left: 1.05rem; }
 .doc-preview-toc-link.lv4 { padding-left: 1.65rem; font-size: 0.72rem; }
 
-.doc-preview-toc-link:hover { color: var(--text-primary); background: var(--bg-surface); }
+.doc-preview-toc-link:hover { color: var(--text-primary); background: var(--bg-inset); }
 
 .doc-preview-toc-link.active {
   color: var(--accent-primary);
@@ -3152,7 +3193,7 @@ html:not([data-theme="eva"]) .modal-content::after {
 }
 
 .doc-preview-jump:hover {
-  background: var(--bg-surface);
+  background: var(--bg-inset);
   color: var(--accent-primary);
 }
 
@@ -3803,7 +3844,9 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
   max-width: calc(100% - 12rem);
   padding: 0.35rem 0.55rem;
   border-radius: 5px;
-  background: var(--bg-elevated);
+  background: var(--glass-bg-elevated);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(var(--glass-saturate));
   border: 1px solid var(--border-default);
   font-size: 0.68rem;
   color: var(--text-muted);
@@ -4223,14 +4266,24 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
   /* The lift is a drop-shadow filter rather than a box-shadow because the
      chamfer below clips anything painted outside the silhouette; a filter is
      applied after the clip and follows the cut corners. */
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 0 0 1px rgba(var(--eva-p), 0.10),
-    inset 0 10px 22px -14px rgba(255, 255, 255, 0.30),
-    inset 0 -12px 22px -16px rgba(var(--eva-shadow-rgb), calc(0.55 * var(--eva-shadow-strength)));
+  /* Bevel, then a second edge set 4px in from the first. Two parallel edges are
+     what read as thickness; one reads as an outline. */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.34),
+    inset 1px 0 0 rgba(255, 255, 255, 0.13),
+    inset -1px 0 0 rgba(var(--eva-shadow-rgb), calc(0.55 * var(--eva-shadow-strength))),
+    inset 0 -1px 0 rgba(var(--eva-shadow-rgb), calc(0.7 * var(--eva-shadow-strength))),
+    inset 0 0 0 4px rgba(var(--eva-p), 0.07),
+    inset 0 5px 0 -4px rgba(255, 255, 255, 0.16),
+    inset 0 18px 30px -20px rgba(255, 255, 255, 0.38),
+    inset 0 -20px 32px -22px rgba(var(--eva-shadow-rgb), calc(0.75 * var(--eva-shadow-strength)));
+  /* Deeper stack than the other themes need: this sits on busy artwork, so the
+     panel has to separate from it. The last one is the edge light bleeding out,
+     which is also what stops the card vanishing into a dark patch of the art. */
   filter:
-    drop-shadow(0 1px 1px rgba(var(--eva-shadow-rgb), calc(0.35 * var(--eva-shadow-strength))))
-    drop-shadow(0 6px 12px rgba(var(--eva-shadow-rgb), calc(0.45 * var(--eva-shadow-strength))))
-    drop-shadow(0 18px 34px rgba(var(--eva-shadow-rgb), calc(0.55 * var(--eva-shadow-strength))));
+    drop-shadow(0 1px 1px rgba(var(--eva-shadow-rgb), calc(0.5 * var(--eva-shadow-strength))))
+    drop-shadow(0 8px 16px rgba(var(--eva-shadow-rgb), calc(0.62 * var(--eva-shadow-strength))))
+    drop-shadow(0 24px 46px rgba(var(--eva-shadow-rgb), calc(0.72 * var(--eva-shadow-strength))))
+    drop-shadow(0 0 14px rgba(var(--eva-p), 0.11));
   transition: filter var(--transition-normal), border-color var(--transition-normal),
     transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -4286,16 +4339,20 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
 
 [data-theme="eva"] .card:hover {
   border-color: rgba(var(--eva-p), 0.42);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28),
-    inset 0 0 0 1px rgba(var(--eva-p), 0.16),
-    inset 0 10px 22px -14px rgba(255, 255, 255, 0.38),
-    inset 0 -12px 22px -16px rgba(var(--eva-shadow-rgb), calc(0.55 * var(--eva-shadow-strength)));
-  transform: translateY(-2px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.44),
+    inset 1px 0 0 rgba(255, 255, 255, 0.18),
+    inset -1px 0 0 rgba(var(--eva-shadow-rgb), calc(0.55 * var(--eva-shadow-strength))),
+    inset 0 -1px 0 rgba(var(--eva-shadow-rgb), calc(0.7 * var(--eva-shadow-strength))),
+    inset 0 0 0 4px rgba(var(--eva-p), 0.12),
+    inset 0 5px 0 -4px rgba(255, 255, 255, 0.22),
+    inset 0 18px 30px -20px rgba(255, 255, 255, 0.46),
+    inset 0 -20px 32px -22px rgba(var(--eva-shadow-rgb), calc(0.75 * var(--eva-shadow-strength)));
+  transform: translateY(-3px);
   filter:
-    drop-shadow(0 1px 1px rgba(var(--eva-shadow-rgb), calc(0.4 * var(--eva-shadow-strength))))
-    drop-shadow(0 10px 20px rgba(var(--eva-shadow-rgb), calc(0.6 * var(--eva-shadow-strength))))
-    drop-shadow(0 26px 48px rgba(var(--eva-shadow-rgb), calc(0.75 * var(--eva-shadow-strength))))
-    drop-shadow(0 0 10px rgba(var(--eva-p), 0.2));
+    drop-shadow(0 1px 1px rgba(var(--eva-shadow-rgb), calc(0.55 * var(--eva-shadow-strength))))
+    drop-shadow(0 14px 24px rgba(var(--eva-shadow-rgb), calc(0.7 * var(--eva-shadow-strength))))
+    drop-shadow(0 34px 60px rgba(var(--eva-shadow-rgb), calc(0.85 * var(--eva-shadow-strength))))
+    drop-shadow(0 0 22px rgba(var(--eva-p), 0.3));
 }
 
 [data-theme="eva"] .card-header { border-bottom: 1px solid rgba(var(--eva-p), 0.16); }
@@ -4962,38 +5019,67 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
 [data-theme="eva"] .eva-hud-frame {
   position: relative;
   border: 1px solid rgba(var(--eva-p), 0.35);
-  background: linear-gradient(180deg, rgba(var(--eva-bg-rgb), calc(0.32 * var(--glass-scale))), rgba(var(--eva-bg-rgb), calc(0.48 * var(--glass-scale))));
+  background-image: radial-gradient(circle var(--glass-specular-size, 300px)
+      at var(--specular-x, -999px) var(--specular-y, -999px),
+      var(--glass-specular-color, rgba(255, 255, 255, 0.2)), transparent 70%),
+    linear-gradient(180deg, rgba(var(--eva-bg-rgb), calc(0.32 * var(--glass-scale))), rgba(var(--eva-bg-rgb), calc(0.48 * var(--glass-scale))));
+  background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   padding: 0.9rem 1.1rem 0.6rem;
+  /* Same bevel + inset second edge as the cards, so the monolith reads as the
+     same material rather than a flat window cut into the artwork. */
   box-shadow: inset 0 0 40px rgba(var(--eva-p), 0.03),
-    inset 0 1px 0 rgba(255, 255, 255, 0.09);
-  filter: drop-shadow(0 0 18px rgba(var(--eva-p), 0.12));
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    inset 1px 0 0 rgba(255, 255, 255, 0.12),
+    inset -1px 0 0 rgba(var(--eva-shadow-rgb), calc(0.5 * var(--eva-shadow-strength))),
+    inset 0 -1px 0 rgba(var(--eva-shadow-rgb), calc(0.65 * var(--eva-shadow-strength))),
+    inset 0 0 0 4px rgba(var(--eva-p), 0.06),
+    inset 0 5px 0 -4px rgba(255, 255, 255, 0.14),
+    inset 0 20px 34px -22px rgba(255, 255, 255, 0.34),
+    inset 0 -22px 34px -24px rgba(var(--eva-shadow-rgb), calc(0.7 * var(--eva-shadow-strength)));
+  filter:
+    drop-shadow(0 1px 1px rgba(var(--eva-shadow-rgb), calc(0.45 * var(--eva-shadow-strength))))
+    drop-shadow(0 8px 16px rgba(var(--eva-shadow-rgb), calc(0.55 * var(--eva-shadow-strength))))
+    drop-shadow(0 26px 48px rgba(var(--eva-shadow-rgb), calc(0.65 * var(--eva-shadow-strength))))
+    drop-shadow(0 0 18px rgba(var(--eva-p), 0.12));
 }
 
-[data-theme="eva"] .eva-hud-frame::before,
+/* Both 16px brackets on one pseudo-element -- see the .card version for why. */
+[data-theme="eva"] .eva-hud-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background-image:
+    linear-gradient(var(--eva-p-soft), var(--eva-p-soft)),
+    linear-gradient(var(--eva-p-soft), var(--eva-p-soft)),
+    linear-gradient(var(--eva-p-soft), var(--eva-p-soft)),
+    linear-gradient(var(--eva-p-soft), var(--eva-p-soft));
+  background-repeat: no-repeat;
+  background-size: 16px 2px, 2px 16px, 16px 2px, 2px 16px;
+  background-position: right top, right top, left bottom, left bottom;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* The refracting rim, freed up by the merge above. */
 [data-theme="eva"] .eva-hud-frame::after {
   content: "";
   position: absolute;
-  width: 16px;
-  height: 16px;
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  padding: var(--glass-edge-width, 4px);
+  -webkit-backdrop-filter: var(--glass-edge-filter);
+  backdrop-filter: var(--glass-edge-filter);
+  background-image: var(--glass-edge-sheen);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
   pointer-events: none;
-}
-
-[data-theme="eva"] .eva-hud-frame::before {
-  top: 0;
-  left: auto;
-  right: 0;
-  border-top: 2px solid var(--eva-p-soft);
-  border-right: 2px solid var(--eva-p-soft);
-}
-
-[data-theme="eva"] .eva-hud-frame::after {
-  bottom: 0;
-  right: auto;
-  left: 0;
-  border-bottom: 2px solid var(--eva-p-soft);
-  border-left: 2px solid var(--eva-p-soft);
+  z-index: 1;
 }
 
 [data-theme="eva"] .eva-hud-header {
@@ -5468,6 +5554,26 @@ html.no-glass {
 
 [data-theme="eva"][data-eva="blue"] .btn-secondary:hover:not(:disabled) {
   background-color: rgba(var(--eva-p), 0.16);
+}
+
+/* The blue variant runs --eva-shadow-strength at 0.22 so a dark shadow does not
+   sit on the pale ground as a grey smudge — correct, but it also leaves the card
+   barely lifted once the panel is translucent. Depth on a light ground comes
+   from a tight, close contact shadow rather than a wide soft one, so this
+   variant gets its own short stack instead of a bigger multiplier. */
+[data-theme="eva"][data-eva="blue"] .card {
+  filter:
+    drop-shadow(0 1px 1px rgba(var(--eva-shadow-rgb), 0.20))
+    drop-shadow(0 5px 9px rgba(var(--eva-shadow-rgb), 0.17))
+    drop-shadow(0 16px 26px rgba(var(--eva-shadow-rgb), 0.15));
+}
+
+[data-theme="eva"][data-eva="blue"] .card:hover {
+  filter:
+    drop-shadow(0 1px 1px rgba(var(--eva-shadow-rgb), 0.24))
+    drop-shadow(0 9px 15px rgba(var(--eva-shadow-rgb), 0.22))
+    drop-shadow(0 26px 42px rgba(var(--eva-shadow-rgb), 0.20))
+    drop-shadow(0 0 16px rgba(var(--eva-p), 0.22));
 }
 
 [data-theme="eva"][data-eva="blue"] .toast {
