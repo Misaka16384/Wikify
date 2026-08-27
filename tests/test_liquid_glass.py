@@ -169,6 +169,38 @@ def test_eva_artwork_stays_inside_magi_mode():
         assert unscoped is None, f".{name} has an unscoped base rule; it would leak outside MAGI"
 
 
+def test_tuner_has_no_magic_default_value():
+    """The blur knob used to treat its own default (10) as "no override", while
+    each theme sets a different --glass-blur in CSS (light 20, dark 22,
+    MAGI-blue 10). Once the readout was made honest by writing the computed
+    value back into the slider, dragging *through* 10 snapped the knob to 22 out
+    from under the pointer, and the rest of the drag was measured from the
+    jumped position -- which is how values nobody chose kept landing in
+    localStorage.
+
+    Unset must mean "use the theme's CSS value"; any stored value is an explicit
+    override. No slider position may be special.
+    """
+    assert "function glassSetting(key, min, max)" in APP_JS, "glassSetting must not take a fallback"
+    assert re.search(r"blur\s*===\s*GLASS_DEFAULTS\.blur", APP_JS) is None, (
+        "the slider default must not be used as a sentinel for 'no override'"
+    )
+    assert re.search(r"alpha\s*===\s*GLASS_DEFAULTS\.alpha", APP_JS) is None
+
+    body = re.search(r"function applyGlassSettings\(\) \{(.+?)\n  \}", APP_JS, re.S)
+    assert body, "applyGlassSettings not found"
+    assert "blur === null" in body.group(1), "unset must be distinguished by null"
+    assert "alpha === null" in body.group(1)
+
+    # Reset clears the keys so the theme's own value comes back. Writing the
+    # slider default back left the key present forever.
+    reset = re.search(r"glassResetBtn\.addEventListener\(\"click\", \(\) => \{(.+?)\n    \}\)", APP_JS, re.S)
+    assert reset, "reset handler not found"
+    for key in ("magi-glass-blur", "magi-glass-alpha", "magi-crt"):
+        assert f'safeStorageRemove("{key}")' in reset.group(1), f"reset must clear {key}"
+    assert "safeStorageSet" not in reset.group(1), "reset must not write values back"
+
+
 def test_glass_tokens_defined_for_every_theme():
     required = (
         "--glass-blur",

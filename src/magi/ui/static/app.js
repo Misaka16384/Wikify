@@ -1840,6 +1840,9 @@
       }
     }
     applyBackground("state");
+    // With nothing stored the tuner reports the theme's own --glass-blur, so a
+    // theme flip has to refresh it or it keeps showing the previous theme's.
+    applyGlassSettings();
     // A settled graph map never re-ticks on its own, so a theme flip must
     // trigger one repaint to resample the token colours.
     scheduleGraphMapDraw();
@@ -2062,40 +2065,49 @@
 
   const GLASS_DEFAULTS = { blur: 10, alpha: 100 };
 
-  function glassSetting(key, fallback, min, max) {
-    // Clamped to the slider bounds: a stale or hand-edited localStorage value
-    // must never drive the CSS outside what the UI can express.
+  // Returns null when the knob has never been moved, so the caller can tell
+  // "unset" from "set to a value that happens to equal a default". Clamped to
+  // the slider bounds: a stale or hand-edited localStorage value must never
+  // drive the CSS outside what the UI can express.
+  function glassSetting(key, min, max) {
     const v = parseInt(safeStorageGet(key), 10);
-    if (!Number.isFinite(v)) return fallback;
+    if (!Number.isFinite(v)) return null;
     return Math.min(max, Math.max(min, v));
   }
 
+  // What the CSS would use if nothing were overridden. Read back rather than
+  // hardcoded because it differs per theme.
+  function themeGlassBlur() {
+    const v = parseInt(
+      getComputedStyle(document.documentElement).getPropertyValue("--glass-blur"),
+      10
+    );
+    return Number.isFinite(v) ? v : GLASS_DEFAULTS.blur;
+  }
+
   function applyGlassSettings() {
-    const blur = glassSetting("magi-glass-blur", GLASS_DEFAULTS.blur, 0, 30);
-    const alpha = glassSetting("magi-glass-alpha", GLASS_DEFAULTS.alpha, 40, 170);
+    const blur = glassSetting("magi-glass-blur", 0, 30);
+    const alpha = glassSetting("magi-glass-alpha", 40, 170);
     const crt = safeStorageGet("magi-crt") === "on";
     const root = document.documentElement.style;
-    if (blur === GLASS_DEFAULTS.blur) root.removeProperty("--glass-blur");
+
+    // Unset leaves the theme's own CSS value in place; anything stored is an
+    // explicit override. No value of the slider is treated specially, so the
+    // knob never moves on its own while it is being dragged.
+    if (blur === null) root.removeProperty("--glass-blur");
     else root.setProperty("--glass-blur", `${blur}px`);
-    if (alpha === GLASS_DEFAULTS.alpha) root.removeProperty("--glass-alpha");
+    if (alpha === null) root.removeProperty("--glass-alpha");
     else root.setProperty("--glass-alpha", String(alpha / 100));
     document.documentElement.classList.toggle("crt-on", crt);
-    // The slider default is not the material default: each theme sets its own
-    // --glass-blur in CSS and this function only writes an inline override once
-    // the knob leaves the default, so at rest the readout has to report the
-    // computed value or it claims 10px while the pane is blurring 20.
-    let shownBlur = blur;
-    if (blur === GLASS_DEFAULTS.blur) {
-      const computed = parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue("--glass-blur"),
-        10
-      );
-      if (!Number.isNaN(computed)) shownBlur = computed;
-    }
+
+    // Read the inline override back through the computed value so the readout
+    // reports what is actually in force in this theme.
+    const shownBlur = blur === null ? themeGlassBlur() : blur;
+    const shownAlpha = alpha === null ? GLASS_DEFAULTS.alpha : alpha;
     if (els.glassBlurRange) els.glassBlurRange.value = shownBlur;
-    if (els.glassAlphaRange) els.glassAlphaRange.value = alpha;
+    if (els.glassAlphaRange) els.glassAlphaRange.value = shownAlpha;
     if (els.glassBlurVal) els.glassBlurVal.textContent = `${shownBlur}px`;
-    if (els.glassAlphaVal) els.glassAlphaVal.textContent = `${alpha}%`;
+    if (els.glassAlphaVal) els.glassAlphaVal.textContent = `${shownAlpha}%`;
     if (els.glassCrtToggle) els.glassCrtToggle.checked = crt;
   }
 
@@ -2132,9 +2144,9 @@
   }
   if (els.glassResetBtn) {
     els.glassResetBtn.addEventListener("click", () => {
-      safeStorageSet("magi-glass-blur", String(GLASS_DEFAULTS.blur));
-      safeStorageSet("magi-glass-alpha", String(GLASS_DEFAULTS.alpha));
-      safeStorageSet("magi-crt", "off");
+      safeStorageRemove("magi-glass-blur");
+      safeStorageRemove("magi-glass-alpha");
+      safeStorageRemove("magi-crt");
       applyGlassSettings();
       ["blue", "red"].forEach((v) => setBgPicks(v, null));
       applyBackground("state");
