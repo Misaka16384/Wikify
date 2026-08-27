@@ -21,8 +21,13 @@
 </head>
 <body data-tab="dashboard">
 
-  <!-- EVA MAGI MODE background artwork (decorative, hidden outside the theme) -->
-  <div class="app-bg" aria-hidden="true">
+  <!-- Dynamic Ambient & Artwork backdrop engine (Universal across themes) -->
+  <div class="app-bg" id="app-bg" aria-hidden="true">
+    <div class="app-bg-ambient" id="app-bg-ambient">
+      <div class="ambient-orb orb-1"></div>
+      <div class="ambient-orb orb-2"></div>
+      <div class="ambient-orb orb-3"></div>
+    </div>
     <div class="app-bg-photo" id="bg-photo-a"></div>
     <div class="app-bg-photo" id="bg-photo-b"></div>
     <div class="app-bg-shade"></div>
@@ -81,6 +86,12 @@
         <button type="button" class="lang-pill" data-lang="zh" id="lang-btn-zh">中</button>
         <button type="button" class="lang-pill" data-lang="en" id="lang-btn-en">EN</button>
       </div>
+
+      <!-- Liquid-glass material on/off. Defaults from the OS reduce-transparency
+           setting; an explicit click here wins and is remembered. -->
+      <button class="icon-btn glass-toggle-btn active" id="glass-toggle-btn" title="Toggle Liquid Glass Material" data-i18n-title="glass_toggle_title">
+        <span class="glass-btn-text" data-i18n="glass_toggle_btn">GLASS</span>
+      </button>
 
       <!-- MAGI MODE Toggle Button -->
       <button class="icon-btn magi-mode-btn" id="magi-mode-btn" title="Toggle EVA NERV MAGI Command Theme" data-i18n-title="magi_mode_btn_title" data-i18n="magi_mode_btn">MAGI MODE</button>

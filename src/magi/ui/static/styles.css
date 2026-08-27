@@ -101,6 +101,74 @@
   --shadow-md: 0 3px 10px rgba(29, 33, 38, 0.07), 0 1px 3px rgba(29, 33, 38, 0.04);
   --shadow-lg: 0 12px 32px rgba(29, 33, 38, 0.12), 0 2px 8px rgba(29, 33, 38, 0.06);
 
+  /* Liquid-glass material (Light).
+     The tint alphas are written as calc(k * var(--glass-scale)) rather than as
+     fixed numbers so the bottom-right tuner's opacity knob drives every theme
+     through one variable — previously --glass-alpha was only wired up inside
+     MAGI MODE, so outside it the slider moved and nothing happened.
+     k is kept low on purpose: a 0.70-alpha tint over a blur reads as frosted
+     milk. Apple's material is thin and highly saturated — most of what you see
+     is the backdrop coming through, lifted in saturation and brightness, with
+     the tint doing little more than guaranteeing text contrast. */
+  --glass-alpha: 1;
+  --glass-floor: 0.34;
+  --glass-weight: 1;
+  --glass-scale: calc(max(var(--glass-floor), var(--glass-alpha)) * var(--glass-weight));
+  --glass-tint-rgb: 255, 255, 255;
+  --glass-blur: 20px;
+  --glass-saturate: 1.9;
+  --glass-brightness: 1.06;
+  --glass-bg: rgba(var(--glass-tint-rgb), calc(0.46 * var(--glass-scale)));
+  --glass-bg-subtle: rgba(var(--glass-tint-rgb), calc(0.36 * var(--glass-scale)));
+  --glass-bg-elevated: rgba(var(--glass-tint-rgb), calc(0.68 * var(--glass-scale)));
+  --glass-border: rgba(52, 89, 126, 0.20);
+  --glass-border-subtle: rgba(52, 89, 126, 0.09);
+  --glass-border-strong: rgba(52, 89, 126, 0.28);
+  /* The edge of the pane. Three inset layers: a crisp catch of light along the
+     very top, a faint ring all the way round that stands in for the thickness
+     of the material, and a soft inner glow falling from the top edge. Together
+     they are what makes a panel read as a solid object rather than a tinted
+     rectangle. */
+  --glass-rim-top:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.35),
+    inset 0 10px 20px -12px rgba(255, 255, 255, 0.9);
+  --glass-rim-bottom:
+    inset 0 -1px 0 0 rgba(52, 89, 126, 0.10),
+    inset 0 -12px 22px -16px rgba(52, 89, 126, 0.28);
+  --glass-rim-all: inset 0 0 0 1px rgba(52, 89, 126, 0.14);
+  /* Elevation is a stack, not a single blur: a tight contact shadow anchors the
+     panel to the page and progressively wider, softer ambient layers lift it
+     off. One 30px blur reads flat no matter how dark you make it. */
+  --glass-shadow-sm:
+    0 1px 2px rgba(29, 33, 38, 0.07),
+    0 3px 7px -2px rgba(52, 89, 126, 0.11);
+  --glass-shadow-md:
+    0 1px 2px rgba(29, 33, 38, 0.06),
+    0 5px 12px -2px rgba(52, 89, 126, 0.11),
+    0 16px 30px -8px rgba(52, 89, 126, 0.15),
+    0 32px 60px -20px rgba(52, 89, 126, 0.16);
+  --glass-shadow-lg:
+    0 2px 5px rgba(29, 33, 38, 0.08),
+    0 10px 22px -4px rgba(52, 89, 126, 0.16),
+    0 28px 54px -10px rgba(52, 89, 126, 0.20),
+    0 56px 96px -28px rgba(52, 89, 126, 0.22);
+  --glass-specular-color: rgba(255, 255, 255, 0.65);
+  --glass-specular-size: 320px;
+  /* The refracting rim. A band this wide hugging the border re-filters the
+     backdrop a second time, harder than the pane does, which is what makes the
+     edge of real glass look thicker and brighter than its middle. The sheen
+     rides on top of that lens and carries the light direction: brightest at the
+     top-left where the light is, dimmest at the bottom-right. */
+  --glass-edge-width: 3px;
+  --glass-edge-filter: blur(0.5px) saturate(3.2) brightness(0.88) contrast(1.2);
+  --glass-edge-sheen: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(255, 255, 255, 0.5) 26%,
+    rgba(52, 89, 126, 0.30) 52%,
+    rgba(52, 89, 126, 0.20) 72%,
+    rgba(255, 255, 255, 0.85) 100%);
+
   /* Light-theme console reads as a recessed lab-notebook panel, not a black
      slab dropped onto drafting paper. These tokens also drive fenced code
      blocks in the Docs tab (.markdown-body pre). */
@@ -134,6 +202,10 @@
   --radius-sm: 4px;
   --radius-md: 7px;
   --radius-lg: 12px;
+  /* Glass panels carry a larger radius than the flat ruled panels did — a
+     thick material reads as thick partly through its corner. MAGI MODE
+     chamfers everything back to 0, so this only affects light/dark. */
+  --radius-glass: 14px;
   --radius-pill: 9999px;
 
   --focus-ring: var(--accent-primary);
@@ -194,6 +266,54 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.32);
   --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.38);
   --shadow-lg: 0 12px 34px rgba(0, 0, 0, 0.5);
+
+  /* Liquid-glass material (Dark) — see the light block for why the alphas are
+     expressed through --glass-scale. */
+  --glass-alpha: 1;
+  --glass-floor: 0.34;
+  --glass-weight: 1;
+  --glass-scale: calc(max(var(--glass-floor), var(--glass-alpha)) * var(--glass-weight));
+  --glass-tint-rgb: 26, 32, 41;
+  --glass-blur: 22px;
+  --glass-saturate: 2;
+  --glass-brightness: 1.12;
+  --glass-bg: rgba(var(--glass-tint-rgb), calc(0.48 * var(--glass-scale)));
+  --glass-bg-subtle: rgba(var(--glass-tint-rgb), calc(0.38 * var(--glass-scale)));
+  --glass-bg-elevated: rgba(var(--glass-tint-rgb), calc(0.70 * var(--glass-scale)));
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-border-subtle: rgba(255, 255, 255, 0.08);
+  --glass-border-strong: rgba(255, 255, 255, 0.26);
+  --glass-rim-top:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.07),
+    inset 0 10px 22px -14px rgba(255, 255, 255, 0.32);
+  --glass-rim-bottom:
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.45),
+    inset 0 -12px 22px -16px rgba(0, 0, 0, 0.55);
+  --glass-rim-all: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+  --glass-shadow-sm:
+    0 1px 2px rgba(0, 0, 0, 0.30),
+    0 3px 8px -2px rgba(0, 0, 0, 0.35);
+  --glass-shadow-md:
+    0 1px 2px rgba(0, 0, 0, 0.28),
+    0 4px 12px -2px rgba(0, 0, 0, 0.38),
+    0 16px 32px -8px rgba(0, 0, 0, 0.45),
+    0 32px 64px -20px rgba(0, 0, 0, 0.50);
+  --glass-shadow-lg:
+    0 2px 6px rgba(0, 0, 0, 0.35),
+    0 10px 24px -4px rgba(0, 0, 0, 0.48),
+    0 28px 56px -12px rgba(0, 0, 0, 0.58),
+    0 56px 100px -30px rgba(0, 0, 0, 0.62);
+  --glass-specular-color: rgba(255, 255, 255, 0.25);
+  --glass-specular-size: 320px;
+  --glass-edge-width: 3px;
+  --glass-edge-filter: blur(0.5px) brightness(2) saturate(2.8) contrast(1.15);
+  --glass-edge-sheen: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.12) 32%,
+    rgba(0, 0, 0, 0.28) 58%,
+    rgba(255, 255, 255, 0.1) 78%,
+    rgba(255, 255, 255, 0.42) 100%);
 
   --term-bg: #0E1218;
   --term-header: #151A22;
@@ -319,6 +439,28 @@
      clamps in rgba(), which is why no min() is needed here. */
   --glass-weight: 1;
   --glass-scale: calc(max(var(--glass-floor), var(--glass-alpha)) * var(--glass-weight));
+  --glass-bg: rgba(var(--eva-bg-rgb), calc(0.35 * var(--glass-scale)));
+  --glass-bg-subtle: rgba(var(--eva-bg-rgb), calc(0.28 * var(--glass-scale)));
+  --glass-bg-elevated: rgba(var(--eva-bg-rgb), calc(0.60 * var(--glass-scale)));
+  --glass-border: rgba(var(--eva-p), 0.24);
+  --glass-border-subtle: rgba(var(--eva-p), 0.14);
+  --glass-border-strong: rgba(var(--eva-p), 0.42);
+  --glass-rim-top: inset 0 1px 1px 0 rgba(255, 255, 255, 0.18);
+  --glass-rim-bottom: inset 0 -1px 1px 0 rgba(0, 0, 0, 0.55);
+  --glass-rim-all: inset 0 0 0 1px rgba(var(--eva-p), 0.12);
+  --glass-shadow-sm: 0 2px 10px rgba(var(--eva-shadow-rgb), calc(0.45 * var(--eva-shadow-strength)));
+  --glass-shadow-md: 0 10px 30px rgba(var(--eva-shadow-rgb), calc(0.6 * var(--eva-shadow-strength))), 0 2px 8px rgba(var(--eva-p), 0.08);
+  --glass-shadow-lg: 0 20px 48px rgba(var(--eva-shadow-rgb), calc(0.85 * var(--eva-shadow-strength))), 0 4px 16px rgba(var(--eva-p), 0.12);
+  --glass-specular-color: rgba(var(--eva-p), 0.24);
+  --glass-specular-size: 300px;
+  --glass-edge-width: 2.5px;
+  --glass-edge-filter: blur(0.5px) brightness(2) saturate(2.8) contrast(1.15);
+  --glass-edge-sheen: linear-gradient(135deg,
+    rgba(var(--eva-p), 0.8) 0%,
+    rgba(255, 255, 255, 0.2) 28%,
+    rgba(var(--eva-shadow-rgb), calc(0.4 * var(--eva-shadow-strength))) 56%,
+    rgba(var(--eva-p), 0.22) 78%,
+    rgba(var(--eva-p), 0.65) 100%);
   --eva-glow-rgb: 255, 148, 33;
   --eva-glow-boost: 1;
 
@@ -449,11 +591,34 @@
      `rgba(0, 0, 0, 0.5)` drop-shadow that nobody had mirrored, and on a pale
      ground that is a grey smudge under each card. That is what "the panel
      looks darker than the background" was. See --eva-shadow-rgb. */
+  --glass-blur: 10px;
+  --glass-alpha: 1;
   --glass-brightness: 1;
   --glass-saturate: 1.25;
   --glass-weight: 1.35;
   --crt-opacity: 0.08;
   --glass-floor: 0.5;
+  --glass-bg: rgba(var(--eva-bg-rgb), calc(0.35 * var(--glass-scale)));
+  --glass-bg-subtle: rgba(var(--eva-bg-rgb), calc(0.28 * var(--glass-scale)));
+  --glass-bg-elevated: rgba(var(--eva-bg-rgb), calc(0.60 * var(--glass-scale)));
+  --glass-border: rgba(10, 114, 149, 0.24);
+  --glass-border-subtle: rgba(10, 114, 149, 0.14);
+  --glass-border-strong: rgba(10, 114, 149, 0.42);
+  --glass-rim-top: inset 0 1px 1px 0 rgba(255, 255, 255, 0.85);
+  --glass-rim-bottom: inset 0 -1px 1px 0 rgba(23, 40, 60, 0.08);
+  --glass-rim-all: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+  --glass-shadow-sm: 0 2px 10px rgba(var(--eva-shadow-rgb), calc(0.12 * var(--eva-shadow-strength)));
+  --glass-shadow-md: 0 8px 26px rgba(var(--eva-shadow-rgb), calc(0.16 * var(--eva-shadow-strength))), 0 2px 6px rgba(10, 114, 149, 0.05);
+  --glass-shadow-lg: 0 18px 42px rgba(var(--eva-shadow-rgb), calc(0.22 * var(--eva-shadow-strength))), 0 4px 14px rgba(10, 114, 149, 0.08);
+  --glass-specular-color: rgba(255, 255, 255, 0.55);
+  --glass-specular-size: 320px;
+  --glass-edge-filter: blur(0.5px) saturate(3.2) brightness(0.9) contrast(1.2);
+  --glass-edge-sheen: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.96) 0%,
+    rgba(255, 255, 255, 0.45) 26%,
+    rgba(var(--eva-p), 0.34) 54%,
+    rgba(var(--eva-p), 0.2) 74%,
+    rgba(255, 255, 255, 0.82) 100%);
   --eva-glow-rgb: 10, 158, 215;
   --eva-glow-boost: 0.86;
 }
@@ -508,6 +673,44 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transform: none !important;
+  }
+  .card,
+  .modal-window,
+  .modal-content,
+  .toast,
+  .doc-preview-side,
+  .glass-tuner-panel,
+  .stat-pill,
+  .icon-btn {
+    background-image: none !important;
+  }
+}
+
+/* Reduced transparency is honoured, but through a single switch instead of a
+   blanket !important kill. app.js seeds `html.no-glass` from
+   prefers-reduced-transparency on first load, and the GLASS control in the top
+   bar overrides it from there — the same shape as the theme toggle. The old
+   version stacked a media query AND an html.reduced-transparency class, both
+   forcing --glass-blur to 0 with !important, so on any machine with the OS
+   setting on (Windows 11 ships "Transparency effects" off in several states)
+   the entire material system was dead and unreachable, with no way to opt in.
+   See html.no-glass further down for the opaque fallback. */
+
+@media (forced-colors: active) {
+  .topbar,
+  .core-band,
+  .card,
+  .modal-window,
+  .modal-content,
+  .stat-pill,
+  .icon-btn,
+  .doc-preview-side,
+  .glass-tuner-panel,
+  .toast {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background-image: none !important;
   }
 }
 
@@ -516,7 +719,7 @@ body {
   scrollbar-width: thin;
   scrollbar-color: var(--text-subtle) transparent;
 }
-*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
   background: var(--text-subtle);
@@ -526,13 +729,85 @@ body {
 }
 *::-webkit-scrollbar-thumb:hover { background-color: var(--text-muted); }
 
+/* EVA tactical machine right-angled scrollbars (fixes BUG-05) */
+[data-theme="eva"] * {
+  scrollbar-color: rgba(var(--eva-p), 0.4) rgba(var(--eva-bg-rgb), 0.5);
+}
+[data-theme="eva"] *::-webkit-scrollbar { width: 7px; height: 7px; }
+[data-theme="eva"] *::-webkit-scrollbar-track {
+  background: rgba(var(--eva-bg-rgb), calc(0.35 * var(--glass-scale)));
+  border-left: 1px solid rgba(var(--eva-p), 0.12);
+}
+[data-theme="eva"] *::-webkit-scrollbar-thumb {
+  background: rgba(var(--eva-p), 0.4);
+  border-radius: 0;
+  border: 1px solid rgba(var(--eva-p), 0.6);
+  box-shadow: 0 0 6px rgba(var(--eva-p), 0.25);
+  background-clip: border-box;
+}
+[data-theme="eva"] *::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--eva-p), 0.75);
+  box-shadow: 0 0 10px rgba(var(--eva-p), 0.6);
+}
+
+/* Liquid Glass Switch button */
+.glass-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  background-color: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.glass-toggle-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  transform: translateY(-1px);
+  box-shadow: var(--glass-shadow-sm), var(--glass-rim-top);
+}
+
+.glass-toggle-btn.active {
+  background-color: var(--accent-primary-wash);
+  border-color: var(--accent-primary-border);
+  color: var(--accent-primary);
+  box-shadow: var(--glass-rim-top);
+}
+
+.glass-btn-icon {
+  font-size: 0.88em;
+  line-height: 1;
+}
+
+/* The bottom-right material tuner. Its own rules sit inside the MAGI MODE
+   section further down, where a non-zero radius is not allowed, so the rounding
+   it needs in the other themes is declared here instead of there. */
+html:not([data-theme="eva"]) .glass-tuner-btn {
+  border-radius: var(--radius-md);
+}
+
+html:not([data-theme="eva"]) .glass-tuner-panel {
+  border-radius: var(--radius-glass);
+}
+
 /* --------------------------------------------------------------------------
    3. Top bar
    -------------------------------------------------------------------------- */
 
 .topbar {
-  background-color: var(--bg-surface);
-  border-bottom: 1px solid var(--border-default);
+  background-color: var(--glass-bg);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.1)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  backdrop-filter: blur(calc(var(--glass-blur) * 1.1)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  border-bottom: 1px solid var(--glass-border);
   padding: 0.6rem clamp(0.75rem, 2.5vw, 1.5rem);
   display: flex;
   align-items: center;
@@ -542,7 +817,8 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--glass-shadow-sm), var(--glass-rim-top);
+  transition: background-color var(--transition-normal), border-color var(--transition-normal), box-shadow var(--transition-normal);
 }
 
 .brand {
@@ -701,9 +977,18 @@ body {
   border-radius: var(--radius-pill);
   font-size: 0.78rem;
   font-weight: 500;
-  background-color: var(--bg-subtle);
-  border: 1px solid var(--border-default);
+  background-color: var(--glass-bg-subtle);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.7)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.7)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow-sm), var(--glass-rim-top);
   white-space: nowrap;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow var(--transition-fast), border-color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.stat-pill:hover {
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: var(--glass-shadow-md), var(--glass-rim-top);
 }
 
 .stat-pill.success {
@@ -725,8 +1010,10 @@ body {
 }
 
 .icon-btn {
-  background: none;
-  border: 1px solid var(--border-default);
+  background-color: var(--glass-bg-subtle);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.6)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
   color: var(--text-secondary);
   border-radius: var(--radius-md);
   padding: 0.4rem 0.65rem;
@@ -737,14 +1024,26 @@ body {
   gap: 0.35rem;
   font-size: 0.85rem;
   font-family: inherit;
+  box-shadow: var(--glass-shadow-sm), var(--glass-rim-top);
   transition: background-color var(--transition-fast), color var(--transition-fast),
-    border-color var(--transition-fast);
+    border-color var(--transition-fast), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow var(--transition-fast);
   white-space: nowrap;
 }
 
 .icon-btn:hover {
-  background-color: var(--bg-hover);
+  /* Deliberately NOT --bg-hover: that token is opaque, so hovering a glass
+     control used to slam a solid plate over the blurred backdrop and the
+     material visibly switched off under the pointer. */
+  background-color: var(--glass-bg-elevated);
   color: var(--text-primary);
+  border-color: var(--glass-border-strong);
+  transform: translateY(-1px);
+  box-shadow: var(--glass-shadow-md), var(--glass-rim-top);
+}
+
+.icon-btn:active {
+  transform: translateY(0) scale(0.97);
 }
 
 .magi-mode-btn {
@@ -818,9 +1117,13 @@ body {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   column-gap: clamp(1rem, 3vw, 2.75rem);
-  background-color: var(--bg-subtle);
-  border-bottom: 1px solid var(--border-default);
+  background-color: var(--glass-bg-subtle);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  border-bottom: 1px solid var(--glass-border);
   padding: 0.75rem clamp(0.75rem, 2.5vw, 1.5rem) 0;
+  box-shadow: var(--glass-rim-top);
+  transition: background-color var(--transition-normal), border-color var(--transition-normal);
 }
 
 .core-cell {
@@ -1018,6 +1321,22 @@ body {
   gap: 1.25rem;
   flex: 1 1 auto;
   min-height: 0;
+  animation: tabFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes tabFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-panel.active { animation: none; }
 }
 
 /* The console is the point of the operations tab, so it takes the slack
@@ -1031,12 +1350,6 @@ body {
 
 #tab-operations .terminal-body {
   flex: 1 1 auto;
-  /* Deliberately NOT `max-height: none`. Removing the cap left the element
-     with no internal overflow, so auto-scroll — which is on by default — had
-     nothing to scroll: a finished job's output sat thousands of pixels below
-     the fold while the visible pane stayed frozen on "Connecting to log
-     stream…", and the job read as hung. Taller here than elsewhere, since
-     this tab is where you actually watch output, but still scrollable. */
   max-height: clamp(320px, 55vh, 620px);
 }
 
@@ -1055,32 +1368,81 @@ body {
 /* --------------------------------------------------------------------------
    6. Cards & metrics
    -------------------------------------------------------------------------- */
-
-/* Ruled panels, not floating boxes: a flat sheet with a short ink rule riding
-   the top edge, the way a drawing sheet is tabbed. Drops the shadow entirely —
-   nothing in an instrument panel hovers. */
+/* A pane of material, not a flat box: a translucent tint over a saturated,
+   blurred backdrop, a hairline rim catching light along the top edge, and a
+   soft occlusion shadow underneath. The short accent rule riding the top-left
+   corner (::before) is the one piece of the old ruled-panel language kept —
+   which is why this element must NOT get `overflow: hidden`: ::before sits at
+   top/left -1px, on the border itself, and clipping to the padding box eats it.
+   The pointer specular lives on ::after alone; putting the same gradient on the
+   element's own background-image as well double-painted it and, because it was
+   not gated on hover, left every card permanently lit. */
 .card {
   position: relative;
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-sm);
+  background-color: var(--glass-bg);
+  /* Pointer specular. app.js writes --specular-x/--specular-y onto this element
+     only; with no pointer on it the -999px fallback parks the glint off-canvas,
+     which is the whole gating mechanism. */
+  background-image: radial-gradient(circle var(--glass-specular-size, 320px)
+    at var(--specular-x, -999px) var(--specular-y, -999px),
+    var(--glass-specular-color, rgba(255, 255, 255, 0.25)), transparent 70%);
+  background-repeat: no-repeat;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-glass);
   padding: 1.05rem 1.2rem 1.15rem;
-  box-shadow: none;
-  transition: border-color var(--transition-normal);
+  box-shadow: var(--glass-shadow-md), var(--glass-rim-top), var(--glass-rim-bottom);
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   min-width: 0;
+}
+
+/* The refracting edge.
+   inset:0 + padding + a two-layer mask composited to `exclude` leaves exactly a
+   --glass-edge-width band hugging the border, and that band carries its own
+   backdrop-filter. So the rim samples the backdrop a second time, blurred and
+   brightened harder than the pane itself, and the border visibly bends and
+   lifts whatever is behind it -- the thing that separates Apple's material from
+   a flat translucent rectangle. The sheen on top supplies the light direction.
+   Doing this with the SVG feDisplacementMap filter the previous pass shipped is
+   not an option: `filter` on an HTML element displaces the element's own text,
+   not its backdrop, and `backdrop-filter: url()` is not supported. Those three
+   filters were never referenced by any element and have been removed. */
+html:not([data-theme="eva"]) .card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  padding: var(--glass-edge-width, 1.5px);
+  -webkit-backdrop-filter: var(--glass-edge-filter);
+  backdrop-filter: var(--glass-edge-filter);
+  background-image: var(--glass-edge-sheen);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  transition: opacity var(--transition-normal);
+  z-index: 1;
 }
 
 .card::before {
   content: "";
   position: absolute;
-  top: -1px;
-  left: -1px;
-  width: 44px;
+  top: 0;
+  left: var(--radius-glass, 14px);
+  width: 40px;
   height: 2px;
+  border-radius: 0 0 2px 2px;
   background-color: var(--accent-primary);
+  z-index: 2;
 }
 
-.card:hover { border-color: var(--accent-primary-border); }
+.card:hover {
+  border-color: var(--glass-border-strong);
+  box-shadow: var(--glass-shadow-lg), var(--glass-rim-top), var(--glass-rim-bottom);
+  transform: translateY(-2px);
+}
 
 .card-header {
   display: flex;
@@ -1121,7 +1483,7 @@ body {
   position: relative;
 }
 
-.metric-box::after {
+.metric-box .metric-label::after {
   content: "+";
   position: absolute;
   top: 0.45rem;
@@ -2045,22 +2407,29 @@ details.advanced-sql > summary {
 }
 
 .pane-list {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  background-color: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-glass);
+  box-shadow: var(--glass-shadow-md), var(--glass-rim-top), var(--glass-rim-bottom);
   overflow-y: auto;
   min-width: 0;
 }
 
 .pane-list-header {
   padding: 0.7rem 1rem;
-  border-bottom: 1px solid var(--border-default);
+  border-bottom: 1px solid var(--glass-border);
   font-weight: 600;
   font-family: var(--font-display);
   font-size: 0.9rem;
   position: sticky;
   top: 0;
-  background-color: var(--bg-surface);
+  /* Opaque here would punch a solid plate through the top of a translucent
+     list the moment it sticks; the blur keeps the rows readable underneath. */
+  background-color: var(--glass-bg-elevated);
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(calc(var(--glass-blur) * 0.8)) saturate(var(--glass-saturate));
   z-index: 2;
 }
 
@@ -2084,9 +2453,12 @@ details.advanced-sql > summary {
 .pane-item-meta { margin-top: 0.3rem; display: flex; gap: 0.3rem; flex-wrap: wrap; }
 
 .pane-view {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  background-color: var(--glass-bg);
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-glass);
+  box-shadow: var(--glass-shadow-md), var(--glass-rim-top), var(--glass-rim-bottom);
   padding: 1.25rem 1.4rem;
   overflow-y: auto;
   min-width: 0;
@@ -2494,19 +2866,49 @@ details.advanced-sql > summary {
 
 .modal-backdrop.open { display: flex; }
 
-.modal-window {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-default);
+.modal-window,
+.modal-content {
+  position: relative;
+  background-color: var(--glass-bg-elevated);
+  /* A fixed sheen falling from the top edge, not a pointer-tracking blob. The
+     blob version resolved --mouse-x off :root, so it sat permanently in the
+     middle of the panel and slid around when the pointer was somewhere else
+     entirely. Apple's material has one light source, and it is above. */
+  background-image: linear-gradient(180deg, var(--glass-specular-color, rgba(255, 255, 255, 0.15)), transparent 45%);
+  background-repeat: no-repeat;
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  border: 1px solid var(--glass-border-strong);
   border-radius: var(--radius-lg);
   width: min(520px, 100%);
   max-height: min(85vh, 720px);
   overflow-y: auto;
   padding: 1.4rem 1.5rem;
-  box-shadow: var(--shadow-lg);
-  animation: modalIn 0.18s ease;
+  box-shadow: var(--glass-shadow-lg), var(--glass-rim-top), var(--glass-rim-bottom);
+  animation: modalIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.modal-window.wide { width: min(660px, 100%); }
+/* Same refracting rim as .card -- see the note there. */
+html:not([data-theme="eva"]) .modal-window::after,
+html:not([data-theme="eva"]) .modal-content::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  padding: var(--glass-edge-width, 1.5px);
+  -webkit-backdrop-filter: var(--glass-edge-filter);
+  backdrop-filter: var(--glass-edge-filter);
+  background-image: var(--glass-edge-sheen);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  z-index: 1;
+}
+
+.modal-window.wide,
+.modal-content.wide { width: min(660px, 100%); }
 
 @keyframes modalIn {
   from { transform: translateY(8px) scale(0.985); opacity: 0; }
@@ -2679,9 +3081,14 @@ details.advanced-sql > summary {
 .doc-preview-side {
   overflow-y: auto;
   padding: 1.1rem 1rem 2rem;
-  border-left: 1px solid var(--border-default);
-  background: var(--bg-subtle);
+  border-left: 1px solid var(--glass-border);
+  background-color: var(--glass-bg-subtle);
+  background-image: linear-gradient(180deg, var(--glass-specular-color, rgba(255, 255, 255, 0.12)), transparent 30%);
+  background-repeat: no-repeat;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   font-size: 0.78rem;
+  box-shadow: var(--glass-rim-top);
 }
 
 .doc-preview-side-head {
@@ -2929,17 +3336,21 @@ details.advanced-sql > summary {
 }
 
 .toast {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-default);
+  background-color: var(--glass-bg-elevated);
+  background-image: linear-gradient(180deg, var(--glass-specular-color, rgba(255, 255, 255, 0.15)), transparent 60%);
+  background-repeat: no-repeat;
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.2)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  backdrop-filter: blur(calc(var(--glass-blur) * 1.2)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
   padding: 0.7rem 1.1rem;
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--glass-shadow-md), var(--glass-rim-top);
   font-size: 0.83rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  animation: slideUp 0.2s ease;
-  transition: opacity 0.3s ease;
+  animation: slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.3s ease, transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   overflow-wrap: anywhere;
 }
 
@@ -2999,7 +3410,7 @@ details.advanced-sql > summary {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: 99990;
+  z-index: 900;
   pointer-events: none;
   background:
     repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.1) 0 1px, transparent 1px 4px),
@@ -3020,7 +3431,7 @@ details.advanced-sql > summary {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: 99989;
+  z-index: 899;
   pointer-events: none;
   box-shadow:
     /* deep bloom — the room light */
@@ -3056,13 +3467,164 @@ details.advanced-sql > summary {
 }
 
 /* --------------------------------------------------------------------------
-   EVA background illustration layer (#app-bg, hidden outside MAGI MODE)
-   Original schematic-style artwork: AT-field hex bloom (upper left),
-   Unit-01 head blueprint (right), vertical designation type (far right).
-   Kept at whisper opacity — cards stay ~opaque so text never fights it.
+   Ambient backdrop & EVA illustration layer (#app-bg, Universal across themes)
    -------------------------------------------------------------------------- */
 
-.app-bg { display: none; }
+.app-bg {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 70% 55% at 10% 6%, rgba(52, 89, 126, 0.26), transparent 62%),
+    radial-gradient(ellipse 62% 50% at 90% 26%, rgba(62, 127, 136, 0.23), transparent 60%),
+    radial-gradient(ellipse 66% 55% at 72% 94%, rgba(169, 124, 36, 0.21), transparent 62%),
+    radial-gradient(ellipse 56% 46% at 26% 80%, rgba(52, 89, 126, 0.18), transparent 60%);
+}
+
+/* Only the ambient field belongs outside MAGI MODE; the rest of #app-bg is
+   EVA artwork with no styling of its own beyond that theme. */
+html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
+  display: none;
+}
+
+[data-theme="dark"] .app-bg {
+  background:
+    radial-gradient(ellipse 70% 55% at 10% 6%, rgba(127, 168, 206, 0.26), transparent 62%),
+    radial-gradient(ellipse 62% 50% at 90% 26%, rgba(111, 179, 188, 0.21), transparent 60%),
+    radial-gradient(ellipse 66% 55% at 72% 94%, rgba(185, 143, 224, 0.19), transparent 62%),
+    radial-gradient(ellipse 56% 46% at 26% 80%, rgba(96, 140, 190, 0.17), transparent 60%);
+}
+
+.app-bg-ambient {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* Smooth ramps, not hard stops: a repeating-gradient with abrupt colour
+     stops resolves into legible diagonal banding on the open page, which is
+     exactly what this must not be. Ramped and at ~1.5% it disappears against
+     the canvas and only surfaces once a panel multiplies it. */
+  background-image:
+    repeating-linear-gradient(115deg,
+      rgba(52, 89, 126, 0) 0,
+      rgba(52, 89, 126, 0.018) 120px,
+      rgba(52, 89, 126, 0) 260px),
+    repeating-linear-gradient(-155deg,
+      rgba(62, 127, 136, 0) 0,
+      rgba(62, 127, 136, 0.014) 170px,
+      rgba(62, 127, 136, 0) 360px);
+}
+
+[data-theme="dark"] .app-bg-ambient {
+  background-image:
+    repeating-linear-gradient(115deg,
+      rgba(180, 210, 245, 0) 0,
+      rgba(180, 210, 245, 0.020) 120px,
+      rgba(180, 210, 245, 0) 260px),
+    repeating-linear-gradient(-155deg,
+      rgba(150, 220, 230, 0) 0,
+      rgba(150, 220, 230, 0.016) 170px,
+      rgba(150, 220, 230, 0) 360px);
+}
+
+.ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.9;
+  will-change: transform;
+  animation: orbFloat 22s infinite alternate ease-in-out;
+}
+
+/* Light Theme Ambient Caustics */
+:root .ambient-orb.orb-1 {
+  width: 580px;
+  height: 580px;
+  top: -120px;
+  left: 8%;
+  background: radial-gradient(circle, rgba(52, 89, 126, 0.42), transparent 70%);
+}
+:root .ambient-orb.orb-2 {
+  width: 500px;
+  height: 500px;
+  top: 38%;
+  right: 5%;
+  background: radial-gradient(circle, rgba(62, 127, 136, 0.38), transparent 70%);
+  animation-duration: 28s;
+  animation-delay: -6s;
+}
+:root .ambient-orb.orb-3 {
+  width: 420px;
+  height: 420px;
+  bottom: 5%;
+  left: 18%;
+  background: radial-gradient(circle, rgba(169, 124, 36, 0.34), transparent 70%);
+  animation-duration: 25s;
+  animation-delay: -12s;
+}
+
+/* Dark Theme Ambient Caustics */
+[data-theme="dark"] .ambient-orb.orb-1 {
+  width: 620px;
+  height: 620px;
+  top: -140px;
+  left: 12%;
+  background: radial-gradient(circle, rgba(127, 168, 206, 0.40), transparent 70%);
+}
+[data-theme="dark"] .ambient-orb.orb-2 {
+  width: 540px;
+  height: 540px;
+  top: 35%;
+  right: 6%;
+  background: radial-gradient(circle, rgba(111, 179, 188, 0.34), transparent 70%);
+  animation-duration: 26s;
+  animation-delay: -5s;
+}
+[data-theme="dark"] .ambient-orb.orb-3 {
+  width: 480px;
+  height: 480px;
+  bottom: 8%;
+  left: 22%;
+  background: radial-gradient(circle, rgba(185, 143, 224, 0.32), transparent 70%);
+  animation-duration: 30s;
+  animation-delay: -10s;
+}
+
+/* EVA Theme Ambient Caustics */
+[data-theme="eva"] .ambient-orb.orb-1 {
+  width: 620px;
+  height: 620px;
+  top: -120px;
+  left: 5%;
+  background: radial-gradient(circle, rgba(var(--eva-p), 0.2), transparent 70%);
+}
+[data-theme="eva"] .ambient-orb.orb-2 {
+  width: 520px;
+  height: 520px;
+  top: 42%;
+  right: 5%;
+  background: radial-gradient(circle, rgba(69, 213, 234, 0.16), transparent 70%);
+}
+[data-theme="eva"] .ambient-orb.orb-3 {
+  width: 460px;
+  height: 460px;
+  bottom: 6%;
+  left: 28%;
+  background: radial-gradient(circle, rgba(143, 123, 255, 0.15), transparent 70%);
+}
+
+@keyframes orbFloat {
+  0% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(40px, 30px) scale(1.08); }
+  100% { transform: translate(-30px, 50px) scale(0.95); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-orb { animation: none !important; }
+}
 
 /* Two luminous pools sit on the container itself (which carries no opacity of
    its own) so the thin linework of the art above them has something to read
@@ -3661,44 +4223,79 @@ details.advanced-sql > summary {
   /* The lift is a drop-shadow filter rather than a box-shadow because the
      chamfer below clips anything painted outside the silhouette; a filter is
      applied after the clip and follows the cut corners. */
-  box-shadow: inset 0 0 0 1px rgba(var(--eva-p), 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.09);
-  filter: drop-shadow(0 4px 14px rgba(var(--eva-shadow-rgb), calc(0.5 * var(--eva-shadow-strength))));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 0 0 1px rgba(var(--eva-p), 0.10),
+    inset 0 10px 22px -14px rgba(255, 255, 255, 0.30),
+    inset 0 -12px 22px -16px rgba(var(--eva-shadow-rgb), calc(0.55 * var(--eva-shadow-strength)));
+  filter:
+    drop-shadow(0 1px 1px rgba(var(--eva-shadow-rgb), calc(0.35 * var(--eva-shadow-strength))))
+    drop-shadow(0 6px 12px rgba(var(--eva-shadow-rgb), calc(0.45 * var(--eva-shadow-strength))))
+    drop-shadow(0 18px 34px rgba(var(--eva-shadow-rgb), calc(0.55 * var(--eva-shadow-strength))));
+  transition: filter var(--transition-normal), border-color var(--transition-normal),
+    transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-[data-theme="eva"] .card::before,
+/* Both corner brackets on one pseudo-element: four 9x2 / 2x9 bars pinned to the
+   top-right and bottom-left, the corners the chamfer leaves square. They used to
+   be a pseudo-element each, which left nothing spare for the refracting rim. */
+[data-theme="eva"] .card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  background-image:
+    linear-gradient(var(--accent-primary), var(--accent-primary)),
+    linear-gradient(var(--accent-primary), var(--accent-primary)),
+    linear-gradient(var(--accent-primary), var(--accent-primary)),
+    linear-gradient(var(--accent-primary), var(--accent-primary));
+  background-repeat: no-repeat;
+  background-size: 9px 2px, 2px 9px, 9px 2px, 2px 9px;
+  background-position: right top, right top, left bottom, left bottom;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* The refracting rim, same construction as the light/dark one. The parent's
+   clip-path cuts it to the chamfered silhouette, so the rim follows the cut
+   corners and stays open along the diagonal, which is the existing MAGI MODE
+   convention for that edge. */
 [data-theme="eva"] .card::after {
   content: "";
   position: absolute;
-  width: 9px;
-  height: 9px;
-  /* the base rule fills ::before; MAGI mode wants an L, not a block */
+  inset: 0;
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
   background-color: transparent;
+  padding: var(--glass-edge-width, 1.5px);
+  -webkit-backdrop-filter: var(--glass-edge-filter);
+  backdrop-filter: var(--glass-edge-filter);
+  background-image: var(--glass-edge-sheen);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
   pointer-events: none;
-}
-
-/* Top-right and bottom-left: the corners the chamfer leaves square. */
-[data-theme="eva"] .card::before {
-  top: 0;
-  left: auto;
-  right: 0;
-  border-top: 2px solid var(--accent-primary);
-  border-right: 2px solid var(--accent-primary);
-}
-
-[data-theme="eva"] .card::after {
-  bottom: 0;
-  right: auto;
-  left: 0;
-  border-bottom: 2px solid var(--accent-primary);
-  border-left: 2px solid var(--accent-primary);
+  z-index: 1;
 }
 
 [data-theme="eva"] .card:hover {
   border-color: rgba(var(--eva-p), 0.42);
-  box-shadow: inset 0 0 0 1px rgba(var(--eva-p), 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.11);
-  filter: drop-shadow(0 4px 18px rgba(var(--eva-shadow-rgb), calc(0.75 * var(--eva-shadow-strength)))) drop-shadow(0 0 8px rgba(var(--eva-p), 0.18));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 0 0 1px rgba(var(--eva-p), 0.16),
+    inset 0 10px 22px -14px rgba(255, 255, 255, 0.38),
+    inset 0 -12px 22px -16px rgba(var(--eva-shadow-rgb), calc(0.55 * var(--eva-shadow-strength)));
+  transform: translateY(-2px);
+  filter:
+    drop-shadow(0 1px 1px rgba(var(--eva-shadow-rgb), calc(0.4 * var(--eva-shadow-strength))))
+    drop-shadow(0 10px 20px rgba(var(--eva-shadow-rgb), calc(0.6 * var(--eva-shadow-strength))))
+    drop-shadow(0 26px 48px rgba(var(--eva-shadow-rgb), calc(0.75 * var(--eva-shadow-strength))))
+    drop-shadow(0 0 10px rgba(var(--eva-p), 0.2));
 }
 
 [data-theme="eva"] .card-header { border-bottom: 1px solid rgba(var(--eva-p), 0.16); }
@@ -3715,7 +4312,7 @@ details.advanced-sql > summary {
   margin-right: 0.45rem;
 }
 
-[data-theme="eva"] .metric-box::after { content: none; }
+[data-theme="eva"] .metric-box .metric-label::after { content: none; }
 
 [data-theme="eva"] .metric-label {
   font-family: var(--font-mono);
@@ -3847,6 +4444,12 @@ details.advanced-sql > summary {
   backdrop-filter: blur(calc(var(--glass-blur) * 0.9)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border-color: rgba(var(--eva-p), 0.2);
   border-radius: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    inset 0 0 0 1px rgba(var(--eva-p), 0.08);
+  filter:
+    drop-shadow(0 1px 1px rgba(var(--eva-shadow-rgb), calc(0.3 * var(--eva-shadow-strength))))
+    drop-shadow(0 6px 12px rgba(var(--eva-shadow-rgb), calc(0.4 * var(--eva-shadow-strength))))
+    drop-shadow(0 16px 30px rgba(var(--eva-shadow-rgb), calc(0.5 * var(--eva-shadow-strength))));
 }
 
 [data-theme="eva"] .pane-list-header {
@@ -3948,6 +4551,7 @@ details.advanced-sql > summary {
 [data-theme="eva"] .card,
 [data-theme="eva"] .eva-hud-frame,
 [data-theme="eva"] .modal-window,
+[data-theme="eva"] .modal-content,
 [data-theme="eva"] .danger-card,
 [data-theme="eva"] .terminal-container {
   border-radius: 0;
@@ -4191,6 +4795,16 @@ details.advanced-sql > summary {
   border-radius: 0;
 }
 
+[data-theme="eva"] .modal-content {
+  background-color: rgba(var(--eva-bg-rgb), calc(0.6 * var(--glass-scale)));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  border: 1px solid rgba(var(--eva-p), 0.4);
+  box-shadow: none;
+  filter: drop-shadow(0 16px 34px rgba(var(--eva-shadow-rgb), calc(0.95 * var(--eva-shadow-strength)))) drop-shadow(0 0 18px rgba(var(--eva-p), 0.18));
+  border-radius: 0;
+}
+
 [data-theme="eva"] .modal-header {
   color: var(--eva-p-soft);
   font-family: var(--font-mono);
@@ -4207,7 +4821,27 @@ details.advanced-sql > summary {
   padding-top: 2rem;
 }
 
+[data-theme="eva"] #danger-modal .modal-content {
+  position: relative;
+  border-color: rgba(255, 74, 87, 0.55);
+  box-shadow: none;
+  filter: drop-shadow(0 16px 34px rgba(var(--eva-shadow-rgb), calc(0.95 * var(--eva-shadow-strength)))) drop-shadow(0 0 18px rgba(255, 74, 87, 0.2));
+  overflow: hidden;
+  padding-top: 2rem;
+}
+
 [data-theme="eva"] #danger-modal .modal-window::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 10px;
+  background: repeating-linear-gradient(-45deg, #FFB000 0 16px, #131313 16px 32px);
+  opacity: 0.85;
+}
+
+[data-theme="eva"] #danger-modal .modal-content::before {
   content: "";
   position: absolute;
   top: 0;
@@ -4231,11 +4865,12 @@ details.advanced-sql > summary {
 
 /* toasts & prose */
 [data-theme="eva"] .toast {
-  background-color: var(--bg-card);
+  background-color: var(--glass-bg-elevated);
   border: 1px solid rgba(var(--eva-p), 0.35);
   color: var(--text-primary);
   font-family: var(--font-mono);
   border-radius: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), inset 0 0 0 1px rgba(var(--eva-p), 0.12);
   filter: drop-shadow(0 4px 14px rgba(var(--eva-shadow-rgb), calc(0.8 * var(--eva-shadow-strength))));
 }
 
@@ -4668,9 +5303,11 @@ details.advanced-sql > summary {
    recipe so it stays legible even with the knobs at zero.
    -------------------------------------------------------------------------- */
 
-.glass-tuner { display: none; }
+/* --------------------------------------------------------------------------
+   Universal Liquid-Glass Tuner Widget — Pinned bottom-right across all themes.
+   -------------------------------------------------------------------------- */
 
-[data-theme="eva"] .glass-tuner {
+.glass-tuner {
   display: block;
   position: fixed;
   right: 0.9rem;
@@ -4678,39 +5315,51 @@ details.advanced-sql > summary {
   z-index: 400;
 }
 
-[data-theme="eva"] .glass-tuner-btn {
+.glass-tuner-btn {
   width: 36px;
-  height: 30px;
-  background-color: rgba(var(--eva-bg-rgb), 0.72);
-  border: 1px solid rgba(var(--eva-p), 0.35);
+  height: 32px;
+  background-color: var(--glass-bg-elevated);
+  border: 1px solid var(--glass-border-strong);
   border-radius: 0;
-  color: var(--eva-p-strong);
+  color: var(--text-primary);
   font-size: 0.92rem;
   line-height: 1;
   cursor: pointer;
+  box-shadow: var(--glass-shadow-sm), var(--glass-rim-top);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow var(--transition-fast), border-color var(--transition-fast);
 }
 
-[data-theme="eva"] .glass-tuner-btn:hover {
-  border-color: rgba(var(--eva-p), 0.7);
-  box-shadow: 0 0 10px rgba(var(--eva-p), 0.25);
+.glass-tuner-btn:hover {
+  border-color: var(--accent-primary);
+  box-shadow: var(--glass-shadow-md), var(--glass-rim-top);
+  transform: translateY(-1px) scale(1.04);
 }
 
-[data-theme="eva"] .glass-tuner-panel {
+.glass-tuner-btn:active {
+  transform: scale(0.96);
+}
+
+.glass-tuner-panel {
   display: none;
   position: absolute;
   right: 0;
   bottom: calc(100% + 0.5rem);
-  width: 248px;
-  padding: 0.8rem 0.9rem 0.7rem;
-  background-color: rgba(var(--eva-bg-rgb), 0.88);
-  -webkit-backdrop-filter: blur(12px) saturate(1.5);
-  backdrop-filter: blur(12px) saturate(1.5);
-  border: 1px solid rgba(var(--eva-p), 0.35);
+  width: 258px;
+  padding: 0.9rem 1rem 0.8rem;
+  background-color: var(--glass-bg-elevated);
+  -webkit-backdrop-filter: blur(20px) saturate(var(--glass-saturate));
+  backdrop-filter: blur(20px) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border-strong);
   border-radius: 0;
-  box-shadow: 0 10px 30px rgba(var(--eva-shadow-rgb), calc(0.6 * var(--eva-shadow-strength)));
+  box-shadow: var(--glass-shadow-lg), var(--glass-rim-top);
 }
 
-[data-theme="eva"] .glass-tuner-panel.open { display: block; }
+.glass-tuner-panel.open {
+  display: block;
+  animation: tabFadeIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
 
 .glass-tuner-row {
   display: flex;
@@ -4731,11 +5380,9 @@ details.advanced-sql > summary {
 .glass-tuner-row input[type="range"] {
   flex: 1 1 auto;
   min-width: 0;
-  accent-color: var(--eva-p-strong);
+  accent-color: var(--accent-primary);
 }
 
-/* The toggle row's label is a sentence, not a column header — let it take
-   the row and push the checkbox flush right. */
 .glass-tuner-row-toggle label {
   width: auto;
   flex: 1 1 auto;
@@ -4751,7 +5398,41 @@ details.advanced-sql > summary {
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-variant-numeric: tabular-nums;
-  color: var(--eva-p-bright);
+  color: var(--accent-primary);
+}
+
+/* --------------------------------------------------------------------------
+   .no-glass Classical Fallback Mode (when Glass toggle is turned off)
+   -------------------------------------------------------------------------- */
+html.no-glass .card,
+html.no-glass .topbar,
+html.no-glass .core-band,
+html.no-glass .modal-window,
+html.no-glass .glass-tuner-panel,
+html.no-glass .stat-pill,
+html.no-glass .doc-preview-side {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background-image: none !important;
+  filter: none !important;
+}
+
+html.no-glass .card::after,
+html.no-glass .modal-window::after,
+html.no-glass .modal-content::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background-image: none !important;
+}
+html:not([data-theme="eva"]).no-glass .card::after,
+html:not([data-theme="eva"]).no-glass .modal-window::after,
+html:not([data-theme="eva"]).no-glass .modal-content::after { display: none !important; }
+html.no-glass .app-bg-ambient { display: none !important; }
+
+html.no-glass {
+  --glass-bg: var(--bg-card) !important;
+  --glass-bg-subtle: var(--bg-subtle) !important;
+  --glass-bg-elevated: var(--bg-surface) !important;
 }
 
 /* --------------------------------------------------------------------------
@@ -4790,9 +5471,11 @@ details.advanced-sql > summary {
 }
 
 [data-theme="eva"][data-eva="blue"] .toast {
-  background-color: #F7FAFD;
+  background-color: var(--glass-bg-elevated);
   color: #17222F;
-  box-shadow: 0 4px 18px rgba(23, 40, 60, 0.25);
+  border-color: rgba(var(--eva-p), 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), inset 0 0 0 1px rgba(var(--eva-p), 0.14);
+  filter: drop-shadow(0 4px 14px rgba(var(--eva-shadow-rgb), calc(0.22 * var(--eva-shadow-strength))));
 }
 
 /* --------------------------------------------------------------------------
@@ -4845,6 +5528,10 @@ details.advanced-sql > summary {
 /* One field and one button should fill their row, not huddle at the left. */
 .ingest-add-row { display: flex; gap: 0.5rem; align-items: center; }
 .ingest-add-row .text-input { flex: 1 1 auto; min-width: 0; }
+/* A select with no options has almost no intrinsic width, so it must be told to
+   grow or it collapses to its arrow. .grow-1 does not reach here -- that class
+   is scoped to .form-row. */
+.ingest-add-row .select-input { flex: 1 1 auto; min-width: 0; }
 .ingest-add-row .btn { flex: 0 0 auto; }
 
 /* A machine-wide operation sitting in a grid of workspace-scoped ones is the

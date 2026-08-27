@@ -650,7 +650,11 @@
       graph_map_truncated: "节点较多，已按连接度显示前 {n} 个",
       graph_map_no_d3: "图谱物理引擎未加载——请检查 /vendor/d3-*.min.js 是否可访问",
 
-      // Liquid-glass tuner
+      // Liquid-glass tuner & toggle
+      glass_toggle_btn: "GLASS",
+      glass_toggle_title: "切换苹果液态玻璃效果 (VisionOS 空间拟态材质)",
+      glass_enabled_toast: "💎 苹果液态玻璃效果已开启",
+      glass_disabled_toast: "⚪ 经典无透光实体卡片模式已切换",
       glass_btn_title: "玻璃材质调节（模糊 / 不透明度）",
       glass_blur_label: "模糊",
       glass_alpha_label: "不透明",
@@ -1338,7 +1342,11 @@
       graph_map_truncated: "Large graph — showing the top {n} nodes by degree",
       graph_map_no_d3: "Graph physics library failed to load — check /vendor/d3-*.min.js",
 
-      // Liquid-glass tuner
+      // Liquid-glass tuner & toggle
+      glass_toggle_btn: "GLASS",
+      glass_toggle_title: "Toggle Apple Liquid Glass Material (VisionOS optical texture)",
+      glass_enabled_toast: "💎 Apple Liquid Glass Enabled",
+      glass_disabled_toast: "⚪ Classical Solid Card Mode Enabled",
       glass_btn_title: "Glass material tuning (blur / opacity)",
       glass_blur_label: "Blur",
       glass_alpha_label: "Opacity",
@@ -1488,6 +1496,26 @@
   // State
   // ------------------------------------------------------------------------
 
+  // Whether the liquid-glass material starts on. An explicit choice from the
+  // GLASS control always wins; with no stored choice we follow the OS. Both
+  // Windows and macOS expose a "reduce transparency" setting, and Windows 11
+  // ships it off in several states, so this has to be a *default* rather than
+  // the hard gate it used to be: the previous build force-killed --glass-blur
+  // to 0 with !important from both a media query and an html.reduced-transparency
+  // class, which left the entire material system dead and unreachable on any
+  // machine with that setting on -- and silently overrode the tuner's blur
+  // slider, so dragging it did nothing.
+  function initialLiquidGlass() {
+    const stored = safeStorageGet("magi-liquid-glass");
+    if (stored === "true") return true;
+    if (stored === "false") return false;
+    try {
+      return !window.matchMedia("(prefers-reduced-transparency: reduce)").matches;
+    } catch (_) {
+      return true;
+    }
+  }
+
   const state = {
     workspace: "",
     serverWorkspace: "",
@@ -1507,6 +1535,7 @@
     logSink: null,
     theme: detectInitialTheme(),
     lang: detectInitialLanguage(),
+    liquidGlass: initialLiquidGlass(),
   };
 
   // ------------------------------------------------------------------------
@@ -1516,6 +1545,7 @@
   const els = {
     themeToggleBtn: document.getElementById("theme-toggle-btn"),
     magiModeBtn: document.getElementById("magi-mode-btn"),
+    glassToggleBtn: document.getElementById("glass-toggle-btn"),
     evaClock: document.getElementById("eva-clock"),
     evaBoot: document.getElementById("eva-boot"),
     langToggle: document.getElementById("lang-toggle"),
@@ -1815,6 +1845,16 @@
     scheduleGraphMapDraw();
   }
 
+  function applyLiquidGlass(enabled) {
+    state.liquidGlass = !!enabled;
+    safeStorageSet("magi-liquid-glass", state.liquidGlass ? "true" : "false");
+    document.documentElement.classList.toggle("liquid-glass-on", state.liquidGlass);
+    document.documentElement.classList.toggle("no-glass", !state.liquidGlass);
+    if (els.glassToggleBtn) {
+      els.glassToggleBtn.classList.toggle("active", state.liquidGlass);
+    }
+  }
+
   // ------------------------------------------------------------------------
   // EVA artwork backdrop engine
   //
@@ -2040,9 +2080,21 @@
     if (alpha === GLASS_DEFAULTS.alpha) root.removeProperty("--glass-alpha");
     else root.setProperty("--glass-alpha", String(alpha / 100));
     document.documentElement.classList.toggle("crt-on", crt);
-    if (els.glassBlurRange) els.glassBlurRange.value = blur;
+    // The slider default is not the material default: each theme sets its own
+    // --glass-blur in CSS and this function only writes an inline override once
+    // the knob leaves the default, so at rest the readout has to report the
+    // computed value or it claims 10px while the pane is blurring 20.
+    let shownBlur = blur;
+    if (blur === GLASS_DEFAULTS.blur) {
+      const computed = parseInt(
+        getComputedStyle(document.documentElement).getPropertyValue("--glass-blur"),
+        10
+      );
+      if (!Number.isNaN(computed)) shownBlur = computed;
+    }
+    if (els.glassBlurRange) els.glassBlurRange.value = shownBlur;
     if (els.glassAlphaRange) els.glassAlphaRange.value = alpha;
-    if (els.glassBlurVal) els.glassBlurVal.textContent = `${blur}px`;
+    if (els.glassBlurVal) els.glassBlurVal.textContent = `${shownBlur}px`;
     if (els.glassAlphaVal) els.glassAlphaVal.textContent = `${alpha}%`;
     if (els.glassCrtToggle) els.glassCrtToggle.checked = crt;
   }
@@ -6887,6 +6939,15 @@
     });
   }
 
+  // Liquid Glass Toggle Button
+  if (els.glassToggleBtn) {
+    els.glassToggleBtn.addEventListener("click", () => {
+      const next = !state.liquidGlass;
+      applyLiquidGlass(next);
+      showToast(t(next ? "glass_enabled_toast" : "glass_disabled_toast"), "info");
+    });
+  }
+
   // MAGI MODE Toggle
   if (els.magiModeBtn) {
     els.magiModeBtn.addEventListener("click", () => {
@@ -7323,6 +7384,153 @@
     }
   });
 
+  // ------------------------------------------------------------------------
+  // Pointer specular engine
+  //
+  // Writes --specular-x/--specular-y, as percentages of the element's own box,
+  // onto the single glass surface under the pointer (SPECULAR_SURFACES) and
+  // clears them when the pointer leaves it. rAF-throttled, paused during scroll
+  // and while the tab is hidden, and off entirely under prefers-reduced-motion.
+  //
+  // Nothing is published on :root. Custom properties inherit, so a root-level
+  // pointer position is read by every .card simultaneously, which is what made
+  // the whole dashboard light up in unison instead of the one card being
+  // pointed at. The CSS defaults the position to -999px for the same reason:
+  // that off-canvas fallback is what keeps an un-hovered surface dark.
+  // ------------------------------------------------------------------------
+
+  // Only surfaces whose CSS actually paints a pointer specular belong here.
+  // The topbar, core band, icon buttons and stat pills were in the old list but
+  // have no specular layer, so tracking them was pure work for no pixels.
+  const SPECULAR_SURFACES =
+    ".card, .modal-window, .modal-content, .glass-tuner-panel, .doc-preview-side, .doc-preview-window, .toast";
+
+  function initLiquidGlassEngine() {
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+
+    let isReducedMotion = false;
+    let isReducedTransparency = false;
+    let isScrolling = false;
+    let scrollTimer = null;
+    let rafId = null;
+    let pendingPointerEvent = null;
+    let activeTarget = null;
+
+    function checkMediaPreferences() {
+      if (window.matchMedia) {
+        try {
+          const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+          isReducedMotion = motionQuery.matches;
+          const onMotionChange = (e) => {
+            isReducedMotion = e.matches;
+            if (isReducedMotion) resetGlassProperties();
+          };
+          if (motionQuery.addEventListener) {
+            motionQuery.addEventListener("change", onMotionChange);
+          } else if (motionQuery.addListener) {
+            motionQuery.addListener(onMotionChange);
+          }
+        } catch (_) {}
+
+        try {
+          // Read only. Whether the material is on is decided by
+          // state.liquidGlass (see initialLiquidGlass) so an explicit GLASS
+          // choice is not stamped over by the OS setting on every change.
+          isReducedTransparency = window
+            .matchMedia("(prefers-reduced-transparency: reduce)")
+            .matches;
+        } catch (_) {}
+      }
+    }
+
+    function clearTargetSpecular(el) {
+      if (el && el.style) {
+        el.style.removeProperty("--specular-x");
+        el.style.removeProperty("--specular-y");
+      }
+    }
+
+    function resetGlassProperties() {
+      if (rafId && typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+      pendingPointerEvent = null;
+      clearTargetSpecular(activeTarget);
+      activeTarget = null;
+    }
+
+    function updateSpecularLighting() {
+      rafId = null;
+      if (!pendingPointerEvent || isReducedMotion || isScrolling) return;
+
+      const ev = pendingPointerEvent;
+      const clientX = ev.clientX || 0;
+      const clientY = ev.clientY || 0;
+
+      // Exactly one surface is lit: the one under the pointer, and nothing is
+      // written to :root. Custom properties inherit, so the previous version --
+      // which published --mouse-x/--mouse-y on documentElement as viewport
+      // percentages -- was read by every .card on the page at once. Each card
+      // painted its specular at the same relative position and the whole
+      // dashboard lit up in unison, while the per-element override only ever
+      // landed on the single card actually being hovered.
+      const target = ev.target && typeof ev.target.closest === "function"
+        ? ev.target.closest(SPECULAR_SURFACES)
+        : null;
+
+      if (target !== activeTarget) {
+        clearTargetSpecular(activeTarget);
+        activeTarget = target;
+      }
+      if (!activeTarget || typeof activeTarget.getBoundingClientRect !== "function" || !activeTarget.style) {
+        return;
+      }
+
+      const rect = activeTarget.getBoundingClientRect();
+      if (!rect || rect.width <= 0 || rect.height <= 0) return;
+      const px = (((clientX - rect.left) / rect.width) * 100).toFixed(1);
+      const py = (((clientY - rect.top) / rect.height) * 100).toFixed(1);
+      activeTarget.style.setProperty("--specular-x", px + "%");
+      activeTarget.style.setProperty("--specular-y", py + "%");
+    }
+
+    function onPointerMove(ev) {
+      if (isReducedMotion || isScrolling) return;
+      pendingPointerEvent = ev;
+      if (!rafId && typeof requestAnimationFrame === "function") {
+        rafId = requestAnimationFrame(updateSpecularLighting);
+      }
+    }
+
+    function onPointerLeave() {
+      resetGlassProperties();
+    }
+
+    function onScroll() {
+      isScrolling = true;
+      if (scrollTimer) clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        isScrolling = false;
+      }, 100);
+    }
+
+    checkMediaPreferences();
+
+    document.addEventListener("pointermove", onPointerMove, { passive: true });
+    document.addEventListener("pointerleave", onPointerLeave, { passive: true });
+    document.addEventListener("pointercancel", onPointerLeave, { passive: true });
+    document.addEventListener("pointerup", (e) => {
+      if (e.pointerType === "touch") resetGlassProperties();
+    }, { passive: true });
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("blur", resetGlassProperties, { passive: true });
+    window.addEventListener("resize", resetGlassProperties, { passive: true });
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) resetGlassProperties();
+    }, { passive: true });
+  }
+
   // Init
   applyTheme(state.theme);
   setLanguage(state.lang);
@@ -7330,6 +7538,8 @@
   loadOpsCatalog();
   initBackgrounds();
   applyGlassSettings();
+  applyLiquidGlass(state.liquidGlass);
+  initLiquidGlassEngine();
 
   // Deep-link override: ?tab=melchior|operations|...
   try {
