@@ -74,10 +74,54 @@ def test_specular_position_is_never_published_on_the_root_element():
     assert "documentElement.style.setProperty(\"--mouse-y\"" not in APP_JS
 
     # And the CSS must read the un-inheritable names, with an off-canvas default
-    # so an un-hovered surface paints nothing.
+    # so an un-hovered surface paints nothing. That default lives in the shared
+    # --glass-specular-layer token every surface resolves.
+    layer = re.search(r"--glass-specular-layer:(.+?);", CSS, re.S)
+    assert layer, "--glass-specular-layer not defined"
+    assert "--specular-x, -999px" in layer.group(1), "specular must default off-canvas"
+    assert "--specular-y, -999px" in layer.group(1)
+
     card = re.search(r"\n\.card \{(.+?)\n\}", CSS, re.S)
     assert card, ".card rule not found"
-    assert "--specular-x, -999px" in card.group(1), "card specular must default off-canvas"
+    assert "var(--glass-specular-layer)" in card.group(1)
+
+
+def test_every_tracked_surface_actually_paints_a_specular():
+    """The engine's list and the CSS have to agree in both directions. Tracking a
+    surface that paints nothing is invisible work; leaving one out is a dead
+    patch the pointer skates over. Before this was pinned, the engine tracked ten
+    selectors and only three of them painted."""
+    listed = re.search(r"const SPECULAR_SURFACES =\s*(.+?);", APP_JS, re.S)
+    assert listed, "SPECULAR_SURFACES not found"
+    selectors = re.findall(r"\.[\w-]+", listed.group(1).replace('" +', "").replace('"', ""))
+
+    for sel in selectors:
+        painted = re.search(
+            re.escape(sel) + r"(?![\w-])[^{}]*\{[^{}]*var\(--glass-specular-layer\)",
+            CSS_RULES,
+        )
+        assert painted, f"{sel} is tracked by the engine but paints no specular"
+
+
+def test_theme_overrides_never_reset_the_specular_with_the_shorthand():
+    """`background:` resets background-image. MAGI MODE's .card and
+    .doc-preview-side both used the shorthand, which silently dropped the
+    specular the base rule paints -- in that theme the effect survived only on
+    the HUD monolith, whose rule happened to spell the layer out again."""
+    tracked = (".card", ".modal-window", ".modal-content", ".glass-tuner-panel",
+               ".doc-preview-side", ".pane-list", ".pane-view", ".topbar",
+               ".core-band", ".eva-hud-frame")
+    offenders = []
+    for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", CSS_RULES):
+        sel, body = m.group(1).strip(), m.group(2)
+        if "::" in sel or not re.search(r"(?m)^\s*background:\s", body):
+            continue
+        if any(re.search(re.escape(t) + r"(?![\w-])", sel) for t in tracked):
+            offenders.append(sel.splitlines()[-1].strip())
+    assert not offenders, (
+        "these reset background-image on a specular surface; use background-color:\n  "
+        + "\n  ".join(offenders)
+    )
 
 
 def test_card_does_not_clip_its_own_accent_rule():
@@ -138,7 +182,17 @@ def test_reduced_transparency_is_a_default_not_an_unreachable_hard_gate():
     blur slider too, so dragging it did nothing.
     """
     assert "html.reduced-transparency" not in CSS_RULES
-    assert re.search(r"--glass-blur:\s*0px\s*!important", CSS_RULES) is None
+    assert "prefers-reduced-transparency" not in CSS_RULES, (
+        "the OS preference is handled in app.js as a default, not as a CSS override"
+    )
+    # Zeroing the blur is legitimate under the user's own off switch, and only
+    # there. Anywhere else it is the unreachable hard gate coming back.
+    for m in re.finditer(r"--glass-blur:\s*0px\s*!important", CSS_RULES):
+        owner = CSS_RULES.rfind("{", 0, m.start())
+        selector = CSS_RULES[:owner].rsplit("}", 1)[-1].strip()
+        assert selector == "html.no-glass", (
+            f"--glass-blur is force-zeroed outside the explicit toggle, under: {selector!r}"
+        )
 
     # The OS preference seeds the default; an explicit choice wins and sticks.
     assert "function initialLiquidGlass()" in APP_JS
@@ -146,10 +200,51 @@ def test_reduced_transparency_is_a_default_not_an_unreachable_hard_gate():
     assert 'safeStorageGet("magi-liquid-glass")' in APP_JS
 
 
-def test_solid_fallback_still_reachable():
-    """Turning the material off must actually strip the backdrop work."""
-    assert "html.no-glass" in CSS
-    assert re.search(r"html\.no-glass[^{]*\{[^}]*backdrop-filter:\s*none\s*!important", CSS, re.S)
+def test_solid_fallback_is_blanket_not_a_surface_list():
+    """The off switch listed seven selectors, and went stale the moment anything
+    else got the material: with glass "off", .tabs-nav, .lang-toggle,
+    .eva-hud-frame, .pane-list, the graph overlays and every .btn were still
+    sampling the backdrop -- so the blur slider went on moving half the page
+    while the other half was inert.
+    """
+    blanket = re.search(
+        r"html\.no-glass \*,\s*html\.no-glass \*::before,\s*html\.no-glass \*::after \{([^}]+)\}",
+        CSS_RULES,
+    )
+    assert blanket, "no-glass must kill backdrop-filter with a blanket rule"
+    assert "backdrop-filter: none !important" in blanket.group(1)
+
+
+def test_solid_fallback_does_not_blank_background_image():
+    """`background-image: none !important` was written for light/dark, where the
+    specular is a background-image. MAGI MODE's card background *is* a
+    linear-gradient, so the same rule left its cards with no background at all --
+    transparent panels over the artwork. The specular is switched off at its
+    colour stop instead."""
+    block = re.search(r"(?m)^html\.no-glass \{([^}]+)\}", CSS_RULES)
+    assert block, "html.no-glass token block not found"
+    body = block.group(1)
+    assert "--glass-specular-color: transparent !important" in body
+    assert "--glass-scale:" in body, "opacity must be forced through the shared scale"
+    assert "--glass-blur: 0px !important" in body
+
+    assert re.search(r"html\.no-glass[^{]*\{[^}]*background-image:\s*none\s*!important", CSS_RULES) is None, (
+        "blanking background-image erases MAGI MODE's card gradient"
+    )
+
+
+def test_backdrop_layer_sits_behind_unpositioned_content():
+    """#app-bg is fixed. At z-index 0 it painted *above* the background of any
+    static block, because a positioned box outranks one. The core band is
+    static, so with the material on it only cleared the artwork by accident --
+    backdrop-filter made it a stacking context, which promoted it. Switch the
+    material off and the promotion went too: the artwork painted over the band
+    and its text became unreadable.
+    """
+    for sel in (".app-bg", '[data-theme="eva"] .app-bg'):
+        m = re.search(r"(?m)^" + re.escape(sel) + r"\s*\{([^}]+)\}", CSS_RULES)
+        assert m, f"{sel} rule not found"
+        assert "z-index: -1;" in m.group(1), f"{sel} must sit behind static content"
 
 
 def test_eva_artwork_stays_inside_magi_mode():

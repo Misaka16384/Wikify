@@ -1856,6 +1856,13 @@
     if (els.glassToggleBtn) {
       els.glassToggleBtn.classList.toggle("active", state.liquidGlass);
     }
+    // Blur and opacity tune a material that is switched off in this mode, so
+    // the knobs are disabled rather than left live-looking and inert. CRT
+    // scanlines and the backdrop picker are unrelated to the material and stay
+    // usable.
+    [els.glassBlurRange, els.glassAlphaRange].forEach((el) => {
+      if (el) el.disabled = !state.liquidGlass;
+    });
   }
 
   // ------------------------------------------------------------------------
@@ -7416,9 +7423,14 @@
   // layer, so tracking them was pure work for no pixels. The top bar, the core
   // band and the MAGI HUD monolith do paint one, on their own background rather
   // than a pseudo-element so it stays underneath their contents.
+  // Must stay in step with the surfaces whose CSS actually paints
+  // var(--glass-specular-layer). Listing one that does not is invisible work;
+  // omitting one that does leaves a dead patch the pointer skates over.
+  // .toast is deliberately absent -- it is small, transient and auto-dismisses,
+  // so it keeps the fixed sheen and nothing tracks it.
   const SPECULAR_SURFACES =
     ".card, .modal-window, .modal-content, .glass-tuner-panel, .doc-preview-side, " +
-    ".doc-preview-window, .toast, .topbar, .core-band, .eva-hud-frame";
+    ".pane-list, .pane-view, .topbar, .core-band, .eva-hud-frame";
 
   function initLiquidGlassEngine() {
     if (typeof window === "undefined" || typeof document === "undefined") return;

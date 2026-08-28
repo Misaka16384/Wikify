@@ -206,6 +206,14 @@
      thick material reads as thick partly through its corner. MAGI MODE
      chamfers everything back to 0, so this only affects light/dark. */
   --radius-glass: 14px;
+
+  /* The pointer specular, defined once. app.js writes --specular-x/--specular-y
+     onto the hovered surface only; the -999px fallback parks the glint
+     off-canvas everywhere else, which is the whole gating mechanism. Sizes and
+     colours resolve per theme at the point of use. */
+  --glass-specular-layer: radial-gradient(circle var(--glass-specular-size, 320px)
+    at var(--specular-x, -999px) var(--specular-y, -999px),
+    var(--glass-specular-color, rgba(255, 255, 255, 0.25)), transparent 70%);
   --radius-pill: 9999px;
 
   --focus-ring: var(--accent-primary);
@@ -816,9 +824,7 @@ html:not([data-theme="eva"]) .glass-tuner-panel {
      buttons and labels. Gated the same way as .card -- app.js writes
      --specular-x/y onto this element only, and the -999px fallback parks the
      glint off-canvas everywhere else. */
-  background-image: radial-gradient(circle var(--glass-specular-size, 320px)
-    at var(--specular-x, -999px) var(--specular-y, -999px),
-    var(--glass-specular-color, rgba(255, 255, 255, 0.25)), transparent 70%);
+  background-image: var(--glass-specular-layer);
   background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.1)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(calc(var(--glass-blur) * 1.1)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
@@ -1141,9 +1147,7 @@ html:not([data-theme="eva"]) .glass-tuner-panel {
      buttons and labels. Gated the same way as .card -- app.js writes
      --specular-x/y onto this element only, and the -999px fallback parks the
      glint off-canvas everywhere else. */
-  background-image: radial-gradient(circle var(--glass-specular-size, 320px)
-    at var(--specular-x, -999px) var(--specular-y, -999px),
-    var(--glass-specular-color, rgba(255, 255, 255, 0.25)), transparent 70%);
+  background-image: var(--glass-specular-layer);
   background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
@@ -1412,9 +1416,7 @@ html:not([data-theme="eva"]) .glass-tuner-panel {
   /* Pointer specular. app.js writes --specular-x/--specular-y onto this element
      only; with no pointer on it the -999px fallback parks the glint off-canvas,
      which is the whole gating mechanism. */
-  background-image: radial-gradient(circle var(--glass-specular-size, 320px)
-    at var(--specular-x, -999px) var(--specular-y, -999px),
-    var(--glass-specular-color, rgba(255, 255, 255, 0.25)), transparent 70%);
+  background-image: var(--glass-specular-layer);
   background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
@@ -2449,6 +2451,8 @@ details.advanced-sql > summary {
 
 .pane-list {
   background-color: var(--glass-bg);
+  background-image: var(--glass-specular-layer);
+  background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border: 1px solid var(--glass-border);
@@ -2495,6 +2499,8 @@ details.advanced-sql > summary {
 
 .pane-view {
   background-color: var(--glass-bg);
+  background-image: var(--glass-specular-layer);
+  background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border: 1px solid var(--glass-border);
@@ -2915,7 +2921,8 @@ details.advanced-sql > summary {
      blob version resolved --mouse-x off :root, so it sat permanently in the
      middle of the panel and slid around when the pointer was somewhere else
      entirely. Apple's material has one light source, and it is above. */
-  background-image: linear-gradient(180deg, var(--glass-specular-color, rgba(255, 255, 255, 0.15)), transparent 45%);
+  background-image: var(--glass-specular-layer),
+    linear-gradient(180deg, var(--glass-specular-color, rgba(255, 255, 255, 0.15)), transparent 45%);
   background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
@@ -3124,7 +3131,8 @@ html:not([data-theme="eva"]) .modal-content::after {
   padding: 1.1rem 1rem 2rem;
   border-left: 1px solid var(--glass-border);
   background-color: var(--glass-bg-subtle);
-  background-image: linear-gradient(180deg, var(--glass-specular-color, rgba(255, 255, 255, 0.12)), transparent 30%);
+  background-image: var(--glass-specular-layer),
+    linear-gradient(180deg, var(--glass-specular-color, rgba(255, 255, 255, 0.12)), transparent 30%);
   background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
@@ -3515,7 +3523,16 @@ html:not([data-theme="eva"]) .modal-content::after {
   display: block;
   position: fixed;
   inset: 0;
-  z-index: 0;
+  /* Behind everything, including the backgrounds of elements that are not
+     themselves positioned. At z-index 0 this layer painted *above* any static
+     block's background, because a positioned box outranks one. The core band is
+     static, so with the material on it only cleared the artwork by accident --
+     its backdrop-filter created a stacking context, which promoted it. Switch
+     the material off and the promotion went with it: the artwork painted
+     straight over the band and its text became unreadable.
+     html carries no background of its own, so body's propagates to the canvas
+     and this layer still sits above that. */
+  z-index: -1;
   pointer-events: none;
   overflow: hidden;
   background:
@@ -3674,7 +3691,7 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
   display: block;
   position: fixed;
   inset: 0;
-  z-index: 0;
+  z-index: -1;
   pointer-events: none;
   overflow: hidden;
   background:
@@ -4038,7 +4055,9 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
    the most visible edge in the window. A tint over the same glass instead — it
    tracks --glass-scale exactly as every other MAGI surface does. */
 [data-theme="eva"] .doc-preview-side {
-  background: rgba(var(--eva-bg-rgb), calc(0.3 * var(--glass-scale)));
+  /* background-color, not the `background` shorthand: the shorthand resets
+     background-image and would drop the pointer specular the base rule paints. */
+  background-color: rgba(var(--eva-bg-rgb), calc(0.3 * var(--glass-scale)));
   border-left: 1px solid rgba(var(--eva-p), 0.22);
 }
 
@@ -4258,7 +4277,10 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
    --eva-bg-rgb so the blue variant's glass runs cold. */
 [data-theme="eva"] .card {
   position: relative;
-  background: linear-gradient(150deg, rgba(var(--eva-bg-rgb), calc(0.3 * var(--glass-scale))), rgba(var(--eva-bg-rgb), calc(0.44 * var(--glass-scale))));
+  background-color: transparent;
+  background-image: var(--glass-specular-layer),
+    linear-gradient(150deg, rgba(var(--eva-bg-rgb), calc(0.3 * var(--glass-scale))), rgba(var(--eva-bg-rgb), calc(0.44 * var(--glass-scale))));
+  background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border: 1px solid rgba(var(--eva-p), 0.2);
@@ -5019,9 +5041,7 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
 [data-theme="eva"] .eva-hud-frame {
   position: relative;
   border: 1px solid rgba(var(--eva-p), 0.35);
-  background-image: radial-gradient(circle var(--glass-specular-size, 300px)
-      at var(--specular-x, -999px) var(--specular-y, -999px),
-      var(--glass-specular-color, rgba(255, 255, 255, 0.2)), transparent 70%),
+  background-image: var(--glass-specular-layer),
     linear-gradient(180deg, rgba(var(--eva-bg-rgb), calc(0.32 * var(--glass-scale))), rgba(var(--eva-bg-rgb), calc(0.48 * var(--glass-scale))));
   background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
@@ -5435,6 +5455,8 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
   width: 258px;
   padding: 0.9rem 1rem 0.8rem;
   background-color: var(--glass-bg-elevated);
+  background-image: var(--glass-specular-layer);
+  background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(20px) saturate(var(--glass-saturate));
   backdrop-filter: blur(20px) saturate(var(--glass-saturate));
   border: 1px solid var(--glass-border-strong);
@@ -5461,6 +5483,16 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
   font-size: 0.68rem;
   letter-spacing: 0.05em;
   color: var(--text-secondary);
+}
+
+html.no-glass .glass-tuner-row-blur,
+html.no-glass .glass-tuner-row-alpha {
+  opacity: 0.4;
+}
+
+html.no-glass .glass-tuner-row-blur input[type="range"],
+html.no-glass .glass-tuner-row-alpha input[type="range"] {
+  cursor: not-allowed;
 }
 
 .glass-tuner-row input[type="range"] {
@@ -5490,36 +5522,42 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
 /* --------------------------------------------------------------------------
    .no-glass Classical Fallback Mode (when Glass toggle is turned off)
    -------------------------------------------------------------------------- */
-html.no-glass .card,
-html.no-glass .topbar,
-html.no-glass .core-band,
-html.no-glass .modal-window,
-html.no-glass .glass-tuner-panel,
-html.no-glass .stat-pill,
-html.no-glass .doc-preview-side {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-  background-image: none !important;
-  filter: none !important;
+/* Driven entirely through the tokens and one blanket rule, not a list of
+   selectors. The list this replaces named seven surfaces and went stale the
+   moment anything else got the material: with glass "off", .tabs-nav,
+   .lang-toggle, .eva-hud-frame, .pane-list, the graph overlays and every .btn
+   were still sampling the backdrop, so the blur slider went on moving half the
+   page while the other half was inert. */
+html.no-glass {
+  /* Every translucent surface in every theme is written as
+     rgba(<tint>, calc(k * var(--glass-scale))). The smallest k in use is 0.28,
+     so a scale of 4 pushes all of them past alpha 1, where rgba() clamps --
+     which turns the whole material opaque without naming a single selector,
+     and without swapping in a different colour token than the theme's own. */
+  --glass-scale: 4 !important;
+  --glass-blur: 0px !important;
+  /* Kills the pointer specular where it is painted (a gradient stop) rather
+     than by blanking background-image. MAGI MODE's card background IS a
+     linear-gradient, so `background-image: none` left its cards with no
+     background at all -- transparent panels over the artwork. */
+  --glass-specular-color: transparent !important;
 }
 
+html.no-glass *,
+html.no-glass *::before,
+html.no-glass *::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* The refracting rim is the one thing with no opaque equivalent. ::before still
+   carries MAGI MODE's corner brackets, so only ::after goes. */
 html.no-glass .card::after,
 html.no-glass .modal-window::after,
-html.no-glass .modal-content::after {
-  -webkit-backdrop-filter: none !important;
-  backdrop-filter: none !important;
-  background-image: none !important;
-}
-html:not([data-theme="eva"]).no-glass .card::after,
-html:not([data-theme="eva"]).no-glass .modal-window::after,
-html:not([data-theme="eva"]).no-glass .modal-content::after { display: none !important; }
-html.no-glass .app-bg-ambient { display: none !important; }
+html.no-glass .modal-content::after,
+html.no-glass .eva-hud-frame::after { display: none !important; }
 
-html.no-glass {
-  --glass-bg: var(--bg-card) !important;
-  --glass-bg-subtle: var(--bg-subtle) !important;
-  --glass-bg-elevated: var(--bg-surface) !important;
-}
+html.no-glass .app-bg-ambient { display: none !important; }
 
 /* --------------------------------------------------------------------------
    EVA blue, light-mode counterparts. The dark combat skin assumes a black
