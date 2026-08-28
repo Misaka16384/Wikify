@@ -19,6 +19,9 @@ from magi.core import durability
 @pytest.mark.parametrize("path", [
     "raw/papers/2601.00001.md",
     "wiki/concepts/toric-code.md",
+    "threads/p-gap-survives.md",
+    "drafts/gap-argument.md",
+    "decisions.md",
     "config.yaml",
     "config.md",
     "~/.config/magi/registry.json",
@@ -32,6 +35,7 @@ def test_things_a_person_made(path):
     "output/graph.db",
     "output/index.db",
     "output/.lint_cache.json",
+    "output/.locks/threads-p-gap.md.lock",
     "scratch/chunk_a_01.md",
 ])
 def test_things_a_command_will_make_again(path):

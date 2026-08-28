@@ -23,16 +23,17 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 
 **目标**：把共识变成可执行的规约和测试，不动现有功能。
 
-- [ ] `docs/design-v2.md` 入库
-- [ ] `core/vocab.py`：kind / status / key_move / coaching 词表冻结；状态跃迁表（合法转移 + 谁能写）
-- [ ] `threads/` frontmatter schema（公共字段 + 各 kind 字段）；解析与序列化
-- [ ] 跟帖格式与原子 append 原语（Windows/macOS 均原子）
-- [ ] `magi lint` 新增 threads 校验：schema、非法跃迁、一文件一温度、跃迁无跟帖
-- [ ] 派生函数：`tier_of(note)`（温度）、冷层背书率（evidence 必须指向 raw）
-- [ ] 三条棘轮测试（允许先失败，M3 达标）：porcelain `--help` ≤ 20 行；每个 SKILL.md ≤ 40 行；托管块 ≤ 40 行
+- [x] `docs/design-v2.md` 入库
+- [x] `core/vocab.py`：kind / status / key_move / coaching 词表冻结；状态跃迁表（合法转移 + 谁能写）
+- [x] `threads/` frontmatter schema（公共字段 + 各 kind 字段）；解析与序列化
+- [x] 跟帖格式与原子 append 原语（Windows/macOS 均原子）
+- [x] `magi lint` 新增 threads 校验：schema、非法跃迁、一文件一温度、跃迁无跟帖
+- [x] 派生函数：`tier_of(note)`（温度）、冷层背书率（evidence 必须指向 raw）
+- [x] durability 把 `threads/`、`drafts/`、`decisions.md` 记为 ORIGINAL（格式定义在哪，持久性归类就在哪；否则 classify 对它答 unknown）
+- [x] 三条棘轮测试（允许先失败，M3 达标）：porcelain `--help` ≤ 20 行；每个 SKILL.md ≤ 40 行；托管块 ≤ 40 行
 
 **验收**：新测试全绿；现有 1685 不退化；一个示例 project 的 `threads/` 能 lint 通过并算出温度。
-**待定**：`construction` kind 是否此时预留。
+**已定**：`construction` kind 暂不预留——多一个 kind 就要多一张状态表、一组跃迁和一组测试，而「存在……的构造」写成存在性命题目前不别扭；真别扭时按 design-v2 §4 补。
 
 ---
 
@@ -42,7 +43,7 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 
 - [ ] `magi init` 生成 v2 布局（`threads/`、`drafts/`、`inbox/notes.md`、`decisions.md`、AGENTS.md 托管块占位 + `CLAUDE.md = @AGENTS.md`）；吸收 `pm init`
 - [ ] line note 创建（`magi line new`，plumbing）；`line:` 字段解析
-- [ ] durability 分类更新：`threads/`、`drafts/`、`decisions.md`、`inbox/notes.md` = ORIGINAL；MAP / feed = DERIVED
+- [ ] durability：MAP / feed = DERIVED（ORIGINAL 那半已在 M0 落地）
 - [ ] 检索：collection 增 `threads` / `drafts`；线内 `focus` 从 wikilink 派生并加权；threads 在知识型查询降权（最小版）
 - [ ] beads 迁到项目根、label = line；`pm status` 并入 `sync`
 - [ ] hub 退场：registry 承接跨项目检索；`hub *` 删除；`each` → `--all-projects` 或删（待定）
@@ -61,12 +62,13 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [ ] `magi next`（裸 `magi` 等价）：派生 → 候选清单（`--json` + 人读）；项目级 / 线级投影；安静阈值；记账债为第一条；只提议不执行
 - [ ] `magi sync --close`：本会话改动扫描（git diff / mtime）→ 缺 status / 跟帖 / line STATUS 则失败并列出；Claude Code Stop hook 脚本（阻止停机并回传原因）
 - [ ] 硬触发：跃迁检测 → 决策队列条目（MAP + bd review issue）；`conflict` 检测（5 分钟双翻）
+- [ ] **跃迁权限的强制**：`vocab.writers()` 在 M0 只是政策——帖子签名写的是宿主不是"谁的决定"，而 AI 誊写人的决定是常态。`--close` 校验：离开 `disputed` / `conflict` / `closed` 必须有对应的 `decisions.md` 条目或人的跟帖，否则拦下
 - [ ] `output/MAP.md` 渲染（两节：各线 + 决策队列）
 - [ ] `magi feed`（`--since / --line / --author`）；帖子进索引
 - [ ] WIP 上限提示（默认 7）
 - [ ] `sync` 三核显示按 §14 重映射
 
-**验收**：示例 project 走完"开命题 → testing → supported"后 MAP 出现队列条目；未记账停机被 Stop hook 拦下（Claude Code）；`feed` 能检索到帖子；无变化时 `next` 只报开放问题。
+**验收**：示例 project 走完"开命题 → testing → supported"后 MAP 出现队列条目；未记账停机被 Stop hook 拦下（Claude Code）；`feed` 能检索到帖子；无变化时 `next` 只报开放问题；agent 擅自把 `disputed` 翻回 `supported` 被 `--close` 拦下。
 **待定**：决策队列是否同时写 bd（倾向写，label = review）。
 
 ---

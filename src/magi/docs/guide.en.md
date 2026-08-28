@@ -1153,8 +1153,10 @@ Any assertion that needs to be held accountable gets written as a claim block (y
 CLAIM: The fractionalized excitations in this model carry a charge of e/3.
 EVIDENCE: "the fractionalized excitations carry charge e/3"
 SOURCE_TYPE: local_wiki
-SOURCE: wiki/references/laughlin-1983.md
+SOURCE: raw/papers/laughlin-1983.md
 ```
+
+`SOURCE:` points into `raw/`, never at a card under `wiki/references/`. A reference card is a view compiled out of `raw/`, and it can be wrong in exactly the way the claim is trying to rule out — citing the card launders a compilation mistake into a fact. `magi lint` flags evidence that points at one.
 
 `FINDING:` is a synonym for `CLAIM:`. All four fields are required. Then:
 

@@ -9,12 +9,19 @@ check rather than a paragraph somebody remembers.
 Three categories, and the boundary between the first two is the useful one:
 
 **ORIGINAL** — a person made it. Nothing can regenerate it. Losing it loses
-work: the sources in ``raw/``, the wiki in ``wiki/``, the workspace's own
-``config.yaml`` and ``config.md``, and — the one that is easy to miss because
-it lives outside the workspace — the global ``registry.json`` and
+work: the sources in ``raw/``, the wiki in ``wiki/``, the research state in
+``threads/`` and ``drafts/``, the record in ``decisions.md``, the workspace's
+own ``config.yaml`` and ``config.md``, and — the one that is easy to miss
+because it lives outside the workspace — the global ``registry.json`` and
 ``settings.json``, which are the list of libraries a person set up by hand.
 That one was, until recently, written with a plain overwrite and read with a
 handler that turned an unparseable file into an empty one.
+
+``threads/`` is the entry most likely to be misfiled, because it reads like
+machinery: it holds the statuses the CLI reacts to, and everything else the CLI
+computes from a status is derived. The notes themselves are not. A proposition
+is somebody's claim and its discussion is somebody's argument, and no command
+will write either one again.
 
 **DERIVED** — a command produced it and the same command will produce it again.
 ``output/graph.db``, ``output/index.db``, ``output/.lint_cache.json``,
@@ -52,6 +59,9 @@ ORIGINAL = (
     "raw/",
     "wiki/",
     "inbox/",
+    "threads/",
+    "drafts/",
+    "decisions.md",
     "config.yaml",
     "config.md",
     "~/.config/magi/registry.json",
@@ -62,6 +72,7 @@ DERIVED = (
     "output/graph.db",
     "output/index.db",
     "output/.lint_cache.json",
+    "output/.locks/",
     "scratch/",
 )
 

@@ -1120,8 +1120,10 @@ magi math check drafts/paper.md
 CLAIM: 分数化激发在该模型中携带 1/3 电荷。
 EVIDENCE: "the fractionalized excitations carry charge e/3"
 SOURCE_TYPE: local_wiki
-SOURCE: wiki/references/laughlin-1983.md
+SOURCE: raw/papers/laughlin-1983.md
 ```
+
+`SOURCE:` 指向 `raw/`，不指向 `wiki/references/` 的卡片。参考卡是从 `raw/` 编译出来的派生视图，它可能错在恰好是这条论断要排除的地方——引卡片等于把编译错误洗成事实。`magi lint` 会把指向参考卡的证据标出来。
 
 `FINDING:` 是 `CLAIM:` 的同义词。四个字段缺一不可。然后：
 

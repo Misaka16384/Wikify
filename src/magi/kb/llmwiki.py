@@ -27,6 +27,10 @@ from typing import Any
 # the classification note where a card's type is decided.
 NODE_TYPES = frozenset({"concept", "reference", "topic", "thesis", "claim", "tag"})
 
+# Mirrors `verify_claims.BLOCK_OPEN`, which is case-insensitive by design: an
+# LLM writing `Claim:` still produces a claim `magi verify` will check.
+_CLAIM_OPENER = re.compile(r"^[ \t]*(?:CLAIM|FINDING):", re.IGNORECASE | re.MULTILINE)
+
 
 def wash_windows_path(path_str: str) -> str:
     if os.name != "nt":
@@ -121,6 +125,8 @@ ROOT_ALLOWED = {
     "raw",
     "wiki",
     "drafts",
+    "threads",
+    "decisions.md",
     "inventory",
     "datasets",
     "output",
@@ -1971,6 +1977,82 @@ def run_lint(args: argparse.Namespace) -> int:
         return _run_lint(args, root)
 
 
+def check_threads(ctx: LintContext) -> None:
+    """`threads/` has its own schema, so it has its own walker.
+
+    Deliberately not routed through `load_documents`: a thread note carries
+    none of the wiki fields (`category`, `summary`, `updated`), and feeding it
+    to the wiki checks would produce a screen of complaints about a note that
+    is exactly right. The rules that apply to it live in `kb/threads.py`.
+
+    Read-only, `--fix` included. A note's body belongs to whoever wrote it and
+    its discussion is append-only; there is no repair here that would not mean
+    editing one of those on somebody's behalf.
+    """
+    from magi.kb import threads as threads_mod
+
+    for severity, message, path, fixable in threads_mod.lint(ctx.root):
+        ctx.issue(severity, message, path, fixable=fixable)
+
+
+def check_one_tier_per_file(ctx: LintContext) -> None:
+    """One file, one temperature (design-v2 §3).
+
+    A conjecture written into a concept card makes that card both warm and hot:
+    it now changes for two unrelated reasons, and no reader can tell which half
+    they are looking at. The mechanical tell is proposition bookkeeping — a
+    `bet`, a `key_move`, or signed forum posts — appearing outside `threads/`.
+    The fix is never automatic: splitting a claim out of prose is a judgement,
+    so this reports and stops.
+    """
+    from magi.kb import threads as threads_mod
+
+    for doc in sorted(ctx.documents.values(), key=lambda item: str(item.path)):
+        try:
+            rel = doc.path.resolve().relative_to(ctx.root)
+        except ValueError:
+            continue
+        if threads_mod.is_thread_path(rel):
+            continue
+        for field_name in ("bet", "key_move"):
+            if field_name in doc.frontmatter:
+                ctx.issue("warning",
+                          f"{field_name} belongs to a proposition in threads/, not to this "
+                          "note; one file holds one temperature.", doc.path)
+        # Signed posts, not the heading: "## Discussion" is ordinary prose in a
+        # synthesis, and flagging it would train people to ignore this check.
+        if threads_mod.parse_posts(doc.body or ""):
+            ctx.issue("warning",
+                      "Signed forum posts belong to a threads/ note; a wiki note "
+                      "being argued about is really a proposition.", doc.path)
+
+
+def check_cold_backing(ctx: LintContext) -> None:
+    """Evidence points at `raw/`, never at a card compiled from it.
+
+    A reference card is a derived view and can be wrong in the same way the
+    claim is; citing it launders a compilation mistake into a fact. The source
+    the card was built from is one wikilink away, and that is what the claim
+    should name.
+    """
+    from magi.kb import backing
+
+    for doc in sorted(ctx.documents.values(), key=lambda item: str(item.path)):
+        text = doc.raw_text or doc.body
+        # Cheap gate before the block parser: most notes carry no claims at
+        # all, and this check runs over every document in the workspace. The
+        # opener is matched case-insensitively because `verify_claims` parses
+        # it that way, and a gate stricter than the parser it guards is a
+        # silent false negative.
+        if not text or not _CLAIM_OPENER.search(text):
+            continue
+        for claim, source in backing.laundered_sources(text):
+            excerpt = (claim[:60] + "…") if len(claim) > 60 else claim
+            ctx.issue("warning",
+                      f"Claim cites a compiled card instead of the source behind it "
+                      f"({source}): {excerpt}", doc.path)
+
+
 def _run_lint(args: argparse.Namespace, root) -> int:
     ctx = LintContext(root, fix=args.fix)
     hub_root = is_hub(root)
@@ -2001,6 +2083,9 @@ def _run_lint(args: argparse.Namespace, root) -> int:
     if not getattr(args, "skip_math", False):
         check_math_syntax(ctx)
     check_source_provenance(ctx)
+    check_cold_backing(ctx)
+    check_one_tier_per_file(ctx)
+    check_threads(ctx)
     check_tags(ctx)
     check_coverage(ctx)
     check_freshness(ctx)

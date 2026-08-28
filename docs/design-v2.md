@@ -56,6 +56,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 | 热 | `threads/` 中 `open / conjectured / testing` | 高频 | AI |
 
 - 温度是**文件级**性质。目录决定冷与温·共享；`threads/` 内温度由 `kind + status` **派生**，文件不移动。
+- 上表只列了典型状态；**全表**（M0 实现时补全，原文未覆盖）：`threads/` 里结案态算温·线内（命题 `supported / refuted / superseded`、问题 `answered / abandoned`、线 `dormant / closed`），其余包括 `disputed` 与 `conflict` 算热。`inbox/`、`scratch/` 算热；`output/` 无温度（派生物）。读不到 status 时按**热**处理——热承诺最少，不会让下游把没定的东西当已定。
 - **一文件一温度**（lint 规则）：概念卡里冒出的猜想拆成 `threads/` 命题，原地留 wikilink。
 - claim 的证据（`evidence.source`）必须指向 `raw/`，不能指向 reference 卡（卡可能错）。**冷层背书率** = 一个温文件中 evidence 指向 raw 且 verified 的 claim 比例；派生指标，不存。
 
@@ -83,11 +84,14 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 
 若"存在……"日后别扭，加 `kind: construction`，不影响其他结构。
 
+跃迁表**按生命周期顺序放行，但不强制逐级**（M0 实现时明确）：越级前进合法——文献里直接找到答案就是 `open → supported`；回退只允许 `supported / refuted / disputed → testing` 与 `testing → conjectured`；`superseded` 是终态（要重开就是新命题、新 slug，否则等于偷改已经发表出去的东西）；`conflict` 只有 CLI 写得进、只有人走得出。这张表抓的是记账错误，不是管科研该怎么做。
+
 ## 5. 论坛模型（多写者规则）
 
 - 每个 note = 正文（创建者所有）+ `## Discussion`（append-only）。帖子头 `### <ISO 时间> · <host>/<line>`；不改、不删他人帖子。
 - **状态跃迁必须伴随一条跟帖**（审计）。审核器裁决、人的预测与决定、跨线评论都是跟帖。
 - 唯一可变字段是 `status`：last-writer-wins；5 分钟内被不同写者翻两次 → `conflict`，进决策队列。
+- 追加**要加锁**（M0 实测修正）：每篇 note 一把 `filelock`，只在一次"读+追加"期间持有。原本的理由是"追加模式下一次小写入由操作系统串行化"——POSIX 成立，Windows 不成立（MSVCRT 把 `O_APPEND` 实现成 seek-to-end 再 write 两步）。8 线程并发追加实测丢 2 条帖子。锁是每篇 note 的，不同命题之间互不等待。
 - 派生物（graph.db、index.db、MAP.md）幂等重建，重建期间短锁（沿用 worklock）。
 - **feed** = 全部帖子（含 `decisions.md` 条目）按时间的派生视图，可检索（collection `threads`），不落盘。journal 不存在。
 
