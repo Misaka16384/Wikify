@@ -957,7 +957,11 @@ def canonical_path_for(root: Path, doc: Document) -> Path | None:
         if source_type in RAW_TYPES:
             return root / "raw" / str(source_type) / doc.path.name
     if parts[0] == "wiki":
-        if fm.get("type") == "thesis":
+        # `wiki/theses/` is retired in v2. A workspace that still has one keeps
+        # its filing rule, so old libraries behave as before; a v2 workspace has
+        # no such directory and `--fix` must not create one, which would undo
+        # the retirement on the first lint after an audit wrote a thesis.
+        if fm.get("type") == "thesis" and (root / "wiki" / "theses").is_dir():
             return root / "wiki" / "theses" / doc.path.name
         category = fm.get("category")
         if category in ARTICLE_DIRS:

@@ -145,6 +145,19 @@ def test_a_new_note_is_valid_and_ready_for_posts(tmp_path):
     assert threads.validate(note) == []
 
 
+def test_the_discussion_reads_as_a_conversation(tmp_path):
+    """One blank line between the heading and the first post, and between
+    posts. These files are read by people as often as by the parser, and a
+    stray blank line multiplies over a long thread."""
+    path = threads.create(tmp_path / "threads" / "p.md", vocab.PROPOSITION, "T", "Why.")
+    threads.append_post(path, "first", host="claude")
+    threads.append_post(path, "second", host="codex")
+
+    text = path.read_text(encoding="utf-8")
+    assert threads.POST_HEADING + chr(10) + chr(10) + "### " in text
+    assert chr(10) * 3 not in text
+
+
 def test_a_slug_is_an_identity_so_creation_never_overwrites(tmp_path):
     path = tmp_path / "threads" / "p-gap.md"
     threads.create(path, vocab.PROPOSITION, "Gap", "Why.")
@@ -654,3 +667,85 @@ def test_flips_and_comments_race_without_losing_either(tmp_path):
     assert len(note.posts) == 8
     assert note.status == "testing"
     assert threads.transitions(note.posts) == [("open", "testing")]
+
+
+# --------------------------------------------------------------------------
+# frontmatter nobody in this module wrote
+# --------------------------------------------------------------------------
+
+FLOW = """---
+{kind: proposition, status: open, created: 2026-08-28, purpose: Flow style is valid YAML}
+---
+
+# Flow
+
+## Discussion
+"""
+
+DECOY = """---
+kind: proposition
+purpose: "one line
+status: not-real
+continued"
+status: open
+created: 2026-08-28
+---
+
+# Decoy
+
+## Discussion
+"""
+
+
+def test_a_flip_works_on_flow_style_frontmatter(tmp_path):
+    """The legality check parses YAML and the rewrite edited a line; on
+    anything this module did not write those two readings disagree, and the
+    disagreement is silent — the post says `open → testing` over a note that
+    still says `open`."""
+    path = write(tmp_path, "p-flow.md", FLOW)
+    threads.set_status(path, "testing", "started", host="claude")
+
+    note = threads.read_note(path)
+    assert note.status == "testing"
+    assert threads.validate(note) == []
+
+
+def test_a_line_that_only_looks_like_the_status_is_not_the_status(tmp_path):
+    """A multi-line quoted scalar can contain `status:` at the start of a
+    continuation line. Rewriting that one corrupts the field it belongs to and
+    leaves the real status untouched."""
+    path = write(tmp_path, "p-decoy.md", DECOY)
+    threads.set_status(path, "testing", "started", host="claude")
+
+    note = threads.read_note(path)
+    assert note.status == "testing"
+    assert "not-real" in str(note.frontmatter["purpose"])
+
+
+def test_a_note_written_with_unix_endings_keeps_them(tmp_path):
+    """Notes travel between macOS and Windows sessions. Rewriting the whole
+    file in this machine's ending turns a one-word edit into a diff of every
+    line, on a file two people are appending to."""
+    path = tmp_path / "threads" / "p-lf.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(NOTE.encode("utf-8"))
+
+    threads.set_status(path, "testing", "started", host="claude")
+    threads.append_post(path, "and again", host="codex")
+
+    assert b"\r\n" not in path.read_bytes()
+    assert len(threads.read_note(path).posts) == 2
+
+
+def test_a_note_written_with_windows_endings_keeps_them(tmp_path):
+    path = tmp_path / "threads" / "p-crlf.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(NOTE.replace("\n", "\r\n").encode("utf-8"))
+
+    threads.set_status(path, "testing", "started", host="claude")
+
+    raw = path.read_bytes()
+    assert b"\r\n" in raw
+    assert raw.replace(b"\r\n", b"").count(b"\n") == 0, "mixed endings"
+    assert threads.read_note(path).status == "testing"
+

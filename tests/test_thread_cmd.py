@@ -183,3 +183,12 @@ def test_outside_a_workspace_the_command_explains_itself(tmp_path, capsys, monke
                             "--title", "T", "--purpose", "Why."]) == 1
     assert "no workspace found" in capsys.readouterr().err
 
+
+def test_a_note_needs_a_purpose(ws, capsys):
+    """`purpose` is what a note says to whoever finds it in three months. It is
+    required by the schema, so refusing here costs one retry instead of leaving
+    a warning nobody goes back for."""
+    assert run(ws, "new", "p-gap", "--kind", "proposition",
+               "--title", "T", "--purpose", "  ") == 1
+    assert "needs a purpose" in capsys.readouterr().err
+

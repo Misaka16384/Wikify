@@ -108,3 +108,23 @@ def test_the_dump_area_is_not_something_to_ingest(workspace):
     assert "Traceback" not in result.stderr, result.stderr
     assert "nothing to ingest" in result.stdout, result.stdout
 
+
+def test_lint_does_not_recreate_the_retired_theses_directory(workspace, tmp_path):
+    """`--fix` files a `type: thesis` note into `wiki/theses/`, creating the
+    directory on the way. In a v2 workspace that undoes the retirement on the
+    first lint after anything writes a thesis."""
+    import subprocess as sp
+
+    fresh = tmp_path / "fresh"
+    sp.run([sys.executable, "-m", "magi", "init", "--topic-dir", str(fresh), "--name", "T"],
+           capture_output=True, text=True, check=True)
+    (fresh / "wiki" / "topics" / "old-thesis.md").write_text(
+        "---\ntitle: Old\ntype: thesis\ncreated: 2026-01-01\nupdated: 2026-01-01\n"
+        "tags: [x]\nsummary: A thesis-typed note.\n---\n\n# Old\n\nBody.\n",
+        encoding="utf-8")
+
+    sp.run([sys.executable, "-m", "magi", "lint", "--fix", "."], cwd=fresh,
+           capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+    assert not (fresh / "wiki" / "theses").exists()
+

@@ -107,6 +107,28 @@ def slugify(value: str, max_length: int = SLUG_MAX) -> str:
     return value
 
 
+def file_newline(path: str | Path) -> str:
+    """The line ending a file already uses, or the platform's for a new one.
+
+    `atomic_write`'s default rewrites a whole file in the platform ending,
+    which on Windows turns a one-line edit to an LF file into a diff of every
+    line. Notes travel between macOS and Windows sessions, so a rewrite has to
+    put back what it found rather than what this machine prefers.
+    """
+    import os
+    from pathlib import Path as _Path
+
+    try:
+        raw = _Path(path).read_bytes()
+    except OSError:
+        return os.linesep
+    if b"\r\n" in raw:
+        return "\r\n"
+    if b"\n" in raw:
+        return "\n"
+    return os.linesep
+
+
 def atomic_write(filepath: str | Path, content: str, encoding: str = "utf-8", newline: str | None = None) -> None:
     """Safely and atomically write content to a file.
 

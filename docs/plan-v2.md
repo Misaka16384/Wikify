@@ -49,12 +49,13 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [ ] 线内 `focus` 从 wikilink 派生并加权（挪到 M2，跟 `next` 的线级投影一起做）
 - [x] beads 迁到项目根（`pm init` 不再往上找 hub）；新增 `line:` 标签与 `--line` 过滤，`topic:` 保留以便读旧的 hub 库；任务行多一个 `line` 字段
 - [ ] `pm status` 并入 `sync`（挪到 M3 的命令面收缩一起做，那里才决定哪些命令消失）
-- [ ] hub 退场：registry 承接跨项目检索；`hub *` 删除；`each` → `--all-projects` 或删（待定）
-- [ ] `magi migrate` v2：topic → project（无 line）；`hub/topics/*` → 多个 project；`wiki/theses/*` → `drafts/`（补 `supports:` 提示）；`log.md` 停写保留；幂等可重跑
-- [ ] `core/durability.py`、`workspace.py` 的根发现改为 project 根
+- [→ M3] hub 退场**挪到 M3**：`test_docs_in_sync` 会拦下「文档里写了已经不存在的命令」，所以删 `hub *` 就必须同时重写 guide 的「先跑通一遍」「建立文献库」两章和两个 README——而 M3 本来就要把 README 改成 2 条命令、把 guide 对应章节更新。分两次写等于同一批文档改两遍。跨项目检索的替代物早就在了（registry + `retrieval.run_search` 的联邦检索），所以推迟不阻塞任何东西
+- [x] `magi migrate` v2 第一半：`wiki/theses/*` → `drafts/`（重名就原地不动并报出来，不猜）；`CLAUDE.md` 收成 `@AGENTS.md`（人写过的内容进 `.backup/` 并告诉他在哪）；重跑零改动有测试守着
+- [→ M3] `magi migrate` v2 第二半：`hub/topics/*` → 多个 project（跟 hub 退场一起）；`log.md` 停写保留
+- [x] 根发现：该用项目根的调用方都已经在用 `find_workspace_root`（`pm` 这次改掉了最后一个偏好 hub 的；`skills_cmd` 早就是「项目优先、hub 兜底」）。剩下的 `find_hub_root` 调用点全部属于 hub 功能本身，跟着 hub 一起在 M3 退场
 
-**验收**：迁移后 `magi sync` 三核全绿；旧 `raw/`、`wiki/` 字节不变；跨项目 `search` 有 `[kb:]` 标记；重跑 migrate 零改动。
-**待定**：多个 topic 合并为一个 project 是否提供交互选择（默认不合并）。
+**验收**：迁移后 `magi sync` 三核全绿；旧 `raw/`、`wiki/` 字节不变；跨项目 `search` 有 `[kb:]` 标记；重跑 migrate 零改动（有测试）。
+**待定**：多个 topic 合并为一个 project 是否提供交互选择（默认不合并）——跟 hub 退场一起在 M3 定。
 
 ---
 
@@ -86,7 +87,10 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [ ] `research` 吸收 `audit`；产物统一（threads 命题 + `wiki/topics` synthesis）；`validate` 单 schema
 - [ ] 托管块内容与幂等重写（`<!-- magi:begin/end -->`）；`CLAUDE.md = @AGENTS.md`
 - [ ] `magi install --host claude|codex|gemini|qwen`：skills + hooks（Stop / PreToolUse 计数 / SessionStart）+ 托管块；宿主配置解析-合并-写回并备份
-- [ ] README「先跑起来」改为 2 条命令；guide 对应章节更新；WebUI Operations 面板对齐新 plumbing
+- [ ] **hub 退场**（从 M1 挪来）：删 `hub *` / `each`；`hub/init_workspace.py` 移出 `hub/` 包；sync / ui / llmwiki 的 hub 分支清掉；`find_hub_root` 只留给 migrate 认旧库
+- [ ] **migrate 第二半**（从 M1 挪来）：`hub/topics/*` → 多个 project（就地迁 + 注册进 registry，不搬目录）；`log.md` 停写保留
+- [ ] `pm status` 并入 `sync`（从 M1 挪来）
+- [ ] README「先跑起来」改为 2 条命令；guide 对应章节更新；WebUI Operations 面板对齐新 plumbing——hub 那两章要一起重写，这是把 hub 退场挪到本里程碑的原因
 - [ ] 三条棘轮测试达标
 
 **验收**：棘轮全绿；`magi --help` 一屏；三宿主各跑一次冒烟（install → next → compile 一篇 → --close）；现有 README/guide 与 `--help` 一致性测试通过。

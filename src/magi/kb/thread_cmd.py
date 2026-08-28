@@ -37,8 +37,15 @@ def host_name(explicit: str | None = None) -> str:
     return explicit or os.environ.get("MAGI_HOST") or DEFAULT_HOST
 
 
-class Refused(Exception):
-    """Bad input, already phrased for the person or agent who typed it."""
+class Refused(SystemExit):
+    """Bad input, already phrased for the person or agent who typed it.
+
+    A `SystemExit` because that is what the rest of the CLI raises for this —
+    `cli.py` already knows how to print one without a traceback. `main` still
+    catches it so the exit code is the ordinary 1 rather than a string status,
+    but a caller reaching past `main` (an orchestrator, later) gets the
+    behaviour it would get from any other command instead of a stack trace.
+    """
 
 
 def _root(args) -> Path:
@@ -81,6 +88,9 @@ def _report(args, payload: dict, human: str) -> int:
 def cmd_new(args) -> int:
     if not args.title.strip():
         raise Refused("a note needs a title — it is what every list of them shows")
+    if not args.purpose.strip():
+        raise Refused("a note needs a purpose — one line on why it is worth opening, "
+                      "for whoever reads it in three months")
     path = _path(args, args.slug)
     extra = {}
     if args.bet:

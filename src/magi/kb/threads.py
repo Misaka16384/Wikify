@@ -38,7 +38,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..core import md_blocks, vocab
-from ..core.wiki_common import atomic_write, parse_frontmatter_text, split_frontmatter_text
+from ..core.wiki_common import (atomic_write, file_newline, parse_frontmatter_text,
+                                split_frontmatter_text)
 
 DIRNAME = "threads"
 
@@ -316,7 +317,7 @@ def append_post(path, text: str, host: str, line: str | None = None,
 
     with FileLock(str(lock), timeout=APPEND_TIMEOUT):
         existing = path.read_text(encoding="utf-8")
-        with open(path, "a", encoding="utf-8") as handle:
+        with open(path, "a", encoding="utf-8", newline=file_newline(path)) as handle:
             handle.write(_join_chunk(existing, post))
             handle.flush()
     return post
@@ -368,24 +369,50 @@ def set_status(path, dst: str, text: str, host: str, line: str | None = None,
         if not vocab.is_legal_transition(kind, src, dst):
             raise IllegalTransition(kind, src, dst, vocab.allowed_targets(kind, src))
 
+        ending = file_newline(path)
         if src != dst:
-            atomic_write(path, _replace_status(current, dst))
+            atomic_write(path, _replace_status(current, dst), newline=ending)
         post = format_post(text, host=host, line=line, at=at,
                            src=src if src != dst else None,
                            dst=dst if src != dst else None)
-        with open(path, "a", encoding="utf-8") as handle:
+        with open(path, "a", encoding="utf-8", newline=ending) as handle:
             handle.write(_join_chunk(path.read_text(encoding="utf-8"), post))
     return post
 
 
 def _replace_status(text: str, dst: str) -> str:
-    """Rewrite the `status:` line inside the frontmatter and nothing else."""
+    """Set the frontmatter's status to `dst`, and make sure it took.
+
+    The cheap path edits the one line, which keeps the file byte-identical
+    apart from that word — comments, key order and spacing all survive. But a
+    line edit and a YAML parse are two different readings of the same text, and
+    they disagree on anything this module did not write: flow style
+    (`{status: open, ...}`) has no line to match, and a multi-line quoted scalar
+    can contain a line that *looks* like the status and is not. Both failures
+    are silent, and a silent one here is the worst kind — `set_status` would
+    post "open → testing" over a note still saying `open`.
+
+    So the result is parsed back. If the cheap path did not actually move the
+    status, the frontmatter is re-serialised from the parsed mapping instead:
+    that reformats the block, which is a visible cost, and it is the right
+    trade against a status the audit trail lies about.
+    """
     split = split_frontmatter_text(text)
     if split is None:
         return text
     fm_text, body = split
-    rewritten = re.sub(r"(?m)^status:.*$", f"status: {dst}", fm_text, count=1)
-    return f"---\n{rewritten}\n---{body}"
+
+    edited = re.sub(r"(?m)^status:[^\n]*$", f"status: {dst}", fm_text, count=1)
+    if parse_frontmatter_text(edited).get("status") == dst:
+        return f"---\n{edited}\n---{body}"
+
+    import yaml
+
+    data = parse_frontmatter_text(fm_text)
+    data["status"] = dst
+    dumped = yaml.safe_dump(data, allow_unicode=True, sort_keys=False,
+                            default_flow_style=False).rstrip("\n")
+    return f"---\n{dumped}\n---{body}"
 
 
 def _join_chunk(existing: str, post: str) -> str:
@@ -420,7 +447,9 @@ def render(kind: str, title: str, purpose: str, status: str | None = None,
     parts = [f"---\n{fm_text}\n---", "", f"# {title}", ""]
     if body.strip():
         parts.extend([body.strip(), ""])
-    parts.extend([POST_HEADING, ""])
+    # No trailing blank: the first appended post supplies the blank line that
+    # separates it from the heading, the same way every later post does.
+    parts.append(POST_HEADING)
     return "\n".join(parts) + "\n"
 
 

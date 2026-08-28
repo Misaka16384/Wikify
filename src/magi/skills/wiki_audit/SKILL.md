@@ -74,7 +74,10 @@ When the user asks to perform an audit or truth check on their vault:
 4.  **Synthesize**: Merge the verified findings into a structured investigation report (Thesis).
 
 5.  **Produce Theses**:
-    *   Save the compiled Thesis report under `wiki/theses/YYYY-MM-DD-<slug>.md` with proper YAML frontmatter:
+    *   Save the compiled report under `drafts/YYYY-MM-DD-<slug>.md`. (`wiki/theses/` is
+        retired: the write-up is a draft, and the claims in it are propositions. Open one
+        per contradiction with `magi thread new --kind proposition` and point its
+        `derivation:` at this file.) Frontmatter:
         ```yaml
         ---
         title: "Thesis: <descriptive title>"

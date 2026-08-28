@@ -14,12 +14,14 @@ see the README migration section.
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 from magi.core.wiki_common import parse_frontmatter
 from magi.core.workspace import find_workspace_root, is_hub_root
+from magi.hub.init_workspace import CLAUDE_POINTER as POINTER, keep_a_copy
 
 
 def _migrate_hub(hub: Path, follow_up: bool = True) -> int:
@@ -213,6 +215,82 @@ def carry_legacy_config(topic: Path, legacy: Path) -> list[str]:
     return carried
 
 
+def retire_theses(root: Path) -> tuple[int, list[str]]:
+    """Move `wiki/theses/*` into `drafts/`. Returns (moved, names left behind).
+
+    v2 splits what a thesis was into two things that behave differently: the
+    working out, which is a draft and gets edited, and the claims it makes,
+    which are propositions with a status somebody has to keep current. Only the
+    first half can move mechanically — turning prose into propositions is a
+    judgement, so the migration says so and leaves the work to a person and an
+    agent reading it together.
+
+    A name already taken in `drafts/` is left where it is rather than merged or
+    renamed: two files with one name are somebody's mistake to look at, not a
+    migration's to guess about. Re-running is a no-op once the directory is
+    gone, which is what makes `magi migrate` safe to repeat.
+    """
+    theses = root / "wiki" / "theses"
+    if not theses.is_dir():
+        return 0, []
+
+    drafts = root / "drafts"
+    drafts.mkdir(parents=True, exist_ok=True)
+
+    moved, skipped = 0, []
+    for note in sorted(theses.glob("*.md")):
+        if note.name == "_index.md":
+            continue
+        target = drafts / note.name
+        if target.exists():
+            skipped.append(note.name)
+            continue
+        shutil.move(str(note), str(target))
+        moved += 1
+
+    if not skipped:
+        index = theses / "_index.md"
+        if index.is_file():
+            index.unlink()
+        try:
+            theses.rmdir()
+        except OSError:
+            pass
+    return moved, skipped
+
+
+def point_claude_at_agents(root: Path) -> str | None:
+    """Reduce `CLAUDE.md` to `@AGENTS.md`. Returns a note for the operator.
+
+    Two files holding the same protocol drift, and once they have, the answer
+    to "what was the agent told" depends on which host read which copy. The
+    generated protocol is identical in both, so collapsing it loses nothing —
+    but a person may have written their own text into `CLAUDE.md`, and that is
+    kept where they can find it rather than deleted or silently merged into a
+    file the CLI rewrites.
+    """
+    claude = root / "CLAUDE.md"
+    agents = root / "AGENTS.md"
+    if not claude.is_file():
+        claude.write_text(POINTER, encoding="utf-8")
+        return None
+
+    current = claude.read_text(encoding="utf-8", errors="replace")
+    if current.strip() == POINTER.strip():
+        return None
+
+    agents_text = agents.read_text(encoding="utf-8", errors="replace") if agents.is_file() else ""
+    if current.strip() and current.strip() not in agents_text:
+        kept = keep_a_copy(claude)
+        claude.write_text(POINTER, encoding="utf-8")
+        return (f"CLAUDE.md held text that is not in AGENTS.md; the old copy is at "
+                f"{kept.name} — move anything you still want into AGENTS.md, outside "
+                f"the magi:begin/end block")
+
+    claude.write_text(POINTER, encoding="utf-8")
+    return None
+
+
 def _migrate_topic(root: Path, hub: Path | None = None) -> int:
     # Carry the legacy identity into the new scaffolding.
     name, scope = root.name, "A topic wiki."
@@ -243,6 +321,19 @@ def _migrate_topic(root: Path, hub: Path | None = None) -> int:
               "would follow the old instructions.", file=sys.stderr)
         print(f"           Rename it: mv {stale.parent} {stale.parent}.wikify-backup",
               file=sys.stderr)
+
+    moved, skipped = retire_theses(root)
+    if moved:
+        print(f"  wiki/theses/ -> drafts/: {moved} file(s) moved")
+        print("           the claims inside them are propositions now — open one with "
+              "`magi thread new --kind proposition` and link the draft as its derivation")
+    for name in skipped:
+        print(f"  WARNING: drafts/{name} already exists; left wiki/theses/{name} in place",
+              file=sys.stderr)
+
+    note = point_claude_at_agents(root)
+    if note:
+        print(f"  WARNING: {note}", file=sys.stderr)
 
     legacy_cfg = find_legacy_config(root, hub)
     if legacy_cfg is not None:
