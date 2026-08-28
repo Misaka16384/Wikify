@@ -108,11 +108,14 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 
 - **`magi next`**（裸 `magi` 等价）：派生状态 → 排序的候选动作清单，每条带三样：为什么（哪个信号）、跑什么（命令或 skill 名）、代价（确定性 / 要 LLM / 要人）。**硬菜单软选择**：菜单由代码算，AI 结合用户当次的话选；无人在场只执行确定性项。**安静阈值**：无实质变化则只报开放问题。**只提议，不做事。** 项目级投影 = 哪条线该推；线级投影 = 这条线下一步。
 - **porcelain**（人可见；`--help` 默认只列这些，≤ 20 行）：`magi` / `init` / `ui` / `search` / `feed` / `close` / `publish` / `install` / `guide`。
-- **plumbing**：全部保留、`--json`、`--help --all` 才列。熟练者可用，不会用不影响。合并：
+- **plumbing**：全部保留、`--json`、`--help --all` 才列。熟练者可用，不会用不影响。
+  - `thread new / post / status`（M1 新增）是写 `threads/` 的**唯一正路**，不是可选糖：追加要拿锁，而 agent 手里的编辑器不拿锁；`thread status` 把改状态和写跟帖绑成一次调用，拆开就是「命题带着一个没人解释的状态」的由来。slug 必须已经是 `slugify` 的不动点（否则 `../x` 会写到 `threads/` 外面，空 slug 会生成没人看得见的 `.md`）。
+  - 合并：
   - `sync --fix` 吸收 `graph build` / `index` / `wiki reindex` / `lint --fix` / `ingest finalize` / `pm backlog-sync`（顺序知识进代码，不进 prose）
   - `ingest` 收成 `auto` / `review`（batch-list/decide/commit 三合一）/ `url`；各 rung 变 `--via`
   - `lint` 吸收 `verify` / `claims verify` / `validate` / `math check`
-  - `install` 吸收 `setup` / `skills *`；`init` 吸收 `pm init`
+  - `install` 吸收 `setup` / `skills *`
+  - ~~`init` 吸收 `pm init`~~ **不合并**（M1 实测推翻）：`bd init` 要 2.5 秒，而且会自己写 `AGENTS.md` / `CLAUDE.md` / `.claude/` / `.codex/`——跟托管块正面冲突。合并的目的是「人少记一条命令」，而 `pm init` 降为 plumbing 后人本来就不会打它：`magi sync` 该提示时会提示，打字的是 agent
   - `hub *` 删；`radar` 收成 `radar` / `radar schedule`
 - 后台调度：除 radar 外一律在会话开始时做，无常驻进程。
 

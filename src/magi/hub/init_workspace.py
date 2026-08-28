@@ -9,6 +9,8 @@ import argparse
 from datetime import date, datetime
 from pathlib import Path
 
+from magi.core import managed
+
 def keep_a_copy(p: Path) -> Path:
     """Put the current contents of *p* somewhere recoverable, and say where.
 
@@ -28,6 +30,23 @@ def keep_a_copy(p: Path) -> Path:
         n += 1
     shutil.copy2(p, dest)
     return dest
+
+DECISIONS_STARTER = """# Decisions
+
+Only what a person decided, and why in their own words. An agent transcribes
+here; nothing writes to this file on its own initiative. A decision that is not
+in this file was not made — it was assumed.
+"""
+
+NOTES_STARTER = """# Notes
+
+Anything, in any order, whenever it occurs to you. Append; do not tidy. The
+next `magi next` files each line where it belongs — a question, a proposition,
+a decision, a post on an existing note, or a task — and leaves a link back.
+"""
+
+CLAUDE_POINTER = "@AGENTS.md\n"
+
 
 def safe_write(p: Path, content: str, force: bool):
     if p.exists():
@@ -79,7 +98,12 @@ def main(argv=None):
         "wiki/concepts",
         "wiki/topics",
         "wiki/references",
-        "wiki/theses",
+        # v2: research state lives in files, not in a task tracker. `threads/`
+        # holds propositions, questions and lines; `drafts/` holds the working
+        # out they point at. `wiki/theses/` is retired into the two of them —
+        # existing workspaces keep theirs until `magi migrate` moves it.
+        "threads",
+        "drafts",
         "output",
         "inbox",
         "inbox/.processed",
@@ -152,13 +176,19 @@ created: {today}
         ("wiki/concepts", "Concepts"),
         ("wiki/topics", "Topics"),
         ("wiki/references", "References"),
-        ("wiki/theses", "Theses"),
         ("output", "Output"),
     ]
 
     for rel_path, title in dir_titles:
         p = topic_path / rel_path / "_index.md"
         create_minimal_index(p, title, today, args.force)
+
+    # 5b. The human's two surfaces. `decisions.md` is the only file MAGI
+    # never writes on its own initiative — an agent transcribes what a person
+    # decided and nothing else. `inbox/notes.md` is the opposite: anything,
+    # unsorted, and `magi next` files it.
+    safe_write(topic_path / "decisions.md", DECISIONS_STARTER, args.force)
+    safe_write(topic_path / "inbox" / "notes.md", NOTES_STARTER, args.force)
 
     # 6. Agent entry protocol: CLAUDE.md (Claude Code) + AGENTS.md (Codex
     # et al.) share one body so every host gets the same onboarding.
@@ -232,8 +262,11 @@ can answer; "proceed?" is not.
 - The wiki_* skills teach when/why to run each pipeline (ingest, compile,
   enrich, link, lint, ask, audit, research).
 """
-    safe_write(topic_path / "CLAUDE.md", protocol, args.force)
-    safe_write(topic_path / "AGENTS.md", protocol, args.force)
+    # The protocol goes in a marked block so upgrades can rewrite it without
+    # touching what a person added around it. CLAUDE.md holds one line so
+    # there is a single text to keep current, not two that drift.
+    managed.write(topic_path / "AGENTS.md", protocol)
+    safe_write(topic_path / "CLAUDE.md", CLAUDE_POINTER, args.force)
 
     # 7. Starter config.yaml (workspace-level; wins over ~/.config/magi/)
     config_yaml = """# MAGI workspace configuration (discovered by upward walk from cwd)

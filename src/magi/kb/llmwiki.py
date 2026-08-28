@@ -734,11 +734,17 @@ def check_structure(ctx: LintContext) -> None:
         ("wiki/concepts", "Concepts"),
         ("wiki/topics", "Topics"),
         ("wiki/references", "References"),
-        ("wiki/theses", "Theses"),
         ("output", "Output"),
     ]
     for rel, title in required:
         ensure_dir_index(ctx, ctx.root / rel, title)
+
+    # `wiki/theses/` is retired in v2 — its contents belong in `drafts/` (the
+    # working out) and `threads/` (the claims). It is not required of a new
+    # workspace and not an error in an old one: `magi migrate` moves it, and
+    # until then it stays a normal indexed directory.
+    if (ctx.root / "wiki" / "theses").exists():
+        ensure_dir_index(ctx, ctx.root / "wiki" / "theses", "Theses")
 
     if (ctx.root / "inventory").exists():
         ensure_dir_index(ctx, ctx.root / "inventory", "Inventory")

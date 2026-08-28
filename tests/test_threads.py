@@ -573,3 +573,84 @@ def test_the_new_directories_are_not_unexpected_files(tmp_path):
 
     unexpected = [issue for issue in ctx.issues if "Unexpected" in issue.message]
     assert unexpected == []
+
+
+# --------------------------------------------------------------------------
+# flipping a status is one action
+# --------------------------------------------------------------------------
+
+def test_a_flip_writes_the_status_and_the_reason_together(tmp_path):
+    """Two writes that must agree are one function. Split them and a note ends
+    up with a status nobody explained, or a post describing a flip that never
+    happened — and the audit trail is exactly those two agreeing."""
+    path = write(tmp_path)
+    threads.set_status(path, "testing", "Numerics started at L=64.",
+                       host="claude", line="qec")
+
+    note = threads.read_note(path)
+    assert note.status == "testing"
+    assert threads.transitions(note.posts) == [("open", "testing")]
+    assert "L=64" in note.posts[0].text
+    assert threads.validate(note) == []
+
+
+def test_the_rest_of_the_frontmatter_survives_the_flip(tmp_path):
+    path = write(tmp_path, text=NOTE.replace("line: [qec]", "line: [qec]\nbet: supported"))
+    threads.set_status(path, "conjectured", "Predicted.", host="claude")
+
+    note = threads.read_note(path)
+    assert note.frontmatter["bet"] == "supported"
+    assert note.lines == ["qec"]
+    assert note.frontmatter["purpose"] == "Whether the gap survives disorder."
+    keys = list(note.frontmatter)
+    assert keys[:4] == ["kind", "status", "created", "purpose"]
+
+
+def test_an_illegal_flip_changes_nothing(tmp_path):
+    path = write(tmp_path, text=NOTE.replace("status: open", "status: superseded"))
+    before = path.read_bytes()
+
+    with pytest.raises(threads.IllegalTransition) as caught:
+        threads.set_status(path, "testing", "reopening", host="claude")
+
+    assert "superseded" in str(caught.value)
+    assert caught.value.allowed == list(vocab.allowed_targets(vocab.PROPOSITION, "superseded"))
+    assert path.read_bytes() == before
+
+
+def test_flipping_to_the_status_it_already_has_is_just_a_comment(tmp_path):
+    path = write(tmp_path)
+    threads.set_status(path, "open", "Still looking for a handle on this.",
+                       host="codex")
+
+    note = threads.read_note(path)
+    assert note.status == "open"
+    assert len(note.posts) == 1
+    assert not note.posts[0].is_transition
+    assert threads.validate(note) == []
+
+
+def test_flipping_a_note_that_is_not_there(tmp_path):
+    with pytest.raises(FileNotFoundError):
+        threads.set_status(tmp_path / "threads" / "nope.md", "testing", "x", host="claude")
+
+
+def test_flips_and_comments_race_without_losing_either(tmp_path):
+    """`set_status` writes the file twice — rewrite then append — so it has to
+    hold the same lock the plain appenders do."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    path = write(tmp_path)
+
+    def work(n):
+        if n == 0:
+            return threads.set_status(path, "testing", "flipping", host="claude")
+        return threads.append_post(path, f"comment {n}", host=f"host{n}")
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(work, range(8)))
+
+    note = threads.read_note(path)
+    assert len(note.posts) == 8
+    assert note.status == "testing"
+    assert threads.transitions(note.posts) == [("open", "testing")]

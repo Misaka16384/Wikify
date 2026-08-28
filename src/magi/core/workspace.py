@@ -45,6 +45,14 @@ def is_hub_root(path: Path) -> bool:
     return (path / "wikis.json").is_file() and (path / "topics").is_dir()
 
 
+#: Files that live in `inbox/` without being something to ingest.
+#: `notes.md` is the human's dump area — anything, unsorted, whenever it
+#: occurs to them — and `magi next` files it into the wiki. Handing it to the
+#: ingest pipeline would try to turn a scratch pad into a paper, and counting
+#: it as pending would tell somebody they have work waiting that they do not.
+INBOX_NON_SOURCES = frozenset({".gitkeep", "_index.md", "notes.md"})
+
+
 def find_workspace_root(start: str | os.PathLike | None = None) -> Path | None:
     """Walk up from *start* (default: cwd) to the nearest topic workspace root.
 

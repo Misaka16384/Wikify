@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 
 import magi
 from magi.core.workspace import (
+    INBOX_NON_SOURCES,
     find_hub_root,
     find_workspace_root,
     is_hub_root,
@@ -1091,6 +1092,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                 "name": dest.name, "bytes": written,
                 "renamed": dest.name != filename,
                 "inbox_pending": sum(1 for p in inbox.iterdir() if p.is_file()
+                                     and p.name not in INBOX_NON_SOURCES
                                      and not p.name.startswith("."))}
 
     def _zotero_data_dir():

@@ -316,16 +316,86 @@ def append_post(path, text: str, host: str, line: str | None = None,
 
     with FileLock(str(lock), timeout=APPEND_TIMEOUT):
         existing = path.read_text(encoding="utf-8")
-        chunk = ""
-        if existing and not existing.endswith("\n"):
-            chunk += "\n"
-        if not has_discussion(existing):
-            chunk += f"\n{POST_HEADING}\n"
-        chunk += "\n" + post
         with open(path, "a", encoding="utf-8") as handle:
-            handle.write(chunk)
+            handle.write(_join_chunk(existing, post))
             handle.flush()
     return post
+
+
+class IllegalTransition(ValueError):
+    """A flip the lifecycle does not allow. Carries what was allowed instead."""
+
+    def __init__(self, kind: str, src: str, dst: str, allowed) -> None:
+        self.kind, self.src, self.dst, self.allowed = kind, src, dst, list(allowed)
+        super().__init__(
+            f"{kind}: {src} → {dst} is not a legal transition; "
+            f"from {src} it may reach {self.allowed}")
+
+
+def set_status(path, dst: str, text: str, host: str, line: str | None = None,
+               at: str | None = None) -> str:
+    """Flip a note's status and post the reason, both under one lock.
+
+    These are one action, so they are one function. Splitting them is how a
+    note ends up with a status nobody explained, or a post describing a flip
+    that never happened — and the whole audit story rests on the two agreeing.
+
+    The status is written first and the post second. A crash between them
+    leaves a real status with no explanation, which `lint` reports as
+    bookkeeping debt; the other order would leave a post claiming a transition
+    that did not happen, which reads as fact.
+
+    Raises `IllegalTransition` when the lifecycle forbids the move, and
+    `FileNotFoundError` when the note does not exist.
+    """
+    from filelock import FileLock
+
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(str(path))
+
+    lock = lock_path(path)
+    lock.parent.mkdir(parents=True, exist_ok=True)
+
+    with FileLock(str(lock), timeout=APPEND_TIMEOUT):
+        current = path.read_text(encoding="utf-8")
+        split = split_frontmatter_text(current)
+        if split is None:
+            raise ValueError(f"{path} has no frontmatter to flip")
+        frontmatter = parse_frontmatter_text(split[0])
+        kind = frontmatter.get("kind")
+        src = frontmatter.get("status")
+        if not vocab.is_legal_transition(kind, src, dst):
+            raise IllegalTransition(kind, src, dst, vocab.allowed_targets(kind, src))
+
+        if src != dst:
+            atomic_write(path, _replace_status(current, dst))
+        post = format_post(text, host=host, line=line, at=at,
+                           src=src if src != dst else None,
+                           dst=dst if src != dst else None)
+        with open(path, "a", encoding="utf-8") as handle:
+            handle.write(_join_chunk(path.read_text(encoding="utf-8"), post))
+    return post
+
+
+def _replace_status(text: str, dst: str) -> str:
+    """Rewrite the `status:` line inside the frontmatter and nothing else."""
+    split = split_frontmatter_text(text)
+    if split is None:
+        return text
+    fm_text, body = split
+    rewritten = re.sub(r"(?m)^status:.*$", f"status: {dst}", fm_text, count=1)
+    return f"---\n{rewritten}\n---{body}"
+
+
+def _join_chunk(existing: str, post: str) -> str:
+    """The bytes to append so `post` lands under a `## Discussion` heading."""
+    chunk = ""
+    if existing and not existing.endswith("\n"):
+        chunk += "\n"
+    if not has_discussion(existing):
+        chunk += f"\n{POST_HEADING}\n"
+    return chunk + "\n" + post
 
 
 def render(kind: str, title: str, purpose: str, status: str | None = None,

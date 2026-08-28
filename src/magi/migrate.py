@@ -111,7 +111,7 @@ def main(argv: list[str] | None = None) -> int:
         print("  magi skills install        # asks which CLI")
     elif rc == 0:
         print("\nRecommended next steps:")
-        print("  magi pm init        # provision beads at the hub root (work-state tracking)")
+        print("  magi pm init        # provision beads in this project (work-state tracking)")
         print("  magi index          # build the hybrid retrieval index (needs Ollama for vectors)")
         print("  magi sync           # check the sync ratio")
         print("\nIf you installed the old Wikify skills by copying skills/+bin/ into "

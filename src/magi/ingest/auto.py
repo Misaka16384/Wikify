@@ -21,14 +21,14 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from magi.core.config_loader import load_config
-from magi.core.workspace import find_workspace_root
+from magi.core.workspace import INBOX_NON_SOURCES, find_workspace_root
 from magi.ingest import routing
 
 # Re-exported rather than redefined: two lists of "what counts as LaTeX source"
 # is how two commands come to disagree about one file.
 TEX_SUFFIXES = routing.TEX_SUFFIXES
 TEXT_SUFFIXES = routing.TEXT_SUFFIXES
-SKIP_NAMES = {".gitkeep", "_index.md"}
+SKIP_NAMES = INBOX_NON_SOURCES
 
 
 def _cfg_get(cfg: dict, dotted: str, default=None):

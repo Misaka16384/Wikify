@@ -36,6 +36,7 @@ def test_things_a_person_made(path):
     "output/index.db",
     "output/.lint_cache.json",
     "output/.locks/threads-p-gap.md.lock",
+    "output/MAP.md",
     "scratch/chunk_a_01.md",
 ])
 def test_things_a_command_will_make_again(path):

@@ -25,8 +25,15 @@ will write either one again.
 
 **DERIVED** — a command produced it and the same command will produce it again.
 ``output/graph.db``, ``output/index.db``, ``output/.lint_cache.json``,
-``scratch/``. Deleting any of these costs time, never information. `magi index
---rebuild` deletes the index deliberately, and that is a supported thing to do.
+``output/.locks/``, ``output/MAP.md``, ``scratch/``. Deleting any of these
+costs time, never information. `magi index --rebuild` deletes the index
+deliberately, and that is a supported thing to do.
+
+``output/MAP.md`` is the one worth naming, because it does not look derived: it
+reads as a status page somebody maintains, and the temptation is to edit it
+when a line's status is wrong. Editing it changes nothing — it is rendered from
+the notes, and the next render overwrites the correction. The status lives in
+the ``threads/`` note, and that is the only place changing it has an effect.
 
 **TRANSACTIONAL** — neither. ``output/ingest/`` is an append-only log of what
 was queued, converted, decided and committed. It cannot be regenerated, because
@@ -73,6 +80,7 @@ DERIVED = (
     "output/index.db",
     "output/.lint_cache.json",
     "output/.locks/",
+    "output/MAP.md",
     "scratch/",
 )
 

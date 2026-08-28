@@ -41,11 +41,14 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 
 **目标**：新目录布局落地，旧 topic 无损迁移，hub 退场。
 
-- [ ] `magi init` 生成 v2 布局（`threads/`、`drafts/`、`inbox/notes.md`、`decisions.md`、AGENTS.md 托管块占位 + `CLAUDE.md = @AGENTS.md`）；吸收 `pm init`
-- [ ] line note 创建（`magi line new`，plumbing）；`line:` 字段解析
-- [ ] durability：MAP / feed = DERIVED（ORIGINAL 那半已在 M0 落地）
-- [ ] 检索：collection 增 `threads` / `drafts`；线内 `focus` 从 wikilink 派生并加权；threads 在知识型查询降权（最小版）
-- [ ] beads 迁到项目根、label = line；`pm status` 并入 `sync`
+- [x] `magi init` 生成 v2 布局（`threads/`、`drafts/`、`inbox/notes.md`、`decisions.md`、AGENTS.md 托管块 + `CLAUDE.md = @AGENTS.md`）；`wiki/theses/` 不再创建也不再必需（老库里有就照常索引）
+- [x] ~~`init` 吸收 `pm init`~~ **改为不吸收**：实测 `bd init` 要 2.5 秒，而且会自己写 `AGENTS.md` / `CLAUDE.md` / `.claude/` / `.codex/`——跟托管块正面冲突，还会给每个测试工作区加 2.5 秒（全套 ~30 处，等于把测试时间加一半）。合并的目的是「人少记一条命令」，而这个目的由 M3 的 porcelain/plumbing 拆分完全达成：`pm init` 降为 plumbing，`magi sync` 该提示时会提示，人本来就不用打它
+- [x] note 创建改为 `magi thread new --kind line|proposition|question`，不单开 `line new`——三种 kind 一个 schema，命令面也该是一个。另加 `thread post` / `thread status`（后者把改状态和写跟帖绑成一次调用），否则 M0 那把锁形同虚设：agent 会用编辑器直接改文件
+- [x] durability：`output/MAP.md`、`output/.locks/` = DERIVED（ORIGINAL 那半已在 M0 落地）
+- [x] 检索：collection 增 `threads`（`drafts` 早就有）；threads 在未指定 collection 时降权 0.6；`threads/` **不进** `CORPUS_DIRS`——那个元组喂的是会重写文件的维护流程，帖子不能被重排
+- [ ] 线内 `focus` 从 wikilink 派生并加权（挪到 M2，跟 `next` 的线级投影一起做）
+- [x] beads 迁到项目根（`pm init` 不再往上找 hub）；新增 `line:` 标签与 `--line` 过滤，`topic:` 保留以便读旧的 hub 库；任务行多一个 `line` 字段
+- [ ] `pm status` 并入 `sync`（挪到 M3 的命令面收缩一起做，那里才决定哪些命令消失）
 - [ ] hub 退场：registry 承接跨项目检索；`hub *` 删除；`each` → `--all-projects` 或删（待定）
 - [ ] `magi migrate` v2：topic → project（无 line）；`hub/topics/*` → 多个 project；`wiki/theses/*` → `drafts/`（补 `supports:` 提示）；`log.md` 停写保留；幂等可重跑
 - [ ] `core/durability.py`、`workspace.py` 的根发现改为 project 根

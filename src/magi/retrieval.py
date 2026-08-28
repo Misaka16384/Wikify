@@ -540,13 +540,19 @@ def _collection_of(rel: Path) -> str:
         return "raw"
     if parts[0] == "drafts":
         return "drafts"
+    if parts[0] == "threads":
+        return "threads"
     if parts[0] == "wiki" and len(parts) > 1 and parts[1] in ("concepts", "references", "topics", "theses"):
         return parts[1]
     return "other"
 
 
 def _iter_corpus(root: Path):
-    for base in ("wiki", "raw", "drafts"):
+    # `threads/` is indexed but deliberately absent from `wiki_common
+    # .CORPUS_DIRS`: that tuple drives the maintenance passes that *rewrite*
+    # files, and a discussion is append-only — nothing reformats somebody's
+    # post. Searchable, not editable.
+    for base in ("wiki", "raw", "drafts", "threads"):
         d = root / base
         if not d.is_dir():
             continue
@@ -554,6 +560,36 @@ def _iter_corpus(root: Path):
             if p.name == "_index.md" or ".backup" in p.parts:
                 continue
             yield p
+
+
+#: How much a collection counts for in a query that did not ask for it.
+#: `threads/` holds propositions in progress — a conjecture nobody has tested
+#: is not the answer to "what is X", and letting one outrank a concept card is
+#: how a guess gets read back as knowledge. Asking for it by name
+#: (`--collection threads`) is a filter, not a ranking, so the penalty lifts.
+_COLLECTION_WEIGHT = {"threads": 0.6}
+
+
+def _collection_weights(conns, merged) -> dict:
+    """`{(kb, chunk_id): multiplier}` for the chunks a search is ranking.
+
+    One query per knowledge base rather than one per chunk: the candidate pool
+    after fusion is small, but it is not one row.
+    """
+    by_kb: dict = {}
+    for name, cid in merged:
+        by_kb.setdefault(name, []).append(cid)
+
+    weights: dict = {}
+    for name, ids in by_kb.items():
+        placeholders = ",".join("?" * len(ids))
+        rows = conns[name].execute(
+            f"SELECT id, collection FROM chunks WHERE id IN ({placeholders})", ids)
+        for cid, coll in rows:
+            weight = _COLLECTION_WEIGHT.get(coll)
+            if weight is not None:
+                weights[(name, cid)] = weight
+    return weights
 
 
 def _chunk(text: str) -> list[tuple[str, int, int, str]]:
@@ -979,8 +1015,9 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
                               "run 'magi index' to embed it (MAGI starts Ollama itself; "
                               "if it is not installed, get it from https://ollama.com)")
 
+        weights = _collection_weights(conns, merged) if not collection else {}
         scores = {
-            key: sum(1.0 / (RRF_K + r) for r in legs.values())
+            key: sum(1.0 / (RRF_K + r) for r in legs.values()) * weights.get(key, 1.0)
             for key, legs in merged.items()
         }
         top = sorted(scores.items(), key=lambda kv: -kv[1])[:k]
@@ -1082,7 +1119,8 @@ def main(argv: list[str] | None = None) -> int:
     p_search = sub.add_parser("search", help="Hybrid BM25+vector search with RRF fusion")
     p_search.add_argument("query")
     p_search.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
-    p_search.add_argument("--collection", choices=["concepts", "references", "topics", "theses", "raw", "drafts", "other"])
+    p_search.add_argument("--collection", choices=["concepts", "references", "topics", "theses",
+                                                   "raw", "drafts", "threads", "other"])
     p_search.add_argument("--path", help="Only search chunks whose file path matches this glob, "
                                          "e.g. --path 'raw/papers/2026-*higher-rank*' (applies per KB)")
     p_search.add_argument("-k", type=int, default=8, help="Max results (default 8)")

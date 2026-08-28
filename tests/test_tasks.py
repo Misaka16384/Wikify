@@ -219,3 +219,65 @@ def test_the_counts_the_panel_shows_come_from_the_rows_it_lists():
     assert "setTaskCounts(countTasks(data.tasks))" in app_js, (
         "the counts are no longer derived from the listed rows"
     )
+
+
+# --------------------------------------------------------------------------
+# v2: one store per project, labelled by research line
+# --------------------------------------------------------------------------
+
+def test_pm_init_creates_the_store_where_you_are_standing(tmp_path, monkeypatch):
+    """v1 walked up to the hub first, so `magi pm init` inside a project put
+    the store somewhere else and the project got a shared one. One project,
+    one store — the scoping is structural instead of a label."""
+    import argparse
+
+    hub = tmp_path / "hub"
+    project = hub / "topics" / "alpha"
+    (project / "wiki").mkdir(parents=True)
+    (project / "config.yaml").write_text("name: alpha\n", encoding="utf-8")
+    (hub / "wikis.json").write_text('{"wikis": {}}', encoding="utf-8")
+    subprocess.run(["git", "init", "-q", "."], cwd=project, capture_output=True)
+
+    monkeypatch.chdir(project)
+    rc = pm.cmd_init(argparse.Namespace(path=None, prefix="al"))
+    if rc != 0:
+        pytest.skip("bd init failed in this environment")
+
+    assert (project / ".beads" / "metadata.json").is_file()
+    assert not (hub / ".beads").exists()
+
+
+def _make_lined(hub, topic, line, title):
+    res = _bd(["create", "-t", "task", f"[{topic}] {title}",
+               "--label", f"topic:{topic}", "--label", f"line:{line}", "-d", "d"], hub)
+    assert res.returncode == 0, res.stderr
+    return res
+
+
+def test_tasks_can_be_narrowed_to_one_research_line(hub):
+    """Beads holds mechanical work only, so the useful question is not "what
+    is this project doing" — that lives in `threads/` — but "what chores does
+    this line have waiting"."""
+    _make_lined(hub, "alpha", "qec", "read Kitaev 2003")
+    _make_lined(hub, "alpha", "transport", "rerun the sweep")
+
+    qec = pm.list_tasks(hub / "topics" / "alpha", line="qec")
+
+    assert [t["title"] for t in qec] == ["read Kitaev 2003"]
+    assert qec[0]["line"] == "qec"
+
+
+def test_a_task_with_no_line_has_none_rather_than_a_guess(hub):
+    _make(hub, "alpha", "compile something")
+    row = pm.list_tasks(hub / "topics" / "alpha")[0]
+    assert row["line"] is None
+
+
+def test_the_scoping_labels_do_not_show_up_as_user_labels(hub):
+    """`topic:` and `line:` are how the store is addressed, not tags somebody
+    put on the issue. Rendering them in the label list makes every row carry
+    two chips that say what the panel already says."""
+    _make_lined(hub, "alpha", "qec", "read Kitaev 2003")
+    row = pm.list_tasks(hub / "topics" / "alpha")[0]
+    assert row["labels"] == []
+

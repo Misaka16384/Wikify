@@ -318,7 +318,7 @@ def build_report(cwd: Path | None = None) -> dict:
             _hint("beads-missing",
                   "install beads (bd) for work-state tracking: https://github.com/gastownhall/beads")
         elif not b["beads_root"]:
-            _hint("pm-uninit", "magi pm init   # initialize beads at the hub root")
+            _hint("pm-uninit", "magi pm init   # initialize beads in this project")
         elif (b["ready"] or 0) > 0:
             _hint("bd-ready", "bd ready   # there is actionable work", ready=b["ready"])
 

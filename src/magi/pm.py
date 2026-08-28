@@ -20,7 +20,7 @@ import time
 from functools import lru_cache
 from pathlib import Path
 
-from magi.core.workspace import find_hub_root, find_workspace_root
+from magi.core.workspace import find_workspace_root
 
 RESEARCH_TYPES = ["question", "survey", "derivation", "computation", "experiment", "review"]
 
@@ -159,23 +159,36 @@ def bd_status_summary(cwd: Path) -> dict | None:
 # --------------------------------------------------------------------------
 
 # `magi pm backlog-sync` and the radar's "create reading task" both stamp the
-# workspace onto every issue they open. That label is what makes a hub-wide
+# workspace onto every issue they open. That label is what made a hub-wide
 # store answerable per workspace — without it the only honest thing the panel
-# could say was "17, and some of them are not yours".
+# could say was "17, and some of them are not yours". It is still written and
+# still read, because stores created before v2 sit at a hub root and their
+# issues carry it.
 TOPIC_LABEL = "topic:"
+
+# What the label means in a v2 project, where the store is already scoped to
+# one library: which research line the task belongs to. Beads holds mechanical
+# work only — a compile backlog, a reading queue, a review to run. Research
+# state lives in `threads/`, where it can carry a status and an argument.
+LINE_LABEL = "line:"
 
 
 def topic_label(workspace: Path) -> str:
     return f"{TOPIC_LABEL}{Path(workspace).name}"
 
 
+def line_label(line: str) -> str:
+    return f"{LINE_LABEL}{line}"
+
+
 def list_tasks(workspace: Path, scope: str = "workspace",
-               include_closed: bool = False) -> list[dict] | None:
+               include_closed: bool = False, line: str | None = None) -> list[dict] | None:
     """Open issues in this workspace's store. None when there is no store.
 
     `scope="workspace"` filters to issues labelled for this topic; "hub"
     returns everything under the shared root. The default is the narrow one:
     a panel under a picker naming one library should answer for that library.
+    `line` narrows further, to one research line.
     """
     root = find_beads_root(Path(workspace))
     if root is None or not bd_available():
@@ -185,6 +198,8 @@ def list_tasks(workspace: Path, scope: str = "workspace",
         args.append("--all")
     if scope == "workspace":
         args += ["--label", topic_label(workspace)]
+    if line:
+        args += ["--label", line_label(line)]
     try:
         proc = _run_bd(args, cwd=root)
     except (OSError, subprocess.TimeoutExpired):
@@ -209,6 +224,7 @@ def _task_row(raw: dict, workspace: Path) -> dict:
     title = str(raw.get("title") or "")
     labels = [str(x) for x in (raw.get("labels") or [])]
     topic = next((l[len(TOPIC_LABEL):] for l in labels if l.startswith(TOPIC_LABEL)), None)
+    line = next((l[len(LINE_LABEL):] for l in labels if l.startswith(LINE_LABEL)), None)
     if topic and title.startswith(f"[{topic}]"):
         title = title[len(topic) + 2:].strip()
     return {
@@ -219,10 +235,15 @@ def _task_row(raw: dict, workspace: Path) -> dict:
         "priority": raw.get("priority"),
         "issue_type": str(raw.get("issue_type") or ""),
         "topic": topic,
+        # Which research line asked for this task. Beads holds mechanical work
+        # only, so this is how a line's chores stay attached to the line
+        # without the line's *state* living in a task tracker.
+        "line": line,
         # Whether this issue belongs to the workspace being viewed. A hub-scope
         # listing mixes libraries, and the rows have to say which is which.
         "is_here": topic == Path(workspace).name if topic else False,
-        "labels": [l for l in labels if not l.startswith(TOPIC_LABEL)],
+        "labels": [l for l in labels
+                   if not l.startswith(TOPIC_LABEL) and not l.startswith(LINE_LABEL)],
         "blocked_by": int(raw.get("dependency_count") or 0),
         "blocks": int(raw.get("dependent_count") or 0),
         "updated_at": str(raw.get("updated_at") or ""),
@@ -259,7 +280,11 @@ def act_on_task(workspace: Path, task_id: str, action: str) -> tuple[bool, str]:
 
 
 def cmd_init(args: argparse.Namespace) -> int:
-    root = Path(args.path).resolve() if args.path else (find_hub_root() or find_workspace_root() or Path.cwd())
+    # The project root, not the hub above it. A store shared by every topic in
+    # a hub could only answer "17 issues, and some of them are yours" — which
+    # is why every issue had to carry a `topic:` label to be findable again.
+    # One store per project makes the scoping structural instead.
+    root = Path(args.path).resolve() if args.path else (find_workspace_root() or Path.cwd())
     if not bd_available():
         print("bd (Beads) is not installed. See https://github.com/gastownhall/beads — "
               "on Windows: irm https://raw.githubusercontent.com/gastownhall/beads/main/install.ps1 | iex",
@@ -309,7 +334,7 @@ def cmd_status(args: argparse.Namespace) -> int:
         if not payload["bd_installed"]:
             print("bd not installed")
         elif not root:
-            print("no beads database found (run 'magi pm init' at the hub root)")
+            print("no beads database found (run 'magi pm init' in the project root)")
         else:
             s = payload["summary"] or {}
             print(f"beads @ {root}: {s.get('ready_issues', '?')} ready, "

@@ -1079,6 +1079,36 @@ magi kb unregister <name>      # Remove only the registry entry, files untouched
 
 ---
 
+## Research state {#threads}
+
+A topic's state lives in files, not in a task tracker. Every note under
+`threads/` is a **proposition** (it has a truth value; this is the unit research
+is made of), a **question** (open-ended — its answers are propositions), or a
+**line** (a research direction, whose body *is* its status: where it got to,
+what is stuck, what is next). The filename is its id and never changes.
+
+```bash
+magi thread new p-gap --kind proposition --title "The gap survives weak disorder" \
+  --purpose "Decide before committing a month of numerics" --line qec --bet supported
+magi thread status p-gap testing --text "Started at L=64"   # move it, and say why
+magi thread post p-gap --text "L=64 converged; trying L=128"  # just a remark
+```
+
+A proposition runs `open → conjectured → testing → supported | refuted →
+superseded`; a review rejection or a clash of evidence puts it in `disputed`,
+which is a person's call. **A status change carries a post** — which is why
+`magi thread status` does both, so you cannot do half of it.
+
+Each note has two halves: the body belongs to whoever opened it, and
+`## Discussion` is append-only — nobody edits anybody's post. **Use the command
+rather than an editor**: appending takes a lock and writing the whole file in an
+editor does not, so two agents at once lose posts (especially on Windows, where
+appending is not atomic).
+
+`magi lint` checks all of this in passing: whether the status word belongs to
+the kind, whether the posted chain of transitions is legal, and whether a status
+was changed without anybody saying why.
+
 ## Writing your paper {#writing}
 
 Day to day this is three commands, in this order:
@@ -1102,7 +1132,7 @@ magi pm backlog-sync   # turn "uncompiled raw sources" into to-dos
 ```
 
 > [!NOTE]
-> If you're a single-topic user, you don't need a hub. When `magi pm status` can't find a task database, it prints "run 'magi pm init' at the hub root" — that message is misleading if you have no hub. Just run `magi pm init` inside the topic directory; it creates the database in place.
+> `magi pm init` creates the store in the project you are standing in — since v2 it no longer walks up looking for a hub, so it is one store per project. The store holds mechanical work only: a compile backlog, a reading queue, a review to run. A topic's *state* lives in `threads/`, which can carry a status and an argument. Tasks opened for a research line carry a `line:<name>` label.
 
 The six research types: `question`, `survey`, `derivation`, `computation`, `experiment`, `review` (plus Beads' own built-in `task`/`bug`/`feature`/`epic`/`chore`/`decision`).
 

@@ -35,6 +35,10 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("pm", "init"): "初始化 beads 并写入科研专用的议题类型",
     ("pm", "status"): "查看 beads 是否可用及各类议题数量",
     ("pm", "backlog-sync"): "把尚未编译的原始文献转成 bd 议题",
+    # 研究状态（命题 / 问题 / 研究线）
+    ("thread", "new"): "开一个命题、问题或研究线（文件名即 ID，建好不改）",
+    ("thread", "post"): "在某篇 note 的讨论区追加一条署名跟帖",
+    ("thread", "status"): "改状态，同时把原因写成跟帖（两件事一次做完）",
     # 文献摄入
     ("ingest", "auto"): "自动选路摄入（按文件类型选转换器并自动收尾；不给路径就处理整个 inbox/）",
     ("ingest", "add"): "规范化收件箱文档并归档进 raw/",
@@ -100,6 +104,7 @@ GROUP_HELP_ZH: dict[str, str] = {
     "kb": "全局知识库注册表（跨工作区检索）",
     "ingest": "文献摄入（PDF/LaTeX → Markdown）",
     "wiki": "概念卡片与文献卡片操作",
+    "thread": "命题、问题与研究线",
     "graph": "SQLite 知识图谱",
     "math": "LaTeX 公式格式化与校验",
     "pm": "对接 Beads (bd) 的任务状态桥",

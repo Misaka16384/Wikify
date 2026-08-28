@@ -197,10 +197,12 @@ def test_categories_appear_only_when_they_separate_something(tmp_path):
 
 
 def test_reindex_covers_every_wiki_directory_init_creates(workspace):
-    """`magi init` scaffolds four; reindex maintained two, so `topics/` and
-    `theses/` drifted to whatever lint happened to do to them."""
+    """`magi init` scaffolded four and reindex maintained two, so `topics/`
+    and `theses/` drifted to whatever lint happened to do to them. v2 retires
+    `theses/`; the rule the test encodes is unchanged — reindex covers every
+    directory init creates, whatever that set currently is."""
     _magi(workspace, "wiki", "reindex", ".")
-    for name in ("references", "concepts", "topics", "theses"):
+    for name in ("references", "concepts", "topics"):
         assert (workspace / "wiki" / name / "_index.md").is_file(), name
 
 

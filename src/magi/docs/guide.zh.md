@@ -1046,6 +1046,29 @@ magi kb unregister <名字>      # 只删注册项，不动文件
 
 ---
 
+## 研究状态 {#threads}
+
+课题的状态住在文件里，不在任务追踪器里。`threads/` 下每篇 note 是一个**命题**（有真值，
+研究的基本单元）、一个**问题**（开放式，答案是一批命题），或者一条**研究线**（正文就是
+它的 STATUS：到哪了、卡在哪、下一步）。文件名就是它的 ID，建好不改。
+
+```powershell
+magi thread new p-gap --kind proposition --title "弱无序下能隙不闭合" `
+  --purpose "决定要不要投一个月做数值" --line qec --bet supported
+magi thread status p-gap testing --text "L=64 起跑"   # 改状态，顺手把原因记下
+magi thread post p-gap --text "L=64 收敛，试 L=128"    # 只是说句话，不改状态
+```
+
+命题的生命周期是 `open → conjectured → testing → supported | refuted → superseded`；
+审核驳回或证据冲突会把它打到 `disputed`，那是要人来判的。**改状态必须带一条跟帖**——
+所以 `magi thread status` 把两件事一起做了，你没法只做一半。
+
+每篇 note 分两半：正文归开它的人，`## Discussion` 只追加、谁都不改别人的帖子。
+**用命令而不是编辑器改**：追加是带锁的，编辑器写整个文件不带锁，两个 agent 同时写会
+丢帖子（Windows 上尤其会，那里的追加不是原子操作）。
+
+`magi lint` 顺带校验这些：状态词对不对得上 kind、跃迁链合不合法、改了状态却没写跟帖。
+
 ## 写论文 {#writing}
 
 日常就这三条，按这个顺序：
@@ -1069,7 +1092,7 @@ magi pm backlog-sync  # 把「还没编译的 raw 源」变成待办
 ```
 
 > [!NOTE]
-> 单主题用户不用建 hub。`magi pm status` 找不到任务库时会提示「run 'magi pm init' at the hub root」，这句话在没有 hub 的情况下是误导的——直接在主题目录里跑 `magi pm init` 就行，它会就地建库。
+> `magi pm init` 就在当前项目里建库（v2 起不再往上找 hub），一个项目一个任务库。任务库只放机械活——编译积压、待读、待审；课题状态在 `threads/` 里，那里才装得下状态和论证。给某条线开的活打 `line:<线名>` 标签。
 
 六种科研类型：`question`、`survey`、`derivation`、`computation`、`experiment`、`review`（外加 bd 自带的 `task`/`bug`/`feature`/`epic`/`chore`/`decision`）。
 

@@ -68,6 +68,13 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("wiki", "placeholders"): ("magi.kb.find_placeholders", [], "Detect stub/placeholder text in a document"),
     ("wiki", "uncompiled"): ("magi.kb.detect_uncompiled", [], "List raw sources without compiled references"),
     ("wiki", "reindex"): ("magi.kb.index_builder", [], "Regenerate _index.md tables"),
+    # research state
+    ("thread", "new"): ("magi.kb.thread_cmd", ["new"],
+                        "Open a proposition, question or research line"),
+    ("thread", "post"): ("magi.kb.thread_cmd", ["post"],
+                         "Add a signed post to a note's discussion"),
+    ("thread", "status"): ("magi.kb.thread_cmd", ["status"],
+                           "Move a note along, with the reason as a post"),
     # graph
     ("graph", "build"): ("magi.kb.llmwiki", ["graph"], "Build/refresh the SQLite knowledge graph"),
     ("graph", "query"): ("magi.kb.graph_query", [], "Read-only SQL over output/graph.db"),
@@ -108,6 +115,7 @@ _GROUP_HELP = {
     "kb": "Global knowledge-base registry (cross-workspace search)",
     "ingest": "Document ingestion (PDF/LaTeX -> Markdown)",
     "wiki": "Concept and reference card operations",
+    "thread": "Propositions, questions and research lines",
     "graph": "SQLite knowledge graph",
     "math": "LaTeX math formatting and validation",
     "pm": "Work-state bridge to Beads (bd)",
