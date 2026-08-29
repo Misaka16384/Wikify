@@ -247,8 +247,7 @@ def _queue(notes, lines) -> list:
     for note in sorted(notes, key=lambda n: n.slug):
         line = (note.lines or [UNLINED])[0]
         if (note.kind, note.status) in vocab.QUEUE_TRIGGERS:
-            why = ("a reviewer rejected this after it was claimed solved"
-                   if note.status == "disputed" else
+            why = (_disputed_by(note) if note.status == "disputed" else
                    "two writers set this status within minutes of each other")
             items.append(QueueItem(kind=note.status, slug=note.slug, why=why, line=line))
         elif (note.kind == vocab.PROPOSITION
@@ -271,6 +270,23 @@ def _queue(notes, lines) -> list:
                 why=f"nothing posted here since {view.last_move or 'ever'}; "
                     f"still {view.status}, or dormant?"))
     return items
+
+
+def _disputed_by(note) -> str:
+    """Who put this in dispute, read off the post that did it.
+
+    A reviewer and a person are different events to a reader: one is a second
+    opinion to weigh, the other is something they already know they did.
+    """
+    who = None
+    for post in note.posts:
+        if post.is_transition and post.dst == "disputed":
+            who = post.host
+    if who == vocab.REVIEWER:
+        return "a reviewer rejected this after it was claimed solved"
+    if who == vocab.HUMAN:
+        return "you put this in dispute — it is waiting on what you decide"
+    return "this was disputed after it was claimed solved"
 
 
 def _debt(root: Path, notes, links=None) -> list:
@@ -715,6 +731,39 @@ def _read_text(path: Path):
         return None
 
 
+def dump(root, text: str):
+    """Append what somebody just said to `inbox/notes.md`, verbatim.
+
+    The writer of the file `unfiled()` reads, kept next to it so the two cannot
+    disagree about what a dumped line looks like. The box asks for no format,
+    so this adds none beyond the `-` that makes the file read as a list.
+
+    Appends rather than rewrites, and keeps the file's own line endings: a text
+    box that reformats somebody's other two hundred lines because they typed
+    one is a text box they stop using.
+    """
+    from .core.wiki_common import file_newline
+
+    path = Path(root).joinpath(*NOTES)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return path
+    # A `#` is *not* passed through: `unfiled()` reads a leading `#` as the
+    # starter's scaffolding and drops the line, so a heading-shaped thought
+    # would be written down and then never surface again. The box promises no
+    # format; the one thing it owes in return is that what goes in comes back.
+    chunk = "\n".join(line if line.startswith(("-", "*")) else f"- {line}"
+                      for line in lines) + "\n"
+    existing = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
+    if existing and not existing.endswith("\n"):
+        chunk = "\n" + chunk
+    ending = file_newline(path) if path.is_file() else None
+    with open(path, "a", encoding="utf-8", newline=ending) as handle:
+        handle.write(chunk)
+    return path
+
+
 def unreviewed(state: State) -> list:
     """Claims that say they are solved and have had no independent reader.
 
@@ -1156,7 +1205,7 @@ def _root_of(topic_dir):
     return Path(root)
 
 
-def _loaded(root):
+def loaded(root):
     from .core.config_loader import get as config_get
     from .core.config_loader import load_config
 
@@ -1179,7 +1228,7 @@ def _next(argv) -> int:
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
     args = parser.parse_args(argv)
 
-    state = _loaded(_root_of(args.topic_dir))
+    state = loaded(_root_of(args.topic_dir))
     if args.line:
         state.lines = [view for view in state.lines if view.slug == args.line]
         state.queue = [item for item in state.queue if item.line == args.line]
@@ -1220,7 +1269,7 @@ def _feed(argv) -> int:
         raise SystemExit(f"--since {args.since!r} is not a date I can read "
                          "(try 2026-08-01 or 2026-08-01T12:00:00Z)")
 
-    state = _loaded(_root_of(args.topic_dir))
+    state = loaded(_root_of(args.topic_dir))
     entries = feed(state, since=since, line=args.line, author=args.author)[:args.n]
     if args.json:
         print(json.dumps([vars(entry) for entry in entries], ensure_ascii=False, indent=2))

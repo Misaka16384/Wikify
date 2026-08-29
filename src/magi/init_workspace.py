@@ -211,6 +211,9 @@ created: {today}
     config_yaml = """# MAGI workspace configuration (discovered by upward walk from cwd)
 research:
   coaching: light      # off | light | strict — how hard the close gate pushes
+  wip_limit: 3         # open propositions per line before it asks a person
+  stall_days: 14       # days of silence before a line is called quiet
+  review_host:         # empty = probe PATH for a CLI that is not the author
 ollama:
   base_url: "http://127.0.0.1:11434"
   autostart: true      # start a stopped local Ollama on demand

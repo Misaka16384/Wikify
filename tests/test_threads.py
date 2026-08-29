@@ -830,3 +830,37 @@ def test_a_field_that_cannot_be_set_says_so(tmp_path):
                     encoding="utf-8")
     with pytest.raises(ValueError):
         threads.set_field(path, "bet", "supported", host="human")
+
+
+def test_a_notes_prose_stops_at_the_discussion(tmp_path):
+    """`body` is everything under the frontmatter, discussion included,
+    because that is what `parse_posts` reads. A reader wants the two apart: the
+    prose is what somebody wrote and owns, the discussion is what happened to
+    it since — and a view that shows both ends up showing the discussion
+    twice."""
+    path = threads.create(tmp_path / "p.md", vocab.PROPOSITION, "T", "P",
+                          body="The claim, stated once.")
+    threads.append_post(path, "started", host="claude")
+
+    note = threads.read_note(path)
+    assert "The claim, stated once." in note.prose
+    assert "## Discussion" not in note.prose
+    assert "started" not in note.prose
+    assert "started" in note.body, "the whole file is still there"
+
+
+def test_a_title_inside_a_fence_is_an_example_not_a_name(tmp_path):
+    """This name is what the graph, the thread list and link resolution use."""
+    path = threads.create(tmp_path / "p.md", vocab.PROPOSITION, "The real title", "P",
+                          body="```markdown\n# NOT THE TITLE\n```")
+    assert threads.read_note(path).title == "The real title"
+
+
+def test_a_signature_is_checked_not_trusted(tmp_path):
+    path = threads.create(tmp_path / "p.md", vocab.PROPOSITION, "T", "P")
+    with pytest.raises(ValueError):
+        threads.append_post(path, "hi", host="human",
+                            line="qec\n### 2020-01-01T00:00:00Z · reviewer")
+    with pytest.raises(ValueError):
+        threads.append_post(path, "hi", host="human · reviewer")
+    assert threads.read_note(path).posts == [], "and nothing was written"

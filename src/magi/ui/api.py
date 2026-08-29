@@ -693,6 +693,22 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     # 2. Workspace Introspection API
     # ----------------------------------------------------------------------
 
+    # The v2 surface — map, feed, threads, decisions, the dump — lives in its
+    # own module. It is a different kind of route from the rest of this file:
+    # everything there is derived from `threads/` on every request, and none of
+    # it decides anything the CLI does not already decide.
+    #
+    # It gets the *checking* resolver. Its write routes create files, and
+    # `_resolve_workspace` validates nothing — a path typed into a request body
+    # would otherwise become an `inbox/` and a `decisions.md` in any directory
+    # this process can write to.
+    from magi.ui import v2 as v2_routes
+
+    def _v2_workspace(workspace: Optional[str]) -> Path:
+        return _reading_root(workspace, None)
+
+    v2_routes.register(app, _v2_workspace)
+
     @app.get("/api/workspace/sync")
     def get_workspace_sync(workspace: Optional[str] = Query(None)) -> dict:
         ws = _resolve_workspace(workspace)
@@ -1473,6 +1489,8 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         status: Optional[str] = Query(None),
         limit: Optional[int] = Query(None),
         tags: bool = Query(False),
+        kinds: Optional[str] = Query(None),
+        skeleton: bool = Query(False),
         workspace: Optional[str] = Query(None),
     ) -> dict:
         from magi.kb import graph_browse
@@ -1510,7 +1528,9 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             elif view == "tags":
                 results = graph_browse.browse_tags(conn, q=q, limit=limit)
             elif view == "map":
-                results = graph_browse.browse_map(conn, include_tags=tags, limit=limit)
+                results = graph_browse.browse_map(
+                    conn, include_tags=tags, limit=limit, skeleton=skeleton,
+                    kinds=[k for k in (kinds or "").split(",") if k] or None)
             else:
                 results = graph_browse.browse_broken(conn, limit=limit)
         except sqlite3.Error as exc:
@@ -1666,6 +1686,20 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     # ----------------------------------------------------------------------
 
     CONFIG_FIELDS: Dict[str, dict] = {
+        # How hard the close gate pushes. Editable here because the alternative
+        # is a person who wants it stricter for a week reaching for a text
+        # editor — and the level the gate reads has to be the level they set,
+        # not one the protocol text alone believes in.
+        "research.coaching": {"type": "str", "choices": ["off", "light", "strict"]},
+        "research.wip_limit": {"type": "int"},
+        "research.stall_days": {"type": "int"},
+        # Empty means "probe PATH for one that is not the author", which is
+        # the default and usually the right answer. It is spelled "" rather
+        # than null because a `<select>` has no null: the DOM turns one into
+        # the string "null", which the server then refuses — an option the UI
+        # offers and the API rejects.
+        "research.review_host": {"type": "str",
+                                 "choices": ["", "claude", "codex", "gemini", "qwen"]},
         "radar.min_relevance": {"type": "number", "nullable": True},
         "radar.days": {"type": "int"},
         "radar.max_candidates": {"type": "int"},

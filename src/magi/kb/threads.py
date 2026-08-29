@@ -142,6 +142,37 @@ class Note:
         return as_list(self.frontmatter.get("line"))
 
     @property
+    def prose(self) -> str:
+        """The note's own text: everything above `## Discussion`.
+
+        `body` is the whole file under the frontmatter, discussion included,
+        because that is what `parse_posts` needs. A reader wants the two apart
+        — the body is the thing somebody wrote and owns, the discussion is
+        what happened to it since.
+        """
+        labelled = _labelled(self.body)
+        headings = _heading_lines(labelled)
+        end = headings[0] if headings else len(labelled)
+        return "\n".join(line for _, line in labelled[:end]).strip()
+
+    @property
+    def title(self) -> str:
+        """The `# ` heading. The slug when there is none.
+
+        A note carries its title in the body rather than the frontmatter: it is
+        the first thing a reader sees, and keeping a second copy above it is
+        one more thing to keep in step. The slug is a serviceable fallback —
+        it was made from the title in the first place.
+        """
+        # Fence-aware, like `prose` and `parse_posts`: a `# heading` quoted
+        # inside a code block is an example, not this note's name — and this
+        # name is what the graph, the thread list and link resolution use.
+        for label, line in _labelled(self.body):
+            if label != md_blocks.CODE and line.startswith("# "):
+                return line[2:].strip()
+        return self.slug
+
+    @property
     def tier(self) -> str | None:
         return vocab.tier_of("threads/x.md", self.kind, self.status)
 
@@ -247,10 +278,24 @@ def has_discussion(text: str) -> bool:
     return bool(_heading_lines(_labelled(text)))
 
 
+def _read(path: Path) -> str:
+    """A note's text. Decoded with replacements rather than refused.
+
+    Notepad still writes cp1252 by default, and one such note used to take
+    down every reader of the directory — `magi next`, the close gate, and
+    every v2 endpoint. Slightly mangled words are worth more than none, and
+    `lint` is the place that says the file needs fixing.
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return path.read_text(encoding="utf-8", errors="replace")
+
+
 def read_note(path) -> Note:
     """Parse one note. Never raises on malformed content — `validate` reports."""
     path = Path(path)
-    text = path.read_text(encoding="utf-8")
+    text = _read(path)
     split = split_frontmatter_text(text)
     # Broken frontmatter must not hide the discussion: the posts are the audit
     # trail, and a note that has lost its header is exactly when somebody needs
@@ -309,11 +354,31 @@ def quote_if_structural(text: str) -> str:
     return f"{fence}text\n{body}\n{fence}"
 
 
+#: What may appear in a signature. The heading is `### <ISO> · host/line`, so
+#: anything that could close that line and open another one — a newline, the
+#: separator itself — must not reach it. A signature is a claim about who
+#: said something; forging one is the one thing this format cannot survive.
+_SIGNATURE_OK = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+
+
+def _signature_part(value: str, what: str) -> str:
+    text = str(value or "").strip()
+    if not _SIGNATURE_OK.match(text):
+        raise ValueError(f"{what} is not a name: {value!r}")
+    return text
+
+
 def format_post(text: str, host: str, line: str | None = None, at: str | None = None,
                 src: str | None = None, dst: str | None = None,
                 field: str | None = None, value=None) -> str:
-    """One post, heading included, ending in exactly one blank line."""
-    signature = host if not line else f"{host}/{line}"
+    """One post, heading included, ending in exactly one blank line.
+
+    `host` and `line` are checked rather than trusted: they land in the
+    signature, and a value carrying a newline would end the heading and start
+    a second post under a name nobody wrote.
+    """
+    host = _signature_part(host, "host")
+    signature = host if not line else f"{host}/{_signature_part(line, 'line')}"
     out = [f"### {at or utcnow()} · {signature}"]
     if src and dst:
         out.append(f"status: {src} → {dst}")
@@ -725,12 +790,22 @@ def lint(root) -> list:
 
     for path in note_paths(root):
         try:
-            note = read_note(path)
+            # Asked explicitly, because `read_note` no longer refuses: it
+            # decodes with replacements so that one file Notepad saved cannot
+            # take down every reader of the directory. That makes lint the only
+            # place left that can say the file needs fixing.
+            path.read_bytes().decode("utf-8")
         except OSError as exc:
             issues.append(("critical", f"Could not read file: {exc}", path, False))
             continue
         except UnicodeDecodeError:
             issues.append(("critical", "Markdown file is not valid UTF-8.", path, False))
+            continue
+
+        try:
+            note = read_note(path)
+        except OSError as exc:
+            issues.append(("critical", f"Could not read file: {exc}", path, False))
             continue
 
         for severity, message, fixable in validate(note):

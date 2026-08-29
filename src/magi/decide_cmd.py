@@ -116,6 +116,58 @@ def note_path(root, slug: str) -> Path:
     return Path(root) / threads.DIRNAME / f"{slug}.md"
 
 
+def record(root, text: str, about: str | None = None, bet: str | None = None,
+           kind: str | None = None, line: str | None = None) -> dict:
+    """Write one decision down. Returns what was written.
+
+    The whole command, minus the argument parsing — so the browser and the CLI
+    reach the same three writes rather than two implementations that agree
+    until one of them is changed.
+
+    Everything checkable is checked before `decisions.md` is touched: an entry
+    saying a person predicted something, on a note that cannot carry the
+    prediction, is a record of a decision that left no trace anywhere it can be
+    audited.
+    """
+    if not (text or "").strip():
+        raise Refused("nothing to record — pass what they actually said")
+    if bet and not about:
+        raise Refused("--bet needs --about: a prediction is about a proposition")
+    if bet and bet not in vocab.BETS:
+        raise Refused(f"a bet is one of {', '.join(vocab.BETS)}")
+    if kind and kind not in KINDS:
+        raise Refused(f"a decision is one of {', '.join(KINDS)}")
+
+    root = Path(root)
+    path = None
+    if about:
+        path = note_path(root, about)
+        if not path.is_file():
+            if bet:
+                raise Refused(f"no note at {path} — nothing was written; check the slug")
+            append_decision(root, text, about, kind)
+            raise Refused(f"no note at {path} — the entry is in {DECISIONS} either way")
+        if bet and threads.read_note(path).kind != vocab.PROPOSITION:
+            raise Refused(
+                f"--bet needs a proposition; {about} is a "
+                f"{threads.read_note(path).kind}. A prediction is about a claim "
+                "that can turn out to be wrong.")
+
+    written = [str(append_decision(root, text, about, kind))]
+    if path is not None:
+        try:
+            if bet:
+                threads.set_field(path, "bet", bet, host=vocab.HUMAN, text=text,
+                                  line=line)
+            else:
+                threads.append_post(path, text, host=vocab.HUMAN, line=line)
+        except (ValueError, OSError) as exc:
+            raise Refused(f"recorded in {DECISIONS}, but {path.name} did not "
+                          f"take it: {exc}")
+        written.append(str(path))
+    return {"written": written, "about": about, "bet": bet, "kind": kind}
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="magi decide",
@@ -133,12 +185,11 @@ def main(argv=None) -> int:
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
     args = parser.parse_args(argv)
 
+    # Before the workspace lookup: "you passed no words" is true wherever you
+    # are standing, and answering "no workspace found" to it sends somebody to
+    # fix the wrong thing.
     if not args.text.strip():
         print("nothing to record — pass what they actually said", file=sys.stderr)
-        return 1
-    if args.bet and not args.about:
-        print("--bet needs --about: a prediction is about a proposition",
-              file=sys.stderr)
         return 1
 
     root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
@@ -147,62 +198,18 @@ def main(argv=None) -> int:
               file=sys.stderr)
         return 1
 
-    # Everything that can be checked is checked *before* `decisions.md` is
-    # written. An entry saying a person predicted something, on a note that
-    # cannot carry the prediction, is a record of a decision that left no
-    # trace anywhere it could be audited.
-    path = None
-    if args.about:
-        try:
-            path = note_path(root, args.about)
-        except Refused as exc:
-            print(str(exc), file=sys.stderr)
-            return 1
-        if not path.is_file():
-            if args.bet:
-                # A prediction with no proposition to be about is not a
-                # record of anything, so nothing is written and the slug can
-                # be corrected. Without `--bet` the words still stand on their
-                # own and are kept — losing what somebody said because an
-                # agent mistyped a slug is the worse failure.
-                print(f"no note at {path} — nothing was written; check the slug",
-                      file=sys.stderr)
-                return 1
-            append_decision(root, args.text, args.about, args.kind)
-            print(f"no note at {path} — the entry is in {DECISIONS} either way",
-                  file=sys.stderr)
-            return 1
-        if args.bet:
-            note = threads.read_note(path)
-            if note.kind != vocab.PROPOSITION:
-                print(f"--bet needs a proposition; {args.about} is a {note.kind}. "
-                      "A prediction is about a claim that can turn out to be wrong.",
-                      file=sys.stderr)
-                return 1
-
-    written = [str(append_decision(root, args.text, args.about, args.kind))]
-
-    if path is not None:
-        try:
-            if args.bet:
-                threads.set_field(path, "bet", args.bet, host=vocab.HUMAN,
-                                  text=args.text, line=args.line)
-            else:
-                threads.append_post(path, args.text, host=vocab.HUMAN, line=args.line)
-        except (ValueError, OSError) as exc:
-            # `decisions.md` has it and the note does not. Say so plainly:
-            # silence here is how `coaching: strict` ends up asking forever for
-            # a prediction somebody has already made three times.
-            print(f"recorded in {DECISIONS}, but {path.name} did not take it: {exc}",
-                  file=sys.stderr)
-            return 1
-        written.append(str(path))
+    try:
+        result = record(root, args.text, about=args.about, bet=args.bet,
+                        kind=args.kind, line=args.line)
+    except Refused as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
 
     if args.json:
-        print(json.dumps({"written": written, "about": args.about, "bet": args.bet},
-                         ensure_ascii=False))
+        print(json.dumps(result, ensure_ascii=False))
     else:
-        print(f"recorded in {', '.join(Path(w).name for w in written)}")
+        names = ", ".join(Path(w).name for w in result["written"])
+        print(f"recorded in {names}")
     return 0
 
 

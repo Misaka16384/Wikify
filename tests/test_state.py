@@ -968,3 +968,39 @@ def test_another_lines_review_is_not_this_lines_work(ws, capsys):
     payload = json.loads(capsys.readouterr().out)
 
     assert not [a for a in payload["actions"] if a["key"] == "review"]
+
+
+def test_the_queue_says_who_disputed_it(ws):
+    """The WebUI can flip a note to `disputed` too, and a queue that tells a
+    person a reviewer did something they just did themselves is a queue they
+    stop reading."""
+    path = proposition(ws, "p-a", status="testing")
+    threads.set_status(path, "supported", "converged", host="claude")
+    threads.set_status(path, "disputed", "the boundary condition was wrong",
+                       host=vocab.HUMAN)
+
+    why = [item.why for item in load(ws).queue if item.slug == "p-a"][0]
+    assert "you put this in dispute" in why
+
+
+def test_a_reviewers_rejection_still_says_reviewer(ws):
+    path = proposition(ws, "p-a", status="testing")
+    threads.set_status(path, "supported", "converged", host="claude")
+    threads.set_status(path, "disputed", "the cited line is not there",
+                       host=vocab.REVIEWER)
+
+    why = [item.why for item in load(ws).queue if item.slug == "p-a"][0]
+    assert "a reviewer rejected this" in why
+
+
+def test_a_thought_that_starts_with_a_hash_comes_back(ws):
+    """The box promises no format. The one thing it owes in return is that
+    what goes in comes out — a leading `#` used to be written verbatim and
+    then read as the starter's scaffolding, so it never surfaced again."""
+    state.dump(ws, "# a heading-shaped thought")
+    assert state.unfiled(ws) == ["- # a heading-shaped thought"]
+
+
+def test_a_bullet_somebody_typed_is_left_alone(ws):
+    state.dump(ws, "- already a bullet")
+    assert state.unfiled(ws) == ["- already a bullet"]

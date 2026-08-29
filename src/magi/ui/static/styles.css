@@ -77,6 +77,10 @@
   --graph-claim: #B5761B;     /* amber          */
   --graph-tag: #9AA0A8;       /* grey           */
   --graph-other: #C0554A;     /* unclassified   */
+  /* The research state, on the same map as the library it is about. */
+  --graph-proposition: #C2410C;  /* burnt orange */
+  --graph-question: #4B5C6B;     /* slate        */
+  --graph-line: #A21C6B;         /* magenta      */
 
   --border-default: #DDDACE;
   --border-subtle: #E9E6DC;
@@ -260,6 +264,9 @@
   --graph-claim: #D3A44E;
   --graph-tag: #6C737D;
   --graph-other: #E0796C;
+  --graph-proposition: #F08A4B;
+  --graph-question: #8FA3B5;
+  --graph-line: #E86AAE;
 
   --border-default: #30353D;
   --border-subtle: #262B32;
@@ -370,6 +377,9 @@
   --graph-claim: #FFA51E;
   --graph-tag: #5A6B84;
   --graph-other: #FF4A57;
+  --graph-proposition: #FF7A18;
+  --graph-question: #7FA8CE;
+  --graph-line: #FF35C8;
 
   --border-default: #1D2536;
   --border-subtle: #141A28;
@@ -5761,3 +5771,61 @@ html.no-glass .app-bg-ambient { display: none !important; }
   letter-spacing: 0.04em;
 }
 
+/* Map controls sit with the tag toggle, above the legend. */
+.graph-map-controls {
+  /* Under the tag toggle on the right. The legend owns the top-left corner,
+     and two overlays in one corner is one overlay nobody can read. */
+  position: absolute;
+  top: 2.5rem;
+  right: 0.6rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  z-index: 2;
+}
+
+.graph-map-controls .select-input {
+  font-size: 0.78rem;
+  padding: 0.15rem 0.4rem;
+}
+
+/* `.graph-map-toggle` positions itself in the corner, which is right for the
+   one that owns the corner and wrong for one sitting in this row. */
+.graph-map-controls .graph-map-toggle {
+  position: static;
+  top: auto;
+  right: auto;
+  white-space: nowrap;
+}
+
+/* One item in a stack list: a queue entry, a post, a feed line. `.stack-list`
+   only makes the column; this is the row inside it. */
+.stack-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.stack-row:last-child {
+  border-bottom: none;
+}
+
+.stack-row p {
+  margin: 0.15rem 0 0;
+}
+
+/* A note's own prose in the thread view. Narrower than the card preview:
+   this is one section of a panel, not a document. */
+.doc-body {
+  padding: 0.2rem 0 0.6rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.doc-body h1 {
+  font-size: 1.05rem;
+  margin: 0 0 0.4rem;
+}

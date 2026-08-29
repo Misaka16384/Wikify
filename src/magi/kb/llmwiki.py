@@ -25,7 +25,8 @@ from typing import Any
 # The node kinds the graph map draws and the legend names. Anything outside
 # this set has no colour of its own, so it must not reach `nodes.type` — see
 # the classification note where a card's type is decided.
-NODE_TYPES = frozenset({"concept", "reference", "topic", "thesis", "claim", "tag"})
+NODE_TYPES = frozenset({"concept", "reference", "topic", "thesis", "claim", "tag",
+                        "proposition", "question", "line"})
 
 # Mirrors `verify_claims.BLOCK_OPEN`, which is case-insensitive by design: an
 # LLM writing `Claim:` still produces a claim `magi verify` will check.
@@ -2216,6 +2217,8 @@ def run_graph(args: argparse.Namespace) -> int:
         def link_key(text: str) -> str:
             return text.strip().lower().replace("_", " ")
 
+        from magi.kb import threads as threads_mod
+
 
         for md_file in sorted(wiki_dir.rglob("*.md")):
             if md_file.name == "_index.md" or ".backup" in md_file.parts:
@@ -2318,6 +2321,51 @@ def run_graph(args: argparse.Namespace) -> int:
                             src_node = src.replace("\\", "/").removesuffix(".md")
                             edge_rows.append((claim_id, src_node, "supported_by"))
 
+        # `threads/` — the research state, on the same graph as the library it
+        # is about. A proposition's `depends_on`, `answers` and `derivation`
+        # are edges as much as any wikilink in a card's body, and reading them
+        # off the frontmatter is what lets the map show which parts of the
+        # library the open questions are actually touching.
+        for note_path in sorted((root / "threads").glob("*.md")):
+            try:
+                note = threads_mod.read_note(note_path)
+            except (OSError, ValueError):
+                continue
+            # Whatever a hand-edited note says its kind is, only a kind the
+            # graph has a colour for reaches `nodes.type` — and everything
+            # here is stringified, because one note with a list-valued `kind:`
+            # used to abort the whole build at insert time and leave no
+            # `graph.db` at all.
+            declared = str(note.kind or "").strip().lower()
+            kind = declared if declared in NODE_TYPES else "other"
+            node_id = f"threads/{note_path.stem}"
+            rel_path = f"threads/{note_path.name}"
+            updated = str(note.posts[-1].at)[:10] if note.posts else ""
+            node_rows.append((node_id, rel_path, str(note.title), kind,
+                              str(note.status or ""),
+                              str(note.frontmatter.get("purpose") or ""),
+                              str(note.frontmatter.get("created") or ""), updated))
+            link_resolution.setdefault(link_key(note.title), node_id)
+            link_resolution.setdefault(link_key(note_path.stem), node_id)
+
+            # Temperature and line as tags: the graph already filters on tags,
+            # and a second filtering mechanism would be a second answer to the
+            # same question.
+            if note.tier:
+                tag_rows.append((node_id, f"tier:{note.tier}"))
+            for line_name in note.lines or []:
+                tag_rows.append((node_id, f"line:{line_name}"))
+            for tag in threads_mod.as_list(note.frontmatter.get("tags")):
+                tag_rows.append((node_id, str(tag)))
+
+            for field in ("depends_on", "answers", "derivation", "superseded_by"):
+                for link in threads_mod.as_list(note.frontmatter.get(field)):
+                    cleaned = str(link).strip().strip("[]")
+                    if cleaned:
+                        wikilink_refs.append((node_id, cleaned))
+            for link in extract_wikilinks(note.body):
+                wikilink_refs.append((node_id, link))
+
         # Resolve wikilink targets to node ids; unresolved links keep the
         # raw link text as a dangling-edge marker.
         for source_id, link in wikilink_refs:
@@ -2349,9 +2397,14 @@ def run_graph(args: argparse.Namespace) -> int:
         FROM tags;
         """)
         
+        # Counted from the tables rather than from the rows collected
+        # above: tags become nodes and `has_tag` edges in a separate pass, so
+        # those lists have never been the whole graph.
+        counted_nodes = cursor.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+        counted_edges = cursor.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
         conn.commit()
-    
-    print(f"Indexed {len(node_rows)} nodes and {len(edge_rows)} edges"
+
+    print(f"Indexed {counted_nodes} nodes and {counted_edges} edges"
           + (f" ({len(claim_rows)} claims)." if claim_rows else "."))
     return 0
 

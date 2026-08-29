@@ -36,6 +36,58 @@
       tab_operations: "运维与操作",
       tab_docs: "文档与指引",
 
+      // v2: the map, the dump box, threads, the feed
+      dump_title: "想到什么就写在这",
+      dump_subtitle: "不用管格式，也不用想它属于哪条线——在想到的那一刻决定归属，正是这个框要省掉的成本。分类是 agent 的活。",
+      dump_ph: "无序那条路大概是死胡同",
+      dump_btn: "扔进堆放区",
+      dump_saved: "记下了（还有 {n} 条没分类）",
+      queue_title: "等你拍板的决定",
+      queue_subtitle: "只有这几类事允许打断你",
+      queue_none: "没有。每个开着的问题都轮到别人了。",
+      lines_title: "研究线",
+      lines_subtitle: "相位、线上开着几条、上次动是什么时候",
+      lines_none: "还没有线。",
+      map_loading: "正在读 threads/…",
+      flag_over_wip: "超 WIP",
+      flag_quiet: "安静",
+      back_title: "回头看",
+      back_right: "条预测猜对",
+      back_bet_line: "你赌 {bet}，结果是 {outcome}",
+      back_unknown: "条记为「不知道」",
+      back_unknown_only: "条预测记为「不知道」——诚实的先验，不计分。",
+      back_late: "条 bet 是答案出来之后才补的——不计分，那不算预测。",
+      back_decisions: "最近的决定：",
+      threads_title: "Threads",
+      threads_subtitle: "命题、问题、线——正文归开它的人，讨论区只追加",
+      threads_none: "还没有 note。",
+      filter_all_kinds: "全部种类",
+      filter_all_statuses: "全部状态",
+      th_thread: "note",
+      th_kind: "种类",
+      th_status: "状态",
+      th_line: "线",
+      th_tier: "温层",
+      th_phase: "相位",
+      th_open: "开着",
+      th_last_move: "上次动",
+      th_flags: "标记",
+      thread_say_ph: "发生了什么，用你自己的话",
+      btn_post: "发帖",
+      btn_close: "收起",
+      need_words: "先写点什么——空帖子记不下任何事",
+      need_reason: "改状态要写理由：翻状态和说明为什么是一件事，不是两件",
+      need_workspace: "先在顶栏选一个工作空间——不然这行字会写进服务器启动的那个目录",
+      cfg_review_host_auto: "自动（探测 PATH，选一个不是作者的）",
+      moves_human_only: "带 * 的只有人能做",
+      feed_title: "时间线",
+      feed_subtitle: "所有跟帖，最新在前——它是 note 的一个视图，不是第二份日志",
+      feed_none: "这段时间没有跟帖。",
+      feed_window_24: "最近 24 小时",
+      feed_window_72: "最近 3 天",
+      feed_window_168: "最近 7 天",
+      feed_window_0: "全部",
+
       // Dashboard Metrics
       dash_sync_label: "三核同步率",
       dash_sync_subtitle: "认知 + 任务 + 检索协同",
@@ -57,6 +109,9 @@
       graph_legend_topic: "专题",
       graph_legend_thesis: "论点",
       graph_legend_claim: "断言",
+      graph_legend_proposition: "命题",
+      graph_legend_question: "问题",
+      graph_legend_line: "研究线",
       graph_legend_ghost: "断链（指向不存在的卡片）",
       graph_legend_tag: "标签",
       graph_legend_other: "未分类（{kinds}）",
@@ -375,6 +430,8 @@
       op_desc_link: "用向量相似度给概念卡片之间建语义双链（需要 Ollama）",
       op_desc_lint_fix: "就地修复死链和 frontmatter 问题",
       op_desc_stats: "统计本工作区的卡片数、链接密度和缺口",
+      op_desc_close: "列出做了但没写下来的事，判定被两个人同时翻过的状态，并重画 MAP.md",
+      op_desc_install: "把 skills、AGENTS.md 协议块和收工闸门装进检测到的 agent CLI（可重复运行）",
       op_desc_backlog_sync: "为 raw/ 里每一篇还没编译成参考卡片的原始文献建一条任务",
       op_desc_radar_harvest: "从 arXiv 和 Semantic Scholar 抓新的候选论文",
       radar_harvest_caption: "联网从 arXiv 和 Semantic Scholar 拉新候选，写入本工作区 inbox/radar/ · 耗时数分钟",
@@ -613,6 +670,10 @@
       ops_here_radar_sub: "在本机的任务计划里注册每日运行",
       ops_loading: "正在加载操作目录...",
       op_stats: "工作区统计",
+      ops_setup_title: "工作区安装",
+      ops_setup_sub: "都可以重复运行，也都不删任何东西",
+      op_close: "收工检查",
+      op_install: "装进 agent CLI",
       btn_danger_install_schedule: "注册/卸载定时收割",
       danger_install_schedule_desc: "在系统任务计划中注册（或卸载）每日文献雷达定时收割任务。",
       danger_confirm_ph: "在此输入操作 ID 以确认",
@@ -645,6 +706,10 @@
       graph_broken_empty: "没有断链，链接网络完整。",
       graph_view_map: "图谱",
       graph_map_tags: "显示标签节点",
+      map_kinds_all: "全部",
+      map_kinds_library: "只看库",
+      map_kinds_research: "只看研究状态",
+      map_skeleton: "只看骨架",
       graph_map_hint: "拖拽节点 · 滚轮缩放 · 点击节点阅读卡片",
       graph_map_empty: "图谱为空——先运行 magi graph build 构建知识图谱。",
       graph_map_truncated: "节点较多，已按连接度显示前 {n} 个",
@@ -725,6 +790,58 @@
       tab_operations: "Operations & Danger Zone",
       tab_docs: "Docs & Help",
 
+      // v2: the map, the dump box, threads, the feed
+      dump_title: "Say it here",
+      dump_subtitle: "No format and no category — deciding where a thought goes at the moment you have it is the cost this box removes. Filing is the agent's job.",
+      dump_ph: "the disorder angle is probably a dead end",
+      dump_btn: "Add to the pile",
+      dump_saved: "Written down ({n} still unfiled)",
+      queue_title: "Decisions waiting on you",
+      queue_subtitle: "The only events allowed to interrupt you",
+      queue_none: "Nothing. Every open question is somebody else's turn.",
+      lines_title: "Research lines",
+      lines_subtitle: "Phase, what is open on it, and when it last moved",
+      lines_none: "No lines yet.",
+      map_loading: "Reading the notes…",
+      flag_over_wip: "over WIP",
+      flag_quiet: "quiet",
+      back_title: "Looking back",
+      back_right: "predictions right",
+      back_bet_line: "you said {bet}, it came out {outcome}",
+      back_unknown: "recorded as \"don't know\"",
+      back_unknown_only: "prediction(s) recorded as \"don't know\" — an honest prior, and not scored.",
+      back_late: "bet(s) written down after the answer was already in — not scored, and not a prediction.",
+      back_decisions: "Decisions, most recent last:",
+      threads_title: "Threads",
+      threads_subtitle: "Propositions, questions and lines — body owned by whoever opened it, discussion append-only",
+      threads_none: "No notes yet.",
+      filter_all_kinds: "All kinds",
+      filter_all_statuses: "All statuses",
+      th_thread: "Note",
+      th_kind: "Kind",
+      th_status: "Status",
+      th_line: "Line",
+      th_tier: "Tier",
+      th_phase: "Phase",
+      th_open: "Open",
+      th_last_move: "Last move",
+      th_flags: "Flags",
+      thread_say_ph: "what happened, in your words",
+      btn_post: "Post",
+      btn_close: "Close",
+      need_words: "Write something first — an empty post records nothing",
+      need_reason: "A status change needs a reason: the flip and the sentence saying why are one action, not two",
+      need_workspace: "Pick a workspace in the top bar first — otherwise this lands in whichever directory the server was started in",
+      cfg_review_host_auto: "auto (probe PATH for one that is not the author)",
+      moves_human_only: "* only a person can make this move",
+      feed_title: "Feed",
+      feed_subtitle: "Every post, newest first — a view over the notes, not a second log",
+      feed_none: "Nothing posted in this window.",
+      feed_window_24: "Last 24 hours",
+      feed_window_72: "Last 3 days",
+      feed_window_168: "Last 7 days",
+      feed_window_0: "Everything",
+
       // Dashboard Metrics
       dash_sync_label: "Sync Ratio",
       dash_sync_subtitle: "Melchior + Balthasar + Casper",
@@ -746,6 +863,9 @@
       graph_legend_topic: "topic",
       graph_legend_thesis: "thesis",
       graph_legend_claim: "claim",
+      graph_legend_proposition: "proposition",
+      graph_legend_question: "question",
+      graph_legend_line: "line",
       graph_legend_ghost: "dangling link",
       graph_legend_tag: "tag",
       graph_legend_other: "unclassified ({kinds})",
@@ -1064,6 +1184,8 @@
       op_desc_link: "Link semantically related concept cards by vector similarity (needs Ollama)",
       op_desc_lint_fix: "Repair broken links and frontmatter in place",
       op_desc_stats: "Count this workspace’s cards, link density and gaps",
+      op_desc_close: "List what happened that nobody wrote down, settle a status two writers contended, and rewrite MAP.md",
+      op_desc_install: "Put the skills, the AGENTS.md protocol block and the stop gate into every detected agent CLI (safe to re-run)",
       op_desc_backlog_sync: "Open one task per raw source that has no compiled reference card yet",
       op_desc_radar_harvest: "Fetch new candidate papers from arXiv and Semantic Scholar",
       radar_harvest_caption: "Fetches new candidates from arXiv and Semantic Scholar into this workspace's inbox/radar/ · minutes, network",
@@ -1305,6 +1427,10 @@
       ops_here_radar_sub: "Registers a daily run with this machine's scheduler",
       ops_loading: "Loading operations…",
       op_stats: "Workspace Stats",
+      ops_setup_title: "Workspace setup",
+      ops_setup_sub: "Re-runnable, and none of it deletes anything",
+      op_close: "Close the session",
+      op_install: "Install into your agent CLIs",
       btn_danger_install_schedule: "Install/Remove Schedule",
       danger_install_schedule_desc: "Register (or uninstall) the daily literature-radar harvest in the system scheduler.",
       danger_confirm_ph: "type the operation id to confirm",
@@ -1337,6 +1463,10 @@
       graph_broken_empty: "No broken links — the link network is intact.",
       graph_view_map: "Graph",
       graph_map_tags: "Show tag nodes",
+      map_kinds_all: "Everything",
+      map_kinds_library: "The library",
+      map_kinds_research: "The research state",
+      map_skeleton: "Skeleton only",
       graph_map_hint: "Drag nodes · scroll to zoom · click a node to read its card",
       graph_map_empty: "The graph is empty — run magi graph build first.",
       graph_map_truncated: "Large graph — showing the top {n} nodes by degree",
@@ -2970,6 +3100,7 @@
   async function loadDashboard() {
     loadKBRegistry();
     loadSyncRatio();
+    loadMap();
     if (state.workspace) {
       try {
         const radar = await apiFetch(`/api/workspace/radar?workspace=${encodeURIComponent(state.workspace)}`);
@@ -2995,6 +3126,392 @@
 
       loadConfigCard(null, "general");
     }
+  }
+
+
+  // ------------------------------------------------------------------------
+  // v2: the map, the threads, the feed, the dump box
+  //
+  // These renderers draw what the server already worked out. Nothing here
+  // decides anything — not which statuses a note may reach, not who may set
+  // them, not what counts as stalled. All of that arrives as data from the
+  // same `vocab` and `state` the CLI reads, so the dashboard and the terminal
+  // cannot come to different conclusions (design-v2 D4).
+  // ------------------------------------------------------------------------
+
+  function wsQuery() {
+    return `workspace=${encodeURIComponent(state.workspace || "")}`;
+  }
+
+  async function loadMap() {
+    const queue = document.getElementById("queue-list");
+    const lines = document.getElementById("lines-body");
+    const back = document.getElementById("looking-back");
+    const unfiled = document.getElementById("dump-unfiled");
+    if (!queue || !lines) return;
+    if (!state.workspace) return;
+
+    let data;
+    try {
+      data = await apiFetch(`/api/workspace/map?${wsQuery()}`);
+    } catch (err) {
+      queue.innerHTML = `<p class="empty-note">${escapeHtml(err.message)}</p>`;
+      return;
+    }
+    state.map = data;
+
+    if (unfiled) {
+      const n = (data.unfiled || []).length;
+      unfiled.textContent = String(n);
+      unfiled.classList.toggle("badge-terracotta", n > 0);
+    }
+
+    renderQueue(queue, data);
+    renderLines(lines, data);
+    renderLookingBack(back, data.retrospective || {});
+  }
+
+  function renderQueue(box, data) {
+    // `decisions` is the queue with WIP already dropped — that rule lives in
+    // Python, where `MAP.md` applies it too. Filtering here as well would be a
+    // second copy of it, and the two would disagree the first time one moved.
+    const items = data.decisions || [];
+    if (!items.length) {
+      box.innerHTML = `<p class="empty-note">${escapeHtml(t("queue_none"))}</p>`;
+      return;
+    }
+    box.innerHTML = "";
+    items.forEach((item) => {
+      const row = document.createElement("div");
+      row.className = "stack-row";
+      row.innerHTML =
+        `<div><span class="badge badge-terracotta">${escapeHtml(item.kind)}</span> `
+        + `<a href="#" class="thread-link" data-slug="${escapeHtml(item.slug)}">`
+        + `${escapeHtml(item.slug)}</a>`
+        + `<p class="card-subtitle">${escapeHtml(item.why)}</p></div>`;
+      box.appendChild(row);
+    });
+    box.querySelectorAll(".thread-link").forEach((a) => {
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        switchTab("melchior");
+        openThread(a.dataset.slug);
+      });
+    });
+  }
+
+  function renderLines(body, data) {
+    const rows = data.lines || [];
+    if (!rows.length) {
+      body.innerHTML = `<tr><td colspan="5" class="empty-cell">${escapeHtml(t("lines_none"))}</td></tr>`;
+      return;
+    }
+    body.innerHTML = rows.map((view) => {
+      // `over_wip` and `stalled` are the server's verdicts, not ours.
+      const flags = [
+        view.over_wip ? `<span class="badge badge-danger">${escapeHtml(t("flag_over_wip"))}</span>` : "",
+        view.stalled ? `<span class="badge badge-muted">${escapeHtml(t("flag_quiet"))}</span>` : "",
+      ].filter(Boolean).join(" ");
+      return `<tr>
+        <td><a href="#" class="thread-link" data-slug="${escapeHtml(view.slug)}"><strong>${escapeHtml(view.slug)}</strong></a></td>
+        <td>${escapeHtml(view.status || "")}</td>
+        <td>${view.open_count} / ${view.total}</td>
+        <td>${escapeHtml((view.last_move || "").slice(0, 10))}</td>
+        <td>${flags}</td>
+      </tr>`;
+    }).join("");
+    body.querySelectorAll(".thread-link").forEach((a) => {
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        switchTab("melchior");
+        openThread(a.dataset.slug);
+      });
+    });
+  }
+
+  function renderLookingBack(box, back) {
+    if (!box) return;
+    const parts = [];
+    if (back.rate !== null && back.rate !== undefined) {
+      parts.push(`<p><strong>${back.hits}/${back.scored}</strong> ${escapeHtml(t("back_right"))}`
+        + (back.unknown ? ` · ${back.unknown} ${escapeHtml(t("back_unknown"))}` : "") + "</p>");
+      parts.push("<ul>" + (back.bets || []).map((row) =>
+        `<li>${row.hit ? "✓" : "✗"} <a href="#" class="thread-link" data-slug="${escapeHtml(row.slug)}">`
+        + `${escapeHtml(row.slug)}</a> — `
+        + escapeHtml(t("back_bet_line", { bet: row.bet, outcome: row.outcome }))
+        + "</li>"
+      ).join("") + "</ul>");
+    } else if (back.unknown) {
+      parts.push(`<p>${back.unknown} ${escapeHtml(t("back_unknown_only"))}</p>`);
+    }
+    if (back.late) {
+      parts.push(`<p class="card-subtitle">${back.late} ${escapeHtml(t("back_late"))}</p>`);
+    }
+    if ((back.decisions || []).length) {
+      parts.push(`<p class="card-subtitle">${escapeHtml(t("back_decisions"))}</p><ul>`
+        + back.decisions.map((h) => `<li>${escapeHtml(h.replace(/^##\s*/, ""))}</li>`).join("")
+        + "</ul>");
+    }
+    box.innerHTML = parts.length
+      ? `<h4 class="card-title">${escapeHtml(t("back_title"))}</h4>` + parts.join("")
+      : "";
+    box.querySelectorAll(".thread-link").forEach((a) => {
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        switchTab("melchior");
+        openThread(a.dataset.slug);
+      });
+    });
+  }
+
+  async function submitDump() {
+    const box = document.getElementById("dump-text");
+    if (!box || !box.value.trim()) return;
+    // Without this the post carries an empty workspace, the server falls back
+    // to its own working directory, and the toast says "written down" about a
+    // file on a dashboard the person is not looking at.
+    if (!state.workspace) { showToast(t("need_workspace"), "error"); return; }
+    try {
+      const res = await apiFetch(`/api/workspace/dump`, {
+        method: "POST",
+        body: JSON.stringify({ workspace: state.workspace, text: box.value }),
+      });
+      box.value = "";
+      showToast(t("dump_saved", { n: res.unfiled }), "success");
+      loadMap();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+
+  // ---------------------------------------------------------------- threads
+
+  async function loadThreads() {
+    const body = document.getElementById("threads-body");
+    if (!body || !state.workspace) return;
+    const kind = document.getElementById("threads-kind");
+    const status = document.getElementById("threads-status");
+    let qs = wsQuery();
+    if (kind && kind.value) qs += `&kind=${encodeURIComponent(kind.value)}`;
+    if (status && status.value) qs += `&status=${encodeURIComponent(status.value)}`;
+
+    let data;
+    try {
+      data = await apiFetch(`/api/workspace/threads?${qs}`);
+    } catch (err) {
+      body.innerHTML = `<tr><td colspan="6" class="empty-cell">${escapeHtml(err.message)}</td></tr>`;
+      return;
+    }
+    // The filter options are the vocabulary's, fetched with the rows, so the
+    // dropdown cannot offer a status the lifecycle does not have.
+    fillFilter(kind, data.kinds, "filter_all_kinds");
+    const statuses = [];
+    Object.keys(data.statuses || {}).forEach((k) => {
+      (data.statuses[k] || []).forEach((s) => {
+        if (statuses.indexOf(s) === -1) statuses.push(s);
+      });
+    });
+    fillFilter(status, statuses, "filter_all_statuses");
+
+    if (!data.threads.length) {
+      body.innerHTML = `<tr><td colspan="6" class="empty-cell">${escapeHtml(t("threads_none"))}</td></tr>`;
+      return;
+    }
+    body.innerHTML = data.threads.map((row) => `<tr>
+      <td><a href="#" class="thread-link" data-slug="${escapeHtml(row.slug)}">
+        <strong>${escapeHtml(row.title || row.slug)}</strong></a>
+        <p class="card-subtitle">${escapeHtml(row.slug)}</p></td>
+      <td>${escapeHtml(row.kind || "")}</td>
+      <td>${escapeHtml(row.status || "")}${row.bet ? ` <span class="badge badge-muted">${escapeHtml(row.bet)}</span>` : ""}</td>
+      <td>${escapeHtml((row.lines || []).join(", "))}</td>
+      <td>${escapeHtml(row.tier || "")}</td>
+      <td>${escapeHtml((row.last || "").slice(0, 16).replace("T", " "))}</td>
+    </tr>`).join("");
+    body.querySelectorAll(".thread-link").forEach((a) => {
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        openThread(a.dataset.slug);
+      });
+    });
+  }
+
+  function fillFilter(select, values, allKey) {
+    if (!select) return;
+    const current = select.value;
+    select.innerHTML = `<option value="">${escapeHtml(t(allKey))}</option>`
+      + (values || []).map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+    if (current) select.value = current;
+  }
+
+  async function openThread(slug) {
+    const view = document.getElementById("thread-view");
+    if (!view || !state.workspace) return;
+    let data;
+    try {
+      data = await apiFetch(`/api/workspace/thread?${wsQuery()}&slug=${encodeURIComponent(slug)}`);
+    } catch (err) {
+      showToast(err.message, "error");
+      return;
+    }
+    state.thread = data;
+    view.style.display = "";
+    document.getElementById("thread-title").textContent = data.title || data.slug;
+    // `data.lines` and not `frontmatter.line`: YAML lets the author write
+    // either a scalar or a list, and only the server normalises it. Joining
+    // the raw field threw on every note whose `line:` was a plain string.
+    document.getElementById("thread-meta").textContent =
+      `${data.kind} · ${data.status} · ${data.tier || "—"} · ${(data.lines || []).join(", ")}`;
+    document.getElementById("thread-body").innerHTML = renderCardMarkdown(data.body || "");
+
+    const posts = document.getElementById("thread-posts");
+    posts.innerHTML = (data.posts || []).map((post) => {
+      const move = post.src && post.dst
+        ? ` <span class="badge badge-terracotta">${escapeHtml(post.src)} → ${escapeHtml(post.dst)}</span>` : "";
+      const set = post.field
+        ? ` <span class="badge badge-muted">${escapeHtml(post.field)} = ${escapeHtml(String(post.value))}</span>` : "";
+      return `<div class="stack-row"><div>
+        <code>${escapeHtml(post.at)}</code> · <strong>${escapeHtml(post.host)}</strong>`
+        + `${post.line ? "/" + escapeHtml(post.line) : ""}${move}${set}
+        <p>${escapeHtml(post.text || "").replace(/\n/g, "<br>")}</p>
+      </div></div>`;
+    }).join("");
+
+    // One button per legal move, labelled with who may make it. The list is
+    // the server's; a note whose lifecycle has no exit shows no buttons.
+    const moves = document.getElementById("thread-moves");
+    moves.innerHTML = (data.moves || []).map((move) =>
+      `<button class="btn btn-secondary btn-sm move-btn" data-dst="${escapeHtml(move.dst)}"`
+      + ` title="${escapeHtml((move.writers || []).join(", "))}">`
+      + `→ ${escapeHtml(move.dst)}${move.human_only ? " *" : ""}</button>`).join("");
+    // The star is the server's `human_only`, and it has to say so on screen:
+    // a mark whose meaning is not on the page is a mark nobody reads.
+    if ((data.moves || []).some((move) => move.human_only)) {
+      const note = document.createElement("span");
+      note.className = "card-subtitle";
+      note.textContent = t("moves_human_only");
+      moves.appendChild(note);
+    }
+    moves.querySelectorAll(".move-btn").forEach((btn) => {
+      btn.addEventListener("click", () => moveThread(data.slug, btn.dataset.dst));
+    });
+    view.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function saidText() {
+    const box = document.getElementById("thread-say");
+    return box ? box.value.trim() : "";
+  }
+
+  async function postToThread() {
+    if (!state.thread) return;
+    const text = saidText();
+    if (!text) { showToast(t("need_words"), "error"); return; }
+    try {
+      await apiFetch(`/api/workspace/thread/post`, {
+        method: "POST",
+        body: JSON.stringify({ workspace: state.workspace, slug: state.thread.slug, text }),
+      });
+      document.getElementById("thread-say").value = "";
+      openThread(state.thread.slug);
+      loadMap();
+      loadFeed();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+
+  async function moveThread(slug, dst) {
+    const text = saidText();
+    if (!text) { showToast(t("need_reason"), "error"); return; }
+    try {
+      await apiFetch(`/api/workspace/thread/status`, {
+        method: "POST",
+        body: JSON.stringify({ workspace: state.workspace, slug, dst, text }),
+      });
+      document.getElementById("thread-say").value = "";
+      openThread(slug);
+      loadMap();
+      loadFeed();
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+
+  // ------------------------------------------------------------------- feed
+
+  //: How far back the feed looks. `0` means everything.
+  const FEED_WINDOWS = [
+    { hours: 24, key: "feed_window_24" },
+    { hours: 72, key: "feed_window_72" },
+    { hours: 168, key: "feed_window_168" },
+    { hours: 0, key: "feed_window_0" },
+  ];
+
+  async function loadFeed() {
+    const box = document.getElementById("feed-list");
+    if (!box || !state.workspace) return;
+    const picker = document.getElementById("feed-window");
+    if (picker && !picker.options.length) {
+      picker.innerHTML = FEED_WINDOWS.map((w) =>
+        `<option value="${w.hours}">${escapeHtml(t(w.key))}</option>`).join("");
+    }
+    const window_ = picker && picker.value ? Number(picker.value) : 24;
+    let data;
+    try {
+      data = await apiFetch(`/api/workspace/feed?${wsQuery()}`
+        + (window_ ? `&window=${window_}` : "") + "&limit=100");
+    } catch (err) {
+      box.innerHTML = `<p class="empty-note">${escapeHtml(err.message)}</p>`;
+      return;
+    }
+    if (!data.entries.length) {
+      box.innerHTML = `<p class="empty-note">${escapeHtml(t("feed_none"))}</p>`;
+      return;
+    }
+    box.innerHTML = data.entries.map((entry) => {
+      const move = entry.src && entry.dst
+        ? ` <span class="badge badge-terracotta">${escapeHtml(entry.src)} → ${escapeHtml(entry.dst)}</span>` : "";
+      const first = (entry.text || "").split("\n")[0].slice(0, 160);
+      return `<div class="stack-row"><div>
+        <code>${escapeHtml(entry.at.slice(0, 16).replace("T", " "))}</code>
+        <a href="#" class="thread-link" data-slug="${escapeHtml(entry.slug)}">${escapeHtml(entry.slug)}</a>
+        · ${escapeHtml(entry.host)}${entry.line ? "/" + escapeHtml(entry.line) : ""}${move}
+        <p class="card-subtitle">${escapeHtml(first)}</p>
+      </div></div>`;
+    }).join("");
+    box.querySelectorAll(".thread-link").forEach((a) => {
+      a.addEventListener("click", (e) => {
+        e.preventDefault();
+        openThread(a.dataset.slug);
+      });
+    });
+  }
+
+  function bindV2() {
+    const on = (id, event, fn) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener(event, fn);
+    };
+    on("dump-btn", "click", submitDump);
+    on("dump-text", "keydown", (e) => {
+      // Ctrl/Cmd+Enter files it. A thought that needs a mouse to land is a
+      // thought that stays unwritten.
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") submitDump();
+    });
+    on("map-refresh-btn", "click", loadMap);
+    on("threads-refresh-btn", "click", loadThreads);
+    on("threads-kind", "change", loadThreads);
+    on("threads-status", "change", loadThreads);
+    on("thread-post-btn", "click", postToThread);
+    on("thread-close-btn", "click", () => {
+      const view = document.getElementById("thread-view");
+      if (view) view.style.display = "none";
+      state.thread = null;
+    });
+    on("feed-refresh-btn", "click", loadFeed);
+    on("feed-window", "change", loadFeed);
+    on("graph-map-kinds", "change", loadGraphMap);
+    on("graph-map-skeleton", "change", loadGraphMap);
   }
 
   function renderKBTable(kbs) {
@@ -3088,6 +3605,8 @@
 
   async function loadMelchior() {
     if (!state.workspace) return;
+    loadThreads();
+    loadFeed();
     try {
       const rep = await apiFetch(`/api/workspace/sync?workspace=${encodeURIComponent(state.workspace)}`);
       const mel = rep.cores?.melchior || {};
@@ -3545,6 +4064,12 @@
       topic: v("--graph-topic", "#5C7C34"),
       thesis: v("--graph-thesis", "#7A4A9E"),
       claim: v("--graph-claim", "#B5761B"),
+      // `threads/` is on this map too: a proposition names the concepts it is
+      // stated in terms of, so drawing the library without them draws half
+      // the picture.
+      proposition: v("--graph-proposition", "#C2410C"),
+      question: v("--graph-question", "#4B5C6B"),
+      line: v("--graph-line", "#A21C6B"),
       tag: v("--graph-tag", "#9AA0A8"),
       ghost: v("--graph-tag", "#9AA0A8"),
       // Anything the graph does not have a kind for. It used to fall back to
@@ -3565,7 +4090,8 @@
     const box = document.getElementById("graph-map-legend");
     if (!box) return;
     const col = graphMapColors();
-    const kinds = ["concept", "reference", "topic", "thesis", "claim", "ghost"];
+    const kinds = ["concept", "reference", "topic", "thesis", "claim",
+                   "proposition", "question", "line", "ghost"];
     // A node kind the palette does not have. Nothing should land here now
     // that the directory decides the type, but if something does, the legend
     // has to name it rather than let it pass as whatever colour it landed on.
@@ -3740,7 +4266,11 @@
       return;
     }
     const tags = !!(els.graphMapTags && els.graphMapTags.checked);
-    const key = `${state.workspace}|${tags ? 1 : 0}`;
+    const kindsEl = document.getElementById("graph-map-kinds");
+    const skeletonEl = document.getElementById("graph-map-skeleton");
+    const kinds = kindsEl ? kindsEl.value : "";
+    const skeleton = !!(skeletonEl && skeletonEl.checked);
+    const key = `${state.workspace}|${tags ? 1 : 0}|${kinds}|${skeleton ? 1 : 0}`;
     if (graphMap.key === key && graphMap.nodes.length) {
       // stopGraphMap may have frozen a mid-settle layout on tab leave —
       // resume unless the simulation had already cooled down.
@@ -3753,11 +4283,14 @@
     }
     const params = new URLSearchParams({ view: "map", workspace: state.workspace });
     if (tags) params.set("tags", "true");
+    if (kinds) params.set("kinds", kinds);
+    if (skeleton) params.set("skeleton", "true");
     try {
       const data = await apiFetch(`/api/workspace/graph/browse?${params.toString()}`);
       // The workspace selector may have moved on while this fetch ran —
       // a stale response must not overwrite the newer dataset.
-      const nowKey = `${state.workspace}|${els.graphMapTags && els.graphMapTags.checked ? 1 : 0}`;
+      const nowKey = `${state.workspace}|${els.graphMapTags && els.graphMapTags.checked ? 1 : 0}`
+        + `|${kindsEl ? kindsEl.value : ""}|${skeletonEl && skeletonEl.checked ? 1 : 0}`;
       if (nowKey !== key) return;
       buildGraphMap(data.results || {}, key);
     } catch (err) {
@@ -4069,6 +4602,10 @@
   const CFG_CHOICE_LABEL = {
     "embedding.provider=ollama": "cfg_provider_ollama",
     "embedding.provider=openai": "cfg_provider_openai",
+    // Empty means "probe PATH for a CLI that is not the author", which is the
+    // default and usually the right answer. An unnamed blank row in a dropdown
+    // is a row nobody picks on purpose.
+    "research.review_host=": "cfg_review_host_auto",
   };
 
   async function loadConfigCard(box, only) {
@@ -4123,7 +4660,12 @@
             const opt = document.createElement("option");
             opt.value = c;
             opt.textContent = t(CFG_CHOICE_LABEL[`${f.key}=${c}`] || c) || c;
-            if (String(f.value) === c) opt.selected = true;
+            // `String(null)` is "null", so an unset field used to match none
+            // of its own options and the dropdown opened on whatever came
+            // first. Unset means the empty choice, where there is one.
+            if ((f.value === null || f.value === undefined ? "" : String(f.value)) === c) {
+              opt.selected = true;
+            }
             input.appendChild(opt);
           });
         } else {
@@ -6403,6 +6945,7 @@
     melchior: "ops-mount-melchior",
     casper: "ops-mount-casper",
     radar: "ops-mount-radar",
+    operations: "ops-mount-operations",
     danger: "ops-danger-grid",
   };
 
@@ -7387,6 +7930,8 @@
   els.doctorModalClose.addEventListener("click", () => {
     els.doctorModal.classList.remove("open");
   });
+
+  bindV2();
 
   // Card preview
   bindDocPreview();

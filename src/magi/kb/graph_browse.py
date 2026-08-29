@@ -178,23 +178,43 @@ def browse_broken(conn, limit=200):
     return [dict(r) for r in rows]
 
 
-def browse_map(conn, include_tags=False, limit=800):
+#: How many nodes the skeleton keeps. Small enough to read at a glance, which
+#: is the only thing a skeleton is for: at 800 nodes the picture is a texture,
+#: and a texture answers no question.
+SKELETON_LIMIT = 60
+
+
+def browse_map(conn, include_tags=False, limit=800, kinds=None, skeleton=False):
     """Whole-graph snapshot for the interactive map view.
 
     Every non-tag node is included (tag nodes too when include_tags), with
     wikilink/has_claim/supported_by edges between them. Unresolved wikilink
     and supported_by targets become synthetic "ghost" nodes, mirroring how
     Obsidian renders links to pages that do not exist yet.
+
+    `kinds` keeps only those node types — the library, the research state, or
+    both. `skeleton` keeps only the best-connected handful and drops ghosts:
+    what survives is the shape of the thing rather than its texture.
+
+    Both decisions are made here rather than in the browser. Which nodes are
+    the skeleton is a judgement about the graph, and a judgement made twice is
+    a judgement that ends up meaning two things.
     """
+    kinds = set(kinds) if kinds else None
+    if skeleton:
+        limit = min(limit, SKELETON_LIMIT)
     # node_types covers ALL rows so an edge to an excluded real node (e.g. a
     # tag while include_tags is off) is dropped instead of ghosted.
     node_types = {}
     nodes = {}
-    for r in conn.execute("SELECT id, title, type FROM nodes"):
+    for r in conn.execute("SELECT id, title, type, category FROM nodes"):
         node_types[r["id"]] = r["type"]
+        if kinds is not None and r["type"] not in kinds and r["type"] != "tag":
+            continue
         if include_tags or r["type"] != "tag":
             nodes[r["id"]] = {"id": r["id"], "title": r["title"],
-                              "type": r["type"], "degree": 0}
+                              "type": r["type"], "category": r["category"],
+                              "degree": 0}
 
     edges = []
     placeholders = ",".join("?" * len(_LINK_TYPES))
@@ -208,7 +228,11 @@ def browse_map(conn, include_tags=False, limit=800):
         if tgt not in nodes:
             if tgt in node_types or etype not in _BROKEN_TYPES:
                 continue
-            nodes[tgt] = {"id": tgt, "title": tgt, "type": "ghost", "degree": 0}
+            # `category` on every node, ghosts included: a field that is
+            # present for most rows and absent for some is a field every
+            # reader has to guard.
+            nodes[tgt] = {"id": tgt, "title": tgt, "type": "ghost",
+                          "category": "", "degree": 0}
         edges.append({"source": src, "target": tgt, "type": etype})
         for nid in (src, tgt):
             # Tag degree counts has_tag edges only (handled below).
@@ -230,6 +254,20 @@ def browse_map(conn, include_tags=False, limit=800):
     # Rank by degree; ghosts lose ties to real nodes so they drop first.
     def rank(n):
         return (-n["degree"], n["type"] == "ghost", n["id"])
+
+    if skeleton:
+        # A dangling link is not part of the shape — it is a note somebody has
+        # not written yet. Degrees are recounted after they go, because a node
+        # whose whole degree came from dangling links would otherwise outrank
+        # real hubs and land in the skeleton with no edges at all: an isolated
+        # dot where the shape was supposed to be.
+        nodes = {nid: n for nid, n in nodes.items() if n["type"] != "ghost"}
+        edges = [e for e in edges if e["source"] in nodes and e["target"] in nodes]
+        for node in nodes.values():
+            node["degree"] = 0
+        for edge in edges:
+            for nid in (edge["source"], edge["target"]):
+                nodes[nid]["degree"] += 1
 
     truncated = len(nodes) > limit
     if truncated:

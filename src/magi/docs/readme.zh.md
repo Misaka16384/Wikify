@@ -315,7 +315,7 @@ magi ui                       # 启动并在默认浏览器中打开本地看板
 magi ui --port 8080 --no-open # 自定义端口且不自启浏览器
 ```
 
-包含 7 大面板：Dashboard（全局同步率、可一键执行的修复建议、注册库、config.yaml 关键字段编辑）、Melchior（认知网络/Claims/图谱 SQL/文献 BibTeX 复制/草稿）、Balthasar（Beads 任务）、Casper（混合检索实验台：联邦/集合/路径过滤）、Radar（简报阅读 + 审阅动作：标已审/收入 inbox/建阅读任务）、Operations & Danger Zone（服务端操作白名单 + 输入操作 ID 确认 + SSE 实时终端，任务历史落盘）与内置文档。API 与 `--json` 契约逐字段一致。
+包含 7 大面板：Dashboard（你该看的两件事：**等你拍板的决定**和**每条线现在在哪**，外加一个「想到什么就写在这」的框直接写进 `inbox/notes.md`、一段**回头看**给你的预测命中率；再往下才是同步率、一键修复建议、注册库和 config.yaml 关键字段）、Melchior（Threads 与单条论坛视图、时间线、认知网络/Claims/图谱 SQL/文献 BibTeX 复制/草稿；图上现在也画 `threads/`，可以只看库、只看研究状态或缩到骨架）、Balthasar（Beads 任务）、Casper（混合检索实验台：联邦/集合/路径过滤）、Radar（简报阅读 + 审阅动作：标已审/收入 inbox/建阅读任务）、Operations & Danger Zone（服务端操作白名单 + 输入操作 ID 确认 + SSE 实时终端，任务历史落盘）与内置文档。API 与 `--json` 契约逐字段一致。
 
 顶栏的 **⚡ MAGI MODE** 可一键切换 EVA/NERV 战术主题：三贤者三体阵列 HUD（MELCHIOR·1 / BALTHASAR·2 / CASPER·3 实时状态 + 同调率）、CRT 扫描线、蜂窝网格、警示条纹 Danger Zone 与启动同步序列。看板仅监听 `127.0.0.1`，带 Host 白名单防护，不发送任何 CORS 头。
 

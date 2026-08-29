@@ -225,6 +225,66 @@
         </div>
       </div>
 
+      <!-- v2. The two things a person is supposed to look at — where each
+           line stands, and what only they can settle — plus the one box they
+           are allowed to be untidy in. All of it is derived from `threads/` on
+           every load; `output/MAP.md` is a rendering of the same numbers, so
+           editing that file changes nothing. -->
+      <div class="card" id="dump-card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="dump_title">Say it here</h3>
+            <p class="card-subtitle" data-i18n="dump_subtitle">No format and no category — deciding where a thought goes at the moment you have it is the cost this box removes. Filing is the agent's job.</p>
+          </div>
+          <span class="badge badge-muted" id="dump-unfiled" title="unfiled lines">0</span>
+        </div>
+        <textarea id="dump-text" class="text-input" rows="3"
+                  data-i18n-placeholder="dump_ph"
+                  placeholder="the disorder angle is probably a dead end"></textarea>
+        <div class="form-row">
+          <button class="btn btn-primary" id="dump-btn" data-i18n="dump_btn">Add to the pile</button>
+        </div>
+      </div>
+
+      <div class="card" id="queue-card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="queue_title">Decisions waiting on you</h3>
+            <p class="card-subtitle" data-i18n="queue_subtitle">The only events allowed to interrupt you</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="map-refresh-btn" data-i18n="btn_refresh">Refresh</button>
+        </div>
+        <div id="queue-list" class="stack-list">
+          <p class="empty-note" data-i18n="map_loading">Reading the notes…</p>
+        </div>
+      </div>
+
+      <div class="card" id="lines-card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="lines_title">Research lines</h3>
+            <p class="card-subtitle" data-i18n="lines_subtitle">Phase, what is open on it, and when it last moved</p>
+          </div>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table" id="lines-table">
+            <thead>
+              <tr>
+                <th data-i18n="th_line">Line</th>
+                <th data-i18n="th_phase">Phase</th>
+                <th data-i18n="th_open">Open</th>
+                <th data-i18n="th_last_move">Last move</th>
+                <th data-i18n="th_flags">Flags</th>
+              </tr>
+            </thead>
+            <tbody id="lines-body">
+              <tr><td colspan="5" class="empty-cell" data-i18n="map_loading">Reading the notes…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="looking-back" class="stack-list"></div>
+      </div>
+
       <!-- Actionable sync hints (populated from the sync report) -->
       <div class="card" id="sync-hints-card" style="display: none;">
         <div class="card-header">
@@ -348,6 +408,76 @@
         </div>
       </div>
 
+      <!-- v2. `threads/` is the knowledge state now: one directory, one
+           schema, three kinds. The list and the thread view below read the
+           same projection `magi next` reads. -->
+      <div class="card" id="threads-card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="threads_title">Threads</h3>
+            <p class="card-subtitle" data-i18n="threads_subtitle">Propositions, questions and lines — body owned by whoever opened it, discussion append-only</p>
+          </div>
+          <div class="form-row">
+            <select id="threads-kind" class="text-input"></select>
+            <select id="threads-status" class="text-input"></select>
+            <button class="btn btn-secondary btn-sm" id="threads-refresh-btn" data-i18n="btn_refresh">Refresh</button>
+          </div>
+        </div>
+        <div class="table-scroll vh-280">
+          <table class="data-table" id="threads-table">
+            <thead>
+              <tr>
+                <th data-i18n="th_thread">Note</th>
+                <th data-i18n="th_kind">Kind</th>
+                <th data-i18n="th_status">Status</th>
+                <th data-i18n="th_line">Line</th>
+                <th data-i18n="th_tier">Tier</th>
+                <th data-i18n="th_last_move">Last move</th>
+              </tr>
+            </thead>
+            <tbody id="threads-body">
+              <tr><td colspan="6" class="empty-cell" data-i18n="map_loading">Reading the notes…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card" id="thread-view" style="display: none;">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" id="thread-title">—</h3>
+            <p class="card-subtitle" id="thread-meta"></p>
+          </div>
+          <button class="btn btn-quiet btn-sm" id="thread-close-btn" data-i18n="btn_close">Close</button>
+        </div>
+        <div id="thread-body" class="doc-body"></div>
+        <div id="thread-posts" class="stack-list"></div>
+        <!-- A status change and the sentence saying why are one action, so
+             they are one form: `set_status` writes both under one lock. -->
+        <div class="form-row">
+          <input type="text" id="thread-say" class="text-input grow-2"
+                 data-i18n-placeholder="thread_say_ph" placeholder="what happened, in your words">
+          <button class="btn btn-primary btn-sm" id="thread-post-btn" data-i18n="btn_post">Post</button>
+        </div>
+        <div class="form-row" id="thread-moves"></div>
+      </div>
+
+      <div class="card" id="feed-card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="feed_title">Feed</h3>
+            <p class="card-subtitle" data-i18n="feed_subtitle">Every post, newest first — a view over the notes, not a second log</p>
+          </div>
+          <div class="form-row">
+            <select id="feed-window" class="text-input"></select>
+            <button class="btn btn-secondary btn-sm" id="feed-refresh-btn" data-i18n="btn_refresh">Refresh</button>
+          </div>
+        </div>
+        <div id="feed-list" class="stack-list">
+          <p class="empty-note" data-i18n="map_loading">Reading the notes…</p>
+        </div>
+      </div>
+
       <!-- Claims Verification -->
       <div class="card">
         <div class="card-header">
@@ -421,6 +551,18 @@
           <canvas id="graph-map-canvas"></canvas>
           <label class="graph-map-toggle"><input type="checkbox" id="graph-map-tags">
             <span data-i18n="graph_map_tags">Show tag nodes</span></label>
+          <!-- What to show, and how much of it. Both are decided by the
+               server: which nodes are the skeleton is a judgement about the
+               graph, and one made here as well would be a second judgement. -->
+          <div class="graph-map-controls">
+            <select id="graph-map-kinds" class="select-input">
+              <option value="" data-i18n="map_kinds_all">Everything</option>
+              <option value="concept,reference,topic,thesis,claim" data-i18n="map_kinds_library">The library</option>
+              <option value="proposition,question,line" data-i18n="map_kinds_research">The research state</option>
+            </select>
+            <label class="graph-map-toggle"><input type="checkbox" id="graph-map-skeleton">
+              <span data-i18n="map_skeleton">Skeleton only</span></label>
+          </div>
           <!-- Node colour was the only type signal in the map and nothing on
                screen said what any colour meant. -->
           <div class="graph-map-legend" id="graph-map-legend"></div>
@@ -795,6 +937,20 @@
           </div>
         </div>
         <div id="optional-list"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="ops_setup_title">Workspace setup</h3>
+            <p class="card-subtitle" data-i18n="ops_setup_sub">Re-runnable, and none of it deletes anything</p>
+          </div>
+        </div>
+        <!-- Buttons come from GET /api/ops. The catalog's `home` field decides
+             which panel each one lands on, so this file names no operation. -->
+        <div class="ops-grid" id="ops-mount-operations">
+          <span class="empty-note" data-i18n="ops_loading">Loading operations…</span>
+        </div>
       </div>
 
       <div class="grid-2">

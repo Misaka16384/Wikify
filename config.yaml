@@ -16,6 +16,21 @@ models:
   # 嵌入模型（semantic_linker 使用）
   embedding: "qwen3-embedding:0.6b"
 
+# 研究循环（magi next / sync --close 读这些）
+research:
+  # 收工闸门推得多紧：off 不拦；light 拦本会话没记下来的事；
+  # strict 再加一条——命题进 testing 却没有 bet 也算欠账。
+  # 写在这里而不是只写进 AGENTS.md 的协议文本：闸门读的是这个键，
+  # 两处只有一处能算数，而算数的是这处。
+  coaching: light
+  # 一条线上同时开着几条命题算太多。超过就进决策队列问人。
+  wip_limit: 3
+  # 一条线多少天没动静算安静。安静不是错，只是值得被问一句。
+  stall_days: 14
+  # 复核跑在哪个宿主上。留空 = 探测 PATH,选一个不是作者的那个,
+  # 这也是默认想要的：跨厂商是"独立"最便宜的近似。
+  review_host:
+
 # 向量化用哪个服务(magi index / magi search / magi link 共用)
 embedding:
   # ollama = 本机(默认);openai = 任何 OpenAI 兼容的云端接口

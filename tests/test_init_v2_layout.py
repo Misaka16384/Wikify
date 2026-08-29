@@ -128,3 +128,29 @@ def test_lint_does_not_recreate_the_retired_theses_directory(workspace, tmp_path
 
     assert not (fresh / "wiki" / "theses").exists()
 
+
+# --------------------------------------------------------------------------
+# what makes a directory a library
+# --------------------------------------------------------------------------
+
+def test_threads_alone_is_a_library(tmp_path):
+    """A v2 library can have research state before it has a single source or
+    card, and one that does still has to be able to read its own config —
+    otherwise the gate reads defaults while the file says something else."""
+    from magi.core.workspace import find_workspace_config_yaml, is_topic_root
+
+    (tmp_path / "threads").mkdir()
+    (tmp_path / "config.yaml").write_text("research:\n  coaching: strict\n",
+                                          encoding="utf-8")
+
+    assert is_topic_root(tmp_path)
+    assert find_workspace_config_yaml(tmp_path) == tmp_path / "config.yaml"
+
+
+def test_a_directory_that_only_looks_like_one_is_not(tmp_path):
+    """The marker is what keeps the upward walk from adopting a foreign repo
+    that happens to have a `threads/` directory in it."""
+    from magi.core.workspace import is_topic_root
+
+    (tmp_path / "threads").mkdir()
+    assert not is_topic_root(tmp_path)

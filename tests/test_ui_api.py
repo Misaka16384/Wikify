@@ -1877,3 +1877,39 @@ def test_line_anchored_patterns_tolerate_crlf(client):
         if ln.strip().startswith("//"):
             continue
         assert "t]*" not in ln, f"line anchor stops at the tab, not the CR: {ln.strip()}"
+
+
+def test_keys_reached_through_a_variable_are_covered_too(client):
+    """The symmetry check above scans for `t("literal")` and `data-i18n=`.
+    A label looked up through a variable — the ops catalog, the feed windows,
+    the graph legend — is invisible to that scan, which is exactly where a
+    missing translation would sit unnoticed until somebody switched language.
+
+    So the indirection tables are checked against the dictionary directly:
+    Python's op catalog on one side, the JS dictionary on the other.
+    """
+    import re
+
+    from magi.ui.jobs import OPS
+
+    js = client.get("/app.js").text
+    zh = set(re.findall(r"^\s*([a-zA-Z0-9_]+)\s*:",
+                        re.search(r"zh:\s*\{(.*?)\n\s*\},", js, re.DOTALL).group(1),
+                        re.MULTILINE))
+    en = set(re.findall(r"^\s*([a-zA-Z0-9_]+)\s*:",
+                        re.search(r"en:\s*\{(.*?)\n\s*\},", js, re.DOTALL).group(1),
+                        re.MULTILINE))
+
+    wanted = set()
+    for entry in OPS.values():
+        for field in ("label_i18n", "desc_i18n", "badge_i18n"):
+            if entry.get(field):
+                wanted.add(entry[field])
+    # The tables the JS itself indexes into.
+    wanted |= {match for match in re.findall(r'key:\s*"([a-zA-Z0-9_]+)"', js)}
+    wanted |= {f"graph_legend_{kind}" for kind in
+               ("concept", "reference", "topic", "thesis", "claim",
+                "proposition", "question", "line", "ghost", "tag")}
+
+    assert not (wanted - zh), f"missing from zh: {sorted(wanted - zh)}"
+    assert not (wanted - en), f"missing from en: {sorted(wanted - en)}"

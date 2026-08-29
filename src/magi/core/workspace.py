@@ -35,8 +35,13 @@ def is_topic_root(path: Path) -> bool:
     Requires a content dir AND a magi marker file (written by ``magi init``)
     so foreign repos that happen to contain ``raw/`` or ``wiki/`` in the
     ancestor chain are not misdetected by the upward walk.
+
+    `threads/` counts as content because in v2 it *is* the content: a library
+    can have research state before it has a single source or card, and one
+    that does still has to be able to read its own config.
     """
-    has_content = (path / "wiki").is_dir() or (path / "raw").is_dir()
+    has_content = ((path / "wiki").is_dir() or (path / "raw").is_dir()
+                   or (path / "threads").is_dir())
     has_marker = any((path / m).is_file() for m in ("config.md", "log.md", "config.yaml"))
     return has_content and has_marker
 

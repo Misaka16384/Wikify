@@ -65,6 +65,20 @@ OPS: dict[str, dict] = {
     "stats": {"home": "dashboard", "argv": ["stats", "wiki-summary"], "scope": "kb", "danger": False,
               "label_i18n": "op_stats",
               "desc_i18n": "op_desc_stats"},
+    # The end-of-session gate, run on purpose. It reports what happened that
+    # nobody wrote down, settles a status two writers contended, and rewrites
+    # `output/MAP.md` — which is a rendering, so running this is how the map
+    # catches up with the notes.
+    "close": {"home": "dashboard", "argv": ["sync", "--close"], "scope": "kb",
+              "danger": False, "label_i18n": "op_close",
+              "desc_i18n": "op_desc_close"},
+    # Skills, the AGENTS.md protocol block, and the stop hook. Idempotent and
+    # additive: it updates MAGI's own entry and leaves everything a person
+    # wrote around it alone, which is what makes it the thing to click after
+    # an upgrade.
+    "install": {"home": "operations", "argv": ["install"], "scope": "kb",
+                "danger": False, "label_i18n": "op_install",
+                "desc_i18n": "op_desc_install"},
     "backlog-sync": {"home": None, "argv": ["pm", "backlog-sync"], "scope": "kb", "danger": False,
                      "label_i18n": "op_backlog_sync",
                      "desc_i18n": "op_desc_backlog_sync"},

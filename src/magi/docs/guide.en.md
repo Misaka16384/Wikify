@@ -1386,7 +1386,7 @@ The dashboard is one command:
 magi ui                 # opens http://127.0.0.1:8737
 ```
 
-Run it from a hub root to get every topic in one place, or from inside a topic for just that one. It is a view over the same files the CLI uses — nothing lives only in the browser.
+Run it from inside a topic. Every registered library is in the picker at the top, so one server covers all of them. It is a view over the same files the CLI uses — nothing lives only in the browser, and the dashboard is derived from `threads/` on every load exactly as `magi next` is.
 
 ```powershell
 magi ui                          # defaults to http://127.0.0.1:8737, opens a browser automatically
@@ -1402,8 +1402,8 @@ Seven panels:
 
 | Panel | What it does |
 |---|---|
-| **Topic overview** | Sync ratio, one-click fix suggestions, registered-library management, editing key `config.yaml` fields |
-| **MELCHIOR (knowledge)** | Concept/reference counts, claims and evidence table, compile backlog, seven graph views + a read-only SQL console, BibTeX copy, draft list — click any node to read its card |
+| **Topic overview** | The two things you are supposed to look at, and one box to be untidy in: **say it here** (types straight into `inbox/notes.md`; filing is the agent's job), **decisions waiting on you**, **research lines** with phase and what is open, and **looking back** — your prediction record and the last few decisions. Below them: sync ratio, one-click fix suggestions, registered-library management, and key `config.yaml` fields |
+| **MELCHIOR (knowledge)** | **Threads** (every proposition, question and line, with kind, status, temperature and the bet on record) and the **thread view**: the note's prose, its whole discussion, a box to say something, and one button per status it may legally become — starred when only a person may make that move. Then the **feed** (every post, newest first), claims and evidence, compile backlog, seven graph views + a read-only SQL console, BibTeX copy, draft list. The graph draws `threads/` alongside the library, coloured by kind, and filters to either side of it or down to the skeleton |
 | **BALTHASAR (work state)** | Beads counts + a one-click "sync backlog to tasks" |
 | **CASPER (retrieval)** | A search testbed: mode/scope/collection/path filters, exactly mirroring `magi search --json` — click a hit to open the card at the passage that matched |
 | **Literature radar** | Digest reading + entry-by-entry review actions |
@@ -1418,7 +1418,11 @@ Seven panels:
 > search hit scrolls to the passage that matched rather than the top of the file,
 > and preview follows a hit into whichever registered library it actually lives in.
 
-**The dashboard can trigger exactly 14 background tasks**: build index, build graph, rebuild the directory table, semantic linking, lint fix, stats, backlog sync, radar harvest, citation gap, plus the ones that need a second confirmation: setup / migrate / pm init / delete legacy copies / radar scheduling.
+**The dashboard can trigger 20 background tasks**: build index, build graph, rebuild the directory table, semantic linking, lint fix, stats, close the session (`magi sync --close`), install into your agent CLIs, backlog sync, radar harvest, citation gap, the two ingest batch steps, model pulls and task-engine install, plus the ones that need a second confirmation: setup / migrate / pm init / delete legacy copies / radar scheduling.
+
+`magi review` is deliberately **not** one of them: it spends a model call, and a
+button that quietly costs money is a button somebody clicks twice. It stays a
+command until there is a budget behind it.
 
 > [!NOTE]
 > **Ingestion isn't among them** — the entire `magi ingest *` family can only be run from the terminal or through an agent. Likewise, `magi init`, `hub *`, `sync`, `validate`, `verify`, `tags *`, and `math *` have no buttons either.
