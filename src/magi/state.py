@@ -442,12 +442,24 @@ def _unrecorded_decisions(root: Path, note) -> list:
     the reviewer's objection quietly evaporating between two runs.
     """
     out = []
-    for post in note.posts:
+    for index, post in enumerate(note.posts):
         if not post.is_transition:
             continue
         if not vocab.is_human_only(note.kind, post.src, post.dst):
             continue
-        if post.host == vocab.HUMAN:
+        # Any post signed `human` from just before the flip onwards, not only
+        # the flip itself. Testing the transition post alone made the first
+        # remedy this message offers impossible to carry out: a transition
+        # cannot be re-signed, so "sign the post `--host human`" described a
+        # state that was already true or already lost, and a person who did
+        # exactly what they were told got the identical sentence back.
+        #
+        # Both directions count. design-v2 §10 has the human decide and the
+        # agent transcribe, so the human's own post lands *before* the flip;
+        # somebody told to sign afterwards lands after it. The question is
+        # whether the decision left a trace, and either one is a trace.
+        if any(other.host == vocab.HUMAN
+               for other in note.posts[max(0, index - 1):]):
             continue
         if _decisions_mention(root, note.slug):
             continue

@@ -299,3 +299,4 @@ def test_findings_are_ordered_most_alarming_first(tmp_path):
     findings = gates.run_all(md, figures_referenced=1, figures_resolved=0,
                              expected_arxiv_id="2608.16520")
     assert findings[0].code == "identity-mismatch"
+

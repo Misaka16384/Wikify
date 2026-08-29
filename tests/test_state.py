@@ -1334,3 +1334,68 @@ def test_the_gate_and_the_router_read_settings_through_one_function(ws):
     body = inspect.getsource(state._reload)
     assert "loaded(root)" in body
     assert "config_get" not in body, "the second copy is back"
+
+
+# --------------------------------------------------------------------------
+# the gate's own instructions have to work
+# --------------------------------------------------------------------------
+
+def _walked_out_of_conflict(ws, slug):
+    """A note whose human-only flip was signed by a CLI. Blocks until settled."""
+    path = threads.create(ws / "threads" / f"{slug}.md", vocab.PROPOSITION,
+                          slug, "why")
+    threads.set_status(path, "testing", "a", host="claude")
+    threads.set_status(path, vocab.CONFLICT, "two writers collided", host="magi")
+    threads.set_status(path, "refuted", "I say it does not hold", host="claude")
+    return path
+
+
+def test_both_remedies_the_gate_offers_actually_work(ws):
+    """The message names two ways out; only one of them was implemented.
+
+    "sign the post `--host human` or write it into decisions.md" — the second
+    worked. The first tested the signature on the *transition post*, which
+    cannot be re-signed once it has happened, so it described a state rather
+    than an action. A person who did exactly what they were told got the
+    identical sentence back, with nothing acknowledging the post they had
+    just written.
+    """
+    first = _walked_out_of_conflict(ws, "p-post")
+    _walked_out_of_conflict(ws, "p-file")
+    blocked = {item.slug for item in state.close(ws, now=NOW, write=False).blocking}
+    assert {"p-post", "p-file"} <= blocked, "the fixture is not actually stuck"
+
+    threads.append_post(first, "I made that call myself.", host=vocab.HUMAN)
+    (ws / "decisions.md").write_text("## p-file\n\nMine.\n", encoding="utf-8")
+
+    still = {item.slug for item in state.close(ws, now=NOW, write=False).blocking}
+    assert "p-post" not in still, "the signed-post remedy still does nothing"
+    assert "p-file" not in still, "the decisions.md remedy still does nothing"
+
+
+def test_a_human_post_before_the_flip_counts_too(ws):
+    """design-v2 §10 has the person decide and the agent transcribe, so their
+    post lands *before* the transition. Accepting only what comes after would
+    fix the undocumented flow by breaking the documented one."""
+    path = threads.create(ws / "threads" / "p-a.md", vocab.PROPOSITION, "A", "why")
+    threads.set_status(path, "testing", "a", host="claude")
+    threads.set_status(path, vocab.CONFLICT, "two writers collided", host="magi")
+    threads.append_post(path, "I have looked; it does not hold.", host=vocab.HUMAN)
+    threads.set_status(path, "refuted", "transcribing what they said", host="claude")
+
+    blocked = {item.slug for item in state.close(ws, now=NOW, write=False).blocking}
+    assert "p-a" not in blocked
+
+
+def test_an_unrelated_human_post_long_before_does_not_count(ws):
+    """Otherwise one `--host human` note anywhere in a note's history licenses
+    every later flip on it, which is the gate switched off."""
+    path = threads.create(ws / "threads" / "p-a.md", vocab.PROPOSITION, "A", "why")
+    threads.append_post(path, "starting this because I care about it",
+                        host=vocab.HUMAN)
+    threads.set_status(path, "testing", "a", host="claude")
+    threads.set_status(path, vocab.CONFLICT, "two writers collided", host="magi")
+    threads.set_status(path, "refuted", "I say it does not hold", host="claude")
+
+    blocked = {item.slug for item in state.close(ws, now=NOW, write=False).blocking}
+    assert "p-a" in blocked

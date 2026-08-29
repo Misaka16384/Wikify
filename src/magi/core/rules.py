@@ -180,6 +180,18 @@ def _leaving_requires_post_by(state, rule) -> list:
     Only the *last* departure is checked. An older one may have been settled by
     something this rule did not exist for yet, and a rule that fires on history
     is a rule somebody turns off.
+
+    The window runs from the post before the departure to the **end of the
+    note**, not to the departure itself. A transition cannot be re-signed once
+    it has happened, so a window that closes there cannot be satisfied by
+    anything a person does afterwards — and what the gate tells them to do is
+    sign a post, which necessarily lands after. Following the instruction
+    exactly left the session permanently unclosable.
+
+    Reading forward is also what the rule is actually asking. `vocab`'s
+    enforcement point is downstream — `sync --close` asks whether the decision
+    left a trace — and a post signed by that host after the flip, saying they
+    made the call, is that trace.
     """
     status, host = rule.params["status"], rule.params["host"]
     out = []
@@ -189,7 +201,7 @@ def _leaving_requires_post_by(state, rule) -> list:
         if not leaving:
             continue
         index = leaving[-1]
-        window = note.posts[max(0, index - 1):index + 1]
+        window = note.posts[max(0, index - 1):]
         if not any(post.host == host for post in window):
             out.append(Violation(
                 rule, note.slug,
@@ -234,6 +246,15 @@ def from_proposal(proposal):
 BUILTIN_SHAPE = (
     {"rule": FIELD_POINTS_INTO, "field": "derivation", "directory": "drafts",
      "from": "builtin"},
-    {"rule": LEAVING_REQUIRES_POST_BY, "status": vocab.CONFLICT, "host": vocab.HUMAN,
-     "from": "builtin"},
 )
+
+# `leaving_status_requires_post_by(conflict, human)` was here and has been
+# taken out. `state._unrecorded_decisions` already reports exactly that
+# transition, and it accepts *either* remedy the gate offers — a post signed
+# `human`, or the decision written into `decisions.md`. This rule can only see
+# posts, so a person who took the `decisions.md` route cleared the debt line
+# and was held by the rule line with nothing left to try.
+#
+# Two checks of one thing, where the second honours half the advice, is worse
+# than one. The predicate itself stays in the vocabulary: `research.rules` can
+# still ask for it, and `disputed` is the same rule with a different pair.

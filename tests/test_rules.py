@@ -137,6 +137,27 @@ def test_leaving_status_requires_post_by(ws):
     assert [v.slug for v in found] == ["p-gap"]
 
 
+def test_a_signature_added_after_the_flip_counts(ws):
+    """The trap. A transition cannot be re-signed once it has happened, and
+    the gate's own instruction is to sign a post — which necessarily lands
+    after it. With the window closing at the transition, following that
+    instruction exactly could never satisfy the rule, and the session became
+    permanently unclosable.
+    """
+    path = proposition(ws, "p-gap", status="testing")
+    threads.set_status(path, "supported", "done", host="claude")
+    threads.set_status(path, "disputed", "VERDICT: refuted", host=vocab.REVIEWER)
+    threads.set_status(path, "testing", "back to it", host="claude")
+    rule = rules.parse([{"rule": rules.LEAVING_REQUIRES_POST_BY,
+                         "status": "disputed", "host": vocab.HUMAN}])
+    assert rules.check(loaded(ws), rule), "the fixture has to start in violation"
+
+    threads.append_post(path, "I looked at it myself — re-running is right.",
+                        host=vocab.HUMAN)
+
+    assert rules.check(loaded(ws), rule) == []
+
+
 def test_leaving_with_the_right_signature_is_fine(ws):
     path = proposition(ws, "p-gap", status="testing")
     threads.set_status(path, "supported", "done", host="claude")
@@ -209,27 +230,34 @@ def test_the_builtin_rules_run_in_a_workspace_with_no_config(ws):
     assert "not under drafts/" in found[0].message
 
 
-def test_walking_out_of_conflict_unsigned_is_caught_by_default(ws):
-    """The other built-in. `conflict` is the CLI observing that two writers
-    collided; deciding which reading was right is a person's call, and leaving
-    the status without a human post is skipping it."""
+def test_leaving_conflict_unsigned_is_reported_as_debt_not_as_a_rule(ws):
+    """It used to be both, and being both was the bug.
+
+    `state._unrecorded_decisions` has always reported this transition, and it
+    accepts *either* remedy the gate offers — a post signed `human`, or the
+    decision written into `decisions.md`. Wiring
+    `leaving_status_requires_post_by(conflict, human)` into `BUILTIN_SHAPE`
+    added a second check that can only see posts, so a person who wrote it in
+    `decisions.md` cleared the debt line and was held by the rule line with
+    nothing left to try. One check, and the one that honours all the advice.
+    """
     path = proposition(ws, "p-gap", status="testing")
     threads.set_status(path, vocab.CONFLICT, "two writers collided", host="magi")
     threads.set_status(path, "testing", "carrying on", host="claude")
 
-    found = state.load(ws, now=NOW).violations
+    projection = state.load(ws, now=NOW)
 
-    assert [v.slug for v in found] == ["p-gap"]
+    assert projection.violations == [], "the duplicate rule is back"
+    assert any("person's call" in item.why for item in projection.debt), \
+        "and the check that replaced it is not running"
 
 
-def test_a_human_post_settles_it(ws):
-    """The rule asks for a decision, not for ceremony."""
-    path = proposition(ws, "p-gap", status="testing")
-    threads.set_status(path, vocab.CONFLICT, "two writers collided", host="magi")
-    threads.set_status(path, "testing", "mine was right, carrying on",
-                       host=vocab.HUMAN)
+def test_the_field_rule_is_still_built_in(ws):
+    """Removing the duplicate must not take the half that was genuinely dead
+    with it: nothing but `BUILTIN_SHAPE` checks where a `derivation:` points."""
+    proposition(ws, "p-bad", derivation=["[[wiki/concepts/gap]]"])
 
-    assert state.load(ws, now=NOW).violations == []
+    assert [v.slug for v in state.load(ws, now=NOW).violations] == ["p-bad"]
 
 
 def test_the_builtins_are_added_to_a_persons_rules_not_swapped_for_them(ws):
