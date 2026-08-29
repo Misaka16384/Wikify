@@ -1,0 +1,110 @@
+# The suite on all three platforms, on every push.
+#
+# Windows and macOS are a hard constraint (design-v2 §1.7) and only one of them
+# is on the author's desk. `release.yml` already runs the suite on Linux before
+# publishing; this runs it everywhere, earlier, so a path separator or a
+# platform-only file lock is found on the commit that introduced it rather than
+# on the tag.
+#
+# **No agent CLI and no Ollama exists on any runner.** Every test that reaches
+# for `shutil.which`, a subprocess or a model must stub — a suite that passes
+# only on a machine with three agent CLIs installed is a suite that tests the
+# machine. Verified by running the suite locally with those stripped off PATH.
+#
+# The two external binaries the tests drive end to end — `pandoc` and `bd` —
+# are installed below rather than skipped. A skip that only ever fires in CI
+# means the two sides are not running the same suite: 21 tests ran on the
+# author's machine and would never have run here. Stubbing them was the other
+# option and the wrong one, because a stub tests our argv, not the integration.
+# `-rs` lists whatever still skips, so what CI did not run is on the page
+# instead of implied by a green tick.
+name: tests
+
+on:
+  push:
+    branches: ["**"]
+    # Tags are `release.yml`'s job. Running both would test the same commit
+    # twice and make a red tick ambiguous about which one failed.
+    tags-ignore: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned, not `latest`. A moving dependency turns the matrix red for reasons
+  # that have nothing to do with the commit under test, which is how a red tick
+  # stops meaning anything. Upgrading is a one-line PR — and the checksums come
+  # from the release's own `checksums.txt`, so bumping the tag needs no hashes
+  # transcribed by hand.
+  BEADS_TAG: v1.2.2
+  BEADS_VERSION: 1.2.2
+
+jobs:
+  pytest:
+    strategy:
+      # One red platform should not hide the other two: the interesting
+      # question is always "which ones", not "did anything fail".
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # test_extension_version.py compares against the last release tag,
+          # and a shallow clone has no tags — the check would skip silently.
+          fetch-depth: 0
+
+      - name: Install pandoc (rung 2 of the ingest ladder)
+        shell: bash
+        run: |
+          if command -v pandoc >/dev/null 2>&1; then pandoc --version | head -1; exit 0; fi
+          case "${{ runner.os }}" in
+            Linux)   sudo apt-get update -qq && sudo apt-get install -y -qq pandoc ;;
+            macOS)   brew install pandoc ;;
+            Windows) choco install pandoc -y --no-progress ;;
+          esac
+
+      - name: Install bd (Beads, the task engine)
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${{ runner.os }}" in
+            Linux)   asset="beads_${BEADS_VERSION}_linux_amd64.tar.gz" ;;
+            macOS)   asset="beads_${BEADS_VERSION}_darwin_arm64.tar.gz" ;;
+            Windows) asset="beads_${BEADS_VERSION}_windows_amd64.zip" ;;
+          esac
+          base="https://github.com/gastownhall/beads/releases/download/${BEADS_TAG}"
+          curl -fsSL -o "$asset" "$base/$asset"
+          # The release publishes its own checksums file. Verifying against it
+          # rather than against hashes copied into this workflow: a hash
+          # transcribed by a human is a hash nobody re-derives, and it goes
+          # stale silently on the next bump.
+          curl -fsSL -o checksums.txt "$base/checksums.txt"
+          grep " $asset\$" checksums.txt > expected.txt
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum -c expected.txt
+          else
+            shasum -a 256 -c expected.txt
+          fi
+          mkdir -p "$HOME/.magi-bin"
+          case "$asset" in
+            *.zip)    unzip -o -q "$asset" -d "$HOME/.magi-bin" ;;
+            *.tar.gz) tar -xzf "$asset" -C "$HOME/.magi-bin" ;;
+          esac
+          echo "$HOME/.magi-bin" >> "$GITHUB_PATH"
+
+      - name: Check bd is on PATH
+        shell: bash
+        run: bd version
+
+      - uses: astral-sh/setup-uv@v10.0.1
+      # Pinned to the floor in pyproject, not to the newest: the interesting
+      # failure is "this needs 3.12 and we claim 3.10", and only the floor
+      # catches it.
+      - run: uv venv --python 3.10
+      - run: uv pip install -e ".[test]"
+      - run: uv run pytest tests -q -rs

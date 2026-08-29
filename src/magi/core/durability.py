@@ -29,6 +29,13 @@ will write either one again.
 costs time, never information. `magi index --rebuild` deletes the index
 deliberately, and that is a supported thing to do.
 
+``output/fanout.jsonl`` is the entry that looks transactional and is not. It is
+an append-only log and nothing recomputes it — but the question this module
+answers is what deleting it costs, and the answer is nothing at all: the count
+nags once, inside the session it is counting, and afterwards it answers no
+question anybody will ask. Contrast ``output/radar/triage.jsonl``, one line per
+human decision, where re-running returns a different world.
+
 ``output/MAP.md`` is the one worth naming, because it does not look derived: it
 reads as a status page somebody maintains, and the temptation is to edit it
 when a line's status is wrong. Editing it changes nothing — it is rendered from
@@ -86,6 +93,12 @@ DERIVED = (
     "output/.lint_cache.json",
     "output/.locks/",
     "output/MAP.md",
+    # Sub-agent spawns, per session. Append-only and not recomputable, which
+    # makes it look transactional — but the test here is what deleting costs,
+    # and the answer is nothing. It exists to nag once, inside the session it
+    # is counting; the moment that session ends the number answers no question
+    # anybody will ask.
+    "output/fanout.jsonl",
     "scratch/",
 )
 

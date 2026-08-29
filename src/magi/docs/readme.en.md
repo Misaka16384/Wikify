@@ -12,7 +12,7 @@
 | Core | State | Carried by | Question answered |
 |---|---|---|---|
 | **MELCHIOR** | Epistemic (knowledge) | concept/reference cards + SQLite knowledge graph + claim/evidence provenance | What do we know, and why is it credible? |
-| **BALTHASAR** | Intent (work) | [Beads](https://github.com/gastownhall/beads) (`bd`) research task graph | What are we doing, and what's next? |
+| **BALTHASAR** | Intent (research) | propositions, questions and lines in `threads/` + `decisions.md` (mechanical chores go to [Beads](https://github.com/gastownhall/beads)) | What are we doing, and what's next? |
 | **CASPER** | Retrieval | local hybrid search (FTS5 BM25 + sqlite-vec vectors + RRF) | What should I read right now? |
 
 Enter any workspace and run **`magi sync`** — it reports the **sync ratio**, three-core status, and concrete restore hints. `magi radar` is the literature radar: scheduled discovery of relevant new papers, plus scouting for recent papers that arguably should cite yours but don't. One shared skills tree serves Claude Code / Codex / Antigravity / opencode and other CLI agent hosts — `magi skills install` puts it where each of them looks.
@@ -24,21 +24,15 @@ Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 ## Start here
 
 ```powershell
-pipx upgrade --install magi-research      # install or upgrade — safe to re-run
-mkdir my-topic ; cd my-topic ; magi init  # one topic
-magi install                              # into your agent CLI: skills, protocol, stop gate
-magi ingest auto                          # after dropping PDFs into inbox/
+pipx upgrade --install magi-research           # install or upgrade — safe to re-run
+mkdir my-topic ; cd my-topic ; magi init ; magi install
 ```
 
-Then tell your agent, in Claude Code or Codex: **"compile the backlog"**. That is the one step no command can do — it reads the papers and writes the cards. When it finishes:
+That is the whole setup. `magi init` scaffolds the workspace; `magi install` puts the skills, the protocol and the close gate into whichever agent CLIs you have.
 
-```powershell
-magi index                           # make it searchable
-magi search "whatever you're after"
-magi ui                              # or browse it all at http://127.0.0.1:8737
-```
+Now open your agent there and **say what you want** — "ingest the papers in inbox", "compile the backlog", "what should I work on?". The skills load themselves by description; you do not have to remember any of them.
 
-Stuck at any point: **`magi sync`** tells you what this workspace needs next and gives you the command for it. **`magi guide`** is the full manual, in your terminal.
+From the terminal, **`magi next`** is the same question and answers it from the notes rather than from a model. **`magi guide`** is the full manual. Everything else — ingest, search, the graph, the WebUI — is in §3 below, and `magi --help` fits on one screen.
 
 ---
 

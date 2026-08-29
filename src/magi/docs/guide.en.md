@@ -43,10 +43,7 @@ An agent's context is disposable — **state always lives on disk**. So any step
 **① Brand-new user** — install per Chapter 2, then:
 
 ```powershell
-mkdir KnowledgeHub ; cd KnowledgeHub
-magi pm init                 # task system (git-inits this directory)
-
-mkdir -p topics/quantum-toys && cd topics/quantum-toys
+mkdir quantum-toys ; cd quantum-toys
 magi init --name "Quantum Toys" --scope "Quantum phenomena in toy models"
 magi install                 # skills + the AGENTS.md protocol block + the end-of-session gate
 
@@ -285,7 +282,21 @@ This is the one people most often get backwards. **You only need one global CLI 
 
 Install the CLI once; after that, starting a new topic only takes `magi init` + `magi install`.
 
-`magi install` does three things, and an agent runs badly without any one of them: it puts the eight skills where the host looks for them; it writes the current protocol into the `AGENTS.md` managed block (leaving everything you wrote around it untouched); and it installs Claude Code's Stop hook so a session cannot end without passing `magi sync --close`. **Host enforcement is not symmetric**: only Claude Code has a documented Stop hook, so on the other hosts the same rule exists as an instruction in the block — which an agent can ignore, and sometimes will. The command says so rather than reporting four identical installs.
+`magi install` does three things, and an agent runs badly without any one of them: it puts the eight skills where the host looks for them; it writes the current protocol into the `AGENTS.md` managed block (leaving everything you wrote around it untouched); and it installs Claude Code's hooks. **Host enforcement is not symmetric**: Claude Code is the only host that documents any hook API, so on the other hosts the same rules exist as instructions in the block — which an agent can ignore, and sometimes will. The command says so rather than reporting four identical installs.
+
+Three hooks, and only the first can refuse anything:
+
+| Hook | Runs | What it does |
+|---|---|---|
+| `Stop` | `magi sync --close --hook` | Refuses to end a session that left bookkeeping undone |
+| `PreToolUse` (on `Task`) | `magi hook fanout` | **Counts** sub-agent spawns; says the number once it passes ten |
+| `SessionStart` | `magi hook session-start` | Hands the agent what `magi next` would say, and nothing when there is nothing |
+
+The fan-out hook counts and never blocks. Invariant 5 in the managed block asks the agent to say what a fan-out costs before starting one, and a rule only the agent enforces stops holding in exactly the sessions where it matters; counting makes it checkable. Blocking would make it a budget, and MAGI's budget covers only the calls MAGI itself starts — a sub-agent is your agent's work on your account.
+
+`magi hook` is called by the host, not typed by you. Its one hard rule is that it can never break a session: every path exits 0 with parseable JSON, including a missing workspace, an unparseable payload and a file it cannot write. A hook that errors is a hook you turn off, and then the gate it was guarding is gone too.
+
+Your own hooks on the same events are left exactly as they were — MAGI recognises its own by command string, so installing twice changes nothing.
 
 > [!WARN]
 > A true in-project install (`uv venv && uv pip install -e .`) is only for people modifying MAGI's source. A `magi` installed that way **is not on PATH** — you can only invoke it as `.venv\Scripts\python.exe -m magi.cli ...`. Skills, Claude Code's SessionStart hook, and the radar's scheduled job all look for the bare command name `magi` on PATH, and won't find it there. For everyday use, install with `pipx` (or `uv tool install`).
@@ -452,7 +463,7 @@ cd topics\<your-topic> && magi skills install
 > Each topic prints `Migrating workspace: <path>`, then `config carried from ...` when there were old settings to bring across, then `magi graph build: ok` / `magi wiki reindex: ok`. At the end, "Finishing up" runs `magi pm init` and a `magi sync --fix` per topic and reports the new sync ratio.
 
 > [!FIX]
-> - **Hub mode reports `N/N topics migrated` at the end, but you saw a `FAILED` in the middle**: the summary line and exit code don't reflect sub-step failures (a known gap). **Search the output for `FAILED` yourself**, then `cd` into the failing topic and rerun `magi migrate` there on its own.
+> - **A topic that reports `FAILED` in the middle**: scaffolding failure now counts — the summary line and the exit code both reflect it. A `FAILED` on `graph build` or `wiki reindex` deliberately does not: those are derived from files that are already in place, and `magi sync --fix` in that topic rebuilds them.
 > - **Hub mode didn't remind you to build indexes**: hub mode only prompts `magi pm init` — it won't remind you to run `magi index` / `magi sync` in each topic. Do it manually.
 > - **The agent still mentions the old commands after migrating**: either `magi setup --remove-legacy` hasn't run, or the agent host's skill cache hasn't refreshed — restart the agent session.
 > - **A topic didn't get migrated**: migration skips any directory that has neither `wiki/` nor `raw/`. Go into that directory and run `magi migrate` on its own — it registers the library on the way through.
@@ -491,7 +502,7 @@ magi init               # inside the topic's own folder
 magi install            # into your agent CLI: skills, protocol block, stop gate
 ```
 
-Start with a hub even for a single topic — it costs one extra command now and nothing later when you add a second. Below: what gets generated, how to manage topics, and how MAGI decides which workspace it is looking at.
+One directory per library, and nothing above it. A second library is a second directory anywhere you like; they find each other through the user-level registry, not through a shared parent. Below: what gets generated, how to manage topics, and how MAGI decides which workspace it is looking at.
 
 ### One library or several {#workspace-shape}
 
@@ -1222,6 +1233,45 @@ crashed process leaves the note untouched and the claim on the list. A reply
 nobody can parse is posted — with the reply quoted, since that is the only way
 to tell a broken adapter from a claim that genuinely cannot be judged — but
 `unclear` is not an answer either, and the claim comes back.
+
+### Ending a line
+
+```bash
+magi close l-sweeps --dry-run              # what is still open on it
+magi close l-sweeps --text 'the question moved on'
+magi publish paper.md --line l-sweeps --text 'this is what it reports'
+```
+
+A line is a *view*, not a folder, so closing one moves no files. What it
+changes is attention: `magi next` skips a closed line entirely. That is the
+point of closing it and also the whole danger — every proposition still open
+on that line stops being offered, and nothing raises its hand later.
+
+So `magi close` surveys before it writes, and **refuses** while anything is
+open, listing each one with the command that would settle it. `--anyway`
+closes regardless and the closing post names every slug that was left, because
+after that the router never will.
+
+`magi publish` is the same line ending the other way: the work got written up.
+The paper goes into `raw/` as cold layer like any other source, every
+proposition the line was about gets `superseded_by: [[raw/papers/…]]`, and the
+line closes. It refuses over two things — a `disputed` proposition, where a
+reviewer objected and nobody ruled, and work still open — and `--anyway`
+records which ones were buried. `superseded` is terminal: `vocab` gives it no
+way out, which is why there is a survey in front of it.
+
+> [!NOTE]
+> **Two commands share the word "close".** `magi sync --close` ends a *session*
+> — the bookkeeping gate every session runs. `magi close <line>` ends a
+> *research line*. They sit next to each other in `magi --help` so you meet
+> both descriptions at once rather than finding out from the wrong one.
+
+**`skeleton: true`** in a note's frontmatter pins it into the graph's skeleton
+view, which otherwise keeps the sixty best-connected nodes. Degree is a good
+proxy for importance and a systematically wrong one about the newest note —
+which is usually what you are working on. A pin takes a slot rather than
+widening the map, and `MAP.md` lists what is pinned, so the two renderings of
+`threads/` agree.
 
 `magi decide` is the agent transcribing, **verbatim**, what a person said. They
 speak in the conversation and never open a file — a system that needs them to

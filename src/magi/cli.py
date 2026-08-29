@@ -67,6 +67,9 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("next",): ("magi.state", ["next"], "What to do next, derived from the notes"),
     ("decide",): ("magi.decide_cmd", [], "Write down what the person decided (verbatim, where it can be audited)"),
     ("review",): ("magi.review", [], "Have another agent CLI check a claim that says it is solved"),
+    ("close",): ("magi.close_cmd", [], "Close a research line, after showing what is still open"),
+    ("publish",): ("magi.publish_cmd", [], "File our own paper into raw/ and retire the work it reports"),
+    ("hook",): ("magi.hook_cmd", [], "Called by an agent CLI's hooks; not for typing by hand"),
     ("reflect",): ("magi.reflect.cmd", [], "Read the sessions where something happened, and write down what keeps happening"),
     ("feed",): ("magi.state", ["feed"], "Every post, newest first"),
     ("thread", "new"): ("magi.kb.thread_cmd", ["new"],
@@ -136,7 +139,8 @@ _GROUP_HELP = {
 #: with `magi sync --close`, and on the three hosts with no stop hook that is
 #: the only self-check a person has. A command the protocol requires and the
 #: menu hides is a command somebody has to already know about.
-PORCELAIN = ("next", "sync", "init", "install", "ui", "search", "feed", "guide")
+PORCELAIN = ("next", "sync", "close", "publish", "init", "install", "ui",
+             "search", "feed", "guide")
 
 
 def _print_help(everything: bool = False) -> None:

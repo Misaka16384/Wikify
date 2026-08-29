@@ -1984,6 +1984,19 @@ def topic_title(path: Path, slug: str) -> str:
     return slug.replace("-", " ").title()
 
 
+def _is_pinned(value) -> bool:
+    """Is this note asking to be kept in the graph's skeleton?
+
+    YAML gives `skeleton: true`, `skeleton: yes` and `skeleton: "true"` three
+    different types, and a person editing frontmatter by hand writes whichever
+    they think of. A pin that silently does nothing because it was quoted is
+    worse than no pin at all.
+    """
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "yes", "1", "on")
+    return bool(value)
+
+
 def extract_wikilinks(text: str) -> list[str]:
     """Extract all [[Concept]] and [[Concept|Alias]] wikilinks from text."""
     return re.findall(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]", text)
@@ -2285,6 +2298,8 @@ def run_graph(args: argparse.Namespace) -> int:
             if isinstance(tags, list):
                 for tag in tags:
                     tag_rows.append((node_id, str(tag)))
+            if _is_pinned(fm.get("skeleton")):
+                tag_rows.append((node_id, "skeleton"))
 
             aliases = fm.get("aliases")
             if isinstance(aliases, list):
@@ -2360,6 +2375,8 @@ def run_graph(args: argparse.Namespace) -> int:
                 tag_rows.append((node_id, f"line:{line_name}"))
             for tag in threads_mod.as_list(note.frontmatter.get("tags")):
                 tag_rows.append((node_id, str(tag)))
+            if _is_pinned(note.frontmatter.get("skeleton")):
+                tag_rows.append((node_id, "skeleton"))
 
             for field in ("depends_on", "answers", "derivation", "superseded_by"):
                 for link in threads_mod.as_list(note.frontmatter.get(field)):

@@ -184,6 +184,21 @@ def browse_broken(conn, limit=200):
 SKELETON_LIMIT = 60
 
 
+def pinned(conn) -> set:
+    """Node ids a person asked to keep, whatever the degree ranking says.
+
+    Read from the tag table because that is where the pin lives: `skeleton:
+    true` in a note's frontmatter becomes the tag `skeleton`, the same way
+    temperature and line already do, so there is one filtering mechanism
+    rather than two answers to the same question.
+    """
+    try:
+        return {r[0] for r in conn.execute(
+            "SELECT node_id FROM tags WHERE tag = 'skeleton'")}
+    except Exception:      # noqa: BLE001 — an old graph has no such rows
+        return set()
+
+
 def browse_map(conn, include_tags=False, limit=800, kinds=None, skeleton=False):
     """Whole-graph snapshot for the interactive map view.
 
@@ -269,9 +284,17 @@ def browse_map(conn, include_tags=False, limit=800, kinds=None, skeleton=False):
             for nid in (edge["source"], edge["target"]):
                 nodes[nid]["degree"] += 1
 
+    # A pin is a person overruling the ranking, so it is applied after the
+    # ranking rather than folded into it: the pinned nodes are kept, and the
+    # rest of the budget goes to the best-connected of what is left. Folding it
+    # into `rank` would let a big enough pinned set silently push out every
+    # real hub, and the shape would be gone with nothing saying so.
+    keep = pinned(conn) & set(nodes)
     truncated = len(nodes) > limit
     if truncated:
-        kept = {n["id"] for n in sorted(nodes.values(), key=rank)[:limit]}
+        room = max(0, limit - len(keep))
+        rest = [n for n in sorted(nodes.values(), key=rank) if n["id"] not in keep]
+        kept = keep | {n["id"] for n in rest[:room]}
         nodes = {nid: n for nid, n in nodes.items() if nid in kept}
         edges = [e for e in edges
                  if e["source"] in nodes and e["target"] in nodes]

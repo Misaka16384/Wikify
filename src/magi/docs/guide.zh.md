@@ -271,7 +271,21 @@ WebUI 里版本号旁边会出现一个徽章，点开有 **立即升级**。
 
 装一次 CLI，之后每开一个新课题只需要 `magi init` + `magi install`。
 
-`magi install` 做三件事，缺一件 agent 都跑不顺：把 8 个技能放到宿主找得到的地方；把当前协议写进 `AGENTS.md` 的托管块（块外你写的东西一个字不动）；给 Claude Code 装上 Stop hook，让会话结束前必须过 `magi sync --close`。**宿主强制力不对称**：只有 Claude Code 有文档化的 Stop hook，其余宿主同一条规则只以托管块里的指令形式存在——agent 可以不听，而且有时真不听。命令会把这件事直说，而不是装成四个宿主都装好了。
+`magi install` 做三件事，缺一件 agent 都跑不顺：把 8 个技能放到宿主找得到的地方；把当前协议写进 `AGENTS.md` 的托管块（块外你写的东西一个字不动）；给 Claude Code 装上钩子。**宿主强制力不对称**：只有 Claude Code 有文档化的钩子接口，其余宿主同一批规则只以托管块里的指令形式存在——agent 可以不听，而且有时真不听。命令会把这件事直说，而不是装成四个宿主都装好了。
+
+三个钩子，只有第一个能拒绝东西：
+
+| 钩子 | 跑什么 | 干什么 |
+|---|---|---|
+| `Stop` | `magi sync --close --hook` | 有记账没做完就不让这次会话结束 |
+| `PreToolUse`（匹配 `Task`） | `magi hook fanout` | **计数**子 agent；超过十个就报一次数 |
+| `SessionStart` | `magi hook session-start` | 把 `magi next` 会说的话交给 agent；没事要做就什么都不说 |
+
+fan-out 那个只计数，一次都不拦。托管块的不变量 5 要求 agent 在开始 fan-out 之前先说它要花多少，而一条只靠 agent 自觉的规则，恰恰会在最要紧的那些会话里失效——计数让它可核对。拦截会把它变成预算，而 MAGI 的预算只管 MAGI 自己发起的调用：子 agent 是你的 agent 用你的账号干的活。
+
+`magi hook` 是宿主调的，不是给你敲的。它唯一的硬规矩是**永远不能弄坏一次会话**：所有路径都以 exit 0 加可解析 JSON 结束，包括工作区不存在、payload 解析不了、文件写不进去。报错的钩子是会被你关掉的钩子，然后它守的那道闸门也一起没了。
+
+同一批事件上你自己的钩子原样保留——MAGI 靠命令字符串认自己的那条，所以装第二次什么都不会变。
 
 > [!WARN]
 > 真·项目内安装（`uv venv && uv pip install -e .`）只推荐给要改 MAGI 源码的人。这样装出来的 `magi` **不在 PATH 上**，只能用 `.venv\Scripts\python.exe -m magi.cli ...` 调用；而 skills、Claude Code 的 SessionStart 钩子、雷达定时任务全都是按裸命令名 `magi` 去 PATH 里找的，它们会找不到。日常使用请用 `pipx`（或 `uv tool install`）。
@@ -437,7 +451,7 @@ cd topics\<你的主题> && magi skills install
 > 每个主题先打印 `Migrating workspace: <path>`，有旧配置可搬时打印 `config carried from ...`，然后 `magi graph build: ok` / `magi wiki reindex: ok`。最后「Finishing up」跑 `magi pm init` 和每个主题的 `magi sync --fix`，并报出新的同步率。
 
 > [!FIX]
-> - **hub 模式最后说 `N/N topics migrated` 但中间有 `FAILED`**：这个汇总行和退出码不反映子步骤失败（已知缺陷）。**自己在输出里搜 `FAILED`**，对报错的主题单独进目录重跑 `magi migrate`。
+> - **某个课题中途报 `FAILED`**：脚手架失败现在算数了——汇总行和退出码都会反映。`graph build` / `wiki reindex` 的 `FAILED` **故意**不算：那两样是从已经就位的文件派生出来的，在那个课题里跑 `magi sync --fix` 就会重建。
 > - **hub 模式没提醒建索引**：hub 模式只提示 `magi pm init`，不会提醒每个主题跑 `magi index` / `magi sync`。手动补上。
 > - **迁移后 agent 还在提旧命令**：`magi setup --remove-legacy` 没跑，或宿主技能缓存没刷新——重启 agent 会话。
 > - **某个主题没被迁移**：迁移会跳过既没有 `wiki/` 也没有 `raw/` 的目录。进那个目录单独跑 `magi migrate`——它会顺手把库登记进注册表。
@@ -1160,6 +1174,36 @@ magi review --model sonnet --effort high     # 1. 这一次调用
 CLI 没装、超时、进程崩了，note 一个字都不动，命题继续在队列里。读不懂的回答会写帖（原文附
 在里面：那是分辨"适配器坏了"和"这条真判不了"的唯一办法），但 `unclear` 也不是答案，命题
 照样回队列。
+
+### 一条线怎么结束
+
+```bash
+magi close l-sweeps --dry-run              # 先看线上还开着什么
+magi close l-sweeps --text '问题已经转向了'
+magi publish paper.md --line l-sweeps --text '这篇论文报告的就是这条线'
+```
+
+线是一个**视图**不是文件夹，所以关掉一条线不移动任何文件。它改变的是注意力：
+`magi next` 会整条跳过已关闭的线。这既是关它的意义，也是全部的危险——线上还开着的
+每一条命题从此不再被提起，而且之后没有任何东西会举手。
+
+所以 `magi close` 先勘察再写，只要还有开着的东西就**拒绝**，并把每一条连同「settle 它的命令」一起列出来。`--anyway` 照关不误，但关闭那条帖子会写下每一个被留下的 slug——因为从此以后路由器不会再说了。
+
+`magi publish` 是同一条线的另一种结束方式：工作写成论文了。论文进 `raw/` 成为冷层，
+和别的任何来源一样；这条线涉及的每条命题拿到 `superseded_by: [[raw/papers/…]]`；
+线关闭。它在两件事上拒绝——`disputed` 的命题（复核员提了异议、没人拍板）和还没做完的
+活——`--anyway` 会把埋掉了哪些写进记录。`superseded` 是终态：`vocab` 不给它任何出口，
+这正是它前面要有一次勘察的原因。
+
+> [!NOTE]
+> **两个命令共用「close」这个词。** `magi sync --close` 结束一次**会话**——每次会话都要
+> 过的记账闸门。`magi close <line>` 结束一条**研究线**。它们在 `magi --help` 里紧挨着，
+> 所以你会同时读到两句说明，而不是从错的那个身上学会。
+
+note 的 frontmatter 里写 **`skeleton: true`**，就把它钉进图的骨架视图——骨架默认只留
+度数最高的六十个节点。度数是重要性的好代理，但它对「最新的那条 note」系统性地判错，
+而最新的那条通常正是你在做的那条。钉住是占一个名额而不是把图撑大，`MAP.md` 也会列出
+钉了哪些，这样 `threads/` 的两种渲染说的是同一件事。
 
 `magi decide` 是 agent 替人**原样**誊写。人只在对话里说话，不开文件——一个需要人去开文件
 的系统，第二周记录就是空的。誊写会同时写进 `decisions.md`、给命题打上 `bet:`、并在讨论区

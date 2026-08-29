@@ -181,17 +181,17 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [x] **三批独立复核的发现全部修完**（2026-08-29 当日 31/31；明细在 ROADMAP 当日条目；最后五条 low 共用一个形状「程序说了一件没发生的事」，守在 `test_reporting_honesty.py`）：M3 切片本地 opus 14 条（`pm.main` 不解析参数致 `sync --fix` 永不收敛、skills 装进 cwd、install 默认只装 claude、CLAUDE.md 指针无备份、uninstall 无归属判断 rmtree、`ingest review --commit` 忽略 `--batch`、init 仍 spawn `hub register`…）；M4+M5 本地 opus 12 条（提示词回显被读成 `VERDICT: stands`、unclear 帖里的摘录被当答案、复核器裁决被当双翻改成 conflict、npm `.cmd` 宿主起不来、`decide --about` 换行伪造条目、config 端点未校验 workspace、浏览器可写 conflict、`dump()` 无锁无时间戳…）；M6 ultrareview 5 条（`install --coaching` 默认值绕过 None 哨兵、`already_proposed` 含 RETIRED 使退休规则回不来、WebUI 无 retire 路径…）。ultrareview M1+M2 的 2 条已在 M6 修
 - [x] **Gemini CLI 全面退场**（2026-08-29 作者定）：宿主正名 `antigravity`（二进制 `agy`），`skills_cmd` 删 `gemini` 别名、help 列 antigravity；`review.py` 删 `gemini -p`，加 `agy -p --model`（考虑 `--json-schema` 直接要结构化裁决）；argv[0] 用 `shutil.which` 结果（修 npm `.cmd` 起不来）；transcripts 的 `~/.gemini/tmp` reader 确认为 agy 所写，否则改指 agy 的记录位置并改名 antigravity；guide / README / 托管块 / `degradation.md` 里 Gemini CLI 字样全改；用一次真实 `agy -p` 跑通端到端——花一次调用，先问人。**同一次做宿主注册表合一** `core/hosts.py`：三张表（`skills_cmd.HOSTS` / `review.HOSTS` / `transcripts.HOSTS`）变一张，每宿主一条声明（bin、skill 落点、无头模板、模型参数、reader 名、tier）；`research.hosts` 进 config 白名单让用户加记录；qwen / opencode 标 tier 2
 - [x] **模型 / effort 选择**（2026-08-29 作者定）：注册表记录加 `list_models`（argv 模板；agy = `("{bin}","models")`，解析 `id 	 标签`）或静态 `models:` 别名表（claude：`haiku / sonnet / opus`）、`effort_flag`（agy / claude `--effort`，codex `-c model_reasoning_effort=`）、`cheap` 默认模型；`headless()` 在 `review_model` 空时传 `cheap`，effort 同理；`research.hosts[].model / .effort` 覆盖全局 `review_model / review_effort`，后两者进 config 白名单；WebUI 配置面板 host → model → effort 三级下拉，agy 的列表缓存在 `~/.config/magi/models-<host>.json`（TTL 24h，取不到退回文本框）；`magi review --dry-run` 与 `magi reflect --dry-run` 打印将用的 host / model / effort；账本已记 model，再记 effort。测试：空 `review_model` 时 argv 含 cheap；per-host 覆盖优先于全局；agy 列表解析；缓存过期与失败退回。**已做**（2026-08-29，`test_model_and_effort.py` 27 条）：codex 的 `cheap` 留空并写明理由；agy 模型 id 自带档位时不追加 effort；真实 `agy -p` 冒烟通过（故意超证据范围的命题被 refuted 并逐行点名），顺带抓到 `_REASON_RE` 600 字符硬截掉定案句的 bug——只有真调用才暴露，桩永远给短回答
-- [ ] （从 M3 挪来）`validate` 收成单 schema
-- [ ] （从 M3 挪来）PreToolUse 计数 / SessionStart hook：§13 会话内 fan-out 软约束、§7 会话开始时做后台调度
+- [x] （从 M3 挪来）`validate` 收成单 schema
+- [x] （从 M3 挪来）PreToolUse 计数 / SessionStart hook：§13 会话内 fan-out 软约束、§7 会话开始时做后台调度
 - [ ] （从 M3 挪来）README「先跑起来」改为 2 条命令；guide hub 那两章重写，并入 M7 的 guide 全书重写
-- [ ] `magi close <line>`（人用面）：线归档、open 命题处置提示
-- [ ] `magi publish`：我方论文进 `raw/`；相关命题批量 `superseded_by`；线关闭
-- [ ] 骨架钉住（`skeleton: true`）与 MAP 静态渲染对齐
+- [x] `magi close <line>`（人用面）：线归档、open 命题处置提示
+- [x] `magi publish`：我方论文进 `raw/`；相关命题批量 `superseded_by`；线关闭
+- [x] 骨架钉住（`skeleton: true`）与 MAP 静态渲染对齐
 - [ ] guide 全书按 v2 重写；`docs/degradation.md` 增审核 / 无头调用 / transcript 适配行
-- [ ] 三宿主 + 双平台冒烟；`RELEASING.md` 流程
+- [ ] 三宿主冒烟（Windows，已跑一次真实 `agy -p`）+ **macOS 走 CI**（2026-08-29 作者定，没有 Mac）：新增 `.github/workflows/tests.yml`，`push` / `pull_request` 触发，矩阵 `ubuntu / macos / windows` × 一个 Python 版本跑 `pytest -q`；`release.yml` 保持 ubuntu；RELEASING.md 写明 macOS 只有 CI 绿、未冒烟。**已做**（2026-08-29）：裸 runner 模拟 2355 passed / 22 skipped，翻出 README 打包副本未同步、guide 漏 `magi hook`、guide 三处 v1 残留（含一条已修掉的「已知缺陷」说明）——都修了；`pytest -rs` 让 CI 逐条列出跳过的。CI 装 pandoc（apt / brew / choco 一行，无第三方 action）。**`bd` 装不装**：装，但钉版本 + sha256 从固定 release URL 取，不 `curl | sh` 最新；beads 没有可钉的二进制发布就不装，靠 `-rs` 把 17 个 skip 印在页面上（假装覆盖比明写没覆盖更糟——端到端驱动二进制的用例换桩就是另一个测试）。`tests.yml` 在首次 push 前未经 Actions 验证
 - [ ] [可选] 第二梯队宿主（qwen / opencode / 用户自加）：只要注册表一条记录 + 可选 reader；不冒烟、fail-soft；做不成就留着记录，不阻塞发布
 
-**验收**：全测试绿；smoke 三宿主；README / guide 与 `--help` 无冲突。
+**验收**：全测试绿（本机 Windows + CI 三平台）；smoke 三宿主（Windows）；README / guide 与 `--help` 无冲突。
 **→ 发 `v2.0.0`。**
 
 ---

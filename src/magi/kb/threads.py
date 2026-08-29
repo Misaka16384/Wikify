@@ -80,6 +80,12 @@ COMMON_REQUIRED = ("kind", "status", "created", "purpose")
 #: run with zero explicit lines until a sub-direction is worth naming.
 COMMON_OPTIONAL = ("line", "tags", "updated", "title")
 
+#: A note may ask to survive the graph's skeleton cut. The skeleton keeps the
+#: best-connected nodes, and degree is systematically wrong about the newest
+#: thing in the library — which is usually the thing somebody is working on.
+#: Any kind may pin itself, so it is listed for all three.
+PINNED = "skeleton"
+
 KIND_OPTIONAL = {
     vocab.PROPOSITION: (
         "depends_on",      # [[concept]] this proposition is stated in terms of
@@ -88,9 +94,10 @@ KIND_OPTIONAL = {
         "derivation",      # [[drafts/...]] where the argument actually lives
         "superseded_by",   # [[raw/...]] or [[threads/...]] that replaced it
         "key_move",        # how it was resolved, written at closing time
+        PINNED,            # keep me in the skeleton whatever my degree is
     ),
-    vocab.QUESTION: (),
-    vocab.LINE: (),
+    vocab.QUESTION: (PINNED,),
+    vocab.LINE: (PINNED,),
 }
 
 #: Fields whose value must be a list even when it has one element. YAML makes

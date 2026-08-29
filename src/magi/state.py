@@ -717,6 +717,7 @@ def to_json(state: State, actions: list) -> dict:
     return {
         "root": str(state.root),
         "lines": [vars(view) for view in state.lines],
+        "pinned": pinned(state),
         "queue": [vars(item) for item in state.queue],
         "debt": [{"slug": item.slug, "why": item.why,
                   "path": str(item.path) if item.path else None}
@@ -1039,6 +1040,20 @@ def budget(root) -> dict:
         return {}
 
 
+def pinned(state: State) -> list:
+    """Notes a person pinned into the graph's skeleton, in slug order.
+
+    The same `skeleton: true` the graph reads. Surfaced here because MAP.md and
+    the map view are two renderings of one directory (design-v2 §12), and a pin
+    that only one of them can see is a third thing pretending to be part of the
+    first.
+    """
+    from .kb.llmwiki import _is_pinned
+
+    return [note.slug for note in sorted(state.notes, key=lambda n: n.slug)
+            if _is_pinned(note.frontmatter.get("skeleton"))]
+
+
 def render_map(state: State, now=None) -> str:
     """`MAP.md`: the two things a person is supposed to look at.
 
@@ -1075,6 +1090,13 @@ def render_map(state: State, now=None) -> str:
     else:
         for item in decisions:
             out.append(f"- **{item.kind}** [[{item.slug}]] — {item.why}")
+    kept = pinned(state)
+    if kept:
+        out.extend(["", "## Pinned", "",
+                    "Kept in the graph's skeleton whatever their degree — "
+                    "`skeleton: true` in the note.", ""])
+        out.extend(f"- [[{slug}]]" for slug in kept)
+
     back = retrospective(state)
     if back["scored"] or back["unknown"] or back["late"] or back["decisions"]:
         out.extend(["", "## Looking back", ""])

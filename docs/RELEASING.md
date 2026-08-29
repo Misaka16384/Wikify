@@ -53,8 +53,15 @@ What each step has to show:
 `gemini-3.7-flash-low`, 21.3 s, verdict `refuted`, citing all three files by
 line. It also found a bug the suite could not: the reason was being cut at 600
 characters, mid-URL, and the post is the record — `raw` survives only in
-`--json`. macOS has not been smoke tested since v2 (stated here rather than
-implied by its absence).
+`--json`.
+
+**macOS: CI green, never smoke tested.** There is no Mac to run it on, so
+`.github/workflows/tests.yml` runs the suite on `macos-latest` alongside Linux
+and Windows on every push. That covers path separators, file locking and the
+platform-only branches. It does not cover any of the table above: no runner has
+an agent CLI or an Ollama on it, so the reviewer, the transcript readers and
+the model calls are stubbed there exactly as they are here. Stated rather than
+implied by its absence.
 
 ## Cutting a release
 

@@ -296,6 +296,10 @@ output/*.db-wal
 output/*.db-shm
 output/.lint_cache.json
 output/.embeddings_cache*
+# One line per sub-agent spawn, per session. It nags once while the session is
+# running and answers nothing afterwards — and a per-session counter in git is
+# a merge conflict with no upside.
+output/fanout.jsonl
 
 # Deliberately NOT ignored, and not an oversight:
 #   output/ingest/           what was queued, converted, decided and committed

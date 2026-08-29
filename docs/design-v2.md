@@ -17,7 +17,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 4. **确定性 CLI 是拘束具。** 能写成命令/门/测试的规则不写成 prose；prose 规则是硬化候选。
 5. **人的输入面只有一个（对话）。** 人被要求写字的时刻 = 人必须读的时刻，是同一组事件。
 6. **仪式性动作留给人。** 关线、发表只有人调用，AI 永不调用。
-7. **硬约束不变**：Windows + macOS；Claude Code / Codex / Antigravity 三宿主冒烟。Gemini CLI 已废弃，不再是宿主；其余宿主（Qwen Code、opencode、用户自加的）是**第二梯队**：best-effort、fail-soft、不进冒烟（2026-08-29 作者定）。
+7. **硬约束**：Windows 冒烟 + macOS **CI 跑 pytest**（2026-08-29 作者定：手边没有 Mac；v2 自 M0 起没在 Mac 上冒烟过，CI 矩阵是唯一能给的保证，RELEASING 如实写「macOS 未冒烟」）；Claude Code / Codex / Antigravity 三宿主冒烟。Gemini CLI 已废弃，不再是宿主；其余宿主（Qwen Code、opencode、用户自加的）是**第二梯队**：best-effort、fail-soft、不进冒烟（2026-08-29 作者定）。
 
 ## 2. 结构：project / line
 
@@ -101,7 +101,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 - **CLI 对跃迁做硬反应，不对叙述做反应。** `testing → supported` 触发审核；`→ disputed / conflict`、线相位提议 → 决策队列。不看 AI 在跟帖里怎么说。
 - **派生只查记账债**（有改动、无状态更新）。异常终止后由下次 `next` 第一条还债。
 - **只有三类事件叫人**：命题被宣称解决且审核后仍 `disputed`、温层与冷层矛盾、线的方向变化。其余永不打断人。
-- `magi close <line>` / `magi publish` 只有人调用。publish：我方论文进 `raw/` 成冷层；相关命题 `superseded_by: [[paper]]`。
+- `magi close <line>` / `magi publish` 只有人调用。两者的正事是翻转**之前的勘察**（M7 实现时定）：线是视图，关掉它不动文件、动的是注意力——`candidates()` 从此整条跳过，线上还开着的命题再没有东西会举手。所以默认**拒绝**并把每条连同 settle 它的命令列出来；`--anyway` 照做，但关闭帖写下每一个被留下的 slug——路由器不再说了，那条帖是唯一还能说的地方。publish 在两件事上分开拒绝：`disputed`（发论文盖过异议不是回答它，是删掉它）和还开着的活；论文进 `raw/` 成冷层，线上命题 `superseded_by: [[raw/papers/…]]` 并转 `superseded`（question 走 `answered`，`superseded` 不在它词表里）；字段先写、状态后写——中途崩溃留下「指向论文但没退休」的 note 人能收尾，反过来是一个没出口的终态却不知被什么替代。
 - **WIP 上限**：一条线 open 命题 > N（默认 7）→ `next` 提示先关，不做打分排序。
 - **人的决定怎么留痕**（M2 实现时定）：`vocab.writers()` 说清了离开 `disputed` / `conflict` / `closed` 是人的决定，但帖子签名写的是宿主而不是「谁的决定」——AI 誊写人的决定本来就是常态。所以 `--close` 查的不是谁敲的字，而是决定有没有留痕：帖子签 `--host human`，或者 slug 出现在 `decisions.md`。两者都不是证明，也不打算是；目的是让「把命题从 disputed 走出来」留下可审计的痕迹，而不是让异议在两次运行之间蒸发。
 - **会话范围用 mtime**（M2 实现时定）：`--close` 拦近 12 小时的欠账，更早的只列出来。不用 git diff（工作区不一定是 git 库），也不用会话日志（那是又一件要维持为真的东西）。非要等整个库的历史都干净才放人走的闸门会被关掉，而关掉的闸门什么也不强制。
@@ -135,7 +135,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 - `<!-- magi:begin -->…<!-- magi:end -->` 由 CLI 拥有、幂等重写；块外用户所有。`CLAUDE.md` 只含 `@AGENTS.md`。project 一块，line 不单独放。
 - 块 ≤ 40 行：入口一行（先跑 `magi next`）、目录含义各一行、五条不变量（不改 `raw/`、一文件一温度、翻状态必跟帖、子 agent 不问人、fan-out 必报数）、强制输出协议（按档位）、guide 指针。**理由不进块**——块每个会话都在付费。
 - **规则区**（2026-08-29 定，见 §12）：块内最后一节，由 CLI 从 `output/reflect/ledger.jsonl` 渲染——ACCEPT 且未 PROMOTE、未退出的规则各一行。它是派生物：块的真相 = 模板 + 账本，LLM 永不写块。行数上限 `research.rule_budget`（config，WebUI 可改；默认 7，使默认总长仍 ≤ 40）；满了 ACCEPT 拒绝，先退一条或 PROMOTE 一条。棘轮测试守模板的 40 行，规则区由 ACCEPT 闸门守。**谁改了账本谁重渲染**（`reflect accept | promote`、退出、`sync`），不等下次 `install`；渲染**从不截断**——预算只拦新的 ACCEPT，已渲染的留着，超预算时 `sync` 报一行。块仍是幂等的：同样的模板 + 账本 → 同样的块，只是输入里多了账本。块与账本的**漂移**由 `sync --close` 检查：账本里 accepted 的规则块里没有 → 阻塞并提示 `magi install` 能修（M6 复核加：「记了裁决但没重渲染」以前没有任何东西会发现）。
-- `magi install --host <claude|codex|antigravity|qwen|opencode>`：一条幂等命令写 skills + hooks + 托管块。opencode 是完整宿主但**低优先级**（2026-08-29 定：作者暂不用它）——install 侧已有；无头复核适配器与冒烟做得简单就做，做不成就算，不进 §1.7 的硬约束。**宿主词表对外只有这一个**（2026-08-29 定）：第一梯队 `claude | codex | antigravity`，第二梯队 `qwen | opencode` 及用户自加的。`gemini` 不再是宿主名，也不留别名——Gemini CLI 已废弃，Gemini 家只有 Antigravity（二进制 `agy`）。**宿主是数据不是代码**（2026-08-29 作者定：世上 CLI 太多，能通用最好）：一个宿主 = 一条声明——二进制名、skill 落点（默认走 `.agents/skills/` 跨宿主约定）、无头调用模板与模型参数（`model_flag`；effort 是 argv **模板**不是 flag——codex 是 `-c model_reasoning_effort=low`，claude / agy 是 `--effort low`，一个字段装不下两种形状）、模型列表来源（`list_models` argv 模板，或静态 `models:` 别名表）、`cheap` 默认模型、可选的 `model` / `effort` 覆盖、transcript reader 名——三张表（装到哪 / 无头跑哪个二进制 / 谁的记录读得懂）合成一张注册表 `core/hosts.py`，用户可在 `config.yaml` 的 `research.hosts` 里加同形记录。加一个宿主 = 加一条记录；唯一要写代码的是 transcript reader，没有 reader 就是读不到，不报错；qwen 的 install 目标等查清 qwen-code 的 skill 目录约定再加，不猜；宿主配置用解析-合并-写回并备份，不做文本追加。宿主强制力不对称按文档声明。
+- `magi install --host <claude|codex|antigravity|qwen|opencode>`：一条幂等命令写 skills + hooks + 托管块。三个 hook（Stop / PreToolUse / SessionStart）一张表、一个合并函数（认出自己的所以重装不重复追加，别人的不动）。**hook 不能弄坏一次会话**（M7 实现时定）：所有路径以 exit 0 + 可解析 JSON 结束，包括工作区不存在、payload 不是 JSON、文件写不进去——报错的 hook 是会被人关掉的 hook，它守的闸门也一起没了。SessionStart 打印 `magi next` 前三条，无事时整个不输出。opencode 是完整宿主但**低优先级**（2026-08-29 定：作者暂不用它）——install 侧已有；无头复核适配器与冒烟做得简单就做，做不成就算，不进 §1.7 的硬约束。**宿主词表对外只有这一个**（2026-08-29 定）：第一梯队 `claude | codex | antigravity`，第二梯队 `qwen | opencode` 及用户自加的。`gemini` 不再是宿主名，也不留别名——Gemini CLI 已废弃，Gemini 家只有 Antigravity（二进制 `agy`）。**宿主是数据不是代码**（2026-08-29 作者定：世上 CLI 太多，能通用最好）：一个宿主 = 一条声明——二进制名、skill 落点（默认走 `.agents/skills/` 跨宿主约定）、无头调用模板与模型参数（`model_flag`；effort 是 argv **模板**不是 flag——codex 是 `-c model_reasoning_effort=low`，claude / agy 是 `--effort low`，一个字段装不下两种形状）、模型列表来源（`list_models` argv 模板，或静态 `models:` 别名表）、`cheap` 默认模型、可选的 `model` / `effort` 覆盖、transcript reader 名——三张表（装到哪 / 无头跑哪个二进制 / 谁的记录读得懂）合成一张注册表 `core/hosts.py`，用户可在 `config.yaml` 的 `research.hosts` 里加同形记录。加一个宿主 = 加一条记录；唯一要写代码的是 transcript reader，没有 reader 就是读不到，不报错；qwen 的 install 目标等查清 qwen-code 的 skill 目录约定再加，不猜；宿主配置用解析-合并-写回并备份，不做文本追加。宿主强制力不对称按文档声明。
 - 宿主自带 auto-memory 视为私有缓存；项目状态只以 MAGI 文件为准，冲突以文件为准（写进块）。
 
 ## 10. 人机界面
@@ -143,7 +143,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 - **输入面只有对话。** 事件触发强制输出：命题开出（预测）、结案（"你预期到了吗"）、线转向（二选一 + 理由）。只允许三种问题：**预测 / 选择 / 证伪条件**；能用"好"回答的一律不问；"不知道"合法且记录。AI 誊写进 `decisions.md` 或命题 `bet:`，人不开文件。档位 `coaching: off | light | strict`（strict：无预测不开始推导）；config 设定，会话内可覆盖。
 - **堆放区** `inbox/notes.md`（WebUI 文本框直写）：append-only 带时间戳；下次 `next` 第一件事分类进五个写入面——question / proposition / decision / 跟帖（观察）/ beads；拿不准放 question；原文留链接。
 - **MAP**（`output/MAP.md` 派生 + WebUI）两节：各线（状态词、一句到哪了、open 命题数、最后跃迁日期、停滞标记）+ 决策队列（disputed、conflict、待转向、待预测、规则提案）。维护项不上 MAP。字段先做着不行再改。**回溯**：MAP 主动把旧决定和预测命中率拉出来对账，不等人去翻。
-- **一张图**：WebUI 认知网络按 kind / status / 温度着色，按 line / kind / 层过滤，默认只画骨架（度数 top-k 或 `skeleton: true`）点开再展；MAP.md 是它过滤到"lines + 队列"的静态渲染。一个数据源两种渲染。
+- **一张图**：WebUI 认知网络按 kind / status / 温度着色，按 line / kind / 层过滤，默认只画骨架（度数 top-k 或 `skeleton: true`）点开再展；MAP.md 是它过滤到"lines + 队列"的静态渲染，外加 `## Pinned`（`skeleton: true` 的节点；没钉任何东西时整节不出现）——钉住是人说「不管丢什么都留着」，只有开了骨架开关的人看得见的话，就是第三样东西在冒充第一样（M7 实现时补）。`skeleton: true` 是 tag 不是新列（图已经按 tag 过滤，第二套过滤是同一个问题的第二个答案），钉住在排序之后生效：钉住的先留，剩下的预算给最连通的，否则一个够大的钉住集合会静默挤掉所有真 hub。一个数据源两种渲染。
 
 ## 11. 审核契约（`magi review`）
 
@@ -169,7 +169,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 ## 13. 成本治理
 
 - MAGI 只硬管**它自己发起的**调用（review、reflect、堆放区分类）：`output/llm-ledger.jsonl` 记账；周预算 + 每类工作用哪个模型 + 总开关；超预算拒绝启动并在 MAP 说明。WebUI 配置。
-- 会话内 fan-out 只有软约束：skill Rules + Claude Code PreToolUse hook 计数；其他宿主无。
+- 会话内 fan-out 只有软约束：skill Rules + Claude Code PreToolUse hook 计数；其他宿主无。计数**只数不拦**（M7 实现时定：子 agent 是 agent 在人自己账号上干自己的活，拦它不是 MAGI 该做的决定），前 9 次静默、第 10 次起 `systemMessage` 报数并指回不变量；按 session 分开。计数**不进 `llm-ledger.jsonl`**，单开 `output/fanout.jsonl`——账本是周预算读的那个数，掺进 MAGI 没发起的调用会弄脏唯一能拒绝的数字。
 
 ## 14. 三核重映射
 

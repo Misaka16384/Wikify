@@ -12,7 +12,7 @@
 | 核 | 状态 | 由谁承载 | 回答的问题 |
 |---|---|---|---|
 | **MELCHIOR** | 认知状态（知识） | 概念/文献卡片 + SQLite 知识图谱 + claim/证据溯源 | 我们知道什么？为什么可信？ |
-| **BALTHASAR** | 意图状态（工作） | [Beads](https://github.com/gastownhall/beads)（`bd`）科研任务图 | 我们在做什么？下一步是什么？ |
+| **BALTHASAR** | 意图状态（研究） | `threads/` 里的命题、问题、研究线 + `decisions.md`（机械任务另有 [Beads](https://github.com/gastownhall/beads)） | 我们在做什么？下一步是什么？ |
 | **CASPER** | 检索状态 | 本地混合检索（FTS5 BM25 + sqlite-vec 向量 + RRF） | 此刻该读什么？ |
 
 进入任意工作区先跑 **`magi sync`**——它输出**同步率**、三核状态和逐条可执行的修复提示。`magi radar` 是文献雷达：定时发现相关新论文，并侦察"知识上应引用我方论文却未引用"的候选。同一份 skills 通吃 Claude Code / Codex / Antigravity / opencode 等 CLI agent 宿主——`magi skills install` 会把它们放到各家各自找的地方。
@@ -24,21 +24,15 @@
 ## 先跑起来
 
 ```powershell
-pipx upgrade --install magi-research   # 装或升级，重复跑没副作用
-mkdir my-topic ; cd my-topic ; magi init  # 建一个课题
-magi install                           # 装进你的 agent CLI：技能 + 协议 + 收工闸门
-magi ingest auto                       # 把 PDF 丢进 inbox/ 之后
+pipx upgrade --install magi-research           # 装或升级，重复跑没副作用
+mkdir my-topic ; cd my-topic ; magi init ; magi install
 ```
 
-然后在 Claude Code / Codex 里对 agent 说：**「把待编译的都编译了」**。这是唯一没有命令的一步——它要读论文、写卡片。跑完之后：
+装完了，就这两条。`magi init` 建工作区；`magi install` 把技能、协议和收工闸门装进你机器上有的那些 agent CLI。
 
-```powershell
-magi index                           # 让它可检索
-magi search "你想找的东西"
-magi ui                              # 或者直接在 http://127.0.0.1:8737 里翻
-```
+然后在那个目录里打开你的 agent，**把你想做的事说出来**——「摄入 inbox 里的论文」「把待编译的都编译了」「我接下来该做什么」。技能会按描述自己加载，你不用记住任何一个。
 
-任何时候卡住：**`magi sync`** 会告诉你这个工作区接下来该做什么，并把修复命令一起给出。**`magi guide`** 是完整手册，就在终端里。
+在终端里，**`magi next`** 问的是同一个问题，但它从 note 里派生答案而不是问模型。**`magi guide`** 是完整手册。其余的——摄入、检索、图谱、WebUI——都在下面第 3 节，而 `magi --help` 一屏放得下。
 
 ---
 

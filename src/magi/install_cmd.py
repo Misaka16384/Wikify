@@ -44,6 +44,24 @@ from .core.workspace import find_workspace_root
 #: by, so installing twice updates one entry instead of adding a second.
 STOP_COMMAND = "magi sync --close --hook"
 
+#: Every hook MAGI installs, as `event -> (command, matcher)`.
+#:
+#: `Stop` is the gate: it refuses a session that left bookkeeping undone.
+#: `PreToolUse` counts sub-agent spawns and blocks nothing — invariant 5 asks
+#: the agent to say what a fan-out costs, and a rule only the agent enforces
+#: stops holding in exactly the sessions where it matters (design-v2 §13:
+#: fan-out is a soft constraint).
+#: `SessionStart` is where background work goes, because §7 says there is no
+#: daemon — everything but the radar happens when a session begins.
+#:
+#: Claude Code only. It is the one host that documents any of this, and a hook
+#: guessed at is a hook that fails silently in somebody else's editor.
+HOOKS = {
+    "Stop": (STOP_COMMAND, ""),
+    "PreToolUse": ("magi hook fanout", "Task"),
+    "SessionStart": ("magi hook session-start", ""),
+}
+
 #: Hosts with a documented stop hook. Everything else gets the instruction in
 #: the managed block and an honest line in the report. Derived from the one
 #: host table: a record names its hook writer, the same way it names its
@@ -71,51 +89,67 @@ def _load(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def merge_stop_hook(settings: dict, command: str = STOP_COMMAND) -> tuple[dict, bool]:
-    """Settings with our Stop hook present exactly once. Returns (settings, changed).
+def merge_hook(settings: dict, event: str, command: str,
+               matcher: str = "") -> tuple[dict, bool]:
+    """Settings with one of our hooks present exactly once. Returns (settings, changed).
 
-    Everything else in the file is left as it was found, including other Stop
-    hooks: a person's own hook and ours are not in competition, and dropping
-    theirs to install ours is the kind of helpfulness nobody asks for twice.
+    Everything else in the file is left as it was found, including other hooks
+    on the same event: a person's own hook and ours are not in competition, and
+    dropping theirs to install ours is the kind of helpfulness nobody asks for
+    twice. Ours is recognised by its command string, so a second install
+    updates nothing rather than appending a duplicate.
     """
     hooks = settings.setdefault("hooks", {})
     if not isinstance(hooks, dict):
         raise SystemExit("settings.json has a 'hooks' key that is not an object; "
                          "fix it by hand rather than let this command guess")
-    stops = hooks.setdefault("Stop", [])
-    if not isinstance(stops, list):
-        raise SystemExit("settings.json has a 'hooks.Stop' that is not a list")
+    group_list = hooks.setdefault(event, [])
+    if not isinstance(group_list, list):
+        raise SystemExit(f"settings.json has a 'hooks.{event}' that is not a list")
 
-    for group in stops:
+    for group in group_list:
         if not isinstance(group, dict):
             continue
         for entry in group.get("hooks", []):
             if isinstance(entry, dict) and entry.get("command") == command:
                 return settings, False
 
-    stops.append({"matcher": "", "hooks": [{"type": "command", "command": command}]})
+    group_list.append({"matcher": matcher,
+                       "hooks": [{"type": "command", "command": command}]})
     return settings, True
 
 
+def merge_stop_hook(settings: dict, command: str = STOP_COMMAND) -> tuple[dict, bool]:
+    """The stop gate alone. Kept as its own name because callers and tests
+    address it that way, and because it is the one hook that can refuse."""
+    return merge_hook(settings, "Stop", command)
+
+
 def install_hook(root: Path, host: str, dry_run: bool = False) -> str:
-    """Write the stop gate for one host. Returns a line for the report."""
+    """Write every hook MAGI has for one host. Returns a line for the report."""
     path = _settings_path(root, host)
     if path is None:
         return (f"{host}: no documented stop hook — the rule is in AGENTS.md, "
                 "which the agent can ignore")
 
-    settings, changed = merge_stop_hook(_load(path))
-    if not changed:
-        return f"{host}: stop gate already installed ({path})"
+    settings = _load(path)
+    written = []
+    for event, (command, matcher) in HOOKS.items():
+        settings, changed = merge_hook(settings, event, command, matcher)
+        if changed:
+            written.append(event)
+    if not written:
+        return f"{host}: hooks already installed ({path})"
+    named = ", ".join(written)
     if dry_run:
-        return f"{host}: would install the stop gate ({path})"
+        return f"{host}: would install {named} ({path})"
 
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_file():
         backup = path.with_suffix(path.suffix + ".magi-backup")
         shutil.copy2(path, backup)
     atomic_write(path, json.dumps(settings, indent=2, ensure_ascii=False) + "\n")
-    return f"{host}: stop gate installed ({path})"
+    return f"{host}: {named} installed ({path})"
 
 
 def write_coaching(root: Path, coaching: str) -> None:
