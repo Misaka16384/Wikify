@@ -38,10 +38,15 @@ from .core.workspace import find_workspace_root
 #: in calls MAGI did not make would corrupt the one number the budget reads.
 FANOUT = ("output", "fanout.jsonl")
 
-#: When counting starts being worth saying out loud. Not a limit — nothing is
-#: refused at any number. It is the point past which "how many so far" stops
-#: being obvious to whoever is watching.
-LOUD_AT = 10
+#: How often the count is worth saying out loud — every Nth spawn, not every
+#: spawn past an Nth. Not a limit: nothing is refused at any number.
+#:
+#: Twenty-five because the skills cap a fan-out at ten concurrent and require
+#: the agent to announce the total first, so a compile of a dozen sources is
+#: normal, announced and correct. A counter that fired there would be warning
+#: about the one workflow that had already done what it was reminding about.
+#: Past twenty-five nobody announced anything, or the announcement was wrong.
+LOUD_EVERY = 25
 
 #: Tools that spawn a sub-agent, by the names hosts actually use.
 SPAWNING = ("Task", "Agent", "Dispatch")
@@ -128,7 +133,10 @@ def fanout(payload: dict, root=None) -> dict:
         return {}
     session = str(payload.get("session_id") or "unknown")
     count = note_spawn(root, session, tool)
-    if count < LOUD_AT:
+    # Every twenty-fifth, not every one past the twenty-fifth. Saying it each
+    # time is how a hook becomes noise, and a hook that is noise gets removed
+    # along with the gate beside it.
+    if not count or count % LOUD_EVERY:
         return {}
     # `systemMessage` reaches the agent without stopping it. Invariant 5 asks
     # it to say what a fan-out costs; past this many it plainly has not, and

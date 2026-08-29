@@ -3,7 +3,7 @@
 > 配套 [`design-v2.md`](design-v2.md)（共识）；本文只讲顺序、交付物、验收。
 > 完成一步：勾选此处 + 在 `ROADMAP.md` 当日条目记录。发现与 design-v2 冲突：先改 design-v2 并写明原因，再改代码。
 > 约定：小步 checkpoint；commit 前缀 feat/fix/refactor/chore/docs；子 agent 用便宜模型；重大决策才停下来问人；每个里程碑结束 `tests/` 全绿 + 三宿主冒烟 + 发一个版本（beta 也发）。
-> 起点：v1.16.3，1685 tests passed。
+> 起点：v1.16.3，1685 tests passed。**终点：v2.0.0 于 2026-08-29 commit（tag + push 留给作者）**，M0–M7 一天之内从 M4 走完，测试 2378+（最终数见 ROADMAP 头部）。
 
 ## 总览与依赖
 
@@ -13,8 +13,8 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
                         M4 审核与人环 → M5 WebUI v2 → M6 慢环与成本 → M7 发表环与发布
 ```
 
-- **MVP 线**：M0–M3 完成即可日常使用，发 `v2.0.0-beta`。
-- M4 起人环真正成立；M5–M7 是完整 `v2.0.0`。
+- ~~**MVP 线**：M0–M3 完成即可日常使用，发 `v2.0.0-beta`~~（作者 2026-08-29 定：不发 beta，全修好直接 v2.0.0）。
+- M4 起人环真正成立；M5–M7 是完整 `v2.0.0`。M6 因对照 WikiSkill 从 4 条长到 15 条；M7 吸收了 M3 的三条欠账和三批独立复核的 31 条发现。
 - M5 可与 M4 并行（不同文件）；M6 依赖 M4 的决策队列。
 
 ---
@@ -183,16 +183,16 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [x] **模型 / effort 选择**（2026-08-29 作者定）：注册表记录加 `list_models`（argv 模板；agy = `("{bin}","models")`，解析 `id 	 标签`）或静态 `models:` 别名表（claude：`haiku / sonnet / opus`）、`effort_flag`（agy / claude `--effort`，codex `-c model_reasoning_effort=`）、`cheap` 默认模型；`headless()` 在 `review_model` 空时传 `cheap`，effort 同理；`research.hosts[].model / .effort` 覆盖全局 `review_model / review_effort`，后两者进 config 白名单；WebUI 配置面板 host → model → effort 三级下拉，agy 的列表缓存在 `~/.config/magi/models-<host>.json`（TTL 24h，取不到退回文本框）；`magi review --dry-run` 与 `magi reflect --dry-run` 打印将用的 host / model / effort；账本已记 model，再记 effort。测试：空 `review_model` 时 argv 含 cheap；per-host 覆盖优先于全局；agy 列表解析；缓存过期与失败退回。**已做**（2026-08-29，`test_model_and_effort.py` 27 条）：codex 的 `cheap` 留空并写明理由；agy 模型 id 自带档位时不追加 effort；真实 `agy -p` 冒烟通过（故意超证据范围的命题被 refuted 并逐行点名），顺带抓到 `_REASON_RE` 600 字符硬截掉定案句的 bug——只有真调用才暴露，桩永远给短回答
 - [x] （从 M3 挪来）`validate` 收成单 schema
 - [x] （从 M3 挪来）PreToolUse 计数 / SessionStart hook：§13 会话内 fan-out 软约束、§7 会话开始时做后台调度
-- [ ] （从 M3 挪来）README「先跑起来」改为 2 条命令；guide hub 那两章重写，并入 M7 的 guide 全书重写
+- [x] （从 M3 挪来）README「先跑起来」改为 2 条命令（`init` + `install`，之后只打 `magi`；示例真跑照抄：刚 init 的空库说的是「你还没说你想搞清楚什么」，不是「跑这五条」）；guide hub 那两章重写，并入 M7 的 guide 全书重写。顺带证实「install 会问装给哪个 CLI」是假的——它装每一个探测到的、不问，因为互不冲突；会问的是 `skills install` 且仅在多宿主 + 未点名 + tty 时
 - [x] `magi close <line>`（人用面）：线归档、open 命题处置提示
 - [x] `magi publish`：我方论文进 `raw/`；相关命题批量 `superseded_by`；线关闭
 - [x] 骨架钉住（`skeleton: true`）与 MAP 静态渲染对齐
-- [ ] guide 全书按 v2 重写；`docs/degradation.md` 增审核 / 无头调用 / transcript 适配行
-- [ ] 三宿主冒烟（Windows，已跑一次真实 `agy -p`）+ **macOS 走 CI**（2026-08-29 作者定，没有 Mac）：新增 `.github/workflows/tests.yml`，`push` / `pull_request` 触发，矩阵 `ubuntu / macos / windows` × 一个 Python 版本跑 `pytest -q`；`release.yml` 保持 ubuntu；RELEASING.md 写明 macOS 只有 CI 绿、未冒烟。**已做**（2026-08-29）：裸 runner 模拟 2355 passed / 22 skipped，翻出 README 打包副本未同步、guide 漏 `magi hook`、guide 三处 v1 残留（含一条已修掉的「已知缺陷」说明）——都修了；`pytest -rs` 让 CI 逐条列出跳过的。CI 装 pandoc（apt / brew / choco 一行，无第三方 action）。**`bd` 装不装**：装，但钉版本 + sha256 从固定 release URL 取，不 `curl | sh` 最新；beads 没有可钉的二进制发布就不装，靠 `-rs` 把 17 个 skip 印在页面上（假装覆盖比明写没覆盖更糟——端到端驱动二进制的用例换桩就是另一个测试）。`tests.yml` 在首次 push 前未经 Actions 验证
+- [x] guide 全书按 v2 重写（explorer 陈旧性审计八簇，每条带 `src/` file:line 证据，主导模式是任务库从 hub 移到项目后迁移章 / 任务章没跟）；`docs/degradation.md` 增审核 / 无头调用 / transcript 适配行。RELEASING 检查表加两行：README / guide 里每段示例输出都是本次真跑照抄的；凡描述「X 是什么」的句子对一遍 §2 / §14——两类都是 `test_docs_in_sync` 查不到的
+- [x] 三宿主冒烟（Windows，已跑一次真实 `agy -p`）+ **macOS 走 CI**（2026-08-29 作者定，没有 Mac）：新增 `.github/workflows/tests.yml`，`push` / `pull_request` 触发，矩阵 `ubuntu / macos / windows` × 一个 Python 版本跑 `pytest -q`；`release.yml` 保持 ubuntu；RELEASING.md 写明 macOS 只有 CI 绿、未冒烟。**已做**（2026-08-29）：裸 runner 模拟 2355 passed / 22 skipped，翻出 README 打包副本未同步、guide 漏 `magi hook`、guide 三处 v1 残留（含一条已修掉的「已知缺陷」说明）——都修了；`pytest -rs` 让 CI 逐条列出跳过的。CI 装 pandoc（apt / brew / choco 一行，无第三方 action）。**`bd`**：装，钉 tag（`v1.2.2`）并对 release 自带的 `checksums.txt` 做 `sha256sum -c`——这是完整性不是供应链信任（release 被替换则 checksums 一起被替换）；手抄进 workflow 的 hash 是没人会重新推导的 hash，升级时会被删掉了事，所以不用；要信任锚可在此之上加 sigstore 验签或人工核对一次写进仓库。`bd version` 冒烟一步。不 `curl | sh` 最新。`-rs` 把剩余 skip 印在页面上（端到端驱动二进制的用例换桩就是另一个测试）。**`tests.yml` 在首次 push 前未经 Actions 验证**——YAML 结构、asset 名、校验流程、解包布局都对着真实 release 验过，runner 上的 `choco install pandoc`、`$GITHUB_PATH`、Windows bash step 只有第一次 push 会告诉我们
 - [ ] [可选] 第二梯队宿主（qwen / opencode / 用户自加）：只要注册表一条记录 + 可选 reader；不冒烟、fail-soft；做不成就留着记录，不阻塞发布
 
 **验收**：全测试绿（本机 Windows + CI 三平台）；smoke 三宿主（Windows）；README / guide 与 `--help` 无冲突。
-**→ 发 `v2.0.0`。**
+**→ 发 `v2.0.0`。** 2026-08-29：版本号五处改为 2.0.0（`pyproject.toml` / `__init__.py` / 两个 `plugin.json` / `index.html` 徽章），ROADMAP 头部与 M7 条目已写；**做到 commit 为止**——`git tag v2.0.0` + `git push`（含 tag，触发 `release.yml`）是作者的仪式动作，与 `close` / `publish` 同一条原则。push 之前 `tests.yml` 未经 Actions 验证。
 
 ---
 

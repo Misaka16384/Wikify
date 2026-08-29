@@ -178,3 +178,19 @@ def test_the_close_gate_takes_the_same_topic_dir_as_everything_else(workspace):
     assert done.returncode == 0, done.stderr
     assert "unrecognized arguments" not in done.stderr
     assert (workspace / "output" / "MAP.md").is_file()
+
+
+def test_sync_topic_dir_reaches_the_report_not_just_the_gate(workspace):
+    """`--topic-dir` was added for `--close` and reached only there for one
+    commit, so `magi sync --topic-dir X` answered about the directory you were
+    standing in — and said "no workspace detected" while pointing at a real
+    one."""
+    done = subprocess.run(
+        [sys.executable, "-m", "magi", "sync", "--topic-dir", str(workspace),
+         "--json"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        cwd=str(Path(__file__).resolve().parents[1]))
+
+    payload = json.loads(done.stdout)
+    assert payload["workspace"], "the flag was ignored and no workspace was found"
+    assert Path(payload["workspace"]).resolve() == workspace.resolve()

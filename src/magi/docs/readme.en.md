@@ -28,7 +28,7 @@ pipx upgrade --install magi-research           # install or upgrade — safe to 
 mkdir my-topic ; cd my-topic ; magi init ; magi install
 ```
 
-That is the whole setup. `magi init` scaffolds the workspace; `magi install` puts the skills, the protocol and the close gate into whichever agent CLIs you have.
+That is the whole setup. `magi init` scaffolds the workspace; `magi install` puts the skills, the protocol and the session hooks into **every** agent CLI it detects — it does not ask, because they do not conflict.
 
 Now open your agent there and **say what you want** — "ingest the papers in inbox", "compile the backlog", "what should I work on?". The skills load themselves by description; you do not have to remember any of them.
 
@@ -214,14 +214,17 @@ magi sync --fix              # sync ratio + three cores, and run the repairs it 
 ```
 
 ```text
-MAGI SYSTEM ONLINE — sync ratio 90.0%
-|- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 0
-|- BALTHASAR (intent)     0 ready · 0 in progress · 0 blocked
-`- CASPER    (retrieval)  index fresh · 0 chunks · vectors 0/0
-  -> drop sources in inbox/ and run the ingest skill to start building the library
+MAGI SYSTEM ONLINE — sync ratio 59.2%
+|- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 1
+|- BALTHASAR (intent)     2 lines · 1 open · 1 waiting on you · 1 unrecorded
+`- CASPER    (retrieval)  index missing · 0 chunks · vectors 0/0
+  -> 1 source(s) in raw/ are not compiled yet — run the compile skill
+  -> magi index   # build the retrieval index
 ```
 
-> The sync ratio depends on how many cores are ready: the example shows an empty library with beads initialized and an index built (90%). Without `magi pm init` or `magi index` yet, the number is lower — just follow the hints; nothing is misconfigured.
+> **BALTHASAR reports research state, not chores.** `1 waiting on you` is a decision only a person can make; `1 unrecorded` is something that happened and nobody wrote down — that one is bookkeeping debt, and every number below it is computed from notes that are currently wrong, which is why `magi next` puts it first. The score is cleanliness, not progress: six open propositions with nothing unrecorded is perfectly healthy.
+>
+> The sync ratio moves with how many cores are ready. Follow the hints in order; a low number on a new library is not a misconfiguration.
 
 Then drop PDFs / LaTeX / notes into `inbox/` and tell your agent to ingest them (or invoke `/magi:ingest`).
 

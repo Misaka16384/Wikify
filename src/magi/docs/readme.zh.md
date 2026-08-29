@@ -28,7 +28,7 @@ pipx upgrade --install magi-research           # 装或升级，重复跑没副�
 mkdir my-topic ; cd my-topic ; magi init ; magi install
 ```
 
-装完了，就这两条。`magi init` 建工作区；`magi install` 把技能、协议和收工闸门装进你机器上有的那些 agent CLI。
+装完了，就这两条。`magi init` 建工作区；`magi install` 把技能、协议和会话钩子装进你机器上**每一个**它探测到的 agent CLI（不问你，因为它们互不冲突）。
 
 然后在那个目录里打开你的 agent，**把你想做的事说出来**——「摄入 inbox 里的论文」「把待编译的都编译了」「我接下来该做什么」。技能会按描述自己加载，你不用记住任何一个。
 
@@ -214,14 +214,17 @@ magi sync --fix              # 同步率 + 三核状态，并把能自动修的�
 ```
 
 ```text
-MAGI SYSTEM ONLINE — sync ratio 90.0%
-|- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 0
-|- BALTHASAR (intent)     0 ready · 0 in progress · 0 blocked
-`- CASPER    (retrieval)  index fresh · 0 chunks · vectors 0/0
-  -> drop sources in inbox/ and run the ingest skill to start building the library
+MAGI SYSTEM ONLINE — sync ratio 59.2%
+|- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 1
+|- BALTHASAR (intent)     2 lines · 1 open · 1 waiting on you · 1 unrecorded
+`- CASPER    (retrieval)  index missing · 0 chunks · vectors 0/0
+  -> 1 source(s) in raw/ are not compiled yet — run the compile skill
+  -> magi index   # build the retrieval index
 ```
 
-> 同步率随三核就绪程度浮动：上例是 beads 已初始化、索引已建的空库（90%）；如果还没跑 `magi pm init` 或 `magi index`，数字会更低——照着 hints 的提示逐条执行即可，不是配置错了。
+> **BALTHASAR 报的是研究状态，不是杂活。** `1 waiting on you` 是只有人能做的决定；`1 unrecorded` 是发生了但没人记下来的事——那是记账债，它下面每一个数字都是从当前错误的 note 算出来的，所以 `magi next` 把它排在第一。这个分数量的是记账干净度不是进度：六条开着的命题、零欠账，完全健康。
+>
+> 同步率随三核就绪程度浮动。照着 hints 逐条执行即可；新库数字低不是配置错了。
 
 然后把 PDF / LaTeX / 笔记丢进 `inbox/`，在你的 agent 里说一句"摄入 inbox 里的论文"（或直接 `/magi:ingest`），流水线就开始了。
 

@@ -41,24 +41,46 @@ def _spawn(ws, session="s1", tool="Task"):
 # --------------------------------------------------------------------------
 
 def test_a_spawn_is_counted_quietly_until_it_is_worth_saying(ws):
-    for _ in range(hook_cmd.LOUD_AT - 1):
+    for _ in range(hook_cmd.LOUD_EVERY - 1):
         assert _spawn(ws) == {}, "a hook that speaks every time is a hook people mute"
 
     assert "sub-agents this session" in _spawn(ws)["systemMessage"]
+
+
+def test_it_speaks_every_nth_spawn_not_every_spawn_past_the_nth(ws):
+    """The first version skipped the first nine and then said the same sentence
+    on every single spawn after — twenty spawns, eleven messages. The test above
+    guarded the quiet half and the noisy half shipped anyway."""
+    spoke = [i for i in range(1, hook_cmd.LOUD_EVERY * 2 + 2) if _spawn(ws)]
+
+    assert spoke == [hook_cmd.LOUD_EVERY, hook_cmd.LOUD_EVERY * 2]
+
+
+def test_it_does_not_fire_on_a_fan_out_the_skills_would_have_announced(ws):
+    """The skills cap a fan-out at ten concurrent and require the agent to say
+    the total first. A compile of a dozen sources is normal, announced and
+    correct — warning there would be reminding the one workflow that already
+    did the thing."""
+    assert hook_cmd.LOUD_EVERY > 12
+
+    for _ in range(12):
+        assert _spawn(ws) == {}
 
 
 def test_it_never_blocks_however_many_there_are(ws):
     """design-v2 §13: MAGI hard-manages only the calls it starts itself. A
     sub-agent is the agent's own work on the person's own account, and refusing
     it is not MAGI's decision to make."""
-    said = [_spawn(ws) for _ in range(hook_cmd.LOUD_AT + 20)][-1]
+    said = [_spawn(ws) for _ in range(hook_cmd.LOUD_EVERY * 2)][-1]
 
+    for _ in range(hook_cmd.LOUD_EVERY):
+        said = _spawn(ws) or said
     assert "decision" not in said and "permissionDecision" not in said
     assert set(said) <= {"systemMessage"}
 
 
 def test_each_session_counts_on_its_own(ws):
-    for _ in range(hook_cmd.LOUD_AT + 2):
+    for _ in range(hook_cmd.LOUD_EVERY + 2):
         _spawn(ws, session="busy")
 
     assert _spawn(ws, session="fresh") == {}

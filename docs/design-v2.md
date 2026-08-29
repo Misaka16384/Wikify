@@ -169,11 +169,11 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 ## 13. 成本治理
 
 - MAGI 只硬管**它自己发起的**调用（review、reflect、堆放区分类）：`output/llm-ledger.jsonl` 记账；周预算 + 每类工作用哪个模型 + 总开关；超预算拒绝启动并在 MAP 说明。WebUI 配置。
-- 会话内 fan-out 只有软约束：skill Rules + Claude Code PreToolUse hook 计数；其他宿主无。计数**只数不拦**（M7 实现时定：子 agent 是 agent 在人自己账号上干自己的活，拦它不是 MAGI 该做的决定），前 9 次静默、第 10 次起 `systemMessage` 报数并指回不变量；按 session 分开。计数**不进 `llm-ledger.jsonl`**，单开 `output/fanout.jsonl`——账本是周预算读的那个数，掺进 MAGI 没发起的调用会弄脏唯一能拒绝的数字。
+- 会话内 fan-out 只有软约束：skill Rules + Claude Code PreToolUse hook 计数；其他宿主无。计数**只数不拦**（M7 实现时定：子 agent 是 agent 在人自己账号上干自己的活，拦它不是 MAGI 该做的决定），每第 25 次 `systemMessage` 报一次累计数并指回不变量，其余静默；按 session 分开。**软约束的阈值必须高于本系统自己规定的正常批量**（M7 实现时改：skill 把 fan-out 并发压在 10 并要求先报数，阈值定 10 时唯一会触发的正是已经照做了的那个工作流——一个只在误报时才响的钩子；过了 25 要么没人报数、要么报的数是错的）。计数**不进 `llm-ledger.jsonl`**，单开 `output/fanout.jsonl`——账本是周预算读的那个数，掺进 MAGI 没发起的调用会弄脏唯一能拒绝的数字。
 
 ## 14. 三核重映射
 
-Melchior = 知识（冷 + 温·共享）；Balthasar = 意图（`threads/` + `decisions.md`，不再是 beads）；Casper = 检索（含 feed）。`magi sync` 三行显示相应改写。
+Melchior = 知识（冷 + 温·共享）；Balthasar = 意图（`threads/` + `decisions.md`，不再是 beads）；Casper = 检索（含 feed）。`magi sync` 三行显示相应改写。这三行是**对外的架构声明**：README / guide 里的示例输出必须是真跑出来照抄的、和 `build_report` 对得上——`test_docs_in_sync` 只查命令存不存在，查不了示例；示例比散文更容易被当真（M7 实现时补：README 那段 v1 的 `0 ready · 0 in progress · 0 blocked` 就印在刚把 Balthasar 改成 `threads/` 的表下面，两个一起读拿到的正是这次发布要替换掉的架构）。
 
 ## 15. 实现时再定（第三梯队）
 

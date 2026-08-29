@@ -39,15 +39,22 @@ agent 的上下文是一次性的，**状态永远在磁盘上**。所以任何�
 
 ### 三条起步路线
 
-**① 全新用户**——按第 2 章装好，然后：
+**① 全新用户**——按第 2 章装好，然后两条命令：
 
 ```powershell
 mkdir quantum-toys ; cd quantum-toys
 magi init --name "Quantum Toys" --scope "玩具模型中的量子现象"
-magi install                 # 技能 + AGENTS.md 协议块 + 收工闸门
-magi pm init                 # 可选：机械任务的任务库（会 git-init 本目录）
+magi install                 # 技能 + AGENTS.md 协议块 + 会话钩子
+```
 
-magi sync --fix              # 验收，并把能自动修的都修掉
+之后只要一个词。裸 `magi` 就是 `magi next`：它从这个工作区自己的 note 里
+派生出该做什么并提议出来——包括 `magi sync --fix` 和 `magi pm init`，在它们
+真正值得跑的那一刻。
+
+```text
+No propositions yet — this library has knowledge but nothing it is currently trying to find out.
+  magi thread new <slug> --kind proposition --title '<claim>' --purpose '<why now>'
+  magi sync    # what the library itself needs
 ```
 
 **② Wikify 老用户**——数据不用动，直接看第 3 章，三条命令迁移。
@@ -90,7 +97,7 @@ MAGI SYSTEM ONLINE — sync ratio 33.3%
 |- BALTHASAR (intent)     beads offline
 `- CASPER    (retrieval)  index missing · 0 chunks · vectors 0/0
   -> drop sources in inbox/ and run the ingest skill to start building the library
-  -> magi pm init   # initialize beads at the hub root
+  -> magi pm init   # initialize beads in this project
   -> magi index   # build the retrieval index
 ```
 
@@ -278,10 +285,12 @@ WebUI 里版本号旁边会出现一个徽章，点开有 **立即升级**。
 | 钩子 | 跑什么 | 干什么 |
 |---|---|---|
 | `Stop` | `magi sync --close --hook` | 有记账没做完就不让这次会话结束 |
-| `PreToolUse`（匹配 `Task`） | `magi hook fanout` | **计数**子 agent；超过十个就报一次数 |
+| `PreToolUse`（匹配 `Task`） | `magi hook fanout` | **计数**子 agent；每第 25 个报一次累计数 |
 | `SessionStart` | `magi hook session-start` | 把 `magi next` 会说的话交给 agent；没事要做就什么都不说 |
 
 fan-out 那个只计数，一次都不拦。托管块的不变量 5 要求 agent 在开始 fan-out 之前先说它要花多少，而一条只靠 agent 自觉的规则，恰恰会在最要紧的那些会话里失效——计数让它可核对。拦截会把它变成预算，而 MAGI 的预算只管 MAGI 自己发起的调用：子 agent 是你的 agent 用你的账号干的活。
+
+是**每第 25 个**，不是「第 25 个之后每一个」：技能把 fan-out 的并发压在十个、并要求先把总数说出来，所以编译十来篇源文件是正常且正确的。在那里报警等于提醒那个唯一已经照做了的流程——而变成噪音的钩子会被人连同旁边那道闸门一起关掉。
 
 `magi hook` 是宿主调的，不是给你敲的。它唯一的硬规矩是**永远不能弄坏一次会话**：所有路径都以 exit 0 加可解析 JSON 结束，包括工作区不存在、payload 解析不了、文件写不进去。报错的钩子是会被你关掉的钩子，然后它守的那道闸门也一起没了。
 
@@ -397,7 +406,7 @@ ollama pull glm-ocr:q8_0             # 本地 OCR（可选）
 
 Windows 的 `pandoc-crossref.exe` 已内置于仓库 `vendor/windows/`：加入 PATH，或在工作区 `config.yaml` 的 `tools.pandoc_crossref_path` 里指路。
 
-体检表最后四行是你机器上的 agent CLI（claude / codex / agy / opencode）：装没装、技能装了几个。缺技能时它会直接给出补装命令。
+体检表最后几行是你机器上的 agent CLI（claude / codex / agy / qwen / opencode）：装没装、技能装了几个。缺技能时它会直接给出补装命令。
 
 > [!WARN]
 > `magi setup --check` 的体检只查 PATH，**不读** `config.yaml` 里的 `tools.*` 路径。所以体检表显示 `[-] pdftoppm`、而你已经在 config 里配好了绝对路径时，实际摄入是能跑的——以实跑为准。
@@ -412,7 +421,7 @@ Windows 的 `pandoc-crossref.exe` 已内置于仓库 `vendor/windows/`：加入 
 magi migrate            # 在旧仓库根目录跑
 ```
 
-它会把旧配置搬过来、标出项目里过时的技能、在 hub 根初始化任务追踪，并对每个课题跑一遍 `magi sync --fix`。`raw/`、`wiki/`、`inbox/` 的格式没变，数据原样可用。下面是每一步具体动了什么，以及新旧命令对照表。
+它会把旧配置搬过来、标出项目里过时的技能，并对每个课题跑一遍 `magi sync --fix`。它**不再**设置任务追踪：任务库属于一个项目而不是它上面那个目录，所以每个工作区在 `magi sync` 认为需要时自己要一个。`raw/`、`wiki/`、`inbox/` 的格式没变，数据原样可用。下面是每一步具体动了什么，以及新旧命令对照表。
 
 MAGI 是 Wikify 的重构版：脚本集变成统一 CLI，任务状态外接 Beads，新增混合检索、命题溯源与文献雷达。**`raw/`、`wiki/`、`inbox/` 的格式没有变，你的数据完全兼容。**
 
@@ -448,11 +457,11 @@ cd topics\<你的主题> && magi skills install
 ```
 
 > [!EXPECT]
-> 每个主题先打印 `Migrating workspace: <path>`，有旧配置可搬时打印 `config carried from ...`，然后 `magi graph build: ok` / `magi wiki reindex: ok`。最后「Finishing up」跑 `magi pm init` 和每个主题的 `magi sync --fix`，并报出新的同步率。
+> 每个主题先打印 `Migrating workspace: <path>`，有旧配置可搬时打印 `config carried from ...`，然后 `magi graph build: ok` / `magi wiki reindex: ok`。最后「Finishing up」对每个主题跑 `magi sync --fix`，并报出新的同步率。
 
 > [!FIX]
 > - **某个课题中途报 `FAILED`**：脚手架失败现在算数了——汇总行和退出码都会反映。`graph build` / `wiki reindex` 的 `FAILED` **故意**不算：那两样是从已经就位的文件派生出来的，在那个课题里跑 `magi sync --fix` 就会重建。
-> - **hub 模式没提醒建索引**：hub 模式只提示 `magi pm init`，不会提醒每个主题跑 `magi index` / `magi sync`。手动补上。
+> - **没提醒你建索引**：迁移会对每个工作区跑 `magi sync --fix`，图谱和索引都在里面。如果你加了 `--minimal`，两样都没做——自己进每个目录跑一遍 `magi sync --fix`。
 > - **迁移后 agent 还在提旧命令**：`magi setup --remove-legacy` 没跑，或宿主技能缓存没刷新——重启 agent 会话。
 > - **某个主题没被迁移**：迁移会跳过既没有 `wiki/` 也没有 `raw/` 的目录。进那个目录单独跑 `magi migrate`——它会顺手把库登记进注册表。
 > - **直接抛 Python 异常**：脚手架步骤没有异常保护，常见原因是文件被占用/权限不足（Windows 上编辑器锁了 `CLAUDE.md`）。关掉占用程序重跑即可，不会有半成品。
@@ -573,7 +582,7 @@ hub 自己的 `wikis.json`、`topics/`、`log.md` 从此不起作用——你想
 - **主题根**的判定：目录里既有 `wiki/` 或 `raw/`，又有 `config.md` / `log.md` / `config.yaml` 三者之一。
 - **Hub 根**的判定：既有 `wikis.json` 又有 `topics/`。
 
-**没有任何环境变量能改这个行为**——不存在 `MAGI_HOME`。要跨目录操作就用 `--topic-dir` / `--hub` / `--db` 这类显式参数。
+**没有任何环境变量能改这个行为**——不存在 `MAGI_HOME`。要跨目录操作就用 `--topic-dir` / `--db` 这类显式参数。
 
 > [!FIX]
 > - **报 `no workspace found`**：你站在 hub 根或更上层。`cd` 进具体主题目录，或加 `--topic-dir <路径>`。
@@ -874,7 +883,7 @@ magi wiki placeholders wiki/concepts/x.md # 找出没写完的占位段落
 > - `Wikily [[...]] contains Windows-illegal filename character(s)`：双链里出现了 `\ / : * ? " < > |`，改名。
 > - `Wikilink appears to contain a raw mathematical equation`：双链里塞了 LaTeX，换成干净的概念名，公式另起一行写。
 > - `Master _index.md is missing`：标着 fixable，但 **`--fix` 并没有实现这一条**；`config.md is missing` 压根没标 fixable。两个都得手工建。
-> - **在 hub 根跑 lint 几乎什么都不查**：hub 根只做最外层结构检查。真正的质量闸门要进主题目录跑。
+> - **在工作区外面跑 lint 几乎什么都不查**：只做最外层结构检查就停了。真正的质量闸门要进主题目录跑。
 
 > [!WARN]
 > `magi lint --json` 里的 `status` 字段和退出码**判定标准不同**：JSON 的 status 只要有任何 warning/suggestion 就是 `fail`，而退出码和文本版 `Result:` 只看 critical。CI 里请以退出码为准。
@@ -1289,10 +1298,10 @@ magi bib --fetch        # 把引用过的导成 BibTeX
 
 ### 任务待办怎么用 {#writing-tasks}
 
-MAGI 不自己实现任务系统，它对接 [Beads](https://github.com/gastownhall/beads)（`bd`）。**一个 hub 一个任务库**，各主题的 issue 用 `topic:<名字>` 标签区分。
+MAGI 不自己实现任务系统，它对接 [Beads](https://github.com/gastownhall/beads)（`bd`）。**一个项目一个任务库**，issue 用 `line:<名字>` 标签区分。
 
 ```powershell
-magi pm init          # 在 hub 根跑一次：建库 + 注册六种科研 issue 类型
+magi pm init          # 在项目根跑一次：建库 + 注册六种科研 issue 类型
 magi sync             # ready / in progress / blocked 计数，连同其余状态一起看
 magi pm backlog-sync  # 把「还没编译的 raw 源」变成待办
 ```
@@ -1322,7 +1331,7 @@ bd list --label magi-compile --all         # 看编译积压
 
 ### 起草 {#writing-draft}
 
-草稿放在 `drafts/<slug>.md`。这个目录 `magi init` 不会建，第一次写文件时自然出现。它**进检索**（collection 叫 `drafts`）、**不进图谱**、**不计同步率**——它是在写的东西，不是已经确立的知识。
+草稿放在 `drafts/<slug>.md`。`magi init` 会建这个目录。它**进检索**（collection 叫 `drafts`）、**不进图谱**、**不计同步率**——它是在写的东西，不是已经确立的知识。
 
 写作循环（技能 `draft` 会带着你走，手工也一样）：
 
@@ -1509,7 +1518,7 @@ magi ui --reload                 # 改代码自动重载（开发用）
 `magi review` **刻意不在其中**：它要花一次模型调用，而一个安静地花钱的按钮是一个会被点两次的按钮。等预算闸门到位之前，它只是一条命令。
 
 > [!NOTE]
-> **摄入不在其中**——`magi ingest *` 全系列只能在终端或经由 agent 调用。同理 `magi init`、`hub *`、`sync`、`validate`、`verify`、`tags *`、`math *` 也没有按钮。
+> **摄入不在其中**——`magi ingest *` 全系列只能在终端或经由 agent 调用。同理 `magi init`、`sync`、`close`、`publish`、`validate`、`verify`、`tags *`、`math *` 也没有按钮。
 
 顶栏的 **⚡ MAGI 模式** 切换战术主题：红色为战斗态（深色），蓝色为静默值守（浅色），☀︎/☽ 在两者间切换。
 

@@ -40,14 +40,22 @@ An agent's context is disposable — **state always lives on disk**. So any step
 
 ### Three ways to get started
 
-**① Brand-new user** — install per Chapter 2, then:
+**① Brand-new user** — install per Chapter 2, then two commands:
 
 ```powershell
 mkdir quantum-toys ; cd quantum-toys
 magi init --name "Quantum Toys" --scope "Quantum phenomena in toy models"
-magi install                 # skills + the AGENTS.md protocol block + the end-of-session gate
+magi install                 # skills + the AGENTS.md protocol block + the session hooks
+```
 
-magi sync --fix                    # sanity check: sync ratio + three-core status + next-step hint
+After that, one word. Bare `magi` is `magi next`: it derives what this
+workspace needs from its own notes and proposes it — including `magi sync --fix`
+and `magi pm init`, at the moment each is actually worth running.
+
+```text
+No propositions yet — this library has knowledge but nothing it is currently trying to find out.
+  magi thread new <slug> --kind proposition --title '<claim>' --purpose '<why now>'
+  magi sync    # what the library itself needs
 ```
 
 **② Existing Wikify user** — leave your data as-is; jump straight to Chapter 3, three commands to migrate.
@@ -90,7 +98,7 @@ MAGI SYSTEM ONLINE — sync ratio 33.3%
 |- BALTHASAR (intent)     beads offline
 `- CASPER    (retrieval)  index missing · 0 chunks · vectors 0/0
   -> drop sources in inbox/ and run the ingest skill to start building the library
-  -> magi pm init   # initialize beads at the hub root
+  -> magi pm init   # initialize beads in this project
   -> magi index   # build the retrieval index
 ```
 
@@ -289,10 +297,12 @@ Three hooks, and only the first can refuse anything:
 | Hook | Runs | What it does |
 |---|---|---|
 | `Stop` | `magi sync --close --hook` | Refuses to end a session that left bookkeeping undone |
-| `PreToolUse` (on `Task`) | `magi hook fanout` | **Counts** sub-agent spawns; says the number once it passes ten |
+| `PreToolUse` (on `Task`) | `magi hook fanout` | **Counts** sub-agent spawns; says the running total every 25th |
 | `SessionStart` | `magi hook session-start` | Hands the agent what `magi next` would say, and nothing when there is nothing |
 
 The fan-out hook counts and never blocks. Invariant 5 in the managed block asks the agent to say what a fan-out costs before starting one, and a rule only the agent enforces stops holding in exactly the sessions where it matters; counting makes it checkable. Blocking would make it a budget, and MAGI's budget covers only the calls MAGI itself starts — a sub-agent is your agent's work on your account.
+
+Every 25th, not every one past the 25th: the skills cap a fan-out at ten concurrent and require the total to be announced first, so a compile of a dozen sources is normal and correct. A hook that fired there would be reminding the one workflow that had already done what it was asking for — and a hook that is noise gets switched off along with the gate beside it.
 
 `magi hook` is called by the host, not typed by you. Its one hard rule is that it can never break a session: every path exits 0 with parseable JSON, including a missing workspace, an unparseable payload and a file it cannot write. A hook that errors is a hook you turn off, and then the gate it was guarding is gone too.
 
@@ -411,7 +421,7 @@ ollama pull glm-ocr:q8_0             # local OCR (optional)
 
 `pandoc-crossref` is optional; without it cross-references degrade but conversion still works. From a source checkout the Windows build sits in `vendor/windows/` — add it to PATH or set `tools.pandoc_crossref_path` in the workspace's `config.yaml`. A pipx or uv install does not include it (a 19 MB Windows-only binary has no business shipping to macOS and Linux users); download it from https://github.com/lierdakil/pandoc-crossref/releases if you want it.
 
-The last four rows of the health check are the agent CLIs on your machine (claude / codex / agy / opencode): whether each is installed, and how many skills it has. If any are missing, it prints the command to fix that.
+The last rows of the health check are the agent CLIs on your machine (claude / codex / agy / qwen / opencode): whether each is installed, and how many skills it has. If any are missing, it prints the command to fix that.
 
 > [!WARN]
 > `magi setup --check`'s health check only looks at PATH — it **doesn't read** the `tools.*` paths in `config.yaml`. So if the table shows `[-] pdftoppm` but you've already set an absolute path in the config, ingestion will actually still work — trust the real run, not the table.
@@ -426,7 +436,7 @@ Migrating is one command:
 magi migrate            # from the old repo root
 ```
 
-It carries your old config across, flags stale project-level skills, initialises task tracking at the hub, and runs `magi sync --fix` in every topic. `raw/`, `wiki/` and `inbox/` formats are unchanged, so your data comes over as-is. Below: what each step touches, and the old-command-to-new-command table.
+It carries your old config across, flags stale project-level skills, and runs `magi sync --fix` in every topic. It does **not** set up task tracking any more: a task store belongs to a project, not to the directory above it, so each workspace asks for its own when `magi sync` decides it wants one. `raw/`, `wiki/` and `inbox/` formats are unchanged, so your data comes over as-is. Below: what each step touches, and the old-command-to-new-command table.
 
 MAGI is a rebuild of Wikify: the script collection becomes a unified CLI, task state moves out to Beads, and you get hybrid search, claim provenance, and a literature radar. **The `raw/`, `wiki/`, and `inbox/` formats haven't changed — your existing data is fully compatible.**
 
@@ -453,18 +463,22 @@ magi migrate
 > [!NOTE]
 > `magi migrate` has **no** `--dry-run` and **no** `--force`. Non-destructiveness isn't guaranteed by a flag — it's hard-coded into the implementation: when it calls the scaffolding, it never passes `--force`, so all it can ever do is create missing files. Running it again is safe; the second run just takes the "refresh index" branch.
 
-One step is left — it asks which agent CLI, so it is not done for you:
+One step is left, because it needs a workspace to install into:
 
 ```powershell
-cd topics\<your-topic> && magi skills install
+cd <your-topic> && magi install
 ```
 
+It installs into every agent CLI it detects on the machine — it does not ask.
+`magi skills install` is the one that asks, and only when several are present
+and you did not name one.
+
 > [!EXPECT]
-> Each topic prints `Migrating workspace: <path>`, then `config carried from ...` when there were old settings to bring across, then `magi graph build: ok` / `magi wiki reindex: ok`. At the end, "Finishing up" runs `magi pm init` and a `magi sync --fix` per topic and reports the new sync ratio.
+> Each topic prints `Migrating workspace: <path>`, then `config carried from ...` when there were old settings to bring across, then `magi graph build: ok` / `magi wiki reindex: ok`. At the end, "Finishing up" runs `magi sync --fix` per topic and reports the new sync ratio.
 
 > [!FIX]
 > - **A topic that reports `FAILED` in the middle**: scaffolding failure now counts — the summary line and the exit code both reflect it. A `FAILED` on `graph build` or `wiki reindex` deliberately does not: those are derived from files that are already in place, and `magi sync --fix` in that topic rebuilds them.
-> - **Hub mode didn't remind you to build indexes**: hub mode only prompts `magi pm init` — it won't remind you to run `magi index` / `magi sync` in each topic. Do it manually.
+> - **You were not reminded to build indexes**: migration runs `magi sync --fix` per workspace, which covers the graph and the index. If you passed `--minimal`, it did neither — run `magi sync --fix` in each one yourself.
 > - **The agent still mentions the old commands after migrating**: either `magi setup --remove-legacy` hasn't run, or the agent host's skill cache hasn't refreshed — restart the agent session.
 > - **A topic didn't get migrated**: migration skips any directory that has neither `wiki/` nor `raw/`. Go into that directory and run `magi migrate` on its own — it registers the library on the way through.
 > - **It throws a raw Python exception**: the scaffolding step has no exception guard for this; the usual cause is a locked file or insufficient permissions (on Windows, an editor holding `CLAUDE.md` open). Close whatever's holding the file and rerun — you won't be left with a half-finished result.
@@ -530,26 +544,29 @@ specific it is, the better every later automatic decision gets.**
 
 ```text
 my-topic/
-├─ CLAUDE.md / AGENTS.md   agent onboarding protocol (both files hold the same content)
+├─ AGENTS.md               agent onboarding protocol (the `magi:begin` managed block + whatever you write around it)
+├─ CLAUDE.md               one line, `@AGENTS.md` — there is only ever one protocol
 ├─ config.md               human-readable description of this library (title + research scope)
 ├─ config.yaml             this workspace's config (OCR, models, radar... see Chapter 5)
-├─ log.md                  human-readable running narrative
-├─ inbox/                  drop zone for unprocessed material (dump PDFs here) · .processed/ holds the originals once processed
+├─ decisions.md            what a person decided, and nothing else; an agent transcribes it
+├─ inbox/                  drop zone for unprocessed material (dump PDFs here) · notes.md is your unsorted scratch box
 ├─ raw/                    ingested source literature, as Markdown
 │   articles/ papers/ repos/ notes/ data/
 ├─ wiki/                   compiled output
-│   concepts/  concept cards    references/ reference cards    topics/  topic pages    theses/ claim reports
-├─ output/                 graph.db, index.db, radar ledger
+│   concepts/  concept cards    references/ reference cards    topics/  topic pages
+├─ threads/                propositions, questions, research lines (a forum; `magi thread`)
+├─ drafts/                 derivations and working-out
+├─ output/                 graph.db, index.db, MAP.md, the radar ledger
 └─ scratch/                the agent's scratch pad, safe to clear anytime
 ```
 
 Every directory except `inbox/` and `scratch/` gets an `_index.md` directory listing.
 
 > [!NOTE]
-> **`drafts/` isn't in this list** — `magi init` doesn't create it. It appears naturally the first time you write `drafts/xxx.md`, and the toolchain (search, lint) already recognizes the directory. See Chapter 9.
+> **`wiki/theses/` is gone.** Its two halves went to different places: the working-out to `drafts/`, and the claims it made to `threads/`, where each one carries a status somebody keeps current. An older workspace keeps its copy until `magi migrate` moves it.
 
 > [!TIP]
-> Open the **topic directory** in Obsidian (not the hub root). Add these two regex patterns under Settings → Files and Links → Excluded files, and the graph view will show nothing but pure knowledge cards:
+> Open the **topic directory** in Obsidian. Add these two regex patterns under Settings → Files and Links → Excluded files, and the graph view will show nothing but pure knowledge cards:
 > ```regex
 > /(?:^|/)(?:_index|log|config|uncompiled-source-coverage|CLAUDE|AGENTS)\.md$/
 > ```
@@ -588,7 +605,7 @@ Every command locates the workspace by **walking up from the current directory**
 - **A topic root** is identified by having either `wiki/` or `raw/`, plus at least one of `config.md` / `log.md` / `config.yaml`.
 - **A hub root** is identified by having both `wikis.json` and `topics/`.
 
-**No environment variable changes this behavior** — there's no such thing as `MAGI_HOME`. To operate across directories, use explicit arguments like `--topic-dir` / `--hub` / `--db`.
+**No environment variable changes this behavior** — there's no such thing as `MAGI_HOME`. To operate across directories, use explicit arguments like `--topic-dir` / `--db`.
 
 > [!FIX]
 > - **You get `no workspace found`**: you're standing at the hub root or higher. `cd` into the specific topic directory, or add `--topic-dir <path>`.
@@ -901,7 +918,7 @@ magi wiki placeholders wiki/concepts/x.md # Find unfinished placeholder sections
 > - `Wikily [[...]] contains Windows-illegal filename character(s)`: the wikilink contains `\ / : * ? " < > |` — rename it.
 > - `Wikilink appears to contain a raw mathematical equation`: the wikilink has LaTeX stuffed into it — swap in a clean concept name and put the formula on its own line.
 > - `Master _index.md is missing` is flagged fixable but **`--fix` never actually repairs it**; `config.md is missing` isn't flagged fixable at all. Create both by hand.
-> - **Running lint at the hub root checks almost nothing**: the hub root only does the outermost structural check. The real quality gate runs inside a topic directory.
+> - **Running lint outside a workspace checks almost nothing**: it does the outermost structural check and stops. The real quality gate runs inside a topic directory.
 
 > [!WARN]
 > The `status` field in `magi lint --json` and the exit code **use different criteria**: the JSON status is `fail` as soon as there's any warning or suggestion, while the exit code and the text-mode `Result:` line only look at criticals. In CI, go by the exit code.
@@ -1380,10 +1397,10 @@ The writing itself happens in `drafts/` with your agent, against the cards you c
 
 ### Using tasks and to-dos {#writing-tasks}
 
-MAGI doesn't implement its own task system — it connects to [Beads](https://github.com/gastownhall/beads) (`bd`). **One task database per hub**, with each topic's issues distinguished by a `topic:<name>` label.
+MAGI doesn't implement its own task system — it connects to [Beads](https://github.com/gastownhall/beads) (`bd`). **One store per project**, with issues distinguished by a `line:<name>` label.
 
 ```powershell
-magi pm init          # run once at the hub root: creates the DB + registers the six research issue types
+magi pm init          # run once in the project: creates the DB + registers the six research issue types
 magi sync              # ready / in progress / blocked counts, with the rest of the state
 magi pm backlog-sync   # turn "uncompiled raw sources" into to-dos
 ```
@@ -1413,7 +1430,7 @@ The pattern for writing a paper is simple: **open one issue per subsection**, cl
 
 ### Drafting {#writing-draft}
 
-Drafts live in `drafts/<slug>.md`. `magi init` doesn't create this directory — it appears naturally the first time you write a file there. It **is searchable** (in a collection called `drafts`), **doesn't enter the knowledge graph**, and **doesn't count toward the sync ratio** — it's something you're still writing, not established knowledge.
+Drafts live in `drafts/<slug>.md`, a directory `magi init` creates. It **is searchable** (in a collection called `drafts`), **doesn't enter the knowledge graph**, and **doesn't count toward the sync ratio** — it's something you're still writing, not established knowledge.
 
 The drafting loop (the `draft` skill walks you through this, but it's the same by hand):
 
@@ -1603,7 +1620,7 @@ button that quietly costs money is a button somebody clicks twice. It stays a
 command until there is a budget behind it.
 
 > [!NOTE]
-> **Ingestion isn't among them** — the entire `magi ingest *` family can only be run from the terminal or through an agent. Likewise, `magi init`, `hub *`, `sync`, `validate`, `verify`, `tags *`, and `math *` have no buttons either.
+> **Ingestion isn't among them** — the entire `magi ingest *` family can only be run from the terminal or through an agent. Likewise, `magi init`, `sync`, `close`, `publish`, `validate`, `verify`, `tags *`, and `math *` have no buttons either.
 
 The **⚡ MAGI MODE** toggle in the top bar switches the tactical theme: red is combat state (dark), blue is silent watch (light), and ☀︎/☽ switches between the two.
 

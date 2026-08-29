@@ -55,6 +55,29 @@ line. It also found a bug the suite could not: the reason was being cut at 600
 characters, mid-URL, and the post is the record — `raw` survives only in
 `--json`.
 
+## Before cutting: read the docs against a real run
+
+Not a proofread — a **comparison**. Take every block in `README.md` and
+`src/magi/docs/guide.*.md` that shows command output, run that command, and
+paste what actually came back. Two real bugs came out of doing this and neither
+was reachable from the test suite:
+
+* the reviewer's reason was being truncated at 600 characters mid-URL, and the
+  post is the record — found by reading one real `agy -p` verdict;
+* `magi sync --topic-dir X` printed "no workspace detected" while pointing at a
+  real workspace, because the flag reached the close gate and not the report —
+  found by running the command in a README sample and getting different output.
+
+Two rules the samples have to satisfy:
+
+- **Every sample output is copied from a run made this release.** A sample is a
+  claim about behaviour, and it is the claim readers trust most because it looks
+  like evidence.
+- **Every sentence of the form "X is Y" gets checked against design-v2 §2 and
+  §14.** `test_docs_in_sync` cannot catch these — it verifies that commands
+  exist, not that the architecture described is the one that shipped. The README
+  called BALTHASAR a task tracker for four milestones after it became `threads/`.
+
 **macOS: CI green, never smoke tested.** There is no Mac to run it on, so
 `.github/workflows/tests.yml` runs the suite on `macos-latest` alongside Linux
 and Windows on every push. That covers path separators, file locking and the

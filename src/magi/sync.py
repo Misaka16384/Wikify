@@ -456,8 +456,16 @@ FIX_ORDER = (
 )
 
 
-def run_fixes(report: dict, dry_run: bool = False) -> tuple[int, int]:
-    """Run the deterministic repairs the report asked for. Returns (ran, failed)."""
+def run_fixes(report: dict, dry_run: bool = False, cwd=None) -> tuple[int, int]:
+    """Run the deterministic repairs the report asked for. Returns (ran, failed).
+
+    `cwd` is where they run, and it has to be the workspace the *report* was
+    about. Every repair here is a `magi` subcommand that finds its workspace by
+    walking up from the directory it starts in, so leaving this unset made
+    `magi sync --topic-dir X --fix` describe X and then rebuild the graph of
+    whatever directory the person happened to be standing in — a read bug in
+    the report path, and a write bug here.
+    """
     import subprocess
 
     def _rank(hint: dict) -> int:
@@ -482,6 +490,7 @@ def run_fixes(report: dict, dry_run: bool = False) -> tuple[int, int]:
             continue
         print(f"  {pretty:<26} # {why}")
         proc = subprocess.run([sys.executable, "-m", "magi", *cmd],
+                              cwd=str(cwd) if cwd else None,
                               capture_output=True, text=True,
                               encoding="utf-8", errors="replace")
         ran += 1
@@ -568,7 +577,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.close:
         return _close(args)
 
-    report = build_report()
+    # `--topic-dir` has to reach the report as well as the gate. It reached
+    # only the gate for one commit, which meant `magi sync --topic-dir X`
+    # answered about the directory you were standing in and said "no workspace
+    # detected" while pointing at a real one.
+    here = Path(args.topic_dir).resolve() if args.topic_dir else None
+    report = build_report(here)
     if args.json:
         print(json.dumps(report, ensure_ascii=False))
         return 0
@@ -616,10 +630,10 @@ def main(argv: list[str] | None = None) -> int:
         print("\nnothing to fix automatically.")
     else:
         print("\nfixing:" if not args.dry_run else "\nwould fix:")
-        ran, failed = run_fixes(report, dry_run=args.dry_run)
+        ran, failed = run_fixes(report, dry_run=args.dry_run, cwd=here)
         if args.dry_run:
             return 0
-        after = build_report()
+        after = build_report(here)
         before_ratio, after_ratio = report["sync_ratio"], after["sync_ratio"]
         arrow = f"{before_ratio}% -> {after_ratio}%" if after_ratio is not None else "—"
         print(f"\nran {ran} step(s)" + (f", {failed} failed" if failed else "") + f"; sync ratio {arrow}")
