@@ -556,7 +556,13 @@ def test_the_ocr_route_reports_its_images_directory(ws, monkeypatch, tmp_path):
         return types.SimpleNamespace(returncode=0, stdout="", stderr="")
 
     monkeypatch.setattr(batch.subprocess, "run", fake_run)
-    entry = types.SimpleNamespace(value="x.pdf", title=None, route="ocr",
+    # A real file: the PDF rungs now resolve their source before running, so
+    # a route pointed at a name that is not on disk refuses instead of asking
+    # a converter to open it. That guard is what a PDF-only arXiv id used to
+    # fall through three times over.
+    pdf = tmp_path / "x.pdf"
+    pdf.write_bytes(b"%PDF-1.7\n")
+    entry = types.SimpleNamespace(value=str(pdf), title=None, route="ocr",
                                   source_type="file", retry_of=None, req_id="r")
     result = batch._run_route("ocr", entry, tmp_path / "staging")
 
@@ -967,3 +973,137 @@ def test_a_dropped_table_is_still_caught_if_it_ever_happens(ws):
     codes = {f.code for f in gates.run_all(flat, source_chars=len(flat),
                                            source_tables=1, source_rows=4)}
     assert "tables-dropped" in codes
+
+
+# --------------------------------------------------------------------------
+# the identity has to become a file somewhere
+# --------------------------------------------------------------------------
+
+def _arxiv_entry(value="2307.12008", route="textlayer"):
+    return types.SimpleNamespace(value=value, title=None, route=route,
+                                 source_type="arxiv", retry_of=None, req_id="r")
+
+
+def test_a_pdf_only_arxiv_submission_has_a_route_at_all(tmp_path, monkeypatch):
+    """It had none. `arxiv-html` and `tex` take an arXiv *identity*;
+    `textlayer`, `mineru` and `ocr` take a *local PDF path*; and nothing on the
+    ladder turned one into the other. So `entry.value` stayed `2307.12008` all
+    the way down and the three PDF rungs each went looking for a file by that
+    name and each reported the absence in its own words — five failures for one
+    of the most ordinary things a physicist does.
+    """
+    def fake_download(url, dest):
+        assert "2307.12008" in url
+        pathlib.Path(dest).write_bytes(b"%PDF-1.7\ncontent")
+
+    monkeypatch.setattr("magi.core.http.http_download", fake_download)
+
+    got = batch._local_pdf(_arxiv_entry(), tmp_path / "staging")
+
+    assert got is not None and got.is_file()
+    assert got.read_bytes()[:5] == b"%PDF-"
+
+
+def test_the_pdf_is_fetched_once_however_many_rungs_want_it(tmp_path, monkeypatch):
+    """Falling from textlayer to mineru to ocr is three rungs asking the same
+    question. It should cost one download."""
+    calls = []
+
+    def fake_download(url, dest):
+        calls.append(url)
+        pathlib.Path(dest).write_bytes(b"%PDF-1.7\ncontent")
+
+    monkeypatch.setattr("magi.core.http.http_download", fake_download)
+    staging = tmp_path / "staging"
+
+    for _ in range(3):
+        batch._local_pdf(_arxiv_entry(), staging)
+
+    assert len(calls) == 1
+
+
+def test_an_html_error_page_is_not_a_pdf(tmp_path, monkeypatch):
+    """arXiv answers `/pdf/<id>` for an id with no PDF by serving a page. Kept
+    as a PDF it would reach a converter, which would report something
+    incomprehensible about the document rather than that there is none."""
+    monkeypatch.setattr("magi.core.http.http_download",
+                        lambda url, dest: pathlib.Path(dest).write_bytes(b"<html>no"))
+
+    assert batch._local_pdf(_arxiv_entry(), tmp_path / "staging") is None
+
+
+def test_a_url_that_is_not_an_arxiv_id_is_left_alone(tmp_path, monkeypatch):
+    """`IDENTITY_TYPES` also covers `url` and `doi`, and
+    `arxiv.org/pdf/https://example.com/x` is not a thing."""
+    monkeypatch.setattr("magi.core.http.http_download",
+                        lambda url, dest: pytest.fail(f"asked arXiv for {url}"))
+    entry = types.SimpleNamespace(value="https://example.com/x.pdf", title=None,
+                                  route="ocr", source_type="url", retry_of=None,
+                                  req_id="r")
+
+    assert batch._local_pdf(entry, tmp_path / "staging") is None
+
+
+def test_a_file_already_on_disk_is_used_as_is(tmp_path, monkeypatch):
+    monkeypatch.setattr("magi.core.http.http_download",
+                        lambda url, dest: pytest.fail("downloaded a local file"))
+    pdf = tmp_path / "paper.pdf"
+    pdf.write_bytes(b"%PDF-1.7\n")
+    entry = types.SimpleNamespace(value=str(pdf), title=None, route="textlayer",
+                                  source_type="file", retry_of=None, req_id="r")
+
+    assert batch._local_pdf(entry, tmp_path / "staging") == pdf
+
+
+def test_the_tex_rung_keeps_the_pdf_it_downloaded(tmp_path, monkeypatch):
+    """`tex` fetches `arxiv.org/e-print/<id>`, reads `%PDF-` and used to
+    discard the file to report that there is no LaTeX. That is the right
+    verdict about LaTeX and the wrong thing to do with the paper — every rung
+    below it wanted exactly that file."""
+    def fake_download(url, dest):
+        pathlib.Path(dest).write_bytes(b"%PDF-1.7\nthe paper")
+
+    monkeypatch.setattr("magi.core.http.http_download", fake_download)
+    staging = tmp_path / "staging"
+
+    result = batch._run_route("tex", _arxiv_entry(route="tex"), staging)
+
+    assert not result.success, "a PDF is still not LaTeX"
+    assert (staging / "2307.12008.pdf").is_file(), "the paper was thrown away"
+
+
+def test_the_three_pdf_rungs_say_the_same_thing_when_there_is_no_pdf(tmp_path,
+                                                                    monkeypatch):
+    """Three rungs inventing three ways to say "the file called 2307.12008 is
+    not here" is how one missing download reads as three unrelated faults."""
+    monkeypatch.setattr("magi.core.http.http_download",
+                        lambda url, dest: (_ for _ in ()).throw(OSError("offline")))
+    entry = _arxiv_entry()
+
+    said = {route: batch._run_route(route, entry, tmp_path / route).errors
+            for route in ("textlayer", "mineru", "ocr")}
+
+    assert all(msg == [batch.NO_PDF] for msg in said.values()), said
+
+
+def test_a_dead_ocr_subprocess_does_not_put_a_traceback_on_the_cli(tmp_path,
+                                                                   monkeypatch):
+    """It went through the batch report and out of the CLI, in plain output and
+    in `--json` alike, complete with the filesystem path it died on."""
+    pdf = tmp_path / "paper.pdf"
+    pdf.write_bytes(b"%PDF-1.7\n")
+    entry = types.SimpleNamespace(value=str(pdf), title=None, route="ocr",
+                                  source_type="file", retry_of=None, req_id="r")
+    trace = ("Traceback (most recent call last):\n"
+             '  File "C:\\Users\\somebody\\magi\\ocr.py", line 41\n'
+             "FileNotFoundError: PDF 文件不存在: C:\\Users\\somebody\\x")
+    monkeypatch.setattr(batch.subprocess, "run",
+                        lambda *a, **k: types.SimpleNamespace(
+                            returncode=1, stdout="", stderr=trace))
+
+    result = batch._run_route("ocr", entry, tmp_path / "staging")
+
+    joined = " ".join(result.errors)
+    assert "Traceback" not in joined
+    assert "line 41" not in joined
+    assert "FileNotFoundError" in joined, "and it still says what went wrong"

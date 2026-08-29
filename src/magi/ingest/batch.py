@@ -147,6 +147,59 @@ def _textlayer_with_figures(source: Path, images_dir: Path, slug: str,
         "caption, each placed above the caption line that names it")
 
 
+#: What the three PDF rungs say when there is no PDF to work on. One
+#: sentence, because three rungs inventing three ways to say "the file called
+#: 2307.12008 is not here" is how a single missing download reads as four
+#: unrelated faults.
+NO_PDF = ("no PDF to read for this item — the identity has no LaTeX source "
+          "and no PDF could be fetched for it")
+
+
+def _local_pdf(entry, staging: Path) -> Path | None:
+    """The PDF for this queued item, fetching it if the item is an identity.
+
+    The gap this closes: `arxiv-html` and `tex` are handed an arXiv *id*, and
+    `textlayer`, `mineru` and `ocr` all expect a *path*. Nothing on the ladder
+    converted one into the other, so a PDF-only submission — an ordinary thing
+    — failed every rung, three of them for the same reason wearing three
+    different messages.
+
+    Cached in staging, so falling from one PDF rung to the next costs one
+    download rather than three.
+    """
+    from magi.core.http import http_download
+
+    direct = Path(entry.value)
+    if direct.is_file():
+        return direct
+
+    # Only a real arXiv identity. `IDENTITY_TYPES` also covers `url` and
+    # `doi`, and `arxiv.org/pdf/<some url>` is not a thing.
+    try:
+        ident = normalize_arxiv_id(entry.value)
+    except Exception:  # noqa: BLE001
+        ident = ""
+    if not ident:
+        return None
+
+    dest = staging / f"{ident.replace('/', '-')}.pdf"
+    if dest.is_file() and dest.stat().st_size:
+        return dest
+    staging.mkdir(parents=True, exist_ok=True)
+    try:
+        http_download(f"https://arxiv.org/pdf/{ident}", dest)
+    except Exception:  # noqa: BLE001 — a rung that cannot run falls to the next
+        return None
+    # arXiv answers /pdf/ for ids that have no PDF with an HTML error page.
+    if dest.read_bytes()[:5] != b"%PDF-":
+        try:
+            dest.unlink()
+        except OSError:
+            pass
+        return None
+    return dest
+
+
 def _run_route(route: str, entry, staging: Path, topic: Path | None = None) -> ConversionResult:
     """Convert one queued item on one rung.
 
@@ -172,21 +225,43 @@ def _run_route(route: str, entry, staging: Path, topic: Path | None = None) -> C
             return ConversionResult.failed(f"could not fetch e-print: {exc}")
         head = dest.read_bytes()[:5]
         if head == b"%PDF-":
+            # Keep it. This is the paper, and the rungs below this one all
+            # want exactly this file — they used to go looking for it by the
+            # arXiv id and fail three times over a document already on disk.
+            kept = staging / f"{entry.value.replace('/', '-')}.pdf"
+            try:
+                dest.replace(kept)
+            except OSError:
+                pass
             return ConversionResult.failed(
-                "arXiv served a PDF, not source — this submission has no LaTeX")
+                "arXiv served a PDF, not source — this submission has no "
+                "LaTeX; the PDF was kept for the routes below")
         return tex2md.convert(str(dest), str(staging))
 
     if route == "mineru":
         from magi.ingest import mineru
-        return mineru.convert(entry.value, str(staging))
+        source = _local_pdf(entry, staging)
+        if source is None:
+            return ConversionResult.failed(NO_PDF)
+        return mineru.convert(str(source), str(staging))
 
     if route == "ocr":
+        source = _local_pdf(entry, staging)
+        if source is None:
+            return ConversionResult.failed(NO_PDF)
         result = subprocess.run(
-            [sys.executable, "-m", "magi", "ingest", "ocr", entry.value,
+            [sys.executable, "-m", "magi", "ingest", "ocr", str(source),
              "-o", str(staging)],
             capture_output=True, text=True)
         if result.returncode != 0:
-            return ConversionResult.failed("local OCR failed.", result.stderr.strip())
+            # The last line, not the traceback. A subprocess that died with a
+            # stack trace put the whole thing — file paths and all — through
+            # the batch report and out of the CLI, in plain output and in
+            # `--json` alike.
+            tail = [line for line in (result.stderr or "").strip().splitlines()
+                    if line.strip()]
+            return ConversionResult.failed("local OCR failed.",
+                                           tail[-1].strip() if tail else "")
         produced = sorted(staging.glob("*.md"), key=lambda p: p.stat().st_mtime)
         if not produced:
             return ConversionResult.failed("local OCR produced no markdown.")
@@ -198,10 +273,9 @@ def _run_route(route: str, entry, staging: Path, topic: Path | None = None) -> C
                                 images_dir=str(images_dir) if images_dir.is_dir() else None)
 
     if route == "textlayer":
-        source = Path(entry.value)
-        if not source.is_file():
-            return ConversionResult.failed(
-                "the text-layer route needs a PDF on disk; this item has none")
+        source = _local_pdf(entry, staging)
+        if source is None:
+            return ConversionResult.failed(NO_PDF)
 
         # The same verdict `ingest auto` routes on, from the same function. It
         # answers two separate questions — is there readable text, and is

@@ -1020,7 +1020,13 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
             if o is None:
                 if name == "local" and len(targets) == 1:
                     raise SearchError("no index at output/index.db", "run 'magi index' first")
-                print(f"note: KB '{name}' has no index — skipping", file=sys.stderr)
+                # Another KB with no index is housekeeping. *This* workspace
+                # with no index means the search never looked at what the
+                # person asked about — said at the end instead, where the last
+                # line is read, because here it sits above a page of results
+                # from other libraries and gets scrolled past.
+                if name != "local":
+                    print(f"note: KB '{name}' has no index — skipping", file=sys.stderr)
                 kbs_skipped.append(name)
                 continue
             opened_targets.append((name, *o))
@@ -1145,6 +1151,18 @@ def cmd_search(args: argparse.Namespace) -> int:
             print(f"   {r['snippet'][:200]}")
         if len(payload["kbs_searched"]) > 1:
             print(f"(searched: {', '.join(payload['kbs_searched'])} — narrow with --scope local or --kb <name>)")
+        if "local" in payload["kbs_skipped"]:
+            # Last, and in its own words. Everything above this line came from
+            # other libraries, and a person who does not know that reads it as
+            # an answer about their own work.
+            # Flushed first: this goes to stderr and the results to stdout,
+            # and under a pipe stdout is block-buffered — without this the
+            # warning about everything above it arrives before it.
+            sys.stdout.flush()
+            where = "Nothing above is from it" if results else "It was not searched"
+            print(f"\nThis workspace is not searchable yet — it has no index. "
+                  f"{where}.\nRun 'magi index' here, then search again.",
+                  file=sys.stderr)
         if not payload["vector_available"] and args.mode == "hybrid":
             print("(BM25-only: this index holds no vectors — run 'magi index' to add them)")
     return 0
