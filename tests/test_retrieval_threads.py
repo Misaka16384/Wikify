@@ -99,3 +99,47 @@ def test_a_collection_nobody_penalises_has_no_entry():
     merged = {("kb", n): {"bm25": n} for n in (1, 2, 3)}
 
     assert retrieval._collection_weights(conns, merged) == {}
+
+
+def test_a_line_boosts_what_it_is_looking_at_without_hiding_the_rest():
+    """A boost and not a filter: the answer to a question asked from inside a
+    line is often in a paper the line has never cited, and filtering to the
+    focus set would hide exactly that."""
+    conns = {"kb": _conn_paths([(1, "wiki/concepts/toric-code.md"),
+                                (2, "raw/papers/unrelated.md")])}
+    merged = {("kb", 1): {"bm25": 0}, ("kb", 2): {"bm25": 0}}
+    weights = {}
+
+    retrieval._apply_focus(conns, merged, {"wiki/concepts/toric-code.md"}, weights)
+
+    assert weights[("kb", 1)] == retrieval.FOCUS_BOOST
+    assert ("kb", 2) not in weights, "everything else still competes"
+
+
+def test_the_focus_boost_stacks_with_the_collection_weight():
+    """A proposition the line points at should not lose its down-weight; the
+    two are answering different questions."""
+    conns = {"kb": _conn_paths([(1, "threads/p-gap.md")])}
+    merged = {("kb", 1): {"bm25": 0}}
+    weights = {("kb", 1): retrieval._COLLECTION_WEIGHT["threads"]}
+
+    retrieval._apply_focus(conns, merged, {"threads/p-gap.md"}, weights)
+
+    assert weights[("kb", 1)] == retrieval._COLLECTION_WEIGHT["threads"] * retrieval.FOCUS_BOOST
+
+
+def test_windows_separators_match_the_same_file():
+    conns = {"kb": _conn_paths([(1, "wiki\\concepts\\toric-code.md")])}
+    merged = {("kb", 1): {"bm25": 0}}
+    weights = {}
+
+    retrieval._apply_focus(conns, merged, {"wiki/concepts/toric-code.md"}, weights)
+
+    assert ("kb", 1) in weights
+
+
+def _conn_paths(rows):
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE chunks (id INTEGER PRIMARY KEY, path TEXT, collection TEXT)")
+    conn.executemany("INSERT INTO chunks (id, path) VALUES (?, ?)", rows)
+    return conn

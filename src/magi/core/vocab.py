@@ -199,6 +199,18 @@ def may_write(actor: str, kind: str, src: str, dst: str) -> bool:
     return actor in writers(kind, src, dst)
 
 
+def is_human_only(kind: str, src: str, dst: str) -> bool:
+    """Whether this transition is a person's call rather than anybody's.
+
+    The question `sync --close` asks of every posted flip. It is deliberately
+    about the *decision* and not the typist: an agent transcribing what a
+    person decided is the normal case, so what gets checked downstream is
+    whether the decision is on record — as a post signed `human`, or as an
+    entry in `decisions.md`.
+    """
+    return writers(kind, src, dst) == frozenset({HUMAN})
+
+
 # ---------------------------------------------------------------- key_move
 
 #: How a closed proposition was actually resolved. Written once, at the closing

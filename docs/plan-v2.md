@@ -46,7 +46,7 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [x] note 创建改为 `magi thread new --kind line|proposition|question`，不单开 `line new`——三种 kind 一个 schema，命令面也该是一个。另加 `thread post` / `thread status`（后者把改状态和写跟帖绑成一次调用），否则 M0 那把锁形同虚设：agent 会用编辑器直接改文件
 - [x] durability：`output/MAP.md`、`output/.locks/` = DERIVED（ORIGINAL 那半已在 M0 落地）
 - [x] 检索：collection 增 `threads`（`drafts` 早就有）；threads 在未指定 collection 时降权 0.6；`threads/` **不进** `CORPUS_DIRS`——那个元组喂的是会重写文件的维护流程，帖子不能被重排
-- [ ] 线内 `focus` 从 wikilink 派生并加权（挪到 M2，跟 `next` 的线级投影一起做）
+- [x] 线内 `focus` 从 wikilink 派生并加权：`magi search --line X` 把该线的 note 一跳内引用到的文件加权 1.5——是加权不是过滤，因为线内提问的答案常常在这条线从没引过的论文里
 - [x] beads 迁到项目根（`pm init` 不再往上找 hub）；新增 `line:` 标签与 `--line` 过滤，`topic:` 保留以便读旧的 hub 库；任务行多一个 `line` 字段
 - [ ] `pm status` 并入 `sync`（挪到 M3 的命令面收缩一起做，那里才决定哪些命令消失）
 - [→ M3] hub 退场**挪到 M3**：`test_docs_in_sync` 会拦下「文档里写了已经不存在的命令」，所以删 `hub *` 就必须同时重写 guide 的「先跑通一遍」「建立文献库」两章和两个 README——而 M3 本来就要把 README 改成 2 条命令、把 guide 对应章节更新。分两次写等于同一批文档改两遍。跨项目检索的替代物早就在了（registry + `retrieval.run_search` 的联邦检索），所以推迟不阻塞任何东西
@@ -63,17 +63,17 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 
 **目标**：快环成立——文件变 → 派生变 → `next` 变 → 执行 → 文件变。
 
-- [ ] `magi next`（裸 `magi` 等价）：派生 → 候选清单（`--json` + 人读）；项目级 / 线级投影；安静阈值；记账债为第一条；只提议不执行
-- [ ] `magi sync --close`：本会话改动扫描（git diff / mtime）→ 缺 status / 跟帖 / line STATUS 则失败并列出；Claude Code Stop hook 脚本（阻止停机并回传原因）
-- [ ] 硬触发：跃迁检测 → 决策队列条目（MAP + bd review issue）；`conflict` 检测（5 分钟双翻）
-- [ ] **跃迁权限的强制**：`vocab.writers()` 在 M0 只是政策——帖子签名写的是宿主不是"谁的决定"，而 AI 誊写人的决定是常态。`--close` 校验：离开 `disputed` / `conflict` / `closed` 必须有对应的 `decisions.md` 条目或人的跟帖，否则拦下
-- [ ] `output/MAP.md` 渲染（两节：各线 + 决策队列）
-- [ ] `magi feed`（`--since / --line / --author`）；帖子进索引
-- [ ] WIP 上限提示（默认 7）
-- [ ] `sync` 三核显示按 §14 重映射
+- [x] `magi next`（裸 `magi` 等价）：派生 → 候选清单（`--json` + 人读）；项目级 / 线级投影；安静阈值；记账债为第一条；只提议不执行
+- [x] `magi sync --close`：本会话改动扫描（git diff / mtime）→ 缺 status / 跟帖 / line STATUS 则失败并列出；Claude Code Stop hook 脚本（阻止停机并回传原因）
+- [x] 硬触发：跃迁检测 → 决策队列条目（MAP + bd review issue）；`conflict` 检测（5 分钟双翻）
+- [x] **跃迁权限的强制**：`vocab.writers()` 在 M0 只是政策——帖子签名写的是宿主不是"谁的决定"，而 AI 誊写人的决定是常态。`--close` 校验：离开 `disputed` / `conflict` / `closed` 必须有对应的 `decisions.md` 条目或人的跟帖，否则拦下
+- [x] `output/MAP.md` 渲染（两节：各线 + 决策队列）
+- [x] `magi feed`（`--since / --line / --author`）；帖子进索引
+- [x] WIP 上限提示（默认 7）
+- [x] `sync` 三核显示按 §14 重映射
 
 **验收**：示例 project 走完"开命题 → testing → supported"后 MAP 出现队列条目；未记账停机被 Stop hook 拦下（Claude Code）；`feed` 能检索到帖子；无变化时 `next` 只报开放问题；agent 擅自把 `disputed` 翻回 `supported` 被 `--close` 拦下。
-**待定**：决策队列是否同时写 bd（倾向写，label = review）。
+**已定**：决策队列**不写 bd**。队列是派生的，会随 note 变；bd issue 是存下来的副本，note 一动就要有人去关它——正是「第二个答案会跟第一个打架」那个问题。beads 只放机械活，等人拍板的事不是机械活。队列住在 MAP 和 `magi next` 里。
 
 ---
 

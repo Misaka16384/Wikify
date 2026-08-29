@@ -1109,6 +1109,33 @@ appending is not atomic).
 the kind, whether the posted chain of transitions is legal, and whether a status
 was changed without anybody saying why.
 
+### What to do next
+
+```bash
+magi next             # what to do, derived from the notes — proposes, never acts
+magi next --line qec  # one research line only
+magi feed -n 20       # every post, newest first — the record in time order
+magi sync --close     # the end-of-session gate: refuses while work is unrecorded
+```
+
+Running the CLI with no arguments inside a workspace does the same thing — one entry, and the router decides.
+
+The order `magi next` uses is the point of it. **Bookkeeping debt first**, because
+every line below it is computed from notes that are currently wrong. Then the things
+**only a person can decide** — a review rejected, two writers collided, a line that may
+have turned — which must not queue behind machine work. Then the work itself, at most
+one proposition per line: listing every open proposition is listing the whole project,
+and then the ranking it was for stops meaning anything. With nothing owed, nothing
+waiting and nothing in flight, it prints the open questions and stops.
+
+`magi sync --close` is the gate between a session and its end. It refuses while
+something has happened that nobody wrote down, and says which notes. It also settles
+**a status two different writers set within five minutes** as `conflict` — that is not a
+status, it is a disagreement, and only a person can say which reading was right — and
+rewrites `output/MAP.md`. **MAP.md is a rendering**: editing it changes nothing, because
+the status lives in the note.
+
+
 ## Writing your paper {#writing}
 
 Day to day this is three commands, in this order:

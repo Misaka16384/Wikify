@@ -69,6 +69,8 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("wiki", "uncompiled"): ("magi.kb.detect_uncompiled", [], "List raw sources without compiled references"),
     ("wiki", "reindex"): ("magi.kb.index_builder", [], "Regenerate _index.md tables"),
     # research state
+    ("next",): ("magi.state", ["next"], "What to do next, derived from the notes"),
+    ("feed",): ("magi.state", ["feed"], "Every post, newest first"),
     ("thread", "new"): ("magi.kb.thread_cmd", ["new"],
                         "Open a proposition, question or research line"),
     ("thread", "post"): ("magi.kb.thread_cmd", ["post"],
@@ -147,7 +149,17 @@ def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
 
-    if not argv or argv[0] in ("-h", "--help", "help"):
+    if not argv:
+        # Bare `magi` is `magi next` (design-v2 §7): one entry, and the router
+        # decides. Outside a workspace there is no state to route, so the help
+        # is the only useful answer.
+        from magi.core.workspace import find_workspace_root
+
+        if find_workspace_root() is None:
+            _print_help()
+            return 0
+        argv = ["next"]
+    if argv[0] in ("-h", "--help", "help"):
         _print_help()
         return 0
     if argv[0] in ("-V", "--version", "version"):

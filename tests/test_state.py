@@ -1,0 +1,609 @@
+"""The derived view of research state: `magi next`, `feed`, MAP, `--close`.
+
+Everything here is computed from `threads/` on every call and stored nowhere.
+That is the property the tests are really defending: the moment a projection
+gets written down it becomes a second answer that can disagree with the first,
+and then somebody has to decide which is true. So MAP.md is a rendering, the
+feed is a view, and `next` recomputes.
+
+The ordering in `next` is the other load-bearing decision. Debt comes first
+because every line below it is computed from notes that are currently wrong.
+Then the human queue, because those are the only three events allowed to
+interrupt somebody and they must not sit behind machine work. Then the work.
+
+`--close` is the gate. It blocks on debt from the last few hours and merely
+lists anything older: a hook that refuses to let anyone stop until a library's
+whole history is tidy is a hook people switch off, and a disabled gate enforces
+nothing at all.
+"""
+
+import datetime as dt
+import json
+
+import pytest
+
+from magi import state
+from magi.core import vocab
+from magi.kb import threads
+
+
+NOW = dt.datetime(2026, 8, 29, 12, 0, tzinfo=dt.timezone.utc)
+
+
+def at(minutes_ago=0, days_ago=0):
+    stamp = NOW - dt.timedelta(minutes=minutes_ago, days=days_ago)
+    return stamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@pytest.fixture
+def ws(tmp_path):
+    (tmp_path / "threads").mkdir()
+    return tmp_path
+
+
+def line(ws, slug="qec", status=None):
+    path = threads.create(ws / "threads" / f"{slug}.md", vocab.LINE, slug.upper(),
+                          f"Whether {slug} works.")
+    if status:
+        threads.set_status(path, status, "moving", host="claude", at=at())
+    return path
+
+
+def proposition(ws, slug, lines=("qec",), bet=None, status=None, when=None, **extra):
+    path = threads.create(ws / "threads" / f"{slug}.md", vocab.PROPOSITION,
+                          slug.upper(), f"Why {slug}.", lines=list(lines),
+                          extra=({"bet": bet} if bet else None) or extra or None)
+    if status:
+        threads.set_status(path, status, "moving", host="claude", at=when or at())
+    return path
+
+
+def load(ws, **kwargs):
+    kwargs.setdefault("now", NOW)
+    return state.load(ws, **kwargs)
+
+
+# --------------------------------------------------------------------------
+# lines
+# --------------------------------------------------------------------------
+
+def test_a_line_carries_the_propositions_that_name_it(ws):
+    line(ws)
+    proposition(ws, "p-a")
+    proposition(ws, "p-b", status="testing")
+
+    view = load(ws).lines[0]
+    assert view.slug == "qec"
+    assert view.open_count == 2
+    assert view.total == 2
+
+
+def test_notes_that_name_no_line_still_get_a_row(ws):
+    """A project may run with no explicit lines at all and should still have a
+    map. Dropping those notes would make the map lie by omission."""
+    proposition(ws, "p-loose", lines=())
+    assert [view.slug for view in load(ws).lines] == [state.UNLINED]
+
+
+def test_a_settled_proposition_stops_counting_as_open(ws):
+    line(ws)
+    proposition(ws, "p-a", status="testing")
+    threads.set_status(ws / "threads" / "p-a.md", "supported", "done",
+                       host="claude", at=at())
+
+    assert load(ws).lines[0].open_count == 0
+
+
+def test_a_line_nobody_has_posted_to_goes_quiet(ws):
+    line(ws)
+    proposition(ws, "p-a", status="testing", when=at(days_ago=40))
+
+    views = {view.slug: view for view in load(ws, stall_days=21).lines}
+    assert views["qec"].stalled is True
+
+
+def test_a_line_posted_to_last_week_is_not_quiet(ws):
+    line(ws)
+    proposition(ws, "p-a", status="testing", when=at(days_ago=5))
+    assert load(ws, stall_days=21).lines[0].stalled is False
+
+
+# --------------------------------------------------------------------------
+# the decision queue — the only three things allowed to interrupt somebody
+# --------------------------------------------------------------------------
+
+def test_a_disputed_proposition_waits_on_a_person(ws):
+    line(ws)
+    path = proposition(ws, "p-a", status="testing")
+    threads.set_status(path, "supported", "done", host="claude", at=at())
+    threads.set_status(path, "disputed", "the reviewer disagrees",
+                       host="reviewer", at=at())
+
+    item = [q for q in load(ws).queue if q.slug == "p-a"][0]
+    assert item.kind == "disputed"
+
+
+def test_work_started_with_no_prediction_asks_for_one(ws):
+    """The prediction is only worth anything before the answer. Asking once, at
+    the moment work starts, is the whole of the forced-output protocol here."""
+    line(ws)
+    proposition(ws, "p-a", status="testing")
+
+    assert [q.kind for q in load(ws).queue if q.slug == "p-a"] == ["bet"]
+
+
+def test_a_recorded_prediction_is_not_asked_for_again(ws):
+    line(ws)
+    proposition(ws, "p-a", bet="supported", status="testing")
+
+    assert [q for q in load(ws).queue if q.slug == "p-a"] == []
+
+
+def test_too_much_open_at_once_asks_for_a_close_not_a_ranking(ws):
+    line(ws)
+    for n in range(9):
+        proposition(ws, f"p-{n}")
+
+    item = [q for q in load(ws, wip_limit=7).queue if q.kind == "wip"][0]
+    assert item.line == "qec"
+    assert "more than one" in item.why
+
+
+def test_a_quiet_line_is_asked_about_its_phase(ws):
+    line(ws)
+    proposition(ws, "p-a", status="testing", when=at(days_ago=40))
+
+    assert any(q.kind == "phase" for q in load(ws, stall_days=21).queue)
+
+
+# --------------------------------------------------------------------------
+# debt — work that happened and was not written down
+# --------------------------------------------------------------------------
+
+def test_a_status_nobody_explained_is_debt(ws):
+    path = proposition(ws, "p-a")
+    path.write_text(path.read_text(encoding="utf-8")
+                    .replace("status: open", "status: supported", 1), encoding="utf-8")
+
+    debt = load(ws).debt
+    assert [item.slug for item in debt] == ["p-a"]
+    assert "no post records" in debt[0].why
+
+
+def test_a_derivation_that_moved_after_the_proposition_is_debt(ws):
+    """The argument changed and the claim did not. Nothing is wrong with the
+    file; what is wrong is that the note still says what it said before."""
+    (ws / "drafts").mkdir()
+    draft = ws / "drafts" / "gap-argument.md"
+    draft.write_text("# Argument\n", encoding="utf-8")
+
+    path = proposition(ws, "p-a", derivation=["[[gap-argument]]"])
+    threads.set_status(path, "testing", "started", host="claude", at=at(minutes_ago=60))
+    draft.write_text("# Argument\n\nRewritten.\n", encoding="utf-8")
+    # The post carries a timestamp and the draft carries an mtime; pin the
+    # mtime so the test compares the two things the code compares.
+    import os
+    os.utime(draft, (NOW.timestamp(), NOW.timestamp()))
+
+    debt = load(ws).debt
+    assert any("gap-argument" in item.why for item in debt)
+
+
+def test_a_tidy_workspace_owes_nothing(ws):
+    line(ws)
+    proposition(ws, "p-a", bet="supported", status="testing")
+    assert load(ws).debt == []
+
+
+# --------------------------------------------------------------------------
+# what to do next
+# --------------------------------------------------------------------------
+
+def test_debt_outranks_everything_else(ws):
+    """Every other line of the list is computed from notes that are currently
+    wrong, so fixing the notes is always the first move."""
+    line(ws)
+    path = proposition(ws, "p-a", status="testing")
+    path.write_text(path.read_text(encoding="utf-8")
+                    .replace("status: testing", "status: supported", 1), encoding="utf-8")
+    disputed = proposition(ws, "p-b", status="testing")
+    threads.set_status(disputed, "supported", "done", host="claude", at=at())
+    threads.set_status(disputed, "disputed", "no", host="reviewer", at=at())
+
+    keys = [action.key for action in state.candidates(load(ws))]
+    assert keys[0] == "debt"
+    assert "disputed" in keys
+
+
+def test_a_line_with_nothing_open_is_asked_for_a_question(ws):
+    line(ws)
+    assert any(action.key == "empty-line" for action in state.candidates(load(ws)))
+
+
+def test_a_line_already_waiting_on_a_person_is_not_also_nagged(ws):
+    """Two prompts about one line is how a router teaches people to skim it."""
+    line(ws)
+    path = proposition(ws, "p-a", status="testing")
+    threads.set_status(path, "supported", "done", host="claude", at=at())
+    threads.set_status(path, "disputed", "no", host="reviewer", at=at())
+
+    keys = [action.key for action in state.candidates(load(ws))]
+    assert "empty-line" not in keys
+
+
+def test_only_one_open_proposition_per_line_is_proposed(ws):
+    """Listing every open proposition is listing the project, and then the
+    ranking it was for stops meaning anything."""
+    line(ws)
+    for n in range(4):
+        proposition(ws, f"p-{n}", bet="supported", status="testing",
+                    when=at(days_ago=n))
+
+    work = [action for action in state.candidates(load(ws)) if action.key == "work"]
+    assert len(work) == 1
+    assert work[0].slug == "p-3", "the one that has waited longest"
+
+
+def test_nothing_owed_prints_the_open_questions_and_stops(ws):
+    """A router that always finds something to say trains people to stop
+    reading it."""
+    threads.create(ws / "threads" / "q-order.md", vocab.QUESTION,
+                   "What is the order parameter?", "Pin down the phase.")
+    projection = load(ws)
+    projection.lines = []
+
+    text = state.render(projection, [])
+    assert "Nothing owed" in text
+    assert "q-order" in text
+
+
+# --------------------------------------------------------------------------
+# feed
+# --------------------------------------------------------------------------
+
+def test_the_feed_is_every_post_newest_first(ws):
+    path = proposition(ws, "p-a")
+    threads.set_status(path, "testing", "one", host="claude", at=at(minutes_ago=30))
+    threads.append_post(path, "two", host="codex", at=at(minutes_ago=10))
+
+    entries = state.feed(load(ws))
+    assert [entry.text for entry in entries] == ["two", "one"]
+
+
+def test_the_feed_can_be_narrowed_to_one_host(ws):
+    path = proposition(ws, "p-a")
+    threads.append_post(path, "mine", host="codex", at=at(minutes_ago=5))
+    threads.append_post(path, "theirs", host="claude", at=at(minutes_ago=4))
+
+    assert [e.text for e in state.feed(load(ws), author="codex")] == ["mine"]
+
+
+def test_the_feed_can_start_from_a_date(ws):
+    path = proposition(ws, "p-a")
+    threads.append_post(path, "old", host="claude", at=at(days_ago=10))
+    threads.append_post(path, "new", host="claude", at=at(minutes_ago=1))
+
+    since = NOW - dt.timedelta(days=1)
+    assert [e.text for e in state.feed(load(ws), since=since)] == ["new"]
+
+
+# --------------------------------------------------------------------------
+# MAP
+# --------------------------------------------------------------------------
+
+def test_the_map_says_that_editing_it_does_nothing(ws):
+    """It reads as a status page somebody maintains, and the temptation is to
+    correct it. Correcting it changes nothing; the next render overwrites."""
+    line(ws)
+    assert "Editing this file changes nothing" in state.render_map(load(ws), now=NOW)
+
+
+def test_the_map_holds_lines_and_decisions_and_no_chores(ws):
+    line(ws)
+    proposition(ws, "p-a", status="testing")
+
+    text = state.render_map(load(ws), now=NOW)
+    assert "## Lines" in text and "## Decisions waiting on you" in text
+    assert "[[qec]]" in text
+    assert "backlog" not in text.lower()
+
+
+def test_writing_the_map_puts_it_in_output(ws):
+    line(ws)
+    path = state.write_map(load(ws))
+    assert path == ws / "output" / "MAP.md"
+    assert path.read_text(encoding="utf-8").startswith("# MAP")
+
+
+# --------------------------------------------------------------------------
+# closing a session
+# --------------------------------------------------------------------------
+
+def test_two_writers_inside_the_window_is_a_conflict(ws):
+    """Last-writer-wins settles an ordinary flip: the second writer had read
+    the first one's post. It cannot settle two writers moving at once."""
+    path = proposition(ws, "p-a")
+    threads.set_status(path, "testing", "mine", host="claude", at=at(minutes_ago=32))
+    threads.set_status(path, "supported", "theirs", host="codex", at=at(minutes_ago=30))
+
+    report = state.close(ws, now=NOW)
+
+    assert report.conflicts == ["p-a"]
+    assert threads.read_note(path).status == vocab.CONFLICT
+
+
+def test_the_same_writer_moving_twice_is_not_a_conflict(ws):
+    path = proposition(ws, "p-a")
+    threads.set_status(path, "testing", "one", host="claude", at=at(minutes_ago=32))
+    threads.set_status(path, "supported", "two", host="claude", at=at(minutes_ago=31))
+
+    assert state.close(ws, now=NOW).conflicts == []
+
+
+def test_two_writers_days_apart_is_just_revision(ws):
+    path = proposition(ws, "p-a")
+    threads.set_status(path, "testing", "one", host="claude", at=at(days_ago=3))
+    threads.set_status(path, "supported", "two", host="codex", at=at(minutes_ago=5))
+
+    assert state.close(ws, now=NOW).conflicts == []
+
+
+def test_close_blocks_on_debt_from_this_session(ws):
+    path = proposition(ws, "p-a")
+    path.write_text(path.read_text(encoding="utf-8")
+                    .replace("status: open", "status: supported", 1), encoding="utf-8")
+
+    report = state.close(ws, now=NOW)
+
+    assert report.ok is False
+    assert [item.slug for item in report.blocking] == ["p-a"]
+
+
+def test_close_only_lists_debt_older_than_the_window(ws):
+    """A gate that refuses until a library's whole history is tidy is a gate
+    people switch off, and a disabled gate enforces nothing."""
+    import os
+
+    path = proposition(ws, "p-a")
+    path.write_text(path.read_text(encoding="utf-8")
+                    .replace("status: open", "status: supported", 1), encoding="utf-8")
+    old = (NOW - dt.timedelta(days=5)).timestamp()
+    os.utime(path, (old, old))
+
+    report = state.close(ws, now=NOW)
+
+    assert report.ok is True
+    assert [item.slug for item in report.older] == ["p-a"]
+
+
+def test_close_writes_the_map(ws):
+    line(ws)
+    report = state.close(ws, now=NOW)
+    assert report.map_path and (ws / "output" / "MAP.md").is_file()
+
+
+def test_the_hook_payload_tells_the_agent_what_to_do(ws):
+    path = proposition(ws, "p-a")
+    path.write_text(path.read_text(encoding="utf-8")
+                    .replace("status: open", "status: supported", 1), encoding="utf-8")
+
+    payload = state.hook_payload(state.close(ws, now=NOW, write=False))
+
+    assert payload["decision"] == "block"
+    assert "magi thread status" in payload["reason"]
+    assert "p-a" in payload["reason"]
+
+
+def test_a_clean_close_says_nothing_to_the_hook(ws):
+    line(ws)
+    assert state.hook_payload(state.close(ws, now=NOW, write=False)) == {}
+
+
+# --------------------------------------------------------------------------
+# the commands
+# --------------------------------------------------------------------------
+
+def test_next_json_carries_the_whole_projection(ws, capsys):
+    line(ws)
+    proposition(ws, "p-a", status="testing")
+
+    assert state.main(["next", "--topic-dir", str(ws), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert {"lines", "queue", "debt", "actions", "open_questions"} <= set(payload)
+    assert payload["lines"][0]["slug"] == "qec"
+
+
+def test_next_can_be_narrowed_to_one_line(ws, capsys):
+    line(ws, "qec")
+    line(ws, "transport")
+    proposition(ws, "p-a", lines=("transport",), status="testing")
+
+    state.main(["next", "--topic-dir", str(ws), "--line", "transport", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert [view["slug"] for view in payload["lines"]] == ["transport"]
+
+
+def test_feed_json_is_a_list_of_posts(ws, capsys):
+    path = proposition(ws, "p-a")
+    threads.append_post(path, "hello", host="claude", at=at(minutes_ago=1))
+
+    assert state.main(["feed", "--topic-dir", str(ws), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload[0]["slug"] == "p-a"
+    assert payload[0]["host"] == "claude"
+
+
+def test_a_since_nobody_can_parse_is_refused(ws):
+    with pytest.raises(SystemExit) as caught:
+        state.main(["feed", "--topic-dir", str(ws), "--since", "last tuesday"])
+    assert "not a date" in str(caught.value)
+
+
+# --------------------------------------------------------------------------
+# flips that are a person's call
+# --------------------------------------------------------------------------
+
+def disputed(ws, slug="p-a"):
+    path = proposition(ws, slug, status="testing")
+    threads.set_status(path, "supported", "done", host="claude", at=at(minutes_ago=20))
+    threads.set_status(path, "disputed", "no", host="reviewer", at=at(minutes_ago=10))
+    return path
+
+
+def test_an_agent_walking_a_proposition_out_of_disputed_is_debt(ws):
+    """`disputed` exists to stop the machine settling the question itself. If
+    the next run can flip it back, the reviewer's objection evaporates between
+    two sessions and nobody is ever asked."""
+    path = disputed(ws)
+    threads.set_status(path, "supported", "it holds", host="claude", at=at())
+
+    why = [item.why for item in load(ws).debt]
+    assert any("person's call" in message for message in why)
+
+
+def test_a_post_signed_by_the_person_settles_it(ws):
+    path = disputed(ws)
+    threads.set_status(path, "supported", "I read it; the objection is about the "
+                       "boundary case", host=vocab.HUMAN, at=at())
+
+    assert [item for item in load(ws).debt if "person's call" in item.why] == []
+
+
+def test_writing_the_decision_down_settles_it_too(ws):
+    """The agent transcribing what a person decided is the normal case, so the
+    other way to satisfy this is the file that record lives in."""
+    path = disputed(ws)
+    threads.set_status(path, "supported", "per the call", host="claude", at=at())
+    (ws / "decisions.md").write_text(
+        "2026-08-29 p-a: the objection is about the boundary case; it stands "
+        "for the bulk.\n", encoding="utf-8")
+
+    assert [item for item in load(ws).debt if "person's call" in item.why] == []
+
+
+def test_entering_disputed_is_nobody_special(ws):
+    """The reviewer has to be able to raise the objection on its own; only
+    dismissing it is the person's call."""
+    disputed(ws)
+    assert [item for item in load(ws).debt if "person's call" in item.why] == []
+
+
+def test_the_policy_and_the_check_read_the_same_table(ws):
+    assert vocab.is_human_only(vocab.PROPOSITION, "disputed", "supported")
+    assert vocab.is_human_only(vocab.LINE, "closed", "active")
+    assert not vocab.is_human_only(vocab.PROPOSITION, "testing", "supported")
+
+
+# --------------------------------------------------------------------------
+# what a line is looking at
+# --------------------------------------------------------------------------
+
+def test_a_lines_focus_is_what_its_notes_point_at(ws):
+    """A line is a view over a shared library, not a library of its own, so
+    "what belongs to this line" cannot be a directory — it has to be derived
+    from what the line's own notes reference."""
+    (ws / "drafts").mkdir()
+    (ws / "drafts" / "gap-argument.md").write_text("# Argument\n", encoding="utf-8")
+    (ws / "wiki" / "concepts").mkdir(parents=True)
+    (ws / "wiki" / "concepts" / "toric-code.md").write_text("# Toric\n", encoding="utf-8")
+
+    line(ws)
+    proposition(ws, "p-a", derivation=["[[gap-argument]]"],
+                depends_on=["[[toric-code]]"])
+
+    assert state.focus(ws, "qec") == {
+        "threads/qec.md", "threads/p-a.md",
+        "drafts/gap-argument.md", "wiki/concepts/toric-code.md"}
+
+
+def test_another_lines_work_is_not_in_this_lines_focus(ws):
+    line(ws, "qec")
+    line(ws, "transport")
+    proposition(ws, "p-a", lines=("transport",))
+
+    assert "threads/p-a.md" not in state.focus(ws, "qec")
+
+
+def test_a_link_to_nothing_is_dropped_rather_than_guessed_at(ws):
+    line(ws)
+    proposition(ws, "p-a", derivation=["[[never-written]]"])
+
+    assert state.focus(ws, "qec") == {"threads/qec.md", "threads/p-a.md"}
+
+
+# --------------------------------------------------------------------------
+# mechanisms, not seconds
+# --------------------------------------------------------------------------
+
+def test_one_walk_answers_every_link(ws, monkeypatch):
+    """The obvious implementation resolves each `derivation:` with its own
+    `rglob`, which is one directory walk per link — a routine `magi sync` on a
+    real library becomes thousands of them. Speed in seconds is flaky to
+    assert, so what is pinned is the mechanism."""
+    (ws / "drafts").mkdir()
+    line(ws)
+    for n in range(20):
+        (ws / "drafts" / f"d-{n}.md").write_text("# D\n", encoding="utf-8")
+        proposition(ws, f"p-{n}", derivation=[f"[[d-{n}]]"],
+                    status="testing", when=at(minutes_ago=n + 1))
+
+    calls = []
+    original = state._link_index
+    monkeypatch.setattr(state, "_link_index",
+                        lambda root: (calls.append(root), original(root))[1])
+
+    load(ws)
+
+    assert len(calls) == 1, f"walked the tree {len(calls)} times for 20 links"
+
+
+def test_next_never_writes(ws, capsys):
+    """`next` proposes and does not act (design-v2 §7). A router that edits
+    the thing it is describing cannot be run to find out where you are."""
+    line(ws)
+    path = proposition(ws, "p-a", status="testing")
+    path.write_text(path.read_text(encoding="utf-8")
+                    .replace("status: testing", "status: supported", 1), encoding="utf-8")
+
+    before = {p: p.read_bytes() for p in sorted(ws.rglob("*")) if p.is_file()}
+    state.main(["next", "--topic-dir", str(ws)])
+    after = {p: p.read_bytes() for p in sorted(ws.rglob("*")) if p.is_file()}
+
+    assert after == before
+    assert "left the note at" in capsys.readouterr().out, "it saw the debt and left it"
+
+
+def test_the_feed_never_writes(ws):
+    path = proposition(ws, "p-a")
+    threads.append_post(path, "hello", host="claude", at=at(minutes_ago=1))
+
+    before = {p: p.read_bytes() for p in sorted(ws.rglob("*")) if p.is_file()}
+    state.main(["feed", "--topic-dir", str(ws)])
+    after = {p: p.read_bytes() for p in sorted(ws.rglob("*")) if p.is_file()}
+
+    assert after == before
+
+
+def test_a_link_that_names_two_files_picks_the_draft(ws):
+    """`derivation:` names the working out, so a draft wins a stem it shares
+    with a concept card. Guessing the other way points the debt check at a
+    file the proposition was never about."""
+    (ws / "drafts").mkdir()
+    (ws / "wiki" / "concepts").mkdir(parents=True)
+    (ws / "drafts" / "gap.md").write_text("# D\n", encoding="utf-8")
+    (ws / "wiki" / "concepts" / "gap.md").write_text("# C\n", encoding="utf-8")
+
+    resolved = state._resolve(ws, "[[gap]]")
+    assert resolved == ws / "drafts" / "gap.md"
+
+def test_a_library_with_no_research_state_is_pointed_somewhere(ws, capsys):
+    """`next` is the single entry, so in a library that has a wiki and nothing
+    it is currently trying to find out, reporting that nothing is owed is true
+    and useless."""
+    state.main(["next", "--topic-dir", str(ws)])
+    out = capsys.readouterr().out
+    assert "No propositions yet" in out
+    assert "magi thread new" in out and "magi sync" in out

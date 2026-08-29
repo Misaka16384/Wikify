@@ -562,12 +562,52 @@ def _iter_corpus(root: Path):
             yield p
 
 
+#: How much more a chunk counts when the caller named a research line and the
+#: chunk is in that line's focus. A boost rather than a filter on purpose: the
+#: answer to a question asked from inside a line is often in a paper the line
+#: has never cited, and filtering to the focus set would hide exactly that.
+FOCUS_BOOST = 1.5
+
+
 #: How much a collection counts for in a query that did not ask for it.
 #: `threads/` holds propositions in progress — a conjecture nobody has tested
 #: is not the answer to "what is X", and letting one outrank a concept card is
 #: how a guess gets read back as knowledge. Asking for it by name
 #: (`--collection threads`) is a filter, not a ranking, so the penalty lifts.
 _COLLECTION_WEIGHT = {"threads": 0.6}
+
+
+def _line_focus(args):
+    """The focus set for `--line`, or `None`. Never fatal: a search that cannot
+    work out what a line is looking at is still a search."""
+    line = getattr(args, "line", None)
+    if not line:
+        return None
+    try:
+        from magi import state
+
+        from magi.core.workspace import find_workspace_root
+
+        root = args.topic_dir or find_workspace_root()
+        return state.focus(root, line) if root else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _apply_focus(conns, merged, focus, weights) -> None:
+    """Multiply in the focus boost for chunks whose file the line points at."""
+    wanted = {str(path).replace("\\", "/") for path in focus}
+    by_kb: dict = {}
+    for name, cid in merged:
+        by_kb.setdefault(name, []).append(cid)
+
+    for name, ids in by_kb.items():
+        placeholders = ",".join("?" * len(ids))
+        rows = conns[name].execute(
+            f"SELECT id, path FROM chunks WHERE id IN ({placeholders})", ids)
+        for cid, path in rows:
+            if str(path).replace("\\", "/") in wanted:
+                weights[(name, cid)] = weights.get((name, cid), 1.0) * FOCUS_BOOST
 
 
 def _collection_weights(conns, merged) -> dict:
@@ -932,7 +972,8 @@ class SearchError(Exception):
 
 def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto",
                kb: str | None = None, collection: str | None = None,
-               path: str | None = None, topic_dir: str | None = None) -> dict:
+               path: str | None = None, topic_dir: str | None = None,
+               focus: set | None = None) -> dict:
     """Shared search core. The returned payload IS the contract — identical for
     `magi search --json`, the WebUI API, and the future `magi mcp` surface.
     Raises SearchError when search cannot run at all."""
@@ -1016,6 +1057,8 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
                               "if it is not installed, get it from https://ollama.com)")
 
         weights = _collection_weights(conns, merged) if not collection else {}
+        if focus:
+            _apply_focus(conns, merged, focus, weights)
         scores = {
             key: sum(1.0 / (RRF_K + r) for r in legs.values()) * weights.get(key, 1.0)
             for key, legs in merged.items()
@@ -1070,7 +1113,7 @@ def cmd_search(args: argparse.Namespace) -> int:
     <name> targets one registered KB."""
     try:
         payload = run_search(args.query, mode=args.mode, k=args.k, scope=args.scope,
-                             kb=args.kb, collection=args.collection,
+                             focus=_line_focus(args), kb=args.kb, collection=args.collection,
                              path=args.path, topic_dir=args.topic_dir)
     except SearchError as exc:
         return _die(exc.msg, hint=exc.hint, as_json=args.json)
@@ -1123,6 +1166,9 @@ def main(argv: list[str] | None = None) -> int:
                                                    "raw", "drafts", "threads", "other"])
     p_search.add_argument("--path", help="Only search chunks whose file path matches this glob, "
                                          "e.g. --path 'raw/papers/2026-*higher-rank*' (applies per KB)")
+    p_search.add_argument("--line", help="Rank what this research line is looking at higher. "
+                                         "A boost, not a filter: the answer is often in a paper "
+                                         "the line has never cited.")
     p_search.add_argument("-k", type=int, default=8, help="Max results (default 8)")
     p_search.add_argument("--mode", choices=["hybrid", "bm25", "vector"], default="hybrid")
     p_search.add_argument("--scope", choices=["auto", "local", "global"], default="auto",

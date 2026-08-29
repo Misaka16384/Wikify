@@ -222,20 +222,73 @@ class _RadarOff(Exception):
 
 
 def balthasar_status(topic: Path | None) -> dict:
+    """Intent: what this project is trying to find out, and what it owes.
+
+    v2 moves this core off the task tracker (design-v2 §14). Beads holds
+    mechanical work — a compile backlog, a reading queue — and a project can
+    have none of it while being in the middle of everything. What Balthasar
+    now measures is whether the research state is *legible*: how many lines
+    are running, how much is open, what is waiting on a person, and how much
+    happened that nobody wrote down.
+
+    The score is bookkeeping cleanliness, not progress. A project with six
+    open propositions and no debt is perfectly healthy; one with two and three
+    unexplained statuses is not, because every projection over it is wrong.
+    Work waiting on a person is not counted against anything — the queue
+    existing is the system working.
+
+    A workspace with no `threads/` yet keeps the old beads-derived score, so
+    libraries that predate v2 do not suddenly read zero.
+    """
     from magi.pm import bd_available, bd_status_summary, find_beads_root
 
     start = topic or Path.cwd()
     root = find_beads_root(start) if bd_available() else None
     summary = bd_status_summary(root) if root else None
-    score = (0.6 if root else 0.0) + (0.4 if summary else 0.0)
-    return {
+    beads = {
         "bd_installed": bd_available(),
         "beads_root": str(root) if root else None,
         "ready": (summary or {}).get("ready_issues"),
         "in_progress": (summary or {}).get("in_progress_issues"),
         "blocked": (summary or {}).get("blocked_issues"),
         "open": (summary or {}).get("open_issues"),
-        "score": round(score, 3),
+    }
+
+    research = _research_status(topic)
+    if research is None:
+        beads["score"] = round((0.6 if root else 0.0) + (0.4 if summary else 0.0), 3)
+        beads.update({"lines": None, "open_propositions": None,
+                      "waiting": None, "debt": None})
+        return beads
+
+    beads.update(research)
+    return beads
+
+
+def _research_status(topic: Path | None):
+    """Threads-derived intent numbers, or `None` when there is no `threads/`."""
+    if topic is None:
+        return None
+    if not (Path(topic) / "threads").is_dir():
+        return None
+    try:
+        from magi import state as state_mod
+
+        projection = state_mod.load(topic)
+    except Exception:  # noqa: BLE001 — a broken note must not take sync down
+        return None
+
+    notes = len(projection.notes)
+    if not notes:
+        return {"lines": 0, "open_propositions": 0, "waiting": 0, "debt": 0, "score": 0.0}
+
+    debt = len(projection.debt)
+    return {
+        "lines": len(projection.lines),
+        "open_propositions": sum(view.open_count for view in projection.lines),
+        "waiting": len(projection.queue),
+        "debt": debt,
+        "score": round(max(0.0, 1.0 - debt / notes), 3),
     }
 
 
@@ -463,6 +516,46 @@ def run_fixes(report: dict, dry_run: bool = False) -> tuple[int, int]:
     return ran, failed
 
 
+def _close(args) -> int:
+    """`magi sync --close` — the gate between a session and its end.
+
+    Kept out of the report path on purpose: everything else `sync` prints is a
+    description of the library, and this is the one thing that can refuse.
+    """
+    from magi import state as state_mod
+    from magi.core.workspace import find_workspace_root
+
+    root = find_workspace_root()
+    if root is None:
+        message = "no workspace found (run inside a topic)"
+        if args.hook:
+            print(json.dumps({}, ensure_ascii=False))
+            return 0
+        print(message, file=sys.stderr)
+        return 1
+
+    report = state_mod.close(
+        root, window_hours=args.window or state_mod.CLOSE_WINDOW_HOURS)
+
+    if args.hook:
+        print(json.dumps(state_mod.hook_payload(report), ensure_ascii=False))
+        # A hook that exits non-zero is a hook that looks broken; the verdict
+        # travels in the payload, not in the status code.
+        return 0
+    if args.json:
+        print(json.dumps({
+            "ok": report.ok,
+            "blocking": [{"slug": item.slug, "why": item.why} for item in report.blocking],
+            "older": [{"slug": item.slug, "why": item.why} for item in report.older],
+            "conflicts": report.conflicts,
+            "map": report.map_path,
+        }, ensure_ascii=False))
+        return 0 if report.ok else 1
+
+    print(state_mod.render_close(report))
+    return 0 if report.ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="magi sync", description="Workspace onboarding: sync ratio + three-core status")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
@@ -471,7 +564,21 @@ def main(argv: list[str] | None = None) -> int:
                              "backlog sync, pm init) and report the rest.")
     parser.add_argument("--dry-run", action="store_true",
                         help="With --fix: show what would run, change nothing.")
+    parser.add_argument("--close", action="store_true",
+                        help="End-of-session gate: refuse while work has happened "
+                             "that nobody wrote down. Also settles contended statuses "
+                             "and rewrites output/MAP.md.")
+    parser.add_argument("--window", type=int, default=None,
+                        help="With --close: hours of history that count as this "
+                             "session's work (default 12). Older debt is listed, "
+                             "not blocking.")
+    parser.add_argument("--hook", action="store_true",
+                        help="With --close: emit the JSON a host's stop hook reads "
+                             "instead of a report.")
     args = parser.parse_args(argv)
+
+    if args.close:
+        return _close(args)
 
     report = build_report()
     if args.json:
@@ -499,6 +606,11 @@ def main(argv: list[str] | None = None) -> int:
     if b.get("state") == "disabled":
         print("|- BALTHASAR (intent)     disabled (task tracking off — "
               "'magi setup --full' to enable)")
+    elif b.get("lines") is not None:
+        debt_part = f" · {b['debt']} unrecorded" if b.get("debt") else ""
+        lines_word = "line" if b['lines'] == 1 else "lines"
+        print(f"|- BALTHASAR (intent)     {b['lines']} {lines_word} · {b['open_propositions']} open "
+              f"· {b['waiting']} waiting on you{debt_part}")
     elif b.get("beads_root"):
         print(f"|- BALTHASAR (intent)     {_fmt(b['ready'])} ready · {_fmt(b['in_progress'])} in progress · {_fmt(b['blocked'])} blocked")
     else:
