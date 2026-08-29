@@ -20,7 +20,7 @@ from magi.ui.api import create_app, safe_upload_name
 
 @pytest.fixture
 def ws(tmp_path):
-    from magi.hub import init_workspace
+    from magi import init_workspace
 
     init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T"])
     return tmp_path

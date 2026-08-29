@@ -24,10 +24,10 @@ Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 ## Start here
 
 ```powershell
-pipx upgrade --install magi-research # install or upgrade — safe to re-run
-magi hub init                        # in the folder that will hold your topics
-cd topics/my-topic && magi init      # one topic
-magi ingest auto                     # after dropping PDFs into inbox/
+pipx upgrade --install magi-research      # install or upgrade — safe to re-run
+mkdir my-topic ; cd my-topic ; magi init  # one topic
+magi install                              # into your agent CLI: skills, protocol, stop gate
+magi ingest auto                          # after dropping PDFs into inbox/
 ```
 
 Then tell your agent, in Claude Code or Codex: **"compile the backlog"**. That is the one step no command can do — it reads the papers and writes the cards. When it finishes:
@@ -210,15 +210,11 @@ claude plugin marketplace add Misaka16384/magi && claude plugin install magi
 ## 3. Quick start (5 minutes)
 
 ```powershell
-mkdir KnowledgeHub ; cd KnowledgeHub
-magi hub init                # central hub (wikis.json registry)
-magi pm init                 # beads + research issue types (git-inits this directory)
-
-mkdir -p topics/quantum-toys && cd topics/quantum-toys
+mkdir quantum-toys ; cd quantum-toys
 magi init --name "Quantum Toys" --scope "quantum phenomena in toy models"
-# ↑ auto-registers in the hub; generates CLAUDE.md / AGENTS.md (agent entry
-#   protocol), config.yaml, scratch/
-magi skills install          # give this workspace's skills to your agent CLI (it asks which)
+# ^ creates raw/ wiki/ threads/ drafts/ decisions.md, AGENTS.md (managed block), config.yaml
+magi install                 # skills + protocol block + stop gate (asks which CLI)
+magi pm init                 # optional: a task store for mechanical work (git-inits here)
 
 magi sync --fix              # sync ratio + three cores, and run the repairs it suggests
 ```
@@ -342,8 +338,8 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Mis
 #    into calling script paths that no longer exist)
 magi setup --remove-legacy
 
-# 3. One command at the hub root (non-destructive, and it finishes the job):
-cd <your-KnowledgeHub>
+# 3. One command at the old hub root (non-destructive, and it finishes the job):
+cd <your-old-KnowledgeHub>
 magi migrate
 #    ↳ per topic: adds CLAUDE.md / AGENTS.md / config.yaml / scratch/ (reusing
 #      the old title & scope from config.md), carries the old config.yaml's
@@ -353,7 +349,8 @@ magi migrate
 #      --minimal migrates only; run it inside one topic to migrate just that one.
 #      Run inside a single topic dir to migrate just that topic.
 
-# Finish up: `magi pm init` at the hub root; `magi index` in each topic; `magi sync` to verify.
+# Finish up: `magi install` in each topic (skills + protocol + stop gate); `magi index`;
+# `magi sync` to verify. The hub's own wikis.json / topics/ / log.md are inert afterwards.
 ```
 
 ### 5.2 What changed

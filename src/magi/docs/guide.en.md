@@ -8,14 +8,18 @@ Every chapter follows the same rhythm: **what to do → how to do it → what yo
 
 ## Get it running once {#start}
 
-From nothing to a library you can search — four commands and one sentence to your agent:
+From nothing to a library you can search — three commands and one sentence to your agent:
 
 ```powershell
-pipx upgrade --install magi-research # 1. install or upgrade (idempotent)
-magi hub init                        # 2. in the folder that will hold your topics
-cd topics/my-topic && magi init      # 3. one topic
-magi ingest auto                     # 4. after dropping PDFs into inbox/
+pipx upgrade --install magi-research     # 1. install or upgrade (idempotent)
+mkdir my-topic ; cd my-topic ; magi init # 2. one topic
+magi install                             # 3. into your agent CLI: skills, protocol, stop gate
+magi ingest auto                         # after dropping PDFs into inbox/
 ```
+
+One directory per topic, and nothing above it. **Cross-library search runs off the
+user-level registry** (`magi kb list`): `magi search` federates over every enabled
+library by default, so they never have to share a parent directory.
 
 Then say to your agent, in Claude Code or Codex: **"compile the backlog"**. That is the one step no command can do — it reads the papers and writes the cards. When it finishes, `magi index` and you can search.
 
@@ -40,7 +44,6 @@ An agent's context is disposable — **state always lives on disk**. So any step
 
 ```powershell
 mkdir KnowledgeHub ; cd KnowledgeHub
-magi hub init                # hub (wikis.json registry)
 magi pm init                 # task system (git-inits this directory)
 
 mkdir -p topics/quantum-toys && cd topics/quantum-toys
@@ -52,7 +55,7 @@ magi sync --fix                    # sanity check: sync ratio + three-core statu
 
 **② Existing Wikify user** — leave your data as-is; jump straight to Chapter 3, three commands to migrate.
 
-**③ Just want to try it** — skip the hub; `magi init` works right away in any empty directory, and you can fold it into a hub later with `magi hub register <slug>`.
+**③ Just want to try it** — `magi init` works right away in any empty directory, and it registers the library so `magi search` finds it from anywhere else too.
 
 ### How to read this manual {#howto-read}
 
@@ -428,7 +431,7 @@ cd topics\<your-topic> && magi skills install
 > - **Hub mode reports `N/N topics migrated` at the end, but you saw a `FAILED` in the middle**: the summary line and exit code don't reflect sub-step failures (a known gap). **Search the output for `FAILED` yourself**, then `cd` into the failing topic and rerun `magi migrate` there on its own.
 > - **Hub mode didn't remind you to build indexes**: hub mode only prompts `magi pm init` — it won't remind you to run `magi index` / `magi sync` in each topic. Do it manually.
 > - **The agent still mentions the old commands after migrating**: either `magi setup --remove-legacy` hasn't run, or the agent host's skill cache hasn't refreshed — restart the agent session.
-> - **A topic didn't get migrated**: hub mode skips `topics/.archive/` and any directory that has neither `wiki/` nor `raw/`. Go into that directory and run `magi migrate` on its own, then `magi hub register <slug>`.
+> - **A topic didn't get migrated**: migration skips any directory that has neither `wiki/` nor `raw/`. Go into that directory and run `magi migrate` on its own — it registers the library on the way through.
 > - **It throws a raw Python exception**: the scaffolding step has no exception guard for this; the usual cause is a locked file or insufficient permissions (on Windows, an editor holding `CLAUDE.md` open). Close whatever's holding the file and rerun — you won't be left with a half-finished result.
 
 > [!WARN]
@@ -460,31 +463,33 @@ cd topics\<your-topic> && magi skills install
 Two commands make a library:
 
 ```powershell
-magi hub init           # once, in the folder that will hold all your topics
-magi init               # once per topic, inside its own folder
+magi init               # inside the topic's own folder
+magi install            # into your agent CLI: skills, protocol block, stop gate
 ```
 
 Start with a hub even for a single topic — it costs one extra command now and nothing later when you add a second. Below: what gets generated, how to manage topics, and how MAGI decides which workspace it is looking at.
 
-### Hub or single topic {#workspace-shape}
+### One library or several {#workspace-shape}
 
-- **Single topic**: one project, one directory — `magi init` and you're done.
-- **Hub**: multiple projects sharing one root directory, with **one shared task store** and a topic registry. Cross-project search and a unified task view both depend on it.
-
-We recommend setting up a hub from the start — it's one extra command now, and adding projects later costs nothing.
+One topic, one directory, `magi init` and you are done. A second topic is a
+second directory — no shared parent, no planning ahead. `magi init` registers
+it in a user-level list, and that list is what ties them together:
 
 ```powershell
-mkdir KnowledgeHub ; cd KnowledgeHub
-magi hub init          # Generates topics/, topics/.archive/, wikis.json, _index.md, log.md
-magi pm init           # Installs the task system at the hub root (runs git-init)
-
-mkdir -p topics/my-topic && cd topics/my-topic
-magi init --name "Display name" --scope "One line on what this library collects and what it does not"
+mkdir my-topic ; cd my-topic
+magi init --name "Display name" --scope "one line on what belongs here and what does not"
+magi install
+magi pm init           # optional: a task store for mechanical work (git-inits the directory)
 ```
 
-When you create the topic directory under `<hub>/topics/`, `magi init` **registers it into the hub automatically**. Create it anywhere else and you'll need to register it yourself: `magi hub register <slug> --path <relative/path>`.
+`magi search` federates over every enabled library by default; `magi kb list`
+shows them. v1's hub — a parent directory with `wikis.json` and `topics/` — is
+gone: the registry was the part doing the work, and it is now per-machine, so a
+library is findable wherever it lives.
 
-`--scope` isn't decoration: it gets written into `CLAUDE.md`, where the agent uses it to judge "does this paper belong here, does this concept fall inside the library's scope." **The more specific you write it, the more accurate the automation's judgment calls will be later.**
+`--scope` is not decoration. It goes into the `AGENTS.md` managed block and
+becomes what an agent judges "does this paper belong here" against. **The more
+specific it is, the better every later automatic decision gets.**
 
 ### What `magi init` generates {#workspace-layout}
 
@@ -517,28 +522,29 @@ Every directory except `inbox/` and `scratch/` gets an `_index.md` directory lis
 > /^\..*|(?:^|/)(?:scratch|inbox|raw|output|vendor)(?:/|$)/
 > ```
 
-### Managing topics {#workspace-hub}
+### Working across libraries {#workspace-hub}
+
+There is no layer above a workspace. A library is a directory; `magi init`
+registers it in a user-level list, and that list is what makes several of them
+one searchable whole:
 
 ```powershell
-magi hub list                     # All topics; --archived includes archived ones too; --json for machine-readable output
-magi hub resolve <hub-path> <slug>  # Topic slug → absolute path (for cd in scripts)
-magi hub register <slug> --path topics/<slug>   # Adopt an already-initialized directory
-magi hub archive <slug> --reason "project closed"   # Archive: moves it into topics/.archive/, doesn't delete files
-magi hub restore <slug>           # Restore it
+magi kb list                      # every library this machine knows about
+magi kb disable <name>            # leave one out of federated search
+magi search "toric code"          # searches here, then every enabled library
 ```
 
-`magi hub list` self-heals: any topic that exists on disk but isn't in the registry gets listed and flagged `registry repair needed` — just `register` it as prompted.
+v1 had a *hub*: a parent directory with a `wikis.json` registry, `topics/`
+underneath, and commands to register, archive, restore and fan out across them.
+It is gone. The registry it existed to hold is now per-machine rather than per
+parent directory, which is the part that was actually doing the work — and a
+library no longer has to live in a particular place to be findable. Archiving
+a topic is `magi kb disable` plus moving the directory wherever you keep
+finished things.
 
-**One command across every topic** — most maintenance is per-workspace, and `cd`-ing through a multi-topic hub gets old fast:
-
-```powershell
-magi each sync --fix        # bring every topic back to green
-magi each index             # rebuild every topic's retrieval index
-magi each lint --fix        # structural pass over the whole hub
-magi each skills install --host codex
-```
-
-Run it at the hub root: it picks the **unarchived** topics out of the registry, runs the command in each, and ends with one `N/N ok` line. `--stop-on-error` halts on the first failure, `--json` is for machines.
+A workspace that was under a hub keeps working: `magi migrate` registers each
+one and leaves the files where they are. The hub's own `wikis.json`, `topics/`
+and `log.md` become inert — delete them when you are ready.
 
 ### How MAGI finds the "current workspace" {#workspace-discovery}
 
@@ -1408,12 +1414,12 @@ Or paste the error to your agent and have it run `magi guide --search` (see [1.2
 | Symptom | Run this first |
 |---|---|
 | No idea what to do next | `magi sync` — check the last line, `->`; `magi sync --fix` lets it repair |
-| Maintaining a multi-topic hub one by one | `magi each <command>` — run it once at the hub root |
+| Maintaining several libraries one by one | there is no fan-out command; loop in your shell over the paths `magi kb list --json` gives you |
 | Installed, but `magi` isn't found | Open a **new terminal**; if that still doesn't work, add `~/.local/bin` to PATH |
 | Upgrade fails with `failed to remove directory ... Lib` | On Windows a running `magi ui` holds the install directory. Stop the dashboard, then upgrade |
 | A feature complains about a missing dependency | `magi setup --check` |
 | The command says `no workspace found` | `cd` into the topic directory, or add `--topic-dir` |
-| Don't know where a topic lives | `magi hub list` / `magi hub resolve <hub> <slug>` |
+| Don't know where a library lives | `magi kb list` |
 | Ingestion finished, but it's not in the library | You forgot `magi ingest finalize` |
 | The graph is stale | `magi graph build` — it has no incremental mode |
 | Can't search for something you just wrote | `magi index` — it never triggers automatically |

@@ -29,7 +29,7 @@ import pytest
 
 @pytest.fixture
 def graph_workspace(tmp_path):
-    from magi.hub import init_workspace
+    from magi import init_workspace
 
     init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T"])
     for i in (1, 2, 3):
@@ -125,7 +125,7 @@ def test_rebuilding_a_held_index_says_what_to_do(tmp_path, capsys):
     import argparse
 
     from magi import retrieval
-    from magi.hub import init_workspace
+    from magi import init_workspace
 
     init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T"])
     (tmp_path / "wiki" / "concepts" / "a.md").write_text(
@@ -161,7 +161,7 @@ def _ingest_url(ws, *args):
 
 @pytest.fixture
 def ws(tmp_path):
-    from magi.hub import init_workspace
+    from magi import init_workspace
 
     init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T"])
     return tmp_path

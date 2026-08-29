@@ -8,14 +8,17 @@
 
 ## 先跑通一遍 {#start}
 
-从零到一个能检索的库——四条命令，加对 agent 说的一句话：
+从零到一个能检索的库——三条命令，加对 agent 说的一句话：
 
 ```powershell
 pipx upgrade --install magi-research # 1. 装或升级（幂等，重复跑没副作用）
-magi hub init                        # 2. 在将来放所有课题的那个目录
-cd topics/my-topic && magi init      # 3. 建一个课题
-magi ingest auto                     # 4. 把 PDF 丢进 inbox/ 之后
+mkdir my-topic ; cd my-topic ; magi init   # 2. 建一个课题
+magi install                         # 3. 装进你的 agent CLI（技能 + 协议 + 收工闸门）
+magi ingest auto                     # 把 PDF 丢进 inbox/ 之后
 ```
+
+一个课题一个目录，没有更上面的一层。**跨库检索走用户级注册表**（`magi kb list`），
+`magi search` 默认就会联邦检索所有启用的库——不需要把它们收进同一个父目录。
 
 然后在 Claude Code / Codex 里对 agent 说：**「把待编译的都编译了」**。这是唯一没有命令的一步——它要读论文、写卡片。跑完之后 `magi index`，就能检索了。
 
@@ -39,20 +42,17 @@ agent 的上下文是一次性的，**状态永远在磁盘上**。所以任何�
 **① 全新用户**——按第 2 章装好，然后：
 
 ```powershell
-mkdir KnowledgeHub ; cd KnowledgeHub
-magi hub init                # 中央枢纽（wikis.json 注册表）
-magi pm init                 # 任务系统（会 git-init 本目录）
-
-mkdir -p topics/quantum-toys && cd topics/quantum-toys
+mkdir quantum-toys ; cd quantum-toys
 magi init --name "Quantum Toys" --scope "玩具模型中的量子现象"
-magi install                 # 把这个工作区装进你的 agent CLI：技能 + AGENTS.md 协议块 + 收工闸门
+magi install                 # 技能 + AGENTS.md 协议块 + 收工闸门
+magi pm init                 # 可选：机械任务的任务库（会 git-init 本目录）
 
 magi sync --fix              # 验收，并把能自动修的都修掉
 ```
 
 **② Wikify 老用户**——数据不用动，直接看第 3 章，三条命令迁移。
 
-**③ 只想先试试**——不建 hub，随便找个空目录 `magi init` 就能用，之后 `magi hub register <slug>` 再收编。
+**③ 只想先试试**——随便找个空目录 `magi init` 就能用。`magi init` 会把它注册进用户级注册表，所以以后在别的库里 `magi search` 也能搜到它。
 
 ### 这份手册怎么读 {#howto-read}
 
@@ -416,7 +416,7 @@ cd topics\<你的主题> && magi skills install
 > - **hub 模式最后说 `N/N topics migrated` 但中间有 `FAILED`**：这个汇总行和退出码不反映子步骤失败（已知缺陷）。**自己在输出里搜 `FAILED`**，对报错的主题单独进目录重跑 `magi migrate`。
 > - **hub 模式没提醒建索引**：hub 模式只提示 `magi pm init`，不会提醒每个主题跑 `magi index` / `magi sync`。手动补上。
 > - **迁移后 agent 还在提旧命令**：`magi setup --remove-legacy` 没跑，或宿主技能缓存没刷新——重启 agent 会话。
-> - **某个主题没被迁移**：hub 模式跳过 `topics/.archive/` 和既没有 `wiki/` 也没有 `raw/` 的目录。进那个目录单独跑 `magi migrate`，再 `magi hub register <slug>`。
+> - **某个主题没被迁移**：迁移会跳过既没有 `wiki/` 也没有 `raw/` 的目录。进那个目录单独跑 `magi migrate`——它会顺手把库登记进注册表。
 > - **直接抛 Python 异常**：脚手架步骤没有异常保护，常见原因是文件被占用/权限不足（Windows 上编辑器锁了 `CLAUDE.md`）。关掉占用程序重跑即可，不会有半成品。
 
 > [!WARN]
@@ -448,53 +448,57 @@ cd topics\<你的主题> && magi skills install
 两条命令就能建好：
 
 ```powershell
-magi hub init           # 一次，在将来放所有课题的那个目录
-magi init               # 每个课题一次，在它自己的目录里
+magi init               # 在这个课题自己的目录里
+magi install            # 装进你的 agent CLI：技能 + 协议块 + 收工闸门
 ```
 
-哪怕只有一个课题也建议先建 hub——现在多敲一条命令，以后加第二个课题就零成本。下面是生成了什么、怎么管理课题、以及 MAGI 怎么判断"当前工作区"。
+一个课题一个目录，之上没有别的层。下面是生成了什么、多个库怎么一起用、以及 MAGI 怎么判断「当前工作区」。
 
-### Hub 还是单主题 {#workspace-shape}
+### 一个库还是好几个 {#workspace-shape}
 
-- **单主题**：一个课题、一个目录，`magi init` 就完事。
-- **Hub**：多个课题共用一个根目录，共享**同一个任务库**和主题注册表。跨课题检索、统一任务视图靠它。
-
-推荐一开始就建 Hub——多一条命令，以后加课题零成本。
+一个课题、一个目录，`magi init` 就完事。第二个课题就是第二个目录——不需要共同的父目录，
+也不需要先规划。`magi init` 会把它登记进用户级注册表，于是：
 
 ```powershell
-mkdir KnowledgeHub ; cd KnowledgeHub
-magi hub init          # 生成 topics/、topics/.archive/、wikis.json、_index.md、log.md
-magi pm init           # 任务系统装在 hub 根（会 git-init）
-
-mkdir -p topics/my-topic && cd topics/my-topic
+mkdir my-topic ; cd my-topic
 magi init --name "显示名" --scope "一句话说清这个库收什么、不收什么"
+magi install
+magi pm init           # 可选：机械任务的任务库（会 git-init 本目录）
 ```
 
-主题目录建在 `<hub>/topics/` 下面时，`magi init` 会**自动注册进 hub**。建在别处就手动 `magi hub register <slug> --path <相对路径>`。
+`magi search` 默认联邦检索所有启用的库，`magi kb list` 列出它们。v1 的 hub（父目录 +
+`wikis.json` + `topics/`）退场了：它存在的理由是那份注册表，而注册表现在是每台机器一份，
+库住在哪里都能被找到。
 
-`--scope` 不是装饰：它会写进 `CLAUDE.md`，成为 agent 判断「这篇该不该收、这个概念算不算本库范围」的依据。**写得越具体，后面自动化的判断越准。**
+`--scope` 不是装饰：它会写进 `AGENTS.md` 的托管块，成为 agent 判断「这篇该不该收、这个概念
+算不算本库范围」的依据。**写得越具体，后面自动化的判断越准。**
 
 ### `magi init` 生成了什么 {#workspace-layout}
 
 ```text
 my-topic/
-├─ CLAUDE.md / AGENTS.md   agent 入场协议（两份内容相同）
+├─ AGENTS.md               agent 入场协议（`magi:begin` 托管块 + 你自己写的部分）
+├─ CLAUDE.md               只有一行 `@AGENTS.md`——协议只有一份
 ├─ config.md               本库的人读说明（标题 + 研究范围）
 ├─ config.yaml             本工作区配置（OCR、模型、雷达……见第 5 章）
-├─ log.md                  人读的流水叙事
-├─ inbox/                  待处理投喂区（PDF 丢这里）· .processed/ 存已处理原件
+├─ decisions.md            只有人做的决定；agent 誊写，别的什么都不写进来
+├─ inbox/                  待处理投喂区（PDF 丢这里）· notes.md 是你的随手堆放区
 ├─ raw/                    摄入后的原始文献 Markdown
 │   articles/ papers/ repos/ notes/ data/
 ├─ wiki/                   编译产物
-│   concepts/  概念卡    references/ 文献卡    topics/  专题    theses/ 论断报告
-├─ output/                 graph.db、index.db、雷达账本
+│   concepts/  概念卡    references/ 文献卡    topics/  专题综述
+├─ threads/                命题 / 问题 / 研究线（论坛式跟帖，`magi thread`）
+├─ drafts/                 推导与草稿
+├─ output/                 graph.db、index.db、MAP.md、雷达账本
 └─ scratch/                agent 的草稿纸，可随时清空
 ```
 
 除 `inbox/` 和 `scratch/` 外每个目录都会生成 `_index.md` 目录表。
 
 > [!NOTE]
-> **`drafts/` 不在这个列表里**——`magi init` 不创建它。第一次写 `drafts/xxx.md` 时它自然出现，工具链（检索、lint）已经认得这个目录。见第 9 章。
+> **没有 `log.md`，也没有 `wiki/theses/`。** 记录就是 `threads/` 里的跟帖，按时间读用
+> `magi feed`——同一批事件写在两个地方，第一次有人只改了其中一个就开始打架。老库里这两样
+> 照旧留着：没人再往 `log.md` 写，`magi migrate` 会把 `theses/` 搬进 `drafts/`。
 
 > [!TIP]
 > 用 Obsidian 打开**主题目录**（不要打开 Hub 根）。在 设置 → 档案与链接 → 排除档案 里加两条正则，图谱就只剩纯知识卡片：
@@ -505,28 +509,24 @@ my-topic/
 > /^\..*|(?:^|/)(?:scratch|inbox|raw|output|vendor)(?:/|$)/
 > ```
 
-### 主题管理 {#workspace-hub}
+### 跨库工作 {#workspace-hub}
+
+工作区之上没有别的层。一个库就是一个目录；`magi init` 会把它登记进用户级列表，
+而正是这个列表让好几个库变成一个可检索的整体：
 
 ```powershell
-magi hub list                     # 全部主题；--archived 连归档的一起列；--json 机器可读
-magi hub resolve <hub路径> <slug>  # 主题 slug → 绝对路径（脚本里 cd 用）
-magi hub register <slug> --path topics/<slug>   # 收编一个已初始化的目录
-magi hub archive <slug> --reason "结题"          # 归档：移进 topics/.archive/，不删文件
-magi hub restore <slug>           # 恢复
+magi kb list                      # 这台机器知道的所有库
+magi kb disable <name>            # 让某个库不参与联邦检索
+magi search "toric code"          # 先搜本库，再搜所有启用的库
 ```
 
-`magi hub list` 会自我修复：磁盘上有、注册表里没有的主题会被列出来并标注 `registry repair needed`，按提示 `register` 一下即可。
+v1 有 **hub**：一个带 `wikis.json` 注册表的父目录，下面挂 `topics/`，外加注册、归档、
+恢复、跨库批跑一整套命令。它退场了。它存在的理由——那份注册表——现在是**每台机器一份**
+而不是每个父目录一份，而这才是真正干活的部分；库也不必住在某个特定位置才被找得到。
+归档一个课题＝`magi kb disable` 再把目录挪到你放完结项目的地方。
 
-**一条命令跑遍所有主题**——维护操作大多是按工作区的，多主题 hub 里逐个 `cd` 很烦：
-
-```powershell
-magi each sync --fix        # 把每个主题都拉回绿色
-magi each index             # 重建所有课题的检索索引
-magi each lint --fix        # 全 hub 结构自愈
-magi each skills install --host codex
-```
-
-在 hub 根目录跑，它按注册表挑出**未归档**的主题依次执行，最后给一行 `N/N ok`。`--stop-on-error` 遇错即停，`--json` 给机器读。
+原本挂在 hub 下面的工作区照常能用：`magi migrate` 会把每个都登记好，文件一个不动。
+hub 自己的 `wikis.json`、`topics/`、`log.md` 从此不起作用——你想删的时候再删。
 
 ### MAGI 怎么找到「当前工作区」{#workspace-discovery}
 
@@ -1365,7 +1365,7 @@ magi guide --symptoms --search "ollama"     # 按关键词过滤
 | 升级时报 `failed to remove directory ... Lib: 拒绝访问` | Windows 上 `magi ui` 正开着，占用安装目录。关掉看板再重装 |
 | 某个功能报缺依赖 | `magi setup --check` |
 | 命令说 `no workspace found` | `cd` 进主题目录，或加 `--topic-dir` |
-| 不知道某个主题在哪 | `magi hub list` / `magi hub resolve <hub> <slug>` |
+| 不知道某个库在哪 | `magi kb list` |
 | 摄入完了但库里没有 | 忘了 `magi ingest finalize` |
 | 图谱是旧的 | `magi graph build` —— 它没有增量模式 |
 | 搜不到刚写的东西 | `magi index` —— 它不会自动触发 |

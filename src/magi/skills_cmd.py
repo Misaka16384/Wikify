@@ -157,9 +157,9 @@ def workspace_anchor(start: Optional[Path] = None) -> Path:
     """
     cur = (start or Path.cwd()).resolve()
     try:
-        from magi.core.workspace import find_hub_root, find_workspace_root
+        from magi.core.workspace import find_workspace_root
 
-        root = find_workspace_root(cur) or find_hub_root(cur)
+        root = find_workspace_root(cur)
         if root is not None:
             return Path(root)
     except Exception:

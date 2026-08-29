@@ -89,8 +89,9 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [x] 托管块内容（`core/managed.py` 的 `body()`，33 行 / 预算 40）：入口一行、目录含义各一行、五条不变量、收工一行、强制输出按档位、手册指针。理由一律不进块——块每个会话都在付费。幂等重写与 `CLAUDE.md = @AGENTS.md` 在 M1 已落地
 - [x] `magi install [--host …]`：skills + 托管块 + Claude Code 的 Stop hook（跑 `magi sync --close --hook`）。settings.json 解析-合并-写回并备份，认自己的那条 hook 靠命令字符串所以重装是更新不是追加；别人写的 Stop hook 原样保留。**宿主强制力不对称照实说**：只有 Claude Code 有文档化的 Stop hook，其余宿主同一条规则只以托管块指令存在
 - [ ] PreToolUse 计数 / SessionStart hook（成本治理那半在 M6 一起做）
-- [ ] **hub 退场**（从 M1 挪来）：删 `hub *` / `each`；`hub/init_workspace.py` 移出 `hub/` 包；sync / ui / llmwiki 的 hub 分支清掉；`find_hub_root` 只留给 migrate 认旧库
-- [ ] **migrate 第二半**（从 M1 挪来）：`hub/topics/*` → 多个 project（就地迁 + 注册进 registry，不搬目录）；`log.md` 停写保留
+- [x] **hub 退场**：`hub *` / `each` 全删；`hub/` 包没了，`init_workspace.py` 升到 `magi/`；llmwiki 的注册表机器（archive / restore / register / resolve_hub / wikis.json 读写）连同 `--hub`、`--include-archived` 一起删；sync 的 hub 模式、WebUI 把 hub 根当工作区都清掉。`find_hub_root` / `is_hub_root` 留着，只有一个读者——`magi migrate` 要认得旧形状才能转换
+- [x] **migrate 第二半**：hub 下每个 topic 就地迁并登记进用户级 registry，**目录一个不搬**——搬目录是这次变更里唯一破坏性的一半，而有用的那一半不花钱。迁完告诉人 hub 自己的 `wikis.json` / `topics/` / `log.md` 已经不起作用，删不删由他
+- [x] `log.md` 停写：lint 和 ingest 都不再往里追加，`magi init` 也不再创建。记录就是 `threads/` 里的跟帖，按时间读用 `magi feed`——同一批事件写两个地方，第一次有人只改一个就开始打架。老库里的 `log.md` 原样留着
 - [ ] `pm status` 并入 `sync`（从 M1 挪来）
 - [ ] README「先跑起来」改为 2 条命令；guide 对应章节更新；WebUI Operations 面板对齐新 plumbing——hub 那两章要一起重写，这是把 hub 退场挪到本里程碑的原因
 - [x] 三条棘轮测试达标：`--help` 13 行（≤20）、8 个 skill 全部 ≤40 行、托管块 33 行（≤40）。xfail 标记全部摘掉——从现在起超标就是真失败，修法是拿掉东西不是抬高数字

@@ -12,59 +12,6 @@ import pytest
 
 
 # --------------------------------------------------------------------------
-# magi each — one command across every topic of a hub
-# --------------------------------------------------------------------------
-
-def _hub(tmp_path):
-    hub = tmp_path / "hub"
-    (hub / "topics").mkdir(parents=True)
-    for name in ("alpha", "beta"):
-        t = hub / "topics" / name
-        (t / "wiki").mkdir(parents=True)
-        (t / "config.yaml").write_text("ollama: {}\n", encoding="utf-8")
-    archived = hub / "topics" / ".archive" / "gamma"
-    (archived / "wiki").mkdir(parents=True)
-    (archived / "config.yaml").write_text("ollama: {}\n", encoding="utf-8")
-    (hub / "wikis.json").write_text(json.dumps({"wikis": {
-        "alpha": {"path": "topics/alpha", "status": "active"},
-        "beta": {"path": "topics/beta", "status": "active"},
-        "gamma": {"path": "topics/.archive/gamma", "status": "archived"},
-    }}), encoding="utf-8")
-    return hub
-
-
-def test_each_targets_active_topics_only(tmp_path):
-    from magi.each import active_topics
-
-    hub = _hub(tmp_path)
-    names = [p.name for p in active_topics(hub)]
-    assert names == ["alpha", "beta"], "archived topics must not be swept along"
-
-
-def test_each_falls_back_to_disk_when_the_registry_is_unusable(tmp_path):
-    from magi.each import active_topics
-
-    hub = _hub(tmp_path)
-    (hub / "wikis.json").write_text("{ not json", encoding="utf-8")
-    assert [p.name for p in active_topics(hub)] == ["alpha", "beta"]
-
-
-def test_each_refuses_outside_a_hub(tmp_path, monkeypatch, capsys):
-    from magi.each import main
-
-    monkeypatch.chdir(tmp_path)
-    assert main(["sync"]) == 1
-    assert "no hub found" in capsys.readouterr().err
-
-
-def test_each_needs_a_command(tmp_path, monkeypatch):
-    from magi.each import main
-
-    monkeypatch.chdir(_hub(tmp_path))
-    assert main([]) == 2
-
-
-# --------------------------------------------------------------------------
 # magi sync --fix — act on the hints instead of printing them
 # --------------------------------------------------------------------------
 
@@ -169,8 +116,6 @@ def test_ingest_auto_is_registered():
 
     assert _COMMANDS[("ingest", "auto")][0] == "magi.ingest.auto"
     assert command_help_zh(("ingest", "auto"))
-    assert _COMMANDS[("each",)][0] == "magi.each"
-    assert command_help_zh(("each",))
 
 
 # --------------------------------------------------------------------------

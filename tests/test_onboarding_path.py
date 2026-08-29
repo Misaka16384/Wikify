@@ -22,7 +22,7 @@ def _codes(report):
 @pytest.fixture
 def ingested(tmp_path, monkeypatch):
     """A workspace with a source in raw/ and nothing compiled from it."""
-    from magi.hub import init_workspace
+    from magi import init_workspace
 
     init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T"])
     (tmp_path / "raw" / "papers" / "a-paper.md").write_text(
@@ -54,7 +54,7 @@ def test_compiling_is_not_something_sync_fix_will_do_for_you(ingested):
 
 
 def test_an_empty_workspace_still_says_to_ingest_first(tmp_path):
-    from magi.hub import init_workspace
+    from magi import init_workspace
 
     init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T"])
     codes = _codes(build_report(tmp_path))
@@ -111,7 +111,7 @@ def test_a_new_workspace_is_registered_immediately(tmp_path):
     `magi index`, so until then the workspace was absent from /api/kb — the
     WebUI picker and the browser extension, the two surfaces for getting
     material *into* a library, could not see the library."""
-    from magi.hub import init_workspace
+    from magi import init_workspace
     from magi.kb_registry import load_registry
 
     init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T"])
@@ -122,7 +122,7 @@ def test_a_new_workspace_is_registered_immediately(tmp_path):
 
 
 def test_registering_twice_does_not_make_a_second_entry(tmp_path):
-    from magi.hub import init_workspace
+    from magi import init_workspace
     from magi.kb_registry import load_registry
 
     init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T"])
@@ -140,7 +140,7 @@ def git_workspace(tmp_path):
     """A scaffolded workspace that is also a git repo, so check-ignore works."""
     import subprocess
 
-    from magi.hub import init_workspace
+    from magi import init_workspace
 
     init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T"])
     subprocess.run(["git", "init", "-q", str(tmp_path)], check=True,

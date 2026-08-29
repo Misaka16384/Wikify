@@ -21,11 +21,22 @@ from pathlib import Path
 
 from magi.core.wiki_common import parse_frontmatter
 from magi.core.workspace import find_workspace_root, is_hub_root
-from magi.hub.init_workspace import CLAUDE_POINTER as POINTER, keep_a_copy
+from magi.init_workspace import CLAUDE_POINTER as POINTER, keep_a_copy
 
 
 def _migrate_hub(hub: Path, follow_up: bool = True) -> int:
-    """Hub mode: migrate every active topic under <hub>/topics/."""
+    """Turn a pre-v2 hub into what it always really was: separate libraries.
+
+    Nothing moves on disk. A hub was a parent directory plus a `wikis.json`
+    naming the topics under it, and v2 keeps the second half in a better
+    place: `magi init` — which each topic goes through here — registers the
+    library in the user-level list, so `magi search` federates over all of
+    them from anywhere, not only from inside that one parent.
+
+    Moving the directories would be the destructive half of a change whose
+    useful half costs nothing, so this does not. The hub's own scaffolding
+    stops being read; the command says so and leaves the deletion to a person.
+    """
     topics = sorted(
         d for d in (hub / "topics").iterdir()
         if d.is_dir() and d.name != ".archive" and ((d / "wiki").is_dir() or (d / "raw").is_dir())
@@ -44,9 +55,20 @@ def _migrate_hub(hub: Path, follow_up: bool = True) -> int:
     if follow_up:
         _finish(hub, topics)
     else:
-        print("Next: magi pm init, then 'magi sync --fix' in each topic")
-    print("\nGive your agent CLI this hub's skills when you are ready:")
-    print("  cd <topic> && magi skills install        # asks which CLI")
+        print("Next: 'magi sync --fix' in each topic")
+
+    print("\nEach topic is now a library in its own right, registered in "
+          "`magi kb list`;")
+    print("`magi search` federates over all of them from anywhere.")
+    inert = [name for name in ("wikis.json", "topics/_index.md", "log.md")
+             if (hub / name).exists()]
+    if inert:
+        print(f"\nThe hub's own files are inert now ({', '.join(inert)}) — "
+              "nothing reads or writes them.")
+        print("Delete them when you are ready; MAGI will not, because they are "
+              "yours and this command has no way to know what else is in here.")
+    print("\nGive your agent CLI each topic's skills when you are ready:")
+    print("  cd <topic> && magi install        # skills, protocol, stop gate")
     return 1 if failures else 0
 
 
@@ -57,13 +79,10 @@ def _finish(hub: Path, topics: list[Path]) -> None:
     index; those are deterministic, idempotent, and exactly what
     `magi sync --fix` already knows how to do.
     """
+    # No `pm init` here any more: the task store belongs to a project, not to
+    # the parent directory a set of projects happened to share (design-v2 §2).
+    # `magi sync` tells each topic when it wants one.
     print("\nFinishing up (skip with --minimal):")
-    print("  magi pm init")
-    proc = subprocess.run([sys.executable, "-m", "magi", "pm", "init"], cwd=str(hub),
-                          capture_output=True, text=True, encoding="utf-8", errors="replace")
-    for line in (proc.stdout or proc.stderr or "").strip().splitlines()[-2:]:
-        print(f"      {line}")
-
     for topic in topics:
         print(f"  magi sync --fix   ({topic.name})")
         proc = subprocess.run([sys.executable, "-m", "magi", "sync", "--fix"], cwd=str(topic),
@@ -309,7 +328,7 @@ def _migrate_topic(root: Path, hub: Path | None = None) -> int:
         print("  scaffolding already present — refreshing indexes only")
 
     # init is non-destructive without --force: it only creates what is absent.
-    from magi.hub.init_workspace import main as init_main
+    from magi.init_workspace import main as init_main
 
     rc = init_main(["--topic-dir", str(root), "--name", name, "--scope", scope])
     if rc not in (0, None):

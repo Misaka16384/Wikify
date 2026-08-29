@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from magi.core.workspace import find_hub_root, find_workspace_root
+from magi.core.workspace import find_workspace_root
 
 
 def _graph_written_at(graph_db: Path) -> float:
@@ -99,23 +99,6 @@ def _scan_wiki(root: Path) -> _WikiScan:
         except OSError:
             continue
     return _WikiScan(newest, counts)
-
-
-def _hub_topics(hub: Path) -> list[str]:
-    """Topic slugs registered at a hub: wikis.json 'wikis' keys, falling
-    back to directories under topics/ (excluding .archive)."""
-    try:
-        data = json.loads((hub / "wikis.json").read_text(encoding="utf-8"))
-        slugs = sorted((data.get("wikis") or {}).keys())
-        if slugs:
-            return slugs
-    except (OSError, ValueError):
-        pass
-    topics_dir = hub / "topics"
-    if topics_dir.is_dir():
-        return sorted(p.name for p in topics_dir.iterdir()
-                      if p.is_dir() and p.name != ".archive")
-    return []
 
 
 def melchior_status(topic: Path, scan: _WikiScan | None = None) -> dict:
@@ -299,7 +282,6 @@ def _research_status(topic: Path | None):
 def build_report(cwd: Path | None = None) -> dict:
     base = cwd or Path.cwd()
     topic = find_workspace_root(base)
-    hub = find_hub_root(base)
 
     cores: dict[str, dict] = {}
     weights: dict[str, float] = {}
@@ -421,13 +403,6 @@ def build_report(cwd: Path | None = None) -> dict:
                       pending=gap_pending)
     else:
         cores["casper"] = {"state": "offline", "note": "no workspace", "score": None}
-        if hub:
-            slugs = _hub_topics(hub)
-            if slugs:
-                _hint("hub-topics",
-                      f"topics: {', '.join(slugs)} — cd topics/<slug> && magi sync",
-                      topics=slugs)
-
     # No workspace -> no ratio: reporting "100% in sync" from a random
     # directory would invert the metric's meaning.
     if topic:
@@ -439,7 +414,6 @@ def build_report(cwd: Path | None = None) -> dict:
 
     return {
         "workspace": str(topic) if topic else None,
-        "hub": str(hub) if hub else None,
         "sync_ratio": ratio,
         "cores": cores,
         "hints": hints,
@@ -598,8 +572,6 @@ def main(argv: list[str] | None = None) -> int:
     ratio = report["sync_ratio"]
     if ratio is not None:
         header = f"MAGI SYSTEM ONLINE — sync ratio {ratio}%"
-    elif report["hub"]:
-        header = "MAGI SYSTEM — hub root (no topic workspace selected)"
     else:
         header = "MAGI SYSTEM — no workspace detected"
     print(header)
@@ -608,8 +580,6 @@ def main(argv: list[str] | None = None) -> int:
         claims_part = (f" · claims {m['claims_verified']}/{m['claims']} verified"
                        if m.get("claims") else "")
         print(f"|- MELCHIOR  (knowledge)  {m['concepts']} concepts · {m['references']} refs · graph {m['graph']} · backlog {m['backlog']}{claims_part}")
-    elif report["hub"]:
-        print("|- MELCHIOR  (knowledge)  hub root — enter a topic workspace to see knowledge state")
     else:
         print("|- MELCHIOR  (knowledge)  no topic workspace here — run 'magi init' in a topic directory")
     b = report["cores"]["balthasar"]
@@ -630,8 +600,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"`- CASPER    (retrieval)  index {c['state']} · {c['chunks']} chunks · vectors {c['vectors']}/{c['chunks']}")
     else:
         print("`- CASPER    (retrieval)  offline")
-    if report["hub"]:
-        print(f"hub: {report['hub']}")
     for h in report["hints"]:
         print(f"  -> {h}")
 

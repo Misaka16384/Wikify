@@ -14,16 +14,9 @@ from __future__ import annotations
 COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     # 工作区 / 中枢
     ("init",): "初始化课题工作区（raw/ wiki/ inbox/ output/ 目录骨架）",
-    ("hub", "init"): "初始化多课题中枢（生成 wikis.json 注册表）",
-    ("hub", "resolve"): "把课题标识解析成实际路径",
-    ("hub", "list"): "列出进行中与已归档的课题",
-    ("hub", "archive"): "归档一个进行中的课题",
-    ("hub", "restore"): "恢复一个已归档的课题",
-    ("hub", "register"): "把已存在的课题目录登记进中枢",
     ("sync",): "工作区体检：同步率与三核状态",
     ("ui",): "启动本地 MAGI 网页控制台",
     ("guide",): "阅读内置使用指南（分章阅读、--search 全文检索、--symptoms 故障索引）",
-    ("each",): "在 hub 的每个课题里跑同一条命令（省掉 cd 循环）",
     ("skills", "list"): "列出随 magi 一起分发的 agent 技能",
     ("skills", "where"): "查看各个 agent CLI 从哪里加载技能，以及当前装了哪些",
     ("skills", "install"): "把技能装进你的 agent CLI（--scope global 全局 / project 仅当前目录）",
@@ -103,7 +96,6 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
 }
 
 GROUP_HELP_ZH: dict[str, str] = {
-    "hub": "多课题中枢管理",
     "kb": "全局知识库注册表（跨工作区检索）",
     "ingest": "文献摄入（PDF/LaTeX → Markdown）",
     "wiki": "概念卡片与文献卡片操作",

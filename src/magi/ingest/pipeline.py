@@ -136,16 +136,10 @@ def main(argv=None):
         if not run_cmd([sys.executable, "-m", "magi", "wiki", "reindex", topic_dir]):
             print("Warning: 'magi wiki reindex' failed", file=sys.stderr)
     
-    # 4. Log to log.md
-    if args.log_msg:
-        log_file = os.path.join(topic_dir, "log.md")
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        try:
-            with open(log_file, "a", encoding="utf-8") as f:
-                f.write(f"- [{timestamp}] INGEST: {args.log_msg}\n")
-            print("Updated log.md")
-        except Exception as e:
-            print(f"Failed to update log.md: {e}")
+    # 4. No log. `log.md` is retired (design-v2 §2): the record is the posts in
+    #    `threads/`, read in time order with `magi feed`. Writing the same
+    #    events to a second place is how the two start disagreeing. `--log-msg`
+    #    is still accepted so existing callers do not break; it goes nowhere.
 
 if __name__ == "__main__":
     sys.exit(main())

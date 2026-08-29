@@ -169,7 +169,7 @@ Melchior = 知识（冷 + 温·共享）；Balthasar = 意图（`threads/` + `de
 
 ## 15. 实现时再定（第三梯队）
 
-稳定 ID 细则、词表冻结、threads 在知识型查询中的降权、bet / decision 记分规则、`construction` kind、线级规则作用域（先全项目级）、`each` 去留、决策队列是否同时写 bd。
+稳定 ID 细则、bet / decision 记分规则、`construction` kind、线级规则作用域（先全项目级）。已定：词表在 M0 冻结；threads 在知识型查询降权 0.6（M1）；决策队列不写 bd（M2）；`each` 随 hub 一起删掉（M3）——跨库批跑的替代物是 shell 里对 `magi kb list --json` 的路径做循环，不值得为它保留一条命令和一套 hub 语义。
 
 ## 16. 已否决（不再讨论）
 

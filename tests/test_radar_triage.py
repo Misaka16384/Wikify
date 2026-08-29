@@ -31,7 +31,7 @@ status: pending-review
 
 @pytest.fixture
 def ws(tmp_path):
-    from magi.hub import init_workspace
+    from magi import init_workspace
 
     init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T"])
     (tmp_path / "inbox" / "radar").mkdir(parents=True, exist_ok=True)
@@ -145,7 +145,7 @@ def test_an_unknown_report_is_an_error(ws):
 
 
 def test_no_reports_at_all_is_an_error(tmp_path):
-    from magi.hub import init_workspace
+    from magi import init_workspace
 
     init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T"])
     assert _triage(tmp_path, "--id", "x", "--decision", "accept") == 1

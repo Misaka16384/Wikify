@@ -21,17 +21,10 @@ from magi import __version__
 # value: (module, prepend_argv, help)
 _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     # workspace / hub
-    ("init",): ("magi.hub.init_workspace", [], "Scaffold a topic workspace (raw/ wiki/ inbox/ output/)"),
-    ("hub", "init"): ("magi.hub.init_hub", [], "Scaffold a multi-topic hub (wikis.json registry)"),
-    ("hub", "resolve"): ("magi.hub.router", [], "Resolve a topic slug to its path"),
-    ("hub", "list"): ("magi.kb.llmwiki", ["archive", "list"], "List active and archived topics"),
-    ("hub", "archive"): ("magi.kb.llmwiki", ["archive", "topic"], "Archive an active topic"),
-    ("hub", "restore"): ("magi.kb.llmwiki", ["archive", "restore"], "Restore an archived topic"),
-    ("hub", "register"): ("magi.kb.llmwiki", ["archive", "register"], "Register an existing topic in the hub"),
+    ("init",): ("magi.init_workspace", [], "Scaffold a topic workspace (raw/ wiki/ inbox/ output/)"),
     ("sync",): ("magi.sync", [], "Workspace onboarding: sync ratio + three-core status"),
     ("ui",): ("magi.ui.server", [], "Launch the local MAGI WebUI dashboard"),
     ("guide",): ("magi.guide", [], "Read the built-in manual (chapters, --search, --symptoms)"),
-    ("each",): ("magi.each", [], "Run one command in every topic of the hub"),
     ("skills", "list"): ("magi.skills_cmd", ["list"], "List the agent skills bundled with magi"),
     ("skills", "where"): ("magi.skills_cmd", ["where"], "Show where each agent CLI loads skills from"),
     ("skills", "install"): ("magi.skills_cmd", ["install"], "Install the skills into your agent CLI(s) (--scope global|project)"),
@@ -114,7 +107,6 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
 }
 
 _GROUP_HELP = {
-    "hub": "Multi-topic hub management",
     "kb": "Global knowledge-base registry (cross-workspace search)",
     "ingest": "Document ingestion (PDF/LaTeX -> Markdown)",
     "wiki": "Concept and reference card operations",

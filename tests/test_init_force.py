@@ -3,7 +3,8 @@
 `--force` says "Overwrite existing config/log/index files", which is honest
 about what it does and silent about what that costs. The files it reaches are
 ORIGINAL by the durability convention: `config.md` is the scope a person wrote,
-`log.md` is the running record of the work, `config.yaml` is their settings.
+`config.yaml` is their settings. (`log.md` was the running record; v2 has no
+log — the record is the posts in `threads/`, read with `magi feed`.)
 Nothing regenerates any of them, so one mistyped flag in the wrong directory
 used to be unrecoverable.
 """
@@ -11,7 +12,7 @@ used to be unrecoverable.
 import pytest
 
 from magi.core import durability
-from magi.hub import init_workspace
+from magi import init_workspace
 
 
 @pytest.fixture
@@ -28,7 +29,10 @@ def _backups(path):
     return sorted((path.parent / ".backup").glob(f"{path.stem}_*{path.suffix}"))
 
 
-@pytest.mark.parametrize("name", ["config.md", "log.md", "config.yaml"])
+# `log.md` is not in this list any more: v2 does not create one, so `--force`
+# has nothing of ours to overwrite there. A workspace that already has one
+# keeps it untouched, which `test_an_existing_log_is_left_alone` checks.
+@pytest.mark.parametrize("name", ["config.md", "config.yaml"])
 def test_force_keeps_what_it_overwrites(existing, name):
     target = existing / name
     before = target.read_text(encoding="utf-8")
@@ -87,3 +91,17 @@ def test_the_copies_stay_out_of_the_corpus(existing):
 
     scanned = [p.relative_to(existing).as_posix() for p in corpus_files(existing)]
     assert not any(".backup" in p.split("/") for p in scanned), scanned
+
+
+def test_an_existing_log_is_left_alone(tmp_path):
+    """v2 stopped writing `log.md`, which is not the same as deleting it.
+    Somebody's years of running notes are still theirs."""
+    import subprocess
+    import sys
+
+    (tmp_path / "log.md").write_text("2026-08-01: did the work\n", encoding="utf-8")
+    subprocess.run([sys.executable, "-m", "magi", "init", "--topic-dir", str(tmp_path),
+                    "--name", "T", "--force"], capture_output=True, text=True, check=True)
+
+    assert (tmp_path / "log.md").read_text(encoding="utf-8") == "2026-08-01: did the work\n"
+

@@ -24,10 +24,10 @@
 ## 先跑起来
 
 ```powershell
-pipx upgrade --install magi-research # 装或升级，重复跑没副作用
-magi hub init                        # 在将来放所有课题的那个目录
-cd topics/my-topic && magi init      # 建一个课题
-magi ingest auto                     # 把 PDF 丢进 inbox/ 之后
+pipx upgrade --install magi-research   # 装或升级，重复跑没副作用
+mkdir my-topic ; cd my-topic ; magi init  # 建一个课题
+magi install                           # 装进你的 agent CLI：技能 + 协议 + 收工闸门
+magi ingest auto                       # 把 PDF 丢进 inbox/ 之后
 ```
 
 然后在 Claude Code / Codex 里对 agent 说：**「把待编译的都编译了」**。这是唯一没有命令的一步——它要读论文、写卡片。跑完之后：
@@ -210,14 +210,11 @@ claude plugin marketplace add Misaka16384/magi && claude plugin install magi
 ## 3. 快速上手（5 分钟）
 
 ```powershell
-mkdir KnowledgeHub ; cd KnowledgeHub
-magi hub init                # 中央枢纽（wikis.json 注册表）
-magi pm init                 # beads + 六种科研 issue 类型（会 git-init 本目录）
-
-mkdir -p topics/quantum-toys && cd topics/quantum-toys
+mkdir quantum-toys ; cd quantum-toys
 magi init --name "Quantum Toys" --scope "玩具模型中的量子现象"
-# ↑ 自动注册进 hub；生成 CLAUDE.md / AGENTS.md（agent 入场协议）、config.yaml、scratch/
-magi skills install          # 把技能装进这个工作区（会问装给哪个 CLI）
+# ↑ 生成 raw/ wiki/ threads/ drafts/ decisions.md、AGENTS.md（托管块）、config.yaml
+magi install                 # 技能 + 协议块 + 收工闸门（会问装给哪个 CLI）
+magi pm init                 # 可选：机械任务的任务库（会 git-init 本目录）
 
 magi sync --fix              # 同步率 + 三核状态，并把能自动修的都跑掉
 ```
@@ -346,7 +343,8 @@ magi migrate
 #      随后自动 magi pm init + 每个 topic 的 magi sync --fix（建索引、同步积压）。
 #      --minimal 只迁移不收尾；单个 topic 目录里跑则只迁移该 topic。
 
-# 收尾：hub 根 `magi pm init` 启用任务状态；各 topic `magi index` 建检索索引；`magi sync` 验收。
+# 收尾：各 topic 跑 `magi install`（技能 + 协议 + 闸门）、`magi index`、`magi sync` 验收。
+# 迁移后 hub 自己的 wikis.json / topics/ / log.md 就不起作用了，想删随时删。
 ```
 
 ### 5.2 变化对照

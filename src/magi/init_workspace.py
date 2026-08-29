@@ -139,12 +139,9 @@ created: {today}
 """
     safe_write(topic_path / "config.md", config_content, args.force)
 
-    # 3. log.md
-    log_content = f"""# Log
-
-## [{today}] init | Created new topic wiki
-"""
-    safe_write(topic_path / "log.md", log_content, args.force)
+    # 3. No log.md. The record is the posts in `threads/`, read with `magi
+    #    feed`. A workspace that already has one keeps it — nothing writes to
+    #    it any more, and nothing reads it either.
 
     # 4. Root _index.md
     root_index_content = f"""# {args.name}

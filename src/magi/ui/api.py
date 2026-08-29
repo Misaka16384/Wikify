@@ -26,9 +26,7 @@ from pydantic import BaseModel, Field
 import magi
 from magi.core.workspace import (
     INBOX_NON_SOURCES,
-    find_hub_root,
     find_workspace_root,
-    is_hub_root,
     is_topic_root,
 )
 
@@ -263,13 +261,13 @@ def _reading_root(workspace: Optional[str], kb: Optional[str]) -> Path:
     """The workspace a file-reading endpoint is allowed to read from.
 
     Unlike the report endpoints, /doc and /asset return raw bytes, so the
-    directory has to be a MAGI workspace (or a hub, or a registered KB) and
+    directory has to be a MAGI workspace or a registered library, and
     not merely a path someone typed into the query string.
     """
     if kb and kb != "local":
         return _kb_root(kb)
     root = _resolve_workspace(workspace)
-    if is_topic_root(root) or is_hub_root(root):
+    if is_topic_root(root):
         return root
     registered = {Path(e["path"]).resolve()
                   for e in load_registry().get("kbs", {}).values()}
@@ -384,7 +382,6 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     @app.get("/api/status")
     def get_status() -> dict:
         current_ws = find_workspace_root()
-        hub_root = find_hub_root()
         kbs = load_registry().get("kbs", {})
         # This used to call doctor_rows() — which shells out for six external
         # tools and diffs every shipped skill against four agent CLIs' install
@@ -402,7 +399,6 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             "version": magi.__version__,
             "cwd": str(Path.cwd().resolve()),
             "active_workspace": str(current_ws.resolve()) if current_ws else None,
-            "hub": str(hub_root.resolve()) if hub_root else None,
             "registered_kbs_count": len(kbs),
             "doctor_ok": doc_ok,
             "active_jobs_count": len(active_jobs),

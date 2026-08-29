@@ -699,7 +699,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {name:<14} {outcome}")
 
     print("\nQuick start:")
-    print("  mkdir KnowledgeHub && cd KnowledgeHub && magi hub init && magi pm init")
+    print("  mkdir my-topic && cd my-topic && magi init && magi install")
     print("  mkdir -p topics/my-topic && cd topics/my-topic")
     print('  magi init --name "My Topic" --scope "..." && magi sync')
     print("Migrating from Wikify? Run 'magi migrate' at your hub root (migrates every topic).")

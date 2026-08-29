@@ -59,7 +59,7 @@ def zotero_library(tmp_path, monkeypatch):
 
 @pytest.fixture
 def ws(tmp_path):
-    from magi.hub import init_workspace
+    from magi import init_workspace
 
     target = tmp_path / "topic"
     init_workspace.main(["--topic-dir", str(target), "--name", "T"])

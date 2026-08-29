@@ -39,7 +39,7 @@ def _shipped_config() -> dict:
 
 def _workspace_template() -> dict:
     """The config.yaml `magi init` scaffolds, parsed."""
-    src = (ROOT / "src" / "magi" / "hub" / "init_workspace.py").read_text(
+    src = (ROOT / "src" / "magi" / "init_workspace.py").read_text(
         encoding="utf-8", errors="replace")
     body = src.split('config_yaml = """', 1)[1].split('"""', 1)[0]
     return yaml.safe_load(body)

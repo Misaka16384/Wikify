@@ -145,7 +145,6 @@ ROOT_ALLOWED = {
     ".session-events.jsonl",
     ".session-checkpoint.json",
 }
-HUB_ALLOWED = {"wikis.json", "_index.md", "log.md", "topics"}
 RAW_ALLOWED = {"_index.md", "articles", "papers", "repos", "notes", "data"}
 WIKI_ALLOWED = {"_index.md", "concepts", "topics", "references", "theses"}
 INVENTORY_ALLOWED = {
@@ -712,12 +711,6 @@ def check_structure(ctx: LintContext) -> None:
     if not ctx.root.exists():
         ctx.issue("critical", "Wiki root does not exist.", ctx.root)
         return
-    if is_hub(ctx.root):
-        for name in ["wikis.json", "_index.md", "log.md", "topics"]:
-            path = ctx.root / name
-            if not path.exists():
-                ctx.issue("critical", "Required hub path is missing.", path)
-        return
     if not (ctx.root / "_index.md").exists():
         ctx.issue("critical", "Master _index.md is missing.", ctx.root / "_index.md", fixable=True)
     if not (ctx.root / "config.md").exists():
@@ -782,10 +775,6 @@ def check_structure(ctx: LintContext) -> None:
             ctx.fixed("Created inbox/ and inbox/.processed/.")
         else:
             ctx.issue("warning", "inbox/ is missing.", inbox, fixable=True)
-
-
-def is_hub(path: Path) -> bool:
-    return (path / "wikis.json").exists() and (path / "topics").exists()
 
 
 def check_frontmatter_schema(ctx: LintContext) -> None:
@@ -1036,7 +1025,7 @@ def check_canonical_placement(ctx: LintContext) -> None:
 def check_unknown_files(ctx: LintContext) -> None:
     if not ctx.root.exists():
         return
-    root_allowed = HUB_ALLOWED if is_hub(ctx.root) else ROOT_ALLOWED
+    root_allowed = ROOT_ALLOWED
     for child in sorted(ctx.root.iterdir()):
         if child.name.startswith("."):
             continue
@@ -1718,23 +1707,6 @@ def check_projects(ctx: LintContext) -> None:
             ctx.issue("warning", "Project slug should be lowercase, hyphen-separated, <=40 chars, no dates.", project)
 
 
-def append_lint_log(ctx: LintContext) -> None:
-    if not ctx.fix:
-        return
-    log = ctx.root / "log.md"
-    if not log.exists():
-        return
-    counts = ctx.counts()
-    today = dt.date.today().isoformat()
-    entry = (
-        f"\n## [{today}] lint | local command: "
-        f"{counts['critical']} critical, {counts['warning']} warnings, "
-        f"{counts['suggestion']} suggestions, {len(ctx.fixes)} auto-fixed\n"
-    )
-    with log.open("a", encoding="utf-8") as handle:
-        handle.write(entry)
-
-
 def get_home() -> Path:
     home_env = os.environ.get("HOME")
     if home_env:
@@ -1754,220 +1726,40 @@ def initialized_wiki_root(path: Path) -> bool:
     return (path / "_index.md").exists()
 
 
-def resolve_hub(args: argparse.Namespace) -> Path:
-    if args.hub:
-        return expand_leading_tilde(str(args.hub))
-    config = get_home_directory() / ".config" / "magi" / "config.json"
-    if not config.exists():  # legacy pre-magi location
-        config = get_home_directory() / ".config" / "llm-wiki" / "config.json"
-    if config.exists():
-        try:
-            data = json.loads(config.read_text(encoding="utf-8"))
-        except OSError as exc:
-            if is_permission_denied(exc):
-                raise SystemExit(permission_denied_message(config, "read hub config", exc)) from exc
-            raise SystemExit(f"could not read hub config {config}: {exc}") from exc
-        except json.JSONDecodeError as exc:
-            raise SystemExit(f"invalid hub config {config}: {exc}") from exc
-        hub_path = data.get("hub_path")
-        hub_candidate = expand_leading_tilde(str(hub_path)) if hub_path else None
-        resolved_path = data.get("resolved_path")
-        resolved_candidate = (
-            expand_leading_tilde(str(resolved_path)) if resolved_path else None
-        )
-
-        if hub_candidate:
-            # resolved_path is a convenience cache and may be stale when the
-            # config is synced between machines. Prefer the portable hub_path
-            # unless it is unavailable and the legacy cache clearly points at
-            # an initialized hub.
-            if hub_candidate.exists() or not (
-                resolved_candidate and initialized_wiki_root(resolved_candidate)
-            ):
-                return hub_candidate
-        if resolved_candidate:
-            return resolved_candidate
-    # No config entry: walk up from cwd so hub commands work from inside a
-    # hub (or a topic under one) without --hub.
-    from magi.core.workspace import find_hub_root
-
-    found = find_hub_root()
-    if found is not None:
-        return found
-    fallback = get_home_directory() / "wiki"
-    return fallback
-
-
-def resolve_registry_path(raw_path: str, hub: Path) -> Path:
-    if raw_path in {".", "<HUB>", "HUB"}:
-        return hub
-    if raw_path.startswith("<HUB>/"):
-        return hub / raw_path[len("<HUB>/") :]
-    if raw_path.startswith("HUB/"):
-        return hub / raw_path[len("HUB/") :]
-
-    path = expand_leading_tilde(raw_path)
-    if path.is_absolute():
-        return path
-    # Reject '..' traversal in relative paths
-    if ".." in Path(raw_path).parts:
-        raise SystemExit(f"registry path escapes hub (traversal not allowed): {raw_path}")
-    candidate = hub / path
-    if not is_under(candidate, hub):
-        raise SystemExit(f"registry path escapes hub: {raw_path}")
-    return candidate
-
-
-def is_archived_registry_entry(entry: dict[str, Any] | None) -> bool:
-    if not entry:
-        return False
-    status = str(entry.get("status") or "")
-    path = str(entry.get("path") or "")
-    return status == "archived" or path.startswith("topics/.archive/")
-
-
-def validate_registry(data: Any, path: Path) -> None:
-    """Validate wikis.json top-level schema. Raises SystemExit on corruption."""
-    if not isinstance(data, dict):
-        raise SystemExit(f"invalid registry {path}: root must be a JSON object")
-    wikis = data.get("wikis")
-    if wikis is not None and not isinstance(wikis, dict):
-        raise SystemExit(f"invalid registry {path}: 'wikis' must be an object")
-    for slug, entry in (wikis or {}).items():
-        if not isinstance(entry, dict):
-            raise SystemExit(f"invalid registry {path}: entry '{slug}' must be an object")
-        status = entry.get("status")
-        if status and status not in {"active", "archived"}:
-            raise SystemExit(
-                f"invalid registry {path}: entry '{slug}' has unknown status '{status}'"
-            )
-
-
-def read_registry(hub: Path) -> dict[str, Any]:
-    registry = hub / "wikis.json"
-    try:
-        data = json.loads(registry.read_text(encoding="utf-8"))
-    except OSError as exc:
-        if is_permission_denied(exc):
-            raise SystemExit(permission_denied_message(registry, "read wiki registry", exc)) from exc
-        raise SystemExit(f"could not read wiki registry {registry}: {exc}") from exc
-    except json.JSONDecodeError as exc:
-        raise SystemExit(f"invalid wiki registry {registry}: {exc}") from exc
-    validate_registry(data, registry)
-    return data
-
-
-def write_registry(hub: Path, data: dict[str, Any]) -> None:
-    registry = hub / "wikis.json"
-    tmp = registry.with_suffix(".tmp")
-    tmp.write_text(
-        json.dumps(data, indent=2, sort_keys=False, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    os.replace(tmp, registry)
-
-
-def topic_entry(data: dict[str, Any], slug: str) -> dict[str, Any] | None:
-    entry = data.get("wikis", {}).get(slug)
-    return entry if isinstance(entry, dict) else None
-
-
-def active_topic_path(hub: Path, slug: str, entry: dict[str, Any] | None = None) -> Path:
-    if entry and entry.get("path") and not is_archived_registry_entry(entry):
-        return resolve_registry_path(str(entry["path"]), hub)
-    return hub / "topics" / slug
-
-
-def archived_topic_path(hub: Path, slug: str, entry: dict[str, Any] | None = None) -> Path:
-    if entry and entry.get("path") and is_archived_registry_entry(entry):
-        return resolve_registry_path(str(entry["path"]), hub)
-    return hub / "topics" / ".archive" / slug
-
-
 def is_initialized_topic(path: Path) -> bool:
     return (path / "_index.md").exists() and (path / "config.md").exists()
 
 
 def resolve_wiki_root(args: argparse.Namespace) -> Path:
+    """Which workspace a command acts on.
+
+    v1 had a fourth answer — a slug looked up in a hub's `wikis.json` — and it
+    goes with the hub (design-v2 §2). Cross-project work runs off the
+    user-level registry instead: one list per machine rather than one per hub,
+    and `magi search` already federates over it.
+    """
+    from magi.core.workspace import find_workspace_root
+
     if args.path:
         return expand_leading_tilde(str(args.path))
     if args.local:
         return Path.cwd() / ".wiki"
-    hub = resolve_hub(args)
-    if args.wiki:
-        registry = hub / "wikis.json"
-        fallback_topic = hub / "topics" / args.wiki
-        fallback_archived_topic = hub / "topics" / ".archive" / args.wiki
-        include_archived = bool(getattr(args, "include_archived", False))
-        if not registry.exists():
-            if initialized_wiki_root(fallback_topic):
-                return fallback_topic
-            if initialized_wiki_root(fallback_archived_topic):
-                if include_archived:
-                    return fallback_archived_topic
-                raise SystemExit(
-                    f"wiki is archived: {args.wiki}. Use --include-archived or restore it first."
-                )
-            raise SystemExit(f"wiki registry not found: {registry}")
-        try:
-            data = json.loads(registry.read_text(encoding="utf-8"))
-        except OSError as exc:
-            if is_permission_denied(exc):
-                raise SystemExit(permission_denied_message(registry, "read wiki registry", exc)) from exc
-            if initialized_wiki_root(fallback_topic):
-                return fallback_topic
-            if initialized_wiki_root(fallback_archived_topic):
-                if include_archived:
-                    return fallback_archived_topic
-                raise SystemExit(
-                    f"wiki is archived: {args.wiki}. Use --include-archived or restore it first."
-                )
-            raise SystemExit(f"could not read wiki registry {registry}: {exc}") from exc
-        except json.JSONDecodeError as exc:
-            if initialized_wiki_root(fallback_topic):
-                return fallback_topic
-            if initialized_wiki_root(fallback_archived_topic):
-                if include_archived:
-                    return fallback_archived_topic
-                raise SystemExit(
-                    f"wiki is archived: {args.wiki}. Use --include-archived or restore it first."
-                )
-            raise SystemExit(f"invalid wiki registry {registry}: {exc}") from exc
-        entry = data.get("wikis", {}).get(args.wiki)
-        if not entry or not entry.get("path"):
-            if initialized_wiki_root(fallback_topic):
-                return fallback_topic
-            if initialized_wiki_root(fallback_archived_topic):
-                if include_archived:
-                    return fallback_archived_topic
-                raise SystemExit(
-                    f"wiki is archived: {args.wiki}. Use --include-archived or restore it first."
-                )
-            raise SystemExit(f"wiki not found in registry: {args.wiki}")
-        if is_archived_registry_entry(entry) and not include_archived:
-            raise SystemExit(
-                f"wiki is archived: {args.wiki}. Use --include-archived or restore it first."
-            )
-        registry_path = resolve_registry_path(str(entry["path"]), hub)
-        if (
-            not initialized_wiki_root(registry_path)
-            and initialized_wiki_root(fallback_topic)
-        ):
-            return fallback_topic
-        if (
-            not initialized_wiki_root(registry_path)
-            and include_archived
-            and initialized_wiki_root(fallback_archived_topic)
-        ):
-            return fallback_archived_topic
-        return registry_path
+    if getattr(args, "wiki", None):
+        raise SystemExit(
+            f"--wiki {args.wiki} names a topic inside a hub, and hubs are gone in v2. "
+            "Pass --path <dir>, or run this from inside the workspace. "
+            "`magi kb list` shows the libraries this machine knows about.")
+
     cwd = Path.cwd()
     if (cwd / "wiki").is_dir() or is_initialized_topic(cwd):
         return cwd
+    found = find_workspace_root()
+    if found is not None:
+        return found
     local = cwd / ".wiki"
     if local.exists():
         return local
-    return hub
+    return cwd
 
 
 def run_lint(args: argparse.Namespace) -> int:
@@ -2065,20 +1857,9 @@ def check_cold_backing(ctx: LintContext) -> None:
 
 def _run_lint(args: argparse.Namespace, root) -> int:
     ctx = LintContext(root, fix=args.fix)
-    hub_root = is_hub(root)
 
     check_structure(ctx)
     check_unknown_files(ctx)
-    if hub_root:
-        append_lint_log(ctx)
-        ctx.save_cache()
-        if args.json:
-            print_json_report(ctx)
-        else:
-            print_text_report(ctx)
-        counts = ctx.counts()
-        return 1 if counts["critical"] else 0  # PASS (even with warnings) exits 0
-
     load_documents(ctx)
     fix_legacy_wiki_frontmatter(ctx)
     check_frontmatter_schema(ctx)
@@ -2100,7 +1881,6 @@ def _run_lint(args: argparse.Namespace, root) -> int:
     check_coverage(ctx)
     check_freshness(ctx)
     check_projects(ctx)
-    append_lint_log(ctx)
     ctx.save_cache()
 
     if args.json:
@@ -2201,282 +1981,6 @@ def topic_title(path: Path, slug: str) -> str:
         except OSError:
             pass
     return slug.replace("-", " ").title()
-
-
-def write_hub_index(hub: Path, data: dict[str, Any]) -> None:
-    today = dt.date.today().isoformat()
-    active_rows: list[str] = []
-    archived_count = 0
-    for slug, entry in sorted(data.get("wikis", {}).items()):
-        if slug == "hub":
-            continue
-        if not isinstance(entry, dict):
-            continue
-        if is_archived_registry_entry(entry):
-            archived_count += 1
-            continue
-        raw_path = str(entry.get("path") or f"topics/{slug}")
-        path = resolve_registry_path(raw_path, hub)
-        title = topic_title(path, slug)
-        description = str(entry.get("description") or "")
-        active_rows.append(
-            f"| [{table_cell(slug)}]({markdown_link_destination(raw_path)}) | {table_cell(title)} | {table_cell(description)} |"
-        )
-
-    text = "\n".join(
-        [
-            "# Wiki Hub Index",
-            "",
-            "> Registry of active topic wikis.",
-            "",
-            f"Last updated: {today}",
-            "",
-            "## Statistics",
-            "",
-            f"- Active topics: {len(active_rows)}",
-            f"- Archived topics: {archived_count}",
-            "",
-            "## Topic Wikis",
-            "",
-            "| Wiki | Title | Description |",
-            "|------|-------|-------------|",
-            *active_rows,
-            "",
-            "## Archive",
-            "",
-            f"Archived topics are preserved under `topics/.archive/`: {archived_count}",
-            "",
-        ]
-    )
-    (hub / "_index.md").write_text(text, encoding="utf-8")
-
-
-def ensure_hub_for_archive(hub: Path) -> dict[str, Any]:
-    if not (hub / "wikis.json").exists() or not (hub / "topics").exists():
-        raise SystemExit(
-            f"initialized hub not found: {hub} "
-            "(pass --hub <path> to target a specific hub)"
-        )
-    return read_registry(hub)
-
-
-def run_archive(args: argparse.Namespace) -> int:
-    hub = resolve_hub(args)
-    data = ensure_hub_for_archive(hub)
-    subcommand = args.archive_command
-    if subcommand == "list":
-        return archive_list(hub, data, include_archived=args.archived, json_output=args.json)
-    if subcommand == "topic":
-        return archive_topic(hub, data, args.slug, args.reason)
-    if subcommand == "restore":
-        return restore_topic(hub, data, args.slug)
-    if subcommand == "register":
-        return register_topic(hub, data, args.slug, args.path, args.description)
-    raise SystemExit("unknown archive subcommand")
-
-
-def archive_list(
-    hub: Path,
-    data: dict[str, Any],
-    include_archived: bool,
-    json_output: bool = False,
-) -> int:
-    active: list[dict[str, str]] = []
-    archived: list[dict[str, str]] = []
-    for slug, entry in sorted(data.get("wikis", {}).items()):
-        if slug == "hub" or not isinstance(entry, dict):
-            continue
-        path_text = str(entry.get("path") or f"topics/{slug}")
-        row = {
-            "slug": slug,
-            "path": path_text,
-            "description": str(entry.get("description") or ""),
-            "archived": str(entry.get("archived") or ""),
-            "reason": str(entry.get("archive_reason") or ""),
-        }
-        if is_archived_registry_entry(entry):
-            archived.append(row)
-        else:
-            active.append(row)
-
-    archive_dir = hub / "topics" / ".archive"
-    if archive_dir.exists():
-        registered = {row["slug"] for row in archived}
-        for topic in sorted(child for child in archive_dir.iterdir() if child.is_dir()):
-            if topic.name not in registered and initialized_wiki_root(topic):
-                archived.append(
-                    {
-                        "slug": topic.name,
-                        "path": f"topics/.archive/{topic.name}",
-                        "description": "(missing from registry)",
-                        "archived": "",
-                        "reason": "registry repair needed",
-                    }
-                )
-
-    topics_dir = hub / "topics"
-    if topics_dir.exists():
-        registered_active = {row["slug"] for row in active}
-        for topic in sorted(child for child in topics_dir.iterdir() if child.is_dir()):
-            if topic.name == ".archive":
-                continue
-            if topic.name not in registered_active and initialized_wiki_root(topic):
-                active.append(
-                    {
-                        "slug": topic.name,
-                        "path": f"topics/{topic.name}",
-                        "description": "(missing from registry — run `archive register`)",
-                        "archived": "",
-                        "reason": "registry repair needed",
-                    }
-                )
-
-    if json_output:
-        print(json.dumps({"hub": str(hub), "active": active, "archived": archived}, indent=2))
-        return 0
-
-    print(f"magi hub: {hub}")
-    print(f"\nActive topics ({len(active)})")
-    print("| Slug | Path | Description |")
-    print("|------|------|-------------|")
-    for row in active:
-        print(f"| {row['slug']} | {row['path']} | {table_cell(row['description'])} |")
-    print(f"\nArchived topics: {len(archived)}")
-    if include_archived:
-        print("\nArchived topics")
-        print("| Slug | Path | Archived | Reason |")
-        print("|------|------|----------|--------|")
-        for row in archived:
-            print(
-                f"| {row['slug']} | {row['path']} | {row['archived']} | {table_cell(row['reason'])} |"
-            )
-    elif archived:
-        print("Run `magi hub list --archived` to show archived topics.")
-    return 0
-
-
-def archive_topic(hub: Path, data: dict[str, Any], slug: str, reason: str | None) -> int:
-    if slug == "hub":
-        raise SystemExit("cannot archive the synthetic hub entry")
-    if slug in {".", ".."} or "/" in slug or os.sep in slug or "\\" in slug or slug.startswith("."):
-        raise SystemExit(f"invalid topic slug: {slug}")
-    entry = topic_entry(data, slug)
-    source = active_topic_path(hub, slug, entry)
-    fallback_source = hub / "topics" / slug
-    if not initialized_wiki_root(source) and initialized_wiki_root(fallback_source):
-        source = fallback_source
-    if entry and is_archived_registry_entry(entry):
-        raise SystemExit(f"topic already archived: {slug}")
-    if not initialized_wiki_root(source):
-        raise SystemExit(f"active topic not found: {source}")
-    archive_dir = hub / "topics" / ".archive"
-    dest = archive_dir / slug
-    if not is_under(source, hub / "topics") or not is_under(dest, hub / "topics"):
-        raise SystemExit(f"path escapes topics directory — refusing to archive: {slug}")
-    if dest.exists():
-        raise SystemExit(f"archive destination already exists: {dest}")
-
-    wikis = data.setdefault("wikis", {})
-    if not isinstance(wikis, dict):
-        raise SystemExit("invalid registry: wikis must be an object")
-
-    archive_dir.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(source), str(dest))
-
-    entry = wikis.setdefault(slug, {})
-    if not isinstance(entry, dict):
-        entry = {}
-        wikis[slug] = entry
-    entry.setdefault("description", topic_title(dest, slug))
-    entry["path"] = f"topics/.archive/{slug}"
-    entry["status"] = "archived"
-    entry["archived"] = dt.date.today().isoformat()
-    if reason:
-        entry["archive_reason"] = reason
-    write_registry(hub, data)
-    write_hub_index(hub, data)
-    append_log(hub, "archive", f"archived topic {slug}")
-    append_log(dest, "archive", f"archived topic {slug}")
-    print(f"Archived topic `{slug}`")
-    print(f"Old path: {source}")
-    print(f"New path: {dest}")
-    print(f"Restore with: magi hub restore {slug} --hub {hub}")
-    return 0
-
-
-def restore_topic(hub: Path, data: dict[str, Any], slug: str) -> int:
-    if slug == "hub":
-        raise SystemExit("cannot restore the synthetic hub entry")
-    entry = topic_entry(data, slug)
-    source = archived_topic_path(hub, slug, entry)
-    fallback_source = hub / "topics" / ".archive" / slug
-    if not initialized_wiki_root(source) and initialized_wiki_root(fallback_source):
-        source = fallback_source
-    dest = hub / "topics" / slug
-    if dest.exists():
-        raise SystemExit(f"active topic destination already exists: {dest}")
-    if not initialized_wiki_root(source):
-        raise SystemExit(f"archived topic not found: {source}")
-
-    wikis = data.setdefault("wikis", {})
-    if not isinstance(wikis, dict):
-        raise SystemExit("invalid registry: wikis must be an object")
-
-    shutil.move(str(source), str(dest))
-
-    entry = wikis.setdefault(slug, {})
-    if not isinstance(entry, dict):
-        entry = {}
-        wikis[slug] = entry
-    entry.setdefault("description", topic_title(dest, slug))
-    entry["path"] = f"topics/{slug}"
-    entry["status"] = "active"
-    entry.pop("archived", None)
-    entry.pop("archive_reason", None)
-    entry["restored"] = dt.date.today().isoformat()
-    write_registry(hub, data)
-    write_hub_index(hub, data)
-    append_log(hub, "archive", f"restored topic {slug}")
-    append_log(dest, "archive", f"restored topic {slug}")
-    print(f"Restored topic `{slug}`")
-    print(f"Path: {dest}")
-    return 0
-
-
-def register_topic(
-    hub: Path,
-    data: dict[str, Any],
-    slug: str,
-    path: str | None,
-    description: str | None,
-) -> int:
-    if slug == "hub":
-        raise SystemExit("cannot register the synthetic hub entry")
-    rel_path = path or f"topics/{slug}"
-    target = resolve_registry_path(rel_path, hub)
-    if not initialized_wiki_root(target):
-        raise SystemExit(f"topic not initialized (no _index.md): {target}")
-
-    wikis = data.setdefault("wikis", {})
-    if not isinstance(wikis, dict):
-        raise SystemExit("invalid registry: wikis must be an object")
-
-    entry = wikis.setdefault(slug, {})
-    if not isinstance(entry, dict):
-        entry = {}
-        wikis[slug] = entry
-    existed = bool(entry.get("path")) and not is_archived_registry_entry(entry)
-    entry["description"] = description or entry.get("description") or topic_title(target, slug)
-    entry["path"] = rel_path
-    entry["status"] = "active"
-    entry.pop("archived", None)
-    entry.pop("archive_reason", None)
-    write_registry(hub, data)
-    write_hub_index(hub, data)
-    append_log(hub, "register", f"registered topic {slug}")
-    append_log(target, "register", f"registered topic {slug}")
-    print(f"{'Updated' if existed else 'Registered'} topic `{slug}` -> {rel_path}")
-    return 0
 
 
 def extract_wikilinks(text: str) -> list[str]:
@@ -2967,80 +2471,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run local structural checks on a wiki root.",
         description=(
             "Run deterministic checks that do not require an LLM. Pass a wiki root "
-            "path, or use --local/--wiki to resolve one through the normal hub rules."
+            "path, or run the command from inside the workspace."
         ),
     )
     lint.add_argument("path", nargs="?", help="Wiki root path to lint.")
     lint.add_argument("--fix", action="store_true", help="Apply unambiguous structural fixes.")
     lint.add_argument("--local", action="store_true", help="Lint .wiki/ in the current directory.")
-    lint.add_argument("--wiki", help="Named wiki from the hub registry.")
-    lint.add_argument("--hub", help="Override hub path for --wiki resolution.")
-    lint.add_argument(
-        "--include-archived",
-        action="store_true",
-        help="Allow linting an explicitly targeted archived wiki.",
-    )
+    lint.add_argument("--wiki", help=argparse.SUPPRESS)
     lint.add_argument("--json", action="store_true", help="Print a machine-readable JSON report.")
     lint.add_argument("--skip-math", action="store_true", help="Skip LaTeX/math syntax checks.")
     lint.set_defaults(func=run_lint)
 
-    archive = subparsers.add_parser(
-        "archive",
-        prog="magi hub",
-        help="Archive, restore, or list hub topic wikis.",
-        description=(
-            "Move whole topic wikis between topics/<slug> and topics/.archive/<slug>, "
-            "updating wikis.json so archived topics stay out of default context."
-        ),
-    )
-    # NOTE: --hub deliberately lives ONLY on the leaf subparsers below. A
-    # parent-level --hub would be silently clobbered by the leaf's None
-    # default (argparse namespace behavior, verified on py3.10), so the
-    # old "archive --hub X list" form now fails loudly instead of
-    # operating on the wrong hub.
-    archive_sub = archive.add_subparsers(dest="archive_command", required=True)
-
-    archive_list_parser = archive_sub.add_parser(
-        "list", prog="magi hub list", help="List active and archived topics."
-    )
-    # --hub is accepted on each leaf too: the magi dispatcher rewrites
-    # "magi hub list --hub X" to "archive list --hub X", where the
-    # parent-level flag is no longer reachable.
-    archive_list_parser.add_argument("--hub", help="Override hub path.")
-    archive_list_parser.add_argument(
-        "--archived",
-        action="store_true",
-        help="Show archived topics in addition to active topics.",
-    )
-    archive_list_parser.add_argument("--json", action="store_true", help="Print JSON.")
-
-    archive_topic_parser = archive_sub.add_parser(
-        "topic", prog="magi hub archive", help="Archive an active topic wiki."
-    )
-    archive_topic_parser.add_argument("slug", help="Topic slug to archive.")
-    archive_topic_parser.add_argument("--reason", help="Optional archive reason.")
-    archive_topic_parser.add_argument("--hub", help="Override hub path.")
-
-    archive_restore_parser = archive_sub.add_parser(
-        "restore", prog="magi hub restore", help="Restore an archived topic wiki."
-    )
-    archive_restore_parser.add_argument("slug", help="Topic slug to restore.")
-    archive_restore_parser.add_argument("--hub", help="Override hub path.")
-
-    archive_register_parser = archive_sub.add_parser(
-        "register",
-        prog="magi hub register",
-        help="Register an existing active topic in the hub registry (idempotent).",
-    )
-    archive_register_parser.add_argument("slug", help="Topic slug to register.")
-    archive_register_parser.add_argument(
-        "--path",
-        help="Registry-relative path to the topic (default: topics/<slug>).",
-    )
-    archive_register_parser.add_argument("--description", help="Optional topic description.")
-    archive_register_parser.add_argument("--hub", help="Override hub path.")
-
-    archive.set_defaults(func=run_archive)
 
     stats = subparsers.add_parser(
         "stats",
@@ -3051,8 +2492,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     stats.add_argument("--local", action="store_true", help="Use .wiki/ in the current directory.")
-    stats.add_argument("--wiki", help="Named wiki from the hub registry.")
-    stats.add_argument("--hub", help="Override hub path.")
+    stats.add_argument("--wiki", help=argparse.SUPPRESS)
     stats.add_argument("path", nargs="?", help="Wiki root path.")
     stats_sub = stats.add_subparsers(dest="stats_command", required=True)
 
@@ -3087,8 +2527,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     graph.add_argument("--local", action="store_true", help="Use .wiki/ in the current directory.")
-    graph.add_argument("--wiki", help="Named wiki from the hub registry.")
-    graph.add_argument("--hub", help="Override hub path.")
+    graph.add_argument("--wiki", help=argparse.SUPPRESS)
     graph.add_argument("path", nargs="?", help="Wiki root path.")
     graph.set_defaults(func=run_graph)
 

@@ -42,6 +42,14 @@ def is_topic_root(path: Path) -> bool:
 
 
 def is_hub_root(path: Path) -> bool:
+    """A pre-v2 hub: a parent directory with a `wikis.json` and `topics/`.
+
+    Hubs are retired (design-v2 §2) — this and `find_hub_root` survive for one
+    reader only, `magi migrate`, which has to recognise the old shape to
+    convert it. Nothing else should call them: a library is found by
+    `find_workspace_root`, and libraries are related to each other through the
+    user-level registry rather than by where they sit on disk.
+    """
     return (path / "wikis.json").is_file() and (path / "topics").is_dir()
 
 

@@ -1,7 +1,7 @@
 """End-to-end smoke test for the magi CLI.
 
 Runs the core deterministic chain in a throwaway sandbox:
-hub init -> init -> (seed cards) -> lint -> graph build -> graph query
+init -> (seed cards) -> lint -> graph build -> graph query
 -> wiki reindex -> stats -> verify -> grep -> sync
 
 Usage: python tests/smoke_test.py            (uses sys.executable -m magi)
@@ -51,16 +51,14 @@ def main() -> int:
     os.environ["MAGI_CONFIG_HOME"] = str(sandbox / "magicfg")
     print(f"sandbox: {sandbox}")
     try:
-        hub = sandbox / "hub"
-        # 1. hub + topic workspace scaffolding
-        run(["hub", "init", str(hub)], cwd=sandbox)
-        topic = hub / "topics" / "smoke-topic"
+        # 1. topic workspace scaffolding. There is no layer above a workspace
+        #    in v2 — `magi init` registers the library in the user-level list,
+        #    which is what makes several of them searchable together.
+        topic = sandbox / "smoke-topic"
         topic.mkdir(parents=True)
         run(["init", "--topic-dir", str(topic), "--name", "Smoke Topic", "--scope", "smoke testing"], cwd=topic)
-        run(["hub", "register", "smoke-topic", "--hub", str(hub)], cwd=topic)
-        run(["hub", "list", "--hub", str(hub), "--json"], cwd=sandbox)
-        resolve = run(["hub", "resolve", str(hub), "smoke-topic"], cwd=sandbox)
-        assert "smoke-topic" in resolve.stdout, "hub resolve did not return topic path"
+        listing = run(["kb", "list", "--json"], cwd=topic)
+        assert "smoke-topic" in listing.stdout, "init did not register the library"
 
         # 2. seed a concept card + a reference card
         concepts = topic / "wiki" / "concepts"

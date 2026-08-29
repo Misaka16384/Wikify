@@ -95,7 +95,7 @@ def test_the_key_being_absent_inherits(home):
 def test_the_init_template_does_not_ship_a_shadowing_empty_token():
     """Guards the fix at its source: every workspace `magi init` creates would
     otherwise override a token the user set once."""
-    from magi.hub import init_workspace
+    from magi import init_workspace
 
     import inspect
 
