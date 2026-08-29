@@ -740,3 +740,231 @@ def test_the_queue_outranks_the_work(ws):
     keys = [action.key for action in state.candidates(load(ws))]
 
     assert keys.index("disputed") < keys.index("work")
+
+
+# --------------------------------------------------------------------------
+# the dump, the retrospective, and the strict level
+# --------------------------------------------------------------------------
+
+def dump(ws, *lines):
+    path = ws / "inbox" / "notes.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    from magi.init_workspace import NOTES_STARTER
+
+    path.write_text(NOTES_STARTER + "\n" + "\n".join(lines) + "\n", encoding="utf-8")
+
+
+def test_the_starter_text_is_not_something_somebody_wrote(ws):
+    from magi.init_workspace import NOTES_STARTER
+
+    (ws / "inbox").mkdir()
+    (ws / "inbox" / "notes.md").write_text(NOTES_STARTER, encoding="utf-8")
+    assert state.unfiled(ws) == []
+
+
+def test_dumped_lines_are_the_first_thing_next_says(ws):
+    """A person's words waiting behind machine bookkeeping is the wrong signal
+    about whose time is scarce."""
+    line(ws)
+    path = proposition(ws, "p-a", status="testing")
+    path.write_text(path.read_text(encoding="utf-8")
+                    .replace("status: testing", "status: supported", 1), encoding="utf-8")
+    dump(ws, "- did anyone check the boundary condition?")
+
+    actions = state.candidates(load(ws))
+    assert actions[0].key == "inbox"
+    assert actions[1].key == "debt", "debt still outranks everything else"
+
+
+def test_the_five_places_a_line_can_go_are_named(ws):
+    dump(ws, "- something")
+    action = [a for a in state.candidates(load(ws)) if a.key == "inbox"][0]
+    for surface in ("question", "proposition", "decision", "beads"):
+        assert surface in action.run
+
+
+def test_an_empty_dump_says_nothing(ws):
+    dump(ws)
+    assert not [a for a in state.candidates(load(ws)) if a.key == "inbox"]
+
+
+def test_the_map_scores_the_predictions_that_can_be_scored(ws):
+    proposition(ws, "p-hit", bet="supported", status="testing")
+    threads.set_status(ws / "threads" / "p-hit.md", "supported", "yes", host="claude")
+    proposition(ws, "p-miss", bet="refuted", status="testing")
+    threads.set_status(ws / "threads" / "p-miss.md", "supported", "actually yes", host="claude")
+
+    back = state.retrospective(load(ws))
+
+    assert (back["hits"], back["scored"]) == (1, 2)
+    assert back["rate"] == 0.5
+
+
+def test_dont_know_is_not_counted_as_a_miss(ws):
+    """It is the honest prior. Scoring it as wrong teaches people to guess,
+    which makes every other number meaningless."""
+    proposition(ws, "p-a", bet="unknown", status="testing")
+    threads.set_status(ws / "threads" / "p-a.md", "refuted", "no", host="claude")
+
+    back = state.retrospective(load(ws))
+    assert back["scored"] == 0 and back["unknown"] == 1
+    assert back["rate"] is None
+
+
+def test_an_open_proposition_is_not_scored_yet(ws):
+    proposition(ws, "p-a", bet="supported", status="testing")
+    assert state.retrospective(load(ws))["scored"] == 0
+
+
+def test_the_map_pulls_the_record_out_without_being_asked(ws):
+    """Nobody goes back to look. A hit rate a person never sees trains
+    nothing."""
+    proposition(ws, "p-a", bet="supported", status="testing")
+    threads.set_status(ws / "threads" / "p-a.md", "supported", "yes", host="claude")
+    (ws / "decisions.md").write_text("## 2026-08-29 · [[p-a]]\n\nI think so.\n",
+                                     encoding="utf-8")
+
+    text = state.render_map(load(ws), now=NOW)
+    assert "## Looking back" in text
+    assert "1/1" in text
+    assert "[[p-a]]" in text
+
+
+def test_strict_coaching_makes_a_missing_prediction_block(ws):
+    """A `PreToolUse` hook sees a tool call, not which proposition it is about,
+    so it would have to block everything or nothing. The gate that can tell is
+    the one that reads the notes."""
+    proposition(ws, "p-a", status="testing")
+
+    assert load(ws, coaching="light").debt == []
+    strict = [item.why for item in load(ws, coaching="strict").debt]
+    assert any("no prediction on record" in why for why in strict)
+
+
+def test_dont_know_satisfies_the_strict_level(ws):
+    """The point was never a correct prediction. It was a recorded one."""
+    proposition(ws, "p-a", bet="unknown", status="testing")
+    assert load(ws, coaching="strict").debt == []
+
+
+# --------------------------------------------------------------------------
+# reading the one file a person is allowed to be untidy in
+#
+# `inbox/notes.md` is where somebody types a thought without deciding where it
+# goes. Every way of reading it wrong is a way of losing what they said, so
+# these are the shapes the file actually takes: appended to, tidied, and typed
+# into by an editor that does not write UTF-8.
+# --------------------------------------------------------------------------
+
+def test_a_line_appended_to_the_starter_is_seen(ws):
+    """Appending is what appending to a file does. The old splitter dropped
+    two paragraphs instead of one, so exactly this — the common case — came
+    back empty."""
+    from magi.init_workspace import NOTES_STARTER
+
+    path = ws / "inbox" / "notes.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(NOTES_STARTER, encoding="utf-8")
+    with open(path, "a", encoding="utf-8") as handle:
+        handle.write("the disorder angle is probably a dead end\n")
+
+    assert state.unfiled(ws) == ["the disorder angle is probably a dead end"]
+
+
+def test_a_tidied_file_is_still_read(ws):
+    path = ws / "inbox" / "notes.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("# Notes\n\nfirst idea\nsecond idea\n", encoding="utf-8")
+    assert state.unfiled(ws) == ["first idea", "second idea"]
+
+
+def test_a_file_that_is_not_utf8_does_not_take_next_down(ws):
+    """Notepad still writes cp1252 by default, and this is the one file the
+    design tells a person to type into freely."""
+    path = ws / "inbox" / "notes.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes("# Notes\n\nCaf".encode("utf-8") + bytes([0xE9]) + b" idea" + bytes([10]))
+
+    assert len(state.unfiled(ws)) == 1
+    state.candidates(load(ws))  # the whole router used to die here
+
+
+# --------------------------------------------------------------------------
+# a bet is only a bet beforehand
+# --------------------------------------------------------------------------
+
+def test_a_bet_written_after_the_answer_is_not_scored(ws):
+    """The reason a prediction is asked for before the work is that it can be
+    checked after. Scoring one recorded afterwards lets the headline number
+    inflate for free."""
+    path = proposition(ws, "p-a", status="testing")
+    threads.set_status(path, "supported", "it held", host="claude")
+    threads.set_field(path, "bet", "supported", host="human", text="I always said so")
+
+    back = state.retrospective(load(ws))
+    assert (back["scored"], back["late"]) == (0, 1)
+    assert back["rate"] is None
+
+
+def test_a_bet_written_before_the_work_still_counts(ws):
+    path = proposition(ws, "p-a", status="testing")
+    threads.set_field(path, "bet", "supported", host="human", text="I think so")
+    threads.set_status(path, "supported", "it held", host="claude")
+
+    back = state.retrospective(load(ws))
+    assert (back["hits"], back["scored"], back["late"]) == (1, 1, 0)
+
+
+def test_the_map_says_when_a_bet_arrived_late(ws):
+    path = proposition(ws, "p-a", status="testing")
+    threads.set_status(path, "supported", "it held", host="claude")
+    threads.set_field(path, "bet", "supported", host="human", text="I always said so")
+
+    assert "after the answer was already in" in state.render_map(load(ws), now=NOW)
+
+
+def test_the_bets_shown_are_the_most_recent_ones(ws):
+    """Notes arrive alphabetically. Slicing that order dropped the oldest
+    slugs rather than the oldest bets."""
+    for index in range(4):
+        slug = "p-{0}".format(index)
+        path = proposition(ws, slug, bet="supported", status="testing")
+        threads.set_status(path, "supported", "done", host="claude",
+                           at="2026-08-{0:02d}T00:00:00Z".format(20 - index * 3))
+
+    shown = [row["slug"] for row in state.retrospective(load(ws), limit=2)["bets"]]
+    assert shown == ["p-1", "p-0"], "by when they settled, not by name"
+
+
+# --------------------------------------------------------------------------
+# strict says it once, and says it where the gate can hear
+# --------------------------------------------------------------------------
+
+def test_one_missing_prediction_is_one_thing_to_do(ws):
+    proposition(ws, "p-a", status="testing")
+    actions = state.candidates(load(ws, coaching="strict"))
+    keys = [(action.key, action.slug) for action in actions]
+    assert keys.count(("bet", "p-a")) + keys.count(("debt", "p-a")) == 1, keys
+
+
+def test_the_nudge_survives_before_work_starts(ws):
+    """Strict blocks where the derivation is, which is `testing`. A conjecture
+    nobody has started on has none yet, so the earlier ask stays an ask."""
+    proposition(ws, "p-a", status="conjectured")
+    keys = [(action.key, action.slug) for action in state.candidates(load(ws, coaching="strict"))]
+    assert ("bet", "p-a") in keys and ("debt", "p-a") not in keys
+
+
+# --------------------------------------------------------------------------
+# --line means --line
+# --------------------------------------------------------------------------
+
+def test_another_lines_review_is_not_this_lines_work(ws, capsys):
+    line(ws, "qec")
+    path = proposition(ws, "p-other", status="testing", lines=["other"])
+    threads.set_status(path, "supported", "done", host="claude")
+
+    state.main(["next", "--topic-dir", str(ws), "--line", "qec", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert not [a for a in payload["actions"] if a["key"] == "review"]

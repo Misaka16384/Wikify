@@ -29,6 +29,8 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("pm", "backlog-sync"): "把尚未编译的原始文献转成 bd 议题",
     # 研究状态（命题 / 问题 / 研究线）
     ("install",): "把这个工作区装进你的 agent CLI：skills + AGENTS.md 协议块 + 收工闸门",
+    ("decide",): "把人刚说的决定原样记下来（decisions.md + 命题的 bet:）",
+    ("review",): "让另一个厂商的 CLI 无头复核一条声称已解决的命题（评判要远离）",
     ("next",): "下一步做什么——从 note 派生的候选清单，只提议不执行",
     ("feed",): "所有跟帖按时间倒序——记录本身，按时间读一遍",
     ("thread", "new"): "开一个命题、问题或研究线（文件名即 ID，建好不改）",

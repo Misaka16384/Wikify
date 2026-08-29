@@ -62,6 +62,14 @@ _POST_STATUS = re.compile(
     r"^status:[ \t]*(?P<src>[a-z-]+)[ \t]*(?:->|→|=>)[ \t]*(?P<dst>[a-z-]+)[ \t]*$"
 )
 
+#: A frontmatter field set from a post, recorded the way a status flip is.
+#: A `bet:` that appears in a file with no event behind it cannot be told from
+#: one written after the answer arrived, and a prediction nobody can date is
+#: not a prediction.
+_POST_FIELD = re.compile(
+    r"^set:[ \t]*(?P<field>[a-z_]+)[ \t]*=[ \t]*(?P<value>.+?)[ \t]*$"
+)
+
 _HEADING_RE = re.compile(r"^##[ \t]+Discussion[ \t]*$", re.MULTILINE)
 
 # ---------------------------------------------------------------- schema
@@ -101,6 +109,8 @@ class Post:
     line: str | None = None
     src: str | None = None
     dst: str | None = None
+    field: str | None = None
+    value: str | None = None
     text: str = ""
 
     @property
@@ -215,6 +225,12 @@ def parse_posts(body: str) -> list:
                     current.src = status.group("src")
                     current.dst = status.group("dst")
                     continue
+            if current is not None and current.field is None and not buffer:
+                changed = _POST_FIELD.match(raw_line.strip())
+                if changed:
+                    current.field = changed.group("field")
+                    current.value = changed.group("value")
+                    continue
         if current is None:
             continue
         buffer.append(raw_line)
@@ -264,14 +280,46 @@ def derived_status(kind: str, posts) -> str | None:
 # ---------------------------------------------------------------- writing
 
 
+def quote_if_structural(text: str) -> str:
+    """Fence a body whose own lines would be read as this format's structure.
+
+    Posts are transcription: `magi decide` writes what a person said, word for
+    word. Somebody quoting a status line — "my worry is exactly this: status:
+    testing -> refuted" — would otherwise have that line eaten by the parser
+    and reappear as a transition **signed with their name**, which is the one
+    signature the record cannot afford to invent. The line also vanishes from
+    every reader, so the transcription is not even verbatim.
+
+    Fencing keeps both properties: the words are unchanged and the parser sees
+    a code block, which it already knows to skip. The fence is sized to survive
+    a body that contains backticks of its own.
+    """
+    body = (text or "").strip()
+    if not body:
+        return body
+    labelled = _labelled(body)
+    risky = any(label != md_blocks.CODE and (
+        _POST_HEADER.match(line) or _HEADING_RE.match(line)
+        or _POST_STATUS.match(line.strip()) or _POST_FIELD.match(line.strip()))
+        for label, line in labelled)
+    if not risky:
+        return body
+    longest = max((len(run) for run in re.findall(r"`+", body)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return f"{fence}text\n{body}\n{fence}"
+
+
 def format_post(text: str, host: str, line: str | None = None, at: str | None = None,
-                src: str | None = None, dst: str | None = None) -> str:
+                src: str | None = None, dst: str | None = None,
+                field: str | None = None, value=None) -> str:
     """One post, heading included, ending in exactly one blank line."""
     signature = host if not line else f"{host}/{line}"
     out = [f"### {at or utcnow()} · {signature}"]
     if src and dst:
         out.append(f"status: {src} → {dst}")
-    body = (text or "").strip()
+    if field:
+        out.append(f"set: {field} = {value}")
+    body = quote_if_structural(text)
     if body:
         out.append("")
         out.append(body)
@@ -296,7 +344,8 @@ def lock_path(path) -> Path:
 
 def append_post(path, text: str, host: str, line: str | None = None,
                 at: str | None = None, src: str | None = None,
-                dst: str | None = None) -> str:
+                dst: str | None = None, field: str | None = None,
+                value=None) -> str:
     """Append one signed post under a short per-note lock. Returns the post.
 
     Creates the `## Discussion` heading when the note has none. Raises
@@ -311,7 +360,8 @@ def append_post(path, text: str, host: str, line: str | None = None,
     if not path.exists():
         raise FileNotFoundError(str(path))
 
-    post = format_post(text, host=host, line=line, at=at, src=src, dst=dst)
+    post = format_post(text, host=host, line=line, at=at, src=src, dst=dst,
+                       field=field, value=value)
     lock = lock_path(path)
     lock.parent.mkdir(parents=True, exist_ok=True)
 
@@ -378,6 +428,72 @@ def set_status(path, dst: str, text: str, host: str, line: str | None = None,
         with open(path, "a", encoding="utf-8", newline=ending) as handle:
             handle.write(_join_chunk(path.read_text(encoding="utf-8"), post))
     return post
+
+
+def set_field(path, key: str, value, host: str, text: str = "",
+              line: str | None = None, at: str | None = None) -> None:
+    """Set one frontmatter field, under the lock, with a post saying who.
+
+    Used for the fields a person owns — `bet:` above all. A prediction that
+    appears in a file with nobody's name on it is indistinguishable from one
+    the agent invented, which is the entire value of having asked.
+    """
+    from filelock import FileLock
+
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(str(path))
+
+    lock = lock_path(path)
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    with FileLock(str(lock), timeout=APPEND_TIMEOUT):
+        current = path.read_text(encoding="utf-8")
+        ending = file_newline(path)
+        atomic_write(path, _replace_field(current, key, value), newline=ending)
+        # The write above verifies itself, but a caller acting on "it worked"
+        # deserves the check to be here rather than two functions away: a
+        # `decisions.md` entry saying a person predicted something, with no
+        # `bet:` in the note, is a record of a decision that left no trace.
+        if read_note(path).frontmatter.get(key) != value:
+            raise ValueError(f"{path.name}: {key} did not take")
+        post = format_post(text, host=host, line=line, at=at, field=key, value=value)
+        with open(path, "a", encoding="utf-8", newline=ending) as handle:
+            handle.write(_join_chunk(path.read_text(encoding="utf-8"), post))
+
+
+def _replace_field(text: str, key: str, value) -> str:
+    """Set `key` in the frontmatter, adding it when it is not there.
+
+    Same shape as `_replace_status`, and same reason for the verify step: a
+    line edit and a YAML parse are two readings of one text, and they disagree
+    on anything this module did not write.
+    """
+    import yaml
+
+    split = split_frontmatter_text(text)
+    if split is None:
+        # Returning the text unchanged made this a silent no-op on a note
+        # whose frontmatter somebody had broken by hand — `read_note` tolerates
+        # exactly that, so the caller had no way to find out.
+        raise ValueError("no frontmatter to set a field in")
+    fm_text, body = split
+
+    rendered = yaml.safe_dump({key: value}, allow_unicode=True,
+                              default_flow_style=False).strip()
+    # `lambda`, not the string: a value containing a backslash escape would
+    # otherwise be read as a replacement template and blow up on `\1`.
+    edited = re.sub(rf"(?m)^{re.escape(key)}:[^\n]*$", lambda _: rendered,
+                    fm_text, count=1)
+    if edited == fm_text:
+        edited = f"{fm_text}\n{rendered}"
+    if parse_frontmatter_text(edited).get(key) == value:
+        return f"---\n{edited}\n---{body}"
+
+    data = parse_frontmatter_text(fm_text)
+    data[key] = value
+    dumped = yaml.safe_dump(data, allow_unicode=True, sort_keys=False,
+                            default_flow_style=False).rstrip("\n")
+    return f"---\n{dumped}\n---{body}"
 
 
 def _replace_status(text: str, dst: str) -> str:

@@ -532,6 +532,7 @@ def _close(args) -> int:
             "blocking": [{"slug": item.slug, "why": item.why} for item in report.blocking],
             "older": [{"slug": item.slug, "why": item.why} for item in report.older],
             "conflicts": report.conflicts,
+            "unreviewed": report.unreviewed,
             "map": report.map_path,
         }, ensure_ascii=False))
         return 0 if report.ok else 1

@@ -749,3 +749,84 @@ def test_a_note_written_with_windows_endings_keeps_them(tmp_path):
     assert raw.replace(b"\r\n", b"").count(b"\n") == 0, "mixed endings"
     assert threads.read_note(path).status == "testing"
 
+
+# --------------------------------------------------------------------------
+# a body that looks like structure
+#
+# Posts carry transcription: `magi decide` writes what a person said, word for
+# word. When their words happen to look like this format's own structure, the
+# parser used to eat them — and a quoted `status:` line came back as a
+# transition signed with their name. Inventing a person's signature is worse
+# than losing the line, and the fix has to avoid both.
+# --------------------------------------------------------------------------
+
+def test_a_quoted_status_line_stays_text(tmp_path):
+    path = threads.create(tmp_path / "p.md", vocab.PROPOSITION, "T", "P")
+    threads.append_post(path, "my worry is:\nstatus: testing -> refuted\nthat",
+                        host="human")
+
+    posts = threads.read_note(path).posts
+    assert len(posts) == 1
+    assert not posts[0].is_transition
+    assert "status: testing -> refuted" in posts[0].text
+
+
+def test_a_quoted_signature_does_not_open_a_second_post(tmp_path):
+    path = threads.create(tmp_path / "p.md", vocab.PROPOSITION, "T", "P")
+    threads.append_post(path, "she wrote:\n### 2020-01-01T00:00:00Z · human\nfine",
+                        host="human")
+
+    posts = threads.read_note(path).posts
+    assert len(posts) == 1 and posts[0].at != "2020-01-01T00:00:00Z"
+
+
+def test_an_ordinary_post_is_not_wrapped(tmp_path):
+    """The quoting is for the case that needs it. Fencing every post would
+    make every note read like a log file."""
+    path = threads.create(tmp_path / "p.md", vocab.PROPOSITION, "T", "P")
+    threads.append_post(path, "converged at 0.11", host="claude")
+    assert threads.read_note(path).posts[0].text == "converged at 0.11"
+
+
+def test_the_fence_survives_a_body_that_contains_fences(tmp_path):
+    path = threads.create(tmp_path / "p.md", vocab.PROPOSITION, "T", "P")
+    body = "look:\n```\nstatus: a -> b\n```\nstatus: c -> d"
+    threads.append_post(path, body, host="human")
+
+    posts = threads.read_note(path).posts
+    assert len(posts) == 1 and not posts[0].is_transition
+    assert "status: c -> d" in posts[0].text
+
+
+# --------------------------------------------------------------------------
+# setting a field is an event, and it either happened or it did not
+# --------------------------------------------------------------------------
+
+def test_setting_a_field_records_when_it_was_set(tmp_path):
+    """A `bet:` that appears in a file with no event behind it cannot be told
+    from one written after the answer arrived, and a prediction nobody can
+    date is not a prediction."""
+    path = threads.create(tmp_path / "p.md", vocab.PROPOSITION, "T", "P")
+    threads.set_field(path, "bet", "supported", host="human", text="I think it holds")
+
+    post = threads.read_note(path).posts[-1]
+    assert (post.field, post.value) == ("bet", "supported")
+    assert post.host == "human"
+    assert post.text == "I think it holds"
+
+
+def test_a_value_with_a_backslash_escape_in_it_is_not_a_template(tmp_path):
+    path = threads.create(tmp_path / "p.md", vocab.PROPOSITION, "T", "P")
+    threads.set_field(path, "purpose", "we bet " + chr(92) + "1 on it", host="human")
+    assert threads.read_note(path).frontmatter["purpose"] == "we bet " + chr(92) + "1 on it"
+
+
+def test_a_field_that_cannot_be_set_says_so(tmp_path):
+    """It used to return quietly, having written nothing — so `magi decide`
+    reported success and `decisions.md` claimed a prediction that existed
+    nowhere."""
+    path = tmp_path / "p.md"
+    path.write_text("kind: proposition\nstatus: testing\n\n# No frontmatter\n",
+                    encoding="utf-8")
+    with pytest.raises(ValueError):
+        threads.set_field(path, "bet", "supported", host="human")

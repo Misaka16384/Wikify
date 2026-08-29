@@ -204,7 +204,13 @@ created: {today}
     safe_write(topic_path / "CLAUDE.md", CLAUDE_POINTER, args.force)
 
     # 7. Starter config.yaml (workspace-level; wins over ~/.config/magi/)
+    # `research:` is written out even at the default, so the level the gate
+    # reads is visible in the file rather than implied by its absence — and so
+    # `--coaching strict` means the same thing to the gate as it does to the
+    # protocol text the agent was just handed.
     config_yaml = """# MAGI workspace configuration (discovered by upward walk from cwd)
+research:
+  coaching: light      # off | light | strict — how hard the close gate pushes
 ollama:
   base_url: "http://127.0.0.1:11434"
   autostart: true      # start a stopped local Ollama on demand
@@ -254,6 +260,9 @@ radar:
   # the report then asks who failed to cite them.
   own_arxiv_ids: []
 """
+    if args.coaching != "light":
+        config_yaml = config_yaml.replace("coaching: light",
+                                          f"coaching: {args.coaching}", 1)
     safe_write(topic_path / "config.yaml", config_yaml, args.force)
 
     # 8. .gitignore. A topic workspace is a directory of markdown a researcher

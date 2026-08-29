@@ -39,7 +39,7 @@ import datetime as dt
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .core import vocab
+from .core import md_blocks, vocab
 from .kb import threads
 
 #: Open propositions a line may carry before `next` starts asking for one to be
@@ -116,6 +116,7 @@ class State:
     debt: list = field(default_factory=list)
     notes: list = field(default_factory=list)
     wip_limit: int = WIP_LIMIT
+    coaching: str = vocab.DEFAULT_COACHING
 
     @property
     def open_questions(self) -> list:
@@ -154,17 +155,58 @@ def _last_post_time(note):
 
 
 def load(root, wip_limit: int | None = None, stall_days: int = STALL_DAYS,
-         now=None) -> State:
+         now=None, coaching: str = vocab.DEFAULT_COACHING) -> State:
     """Read `threads/` once and derive everything from it."""
     root = Path(root)
     now = now or dt.datetime.now(dt.timezone.utc)
     notes = [threads.read_note(path) for path in threads.note_paths(root)]
 
-    state = State(root=root, notes=notes, wip_limit=wip_limit or WIP_LIMIT)
+    state = State(root=root, notes=notes, wip_limit=wip_limit or WIP_LIMIT,
+                  coaching=coaching)
     state.lines = _lines(notes, now=now, stall_days=stall_days, limit=state.wip_limit)
     state.queue = _queue(notes, state.lines)
     state.debt = _debt(root, notes)
+    if coaching == "strict":
+        missing = _missing_bets(notes)
+        state.debt.extend(missing)
+        # The nudge becomes the block. Leaving both in would put one missing
+        # prediction on `magi next` twice, in two different voices, which reads
+        # as two problems.
+        covered = {item.slug for item in missing}
+        state.queue = [item for item in state.queue
+                       if not (item.kind == "bet" and item.slug in covered)]
     return state
+
+
+def _missing_bets(notes) -> list:
+    """Under `coaching: strict`, work started with no prediction is debt.
+
+    The design's strict level is "no prediction, no derivation". A `PreToolUse`
+    hook cannot enforce that: it sees a tool call, not which proposition the
+    call is about, so it would have to block everything or nothing. The gate
+    that *can* tell is the one that reads the notes — so strict makes a missing
+    prediction block the session's end rather than the next file read.
+
+    "Don't know" satisfies it. The point was never a correct prediction, it was
+    a recorded one.
+
+    Only `testing` blocks, while the queue asks as early as `conjectured`. The
+    rule is "no prediction, no derivation", and a conjecture nobody has started
+    on has no derivation yet — so the earlier ask stays a nudge and the block
+    lands where work actually begins.
+    """
+    out = []
+    for note in notes:
+        if note.kind != vocab.PROPOSITION or note.status != "testing":
+            continue
+        if note.frontmatter.get("bet"):
+            continue
+        out.append(DebtItem(
+            slug=note.slug, path=note.path,
+            why="work started with no prediction on record, and coaching is strict "
+                "— `magi decide --about {slug} --bet <supported|refuted|unknown> "
+                "--text '<what they said>'`".format(slug=note.slug)))
+    return out
 
 
 def _lines(notes, now, stall_days: int, limit: int) -> list:
@@ -415,6 +457,17 @@ def candidates(state: State) -> list:
     """
     actions: list = []
 
+    dump = unfiled(state.root)
+    if dump:
+        first = dump[0][:60] + ("…" if len(dump[0]) > 60 else "")
+        actions.append(Action(
+            key="inbox", cost="llm",
+            why=f"{len(dump)} unfiled line(s) in inbox/notes.md — starting \"{first}\"",
+            run="read inbox/notes.md; turn each line into one of: "
+                + ", ".join(WRITE_SURFACES)
+                + "; quote the original in whatever it becomes, then remove the "
+                  "line. Unsure — open it as a question."))
+
     for item in state.debt:
         actions.append(Action(
             key="debt", slug=item.slug, why=item.why, cost="llm",
@@ -449,6 +502,14 @@ def candidates(state: State) -> list:
             key="empty-line", slug=view.slug, line=view.slug, cost="human",
             why=f"{name} has nothing open — what is the next question?",
             run=f"magi thread new <slug> --kind proposition{scope} …"))
+
+    for slug in unreviewed(state):
+        note = by_slug.get(slug)
+        actions.append(Action(
+            key="review", slug=slug, cost="llm",
+            line=(note.lines or [None])[0] if note else None,
+            why=f"{slug} says it is solved and nobody independent has read it",
+            run=f"magi review {slug}"))
 
     for view in state.lines:
         if view.slug in spoken_for or view.status in ("closed", "dormant"):
@@ -600,6 +661,76 @@ def _wikilinks(text: str) -> list:
     return re.findall(r"\[\[([^\]|#]+)", text or "")
 
 
+#: Where a person puts anything, in any order, whenever it occurs to them.
+NOTES = ("inbox", "notes.md")
+
+#: The five places a dumped line can end up. Named here because the routing is
+#: the agent's judgement, and a list of five is the whole of the instruction.
+WRITE_SURFACES = ("question", "proposition", "decision", "a post on an existing note",
+                  "a task in beads")
+
+
+def unfiled(root) -> list:
+    """Lines the person dumped that nobody has filed yet.
+
+    The dump is deliberately the only place they are asked to be tidy in — no
+    format, no categories, no deciding where something goes at the moment they
+    think of it. Filing is the agent's job, and it is `next`'s first item when
+    there is anything here: a person's words waiting behind machine
+    bookkeeping is the wrong signal about whose time is scarce.
+
+    Filed lines are removed by whoever filed them, so what is left is exactly
+    what is still unclassified. Nothing is lost by the removal: the thing the
+    line became quotes it.
+    """
+    from .init_workspace import NOTES_STARTER
+
+    text = _read_text(Path(root).joinpath(*NOTES))
+    if text is None:
+        return []
+    # The starter text is scaffolding, not something somebody wrote — matched
+    # line by line rather than by splitting on blank lines. The split version
+    # dropped two paragraphs instead of one, so a line appended straight after
+    # the starter (which is what appending to a file does) landed inside the
+    # part being thrown away and this returned nothing at all.
+    scaffold = {line.strip() for line in NOTES_STARTER.splitlines() if line.strip()}
+    return [line.strip() for line in text.splitlines()
+            if line.strip() and line.strip() not in scaffold
+            and not line.lstrip().startswith("#")]
+
+
+def _read_text(path: Path):
+    """A file's text, or `None` when there is no file.
+
+    `notes.md` is the one file the design tells a person to type into freely,
+    and Notepad still writes cp1252 by default. A decode error there took down
+    `magi next` entirely — so the bytes come back with replacements rather than
+    an exception: slightly mangled words are worth more than no words.
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+
+
+def unreviewed(state: State) -> list:
+    """Claims that say they are solved and have had no independent reader.
+
+    Imported lazily and failing to an empty list: `magi next` has to answer in
+    a workspace where the reviewer's dependencies are missing, and "I could not
+    work out what needs reviewing" is not a reason to refuse to say anything at
+    all.
+    """
+    try:
+        from . import review as review_mod
+
+        return review_mod.pending(state.root)
+    except Exception:  # noqa: BLE001
+        return []
+
+
 # ---------------------------------------------------------------- feed
 
 
@@ -663,6 +794,75 @@ def render_feed(entries) -> str:
 MAP_PATH = ("output", "MAP.md")
 
 
+#: A closed proposition: the bet is now checkable against what happened.
+_SETTLED = {"supported", "refuted"}
+
+
+def retrospective(state: State, limit: int = 8) -> dict:
+    """What the predictions were worth, and what was decided lately.
+
+    Nobody goes back to look. The design's answer is that the map does it
+    unasked — a hit rate a person never sees trains nothing, and the whole
+    point of asking for a prediction before the work is that it can be checked
+    after.
+
+    `unknown` is not scored. It is the honest prior, and counting it as a miss
+    would teach people to guess instead of saying they do not know — which is
+    the one answer that keeps the rest of the numbers meaningful.
+    """
+    scored, unknown, late = [], 0, 0
+    for note in state.notes:
+        bet = note.frontmatter.get("bet")
+        if note.kind != vocab.PROPOSITION or not bet or note.status not in _SETTLED:
+            continue
+        settled_at, bet_at = None, None
+        for index, post in enumerate(note.posts):
+            if post.is_transition and post.dst in _SETTLED:
+                settled_at = index
+            if post.field == "bet":
+                bet_at = index
+        if settled_at is not None and bet_at is not None and bet_at > settled_at:
+            # Written after the answer arrived. Not a prediction, and counting
+            # it as one lets the headline number inflate for free — the whole
+            # reason a bet is asked for before the work is that it can be
+            # checked after. A bet with no event behind it (set when the note
+            # was created) predates everything and still counts.
+            late += 1
+            continue
+        if bet == "unknown":
+            unknown += 1
+            continue
+        scored.append({"slug": note.slug, "bet": bet, "outcome": note.status,
+                       "hit": bet == note.status,
+                       "at": note.posts[settled_at].at if settled_at is not None else ""})
+
+    hits = sum(1 for row in scored if row["hit"])
+    # Most recently settled last. Notes arrive in `note_paths` order, which is
+    # alphabetical, so slicing without this showed `p-02…p-09` and silently
+    # dropped the two oldest slugs rather than the two oldest bets.
+    scored.sort(key=lambda row: row["at"])
+    return {
+        "bets": scored[-limit:],
+        "hits": hits,
+        "scored": len(scored),
+        "unknown": unknown,
+        "late": late,
+        "rate": round(hits / len(scored), 2) if scored else None,
+        "decisions": _recent_decisions(state.root, limit),
+    }
+
+
+def _recent_decisions(root, limit: int) -> list:
+    """The headings of the last few entries in `decisions.md`."""
+    text = _read_text(Path(root) / DECISIONS)
+    if text is None:
+        return []
+    headings = [line.strip() for label, line in
+                md_blocks.classify_lines(md_blocks.normalize_newlines(text))
+                if label != md_blocks.CODE and line.startswith("## ")]
+    return headings[-limit:]
+
+
 def render_map(state: State, now=None) -> str:
     """`MAP.md`: the two things a person is supposed to look at.
 
@@ -699,6 +899,29 @@ def render_map(state: State, now=None) -> str:
     else:
         for item in decisions:
             out.append(f"- **{item.kind}** [[{item.slug}]] — {item.why}")
+    back = retrospective(state)
+    if back["scored"] or back["unknown"] or back["late"] or back["decisions"]:
+        out.extend(["", "## Looking back", ""])
+        if back["rate"] is not None:
+            out.append(f"Predictions: **{back['hits']}/{back['scored']}** right"
+                       + (f", {back['unknown']} recorded as \"don't know\""
+                          if back["unknown"] else "") + ".")
+            out.append("")
+            for row in back["bets"]:
+                mark = "✓" if row["hit"] else "✗"
+                out.append(f"- {mark} [[{row['slug']}]] — you said {row['bet']}, "
+                           f"it came out {row['outcome']}")
+        elif back["unknown"]:
+            out.append(f"{back['unknown']} prediction(s) recorded as \"don't know\" — "
+                       "an honest prior, and not scored.")
+        if back["late"]:
+            out.append("")
+            out.append(f"{back['late']} bet(s) written down after the answer was "
+                       "already in — not scored, and not a prediction.")
+        if back["decisions"]:
+            out.extend(["", "Decisions, most recent last:", ""])
+            out.extend(f"- {heading[3:]}" for heading in back["decisions"])
+
     out.append("")
     return "\n".join(out)
 
@@ -733,6 +956,7 @@ class CloseReport:
     blocking: list = field(default_factory=list)
     older: list = field(default_factory=list)
     conflicts: list = field(default_factory=list)
+    unreviewed: list = field(default_factory=list)
     map_path: str | None = None
 
     @property
@@ -827,13 +1051,34 @@ def close(root, window_hours: int = CLOSE_WINDOW_HOURS, write: bool = True,
         else:
             report.older.append(item)
 
+    # Named, not run. Design-v2 §11 triggers the reviewer here, and it will —
+    # but a headless call per claim is minutes of latency and real money inside
+    # a stop hook, and neither has a budget gate until M6. Naming them keeps
+    # the loop closed: `magi next` proposes the review, and an agent that is
+    # still working runs it. A stop hook that takes five minutes is a stop hook
+    # somebody uninstalls.
+    report.unreviewed = unreviewed(state)
+
     if write:
         report.map_path = str(write_map(state))
     return report
 
 
 def _reload(root):
-    return load(root)
+    """The projection as the workspace's own configuration defines it.
+
+    The gate has to agree with `magi next` about what counts as debt, and
+    under `coaching: strict` that includes a missing prediction. A gate reading
+    defaults while the router reads config is two answers to one question.
+    """
+    from .core.config_loader import get as config_get
+    from .core.config_loader import load_config
+
+    config = load_config(start=root)
+    return load(root,
+                wip_limit=config_get(config, "research.wip_limit", WIP_LIMIT),
+                stall_days=config_get(config, "research.stall_days", STALL_DAYS),
+                coaching=config_get(config, "research.coaching", vocab.DEFAULT_COACHING))
 
 
 def _recent(item: DebtItem, cutoff) -> bool:
@@ -867,6 +1112,11 @@ def render_close(report: CloseReport) -> str:
                    "(`magi thread status`), then close again.")
     else:
         out.append("Bookkeeping is current.")
+    if report.unreviewed:
+        out.append("")
+        out.append(f"Claiming to be solved, nobody independent has read them "
+                   f"({len(report.unreviewed)}):")
+        out.extend(f"  magi review {slug}" for slug in report.unreviewed[:5])
     if report.older:
         out.append("")
         out.append(f"Older debt, not blocking ({len(report.older)}):")
@@ -913,7 +1163,8 @@ def _loaded(root):
     config = load_config(start=root)
     return load(root,
                 wip_limit=config_get(config, "research.wip_limit", WIP_LIMIT),
-                stall_days=config_get(config, "research.stall_days", STALL_DAYS))
+                stall_days=config_get(config, "research.stall_days", STALL_DAYS),
+                coaching=config_get(config, "research.coaching", vocab.DEFAULT_COACHING))
 
 
 def _next(argv) -> int:
@@ -937,6 +1188,11 @@ def _next(argv) -> int:
                              for note in state.notes)]
 
     actions = candidates(state)
+    if args.line:
+        # An action that names another line is not this line's work. Actions
+        # that name none — the dump, the debt — belong to the project rather
+        # than to a line, and stay.
+        actions = [action for action in actions if action.line in (None, args.line)]
     if args.json:
         print(json.dumps(to_json(state, actions), ensure_ascii=False, indent=2))
     else:

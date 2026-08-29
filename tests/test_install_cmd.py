@@ -21,7 +21,7 @@ import json
 
 import pytest
 
-from magi import install_cmd
+from magi import init_workspace, install_cmd
 
 
 def settings(ws):
@@ -144,3 +144,45 @@ def test_the_workspace_name_comes_from_its_own_config(ws):
 
     text = (ws / "AGENTS.md").read_text(encoding="utf-8")
     assert "QEC under disorder" in text and "Threshold behaviour." in text
+
+
+# --------------------------------------------------------------------------
+# the level the agent is told and the level the gate enforces
+#
+# `--coaching strict` used to reach only the protocol text. The gate reads
+# `research.coaching` out of `config.yaml`, which nothing wrote — so the agent
+# was told strict and the gate computed light, which is the one arrangement
+# where the two readings of "which level are we on" can disagree.
+# --------------------------------------------------------------------------
+
+def test_the_level_is_written_where_the_gate_reads_it(tmp_path):
+    from magi.core.config_loader import get as config_get
+    from magi.core.config_loader import load_config
+
+    root = tmp_path / "topic"
+    init_workspace.main(["--topic-dir", str(root), "--name", "T", "--scope", "S",
+                         "--coaching", "strict"])
+
+    assert config_get(load_config(start=root), "research.coaching") == "strict"
+
+
+def test_install_moves_the_level_too(tmp_path):
+    """The workspace exists; somebody changed their mind about the level."""
+    from magi.core.config_loader import get as config_get
+    from magi.core.config_loader import load_config
+
+    root = tmp_path / "topic"
+    init_workspace.main(["--topic-dir", str(root), "--name", "T", "--scope", "S"])
+    assert config_get(load_config(start=root), "research.coaching") == "light"
+
+    install_cmd.write_coaching(root, "strict")
+    assert config_get(load_config(start=root), "research.coaching") == "strict"
+
+
+def test_a_dry_run_changes_nothing(tmp_path):
+    root = tmp_path / "topic"
+    init_workspace.main(["--topic-dir", str(root), "--name", "T", "--scope", "S"])
+    before = (root / "config.yaml").read_bytes()
+
+    install_cmd.install_protocol(root, "strict", dry_run=True)
+    assert (root / "config.yaml").read_bytes() == before

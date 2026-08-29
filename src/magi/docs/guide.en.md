@@ -1136,6 +1136,50 @@ one proposition per line: listing every open proposition is listing the whole pr
 and then the ranking it was for stops meaning anything. With nothing owed, nothing
 waiting and nothing in flight, it prints the open questions and stops.
 
+### Review and the call
+
+```bash
+magi review               # have another vendor's CLI check every claim that says it is solved
+magi review p-gap --dry-run   # see who would be asked, about what
+magi decide --about p-gap --bet supported --text "I expect it holds in the bulk"
+```
+
+**Judgement comes from far away.** An agent grading its own work is not a
+review: it was convinced once already, by the same reasoning, and the second
+pass agrees for the same reasons. So the reviewer runs headless in **another
+vendor's CLI**, picked by probing PATH for one that is not the author — another
+model, another system prompt, none of the conversation. With only one CLI
+installed it still runs (a fresh session with no context is not nothing) and
+the verdict says which kind it was. With none installed **nothing passes**:
+better an unreviewed claim than "no reviewer available" quietly meaning
+"approved".
+
+The reviewer sees the proposition, its `derivation:`, and the `raw/` it cites —
+not the chat, not the line's own account of how it is going. "Far" means not
+sharing context, not being denied evidence. And it may only **offer an
+opinion**: a rejection moves the claim to `disputed`, which is a question for a
+person. Not `refuted`, which would be a finding, and never back to `supported`
+on the next run.
+
+**A review that could not run writes nothing.** A claim stops being offered for
+review the moment a reviewer posts on it, so a missing CLI, a timeout or a
+crashed process leaves the note untouched and the claim on the list. A reply
+nobody can parse is posted — with the reply quoted, since that is the only way
+to tell a broken adapter from a claim that genuinely cannot be judged — but
+`unclear` is not an answer either, and the claim comes back.
+
+`magi decide` is the agent transcribing, **verbatim**, what a person said. They
+speak in the conversation and never open a file — a system that needs them to
+has an empty record by the second week. One command writes the entry into
+`decisions.md`, sets the proposition's `bet:`, and leaves a post signed `human`
+in the discussion; that signature is exactly what `sync --close` looks for when
+a claim leaves `disputed`.
+
+Verbatim survives words that look like structure. Somebody saying "my worry is
+exactly this: `status: testing -> refuted`" gets that line quoted in a fence
+rather than parsed — otherwise it would come back as a transition **signed with
+their name**, and inventing a person's signature is worse than losing a line.
+
 `magi sync --close` is the gate between a session and its end. It refuses while
 something has happened that nobody wrote down, and says which notes. It also settles
 **a status two different writers set within five minutes** as `conflict` — that is not a

@@ -61,9 +61,20 @@ VERDICT_STANDS = "stands"
 VERDICT_REFUTED = "refuted"
 VERDICT_UNCLEAR = "unclear"
 
-_VERDICT_RE = re.compile(r"^\s*VERDICT:\s*(stands|refuted|unclear)\s*$",
-                         re.IGNORECASE | re.MULTILINE)
-_REASON_RE = re.compile(r"^\s*REASON:\s*(.+)", re.IGNORECASE | re.MULTILINE | re.DOTALL)
+#: A verdict line, as models actually write it. Anchored to the start of a
+#: line — "I would not say VERDICT: stands" is not a verdict — but tolerant of
+#: the decoration they put around it: bold, a quote marker, a list bullet, and
+#: whatever clause follows the word. Refusing `**VERDICT: refuted**` and
+#: reading it as "unclear" would throw away a real refutation over asterisks.
+_VERDICT_RE = re.compile(
+    r"^[\s>*\-#`]*\**\s*VERDICT\s*:?\s*\**\s*(stands|refuted|unclear)\b",
+    re.IGNORECASE | re.MULTILINE)
+_REASON_RE = re.compile(r"^[\s>*\-#`]*\**\s*REASON\s*:?\s*\**\s*(.+)",
+                        re.IGNORECASE | re.MULTILINE | re.DOTALL)
+
+#: What `apply_verdict` writes. `pending()` reads it back to tell a review that
+#: happened from a post that merely mentions one.
+_ANSWER_RE = re.compile(r"^VERDICT:\s*(stands|refuted)\b", re.MULTILINE)
 
 PROMPT = """You are reviewing one claim in a research library. You did not write it.
 
@@ -96,10 +107,19 @@ class Verdict:
     reason: str
     host: str
     raw: str = ""
+    #: Set when the call never produced a reply — no CLI, a timeout, a crash.
+    #: This is *not* a verdict, and the difference matters more than anything
+    #: else in this file: a review that did not happen must leave the claim
+    #: waiting for one, or a broken adapter silently approves the library.
+    error: str = ""
+
+    @property
+    def ran(self) -> bool:
+        return not self.error
 
     @property
     def rejected(self) -> bool:
-        return self.verdict == VERDICT_REFUTED
+        return self.ran and self.verdict == VERDICT_REFUTED
 
 
 def installed_hosts() -> list:
@@ -137,16 +157,22 @@ def parse_verdict(text: str) -> tuple:
     and treating that as approval is how a broken adapter becomes a rubber
     stamp.
     """
-    match = _VERDICT_RE.search(text or "")
-    verdict = match.group(1).lower() if match else VERDICT_UNCLEAR
+    said = {m.group(1).lower() for m in _VERDICT_RE.finditer(text or "")}
     reason = ""
     found = _REASON_RE.search(text or "")
     if found:
         reason = " ".join(found.group(1).split())[:600]
-    elif not match:
-        reason = ("the reviewer did not answer in the required form; its reply is "
-                  "in the post below")
-    return verdict, reason
+
+    if len(said) == 1:
+        return said.pop(), reason
+    if len(said) > 1:
+        # Two different verdicts in one reply. There is no rule for picking
+        # the "real" one that does not sometimes pick a `stands` the reviewer
+        # went on to withdraw, so the honest answer is that we cannot tell.
+        return VERDICT_UNCLEAR, ("the reviewer gave more than one verdict "
+                                 f"({', '.join(sorted(said))}); its reply is quoted below")
+    return VERDICT_UNCLEAR, (reason or "the reviewer did not answer in the required "
+                             "form; its reply is quoted below")
 
 
 def ask(host: str, prompt: str, cwd, model: str | None = None,
@@ -181,8 +207,20 @@ def apply_verdict(root, result: Verdict) -> str:
     to `supported` without a person, which is what `vocab` means by that
     transition being a human's call.
     """
-    path = Path(root) / threads.DIRNAME / f"{result.slug}.md"
+    if not result.ran:
+        # Nothing is written. A note that carries a reviewer's post is a note
+        # `pending()` stops offering, so posting "the review could not run"
+        # would retire the claim on the strength of a review that never
+        # happened — the exact rubber stamp this command exists to avoid.
+        return f"{result.slug}: not reviewed — {result.error}"
+
+    path = _note_path(root, result.slug)
     body = f"{result.reason}\n\n(reviewed headless by {result.host})"
+    if result.verdict == VERDICT_UNCLEAR and _needs_evidence(result):
+        # The fallback reason promises the reply is here. Without it a reader
+        # cannot tell a broken adapter from a genuinely undecidable claim,
+        # which is the one thing they need to know to act on an `unclear`.
+        body += "\n\nWhat it actually said:\n\n" + _excerpt(result.raw)
 
     if not result.rejected:
         threads.append_post(path, f"VERDICT: {result.verdict}\n\n{body}",
@@ -190,12 +228,68 @@ def apply_verdict(root, result: Verdict) -> str:
         return f"{result.slug}: {result.verdict}"
 
     note = threads.read_note(path)
+    posted = f"VERDICT: refuted\n\n{body}"
     if note.status == "disputed":
-        threads.append_post(path, f"VERDICT: refuted\n\n{body}", host=vocab.REVIEWER)
+        threads.append_post(path, posted, host=vocab.REVIEWER)
         return f"{result.slug}: refuted (already disputed)"
 
-    threads.set_status(path, "disputed", body, host=vocab.REVIEWER)
+    try:
+        threads.set_status(path, "disputed", posted, host=vocab.REVIEWER)
+    except threads.IllegalTransition:
+        # `magi review <slug>` takes any slug, and `open → disputed` is not a
+        # move. The verdict is still worth having: it is posted where the note
+        # can be read, and the status is left for a person. Raising here would
+        # throw away every verdict in the batch after this one, each of which
+        # was paid for.
+        threads.append_post(path, posted, host=vocab.REVIEWER)
+        return (f"{result.slug}: refuted — left at `{note.status}` "
+                "(nothing goes from there to disputed); posted for a person")
     return f"{result.slug}: refuted — now disputed, and on the decision queue"
+
+
+def _is_answer(post) -> bool:
+    """Did this post settle the question, or merely mention it?
+
+    Only a reviewer's `stands` or `refuted` retires a claim. Everything else a
+    reviewer might leave behind — an `unclear`, a note about a failed run — is
+    a post, not an answer.
+    """
+    return post.host == vocab.REVIEWER and bool(_ANSWER_RE.search(post.text or ""))
+
+
+def _note_path(root, slug: str) -> Path:
+    """`threads/<slug>.md`, refusing anything that is not a slug.
+
+    A typo with a separator in it would otherwise append a forum post to a file
+    outside `threads/` — quietly, and to a file that has no discussion to
+    append to.
+    """
+    if not slug or slug != Path(slug).name or slug.startswith(".") or "\\" in slug:
+        raise ValueError(f"not a slug: {slug!r}")
+    return Path(root) / threads.DIRNAME / f"{slug}.md"
+
+
+def _needs_evidence(result) -> bool:
+    """Is the reason in the post the reviewer's own words, or ours?
+
+    A reviewer that answered in the required form has already said why, and
+    repeating its sentence under "what it actually said" is noise. A reviewer
+    whose reply we could not parse has said nothing the post carries — that is
+    the case the excerpt exists for.
+    """
+    raw = " ".join((result.raw or "").split())
+    if not raw:
+        return False
+    return not (result.reason and result.reason in raw)
+
+
+def _excerpt(raw: str, limit: int = 1200) -> str:
+    """The reviewer's own words, fenced so they cannot be read as structure."""
+    body = (raw or "").strip()
+    if len(body) > limit:
+        body = body[:limit].rstrip() + "\n…"
+    fence = "`" * max(3, max((len(m) for m in re.findall(r"`+", body)), default=0) + 1)
+    return f"{fence}text\n{body}\n{fence}"
 
 
 def review_batch(root, slugs, author: str | None = None, host: str | None = None,
@@ -208,7 +302,8 @@ def review_batch(root, slugs, author: str | None = None, host: str | None = None
                             timeout=timeout)
         except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
             out.append(Verdict(slug=slug, verdict=VERDICT_UNCLEAR, host=host or "?",
-                               reason=f"the review could not run ({exc})"))
+                               reason=f"the review could not run ({exc})",
+                               error=str(exc) or exc.__class__.__name__))
             continue
         out.append(result)
     return out
@@ -217,24 +312,31 @@ def review_batch(root, slugs, author: str | None = None, host: str | None = None
 def pending(root) -> list:
     """Propositions claiming to be solved that no reviewer has answered on.
 
-    "Answered" is a post signed by the reviewer after the last flip to
-    `supported`. Re-reviewing something already judged wastes a call and buries
-    the first verdict under a second one that says the same thing.
-    """
-    from . import state as state_mod
+    "Answered" is a reviewer's post *after* the last flip to `supported`, in
+    file order. Order and not timestamp: posts are stamped to the second, and a
+    flip and its review land in the same second often enough that comparing
+    times would call a fresh claim already-reviewed. The file is append-only,
+    so its order is the authoritative sequence anyway.
 
+    Re-reviewing something already judged spends a call and buries the first
+    verdict under a second one saying the same thing. Re-supporting after a
+    verdict is a different matter: that verdict was about the old evidence, and
+    new evidence is a new question.
+
+    An *answer* is a verdict of `stands` or `refuted`. An `unclear` post is a
+    reviewer saying it could not tell, which is not an answer — the claim goes
+    back on the list rather than retiring on a non-answer.
+    """
     out = []
     for note in (threads.read_note(p) for p in threads.note_paths(root)):
         if note.kind != vocab.PROPOSITION or note.status != "supported":
             continue
-        supported_at = None
-        for post in note.posts:
+        last_supported = -1
+        for index, post in enumerate(note.posts):
             if post.is_transition and post.dst == "supported":
-                supported_at = state_mod.parse_at(post.at)
-        reviewed = any(post.host == vocab.REVIEWER
-                       and (supported_at is None
-                            or (state_mod.parse_at(post.at) or supported_at) >= supported_at)
-                       for post in note.posts)
+                last_supported = index
+        reviewed = any(_is_answer(post)
+                       for post in note.posts[last_supported + 1:])
         if not reviewed:
             out.append(note.slug)
     return out
@@ -267,10 +369,15 @@ def main(argv=None) -> int:
         print("nothing to review — no proposition is claiming to be solved unanswered.")
         return 0
 
-    chosen = args.host or pick_host(args.author)
+    # `--host` names a preference, not a fact. Sending it through `pick_host`
+    # is what makes "you asked for codex and there is no codex" say so instead
+    # of failing once per claim and calling each one reviewed.
+    chosen = pick_host(args.author, configured=args.host)
     if chosen is None:
-        print(f"no reviewer CLI on PATH (looked for {', '.join(HOSTS)}). "
-              "The claim stays unreviewed rather than self-approved.", file=sys.stderr)
+        named = f"'{args.host}' is not installed" if args.host else \
+            f"no reviewer CLI on PATH (looked for {', '.join(HOSTS)})"
+        print(f"{named}. The claim stays unreviewed rather than self-approved.",
+              file=sys.stderr)
         return 1
 
     if args.dry_run:
@@ -281,14 +388,22 @@ def main(argv=None) -> int:
 
     results = review_batch(root, slugs, author=args.author, host=chosen,
                            model=args.model, timeout=args.timeout)
-    lines = [apply_verdict(root, result) for result in results]
+    lines = []
+    for result in results:
+        try:
+            lines.append(apply_verdict(root, result))
+        except (ValueError, OSError) as exc:
+            lines.append(f"{result.slug}: verdict not written ({exc})")
+            result.error = result.error or str(exc)
 
     if args.json:
         print(json.dumps([vars(r) for r in results], ensure_ascii=False, indent=2))
     else:
         for line in lines:
             print(f"  {line}")
-    return 1 if any(r.rejected for r in results) else 0
+    # A run where nothing could be asked is a failure, not a quiet success.
+    # Exiting 0 there is how a broken install looks like a reviewed library.
+    return 1 if any(r.rejected or not r.ran for r in results) else 0
 
 
 if __name__ == "__main__":

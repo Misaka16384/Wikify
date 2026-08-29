@@ -114,6 +114,25 @@ def install_hook(root: Path, host: str, dry_run: bool = False) -> str:
     return f"{host}: stop gate installed ({path})"
 
 
+def write_coaching(root: Path, coaching: str) -> None:
+    """Record the coaching level where the *gate* reads it.
+
+    `managed.body` puts the level in the protocol the agent reads; `state`
+    reads `research.coaching` out of `config.yaml`. Writing only the first is
+    how a workspace ends up telling the agent it is under `strict` while the
+    gate that would enforce it computes `light`.
+    """
+    from .core.config_edit import ConfigEditError, set_config_value
+
+    try:
+        set_config_value(root / "config.yaml", "research.coaching", coaching)
+    except (ConfigEditError, OSError):
+        # A workspace with no readable config is a workspace running on
+        # defaults, which is `light` — the same answer, so nothing is lost by
+        # not being able to say it out loud.
+        pass
+
+
 def install_protocol(root: Path, coaching: str = "light", dry_run: bool = False) -> str:
     """Refresh the managed block and the `CLAUDE.md` pointer."""
     config = root / "config.md"
@@ -123,6 +142,8 @@ def install_protocol(root: Path, coaching: str = "light", dry_run: bool = False)
     scope = str(front.get("scope") or "A topic wiki.")
 
     body = managed.body(name, scope, coaching)
+    if not dry_run:
+        write_coaching(root, coaching)
     agents = root / "AGENTS.md"
     if dry_run:
         current = managed.read(agents.read_text(encoding="utf-8")) if agents.is_file() else None
