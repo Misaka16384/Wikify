@@ -1,8 +1,11 @@
 """`docs/degradation.md` is a design document and a checklist, so it is checked.
 
-D6: MAGI leans on seven services it does not control and none of them offers a
-version to pin. The table says what the product degrades to when each one goes
-away, and what the user sees while it happens.
+D6: MAGI leans on eleven things it does not control and none of them offers a
+version to pin — seven network services, and the four ways v2 depends on other
+people's programs on this machine (a reviewer CLI, its answer, five vendors'
+session stores, and the call budget that pays for them). The table says what
+the product degrades to when each one goes away, and what the user sees while
+it happens.
 
 A table nobody verifies rots into a promise. These tests keep two things true:
 every row names a code path that still exists, and the fallbacks the rows
@@ -34,7 +37,7 @@ def rows():
 
 
 def test_the_document_exists_and_has_rows(rows):
-    assert len(rows) >= 7, "fewer upstreams listed than the project actually uses"
+    assert len(rows) >= 11, "fewer upstreams listed than the project actually uses"
 
 
 def test_every_row_says_what_the_user_sees(rows):
@@ -73,6 +76,37 @@ def test_search_still_reports_a_degraded_vector_leg():
 def test_the_semantic_scholar_retry_still_matches_on_429():
     body = (REPO / "src" / "magi" / "radar.py").read_text(encoding="utf-8")
     assert '"429" in str(exc)' in body
+
+
+def test_an_unparseable_verdict_is_still_unclear_and_never_a_pass():
+    """The row promises a reviewer that rambles cannot become an approval."""
+    from magi import review
+
+    assert review.parse_verdict("I would rather not say.")[0] == review.VERDICT_UNCLEAR
+    assert review.parse_verdict("VERDICT: stands\nVERDICT: refuted")[0] == \
+        review.VERDICT_UNCLEAR
+
+
+def test_a_review_still_falls_back_to_another_vendor_then_to_the_same_one():
+    from magi import review
+
+    assert review.pick_host("claude", installed=["claude", "codex"]) == "codex"
+    assert review.pick_host("claude", installed=["claude"]) == "claude"
+    assert review.pick_host("claude", installed=[]) is None
+
+
+def test_one_unreadable_host_still_does_not_stop_the_sweep():
+    body = (REPO / "src" / "magi" / "reflect" / "transcripts.py").read_text(encoding="utf-8")
+    assert "result.unreadable[name]" in body, \
+        "the sweep must report what it could not read rather than raise"
+
+
+def test_the_budget_is_still_counted_in_calls():
+    """Calls, not money: a headless CLI does not say what a request cost, and a
+    budget denominated in a number nobody can measure never refuses anything."""
+    body = (REPO / "src" / "magi" / "core" / "ledger.py").read_text(encoding="utf-8")
+    assert "DEFAULT_WEEKLY" in body
+    assert "budget is spent" in body
 
 
 def test_the_document_states_its_own_gaps():

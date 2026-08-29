@@ -125,8 +125,12 @@ def test_the_moves_come_from_the_vocabulary(client):
     a second table, and the two disagree the first time one is edited."""
     payload = get(client, "/api/workspace/thread", slug="p-gap")
 
+    # Everything the vocabulary allows except `conflict`: that status is what
+    # the close gate *writes* when two writers collide, and a person choosing
+    # it from a dropdown is recording a disagreement that did not happen.
     assert [move["dst"] for move in payload["moves"]] == \
-        list(vocab.allowed_targets(vocab.PROPOSITION, "testing"))
+        [dst for dst in vocab.allowed_targets(vocab.PROPOSITION, "testing")
+         if dst != vocab.CONFLICT]
     for move in payload["moves"]:
         assert move["writers"] == sorted(
             vocab.writers(vocab.PROPOSITION, "testing", move["dst"]))
@@ -373,6 +377,23 @@ def test_accepting_from_the_browser_writes_the_same_records(client):
 def test_a_verb_nobody_defined_is_refused(client):
     res = post(client, "/api/workspace/proposal", id="r-1", verb="delete")
     assert res.status_code == 400
+
+
+def test_retiring_from_the_browser_is_a_decision_a_person_can_make(client):
+    """The queue asks "is this rule still earning its place?" every time
+    `magi next` runs. Answering it only in a terminal means it sits there
+    forever — and the dashboard exists so a person does not have to open one."""
+    from magi.reflect import proposals
+
+    made = proposals.propose(client.ws, kind=proposals.RULE, target="AGENTS.md",
+                             text="Check the boundary first.", pattern="p-quiet")
+    post(client, "/api/workspace/proposal", id=made.id, verb="accept")
+
+    res = post(client, "/api/workspace/proposal", id=made.id, verb="retire")
+
+    assert res.status_code == 200
+    assert proposals.get(client.ws, made.id).verdict == proposals.RETIRED
+    assert made.id not in [rule.id for rule in proposals.live_rules(client.ws)]
 
 
 def test_a_proposal_that_is_not_there_is_refused(client):

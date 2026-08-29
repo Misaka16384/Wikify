@@ -301,11 +301,35 @@ magi skills uninstall            # 撤掉
 | **Claude Code** | `~/.claude/skills/` | `.claude/skills/` | `/技能名`，也会按描述自动触发 |
 | **Codex** | `~/.agents/skills/`（外加 `~/.codex/skills/`） | `<仓库根>/.agents/skills/` | `$技能名`，或让它按描述自选 |
 | **Antigravity（agy）** | `~/.gemini/config/skills/` | `<仓库根>/.agents/skills/` | 说出名字，或按描述自动触发；`/skills` 可浏览 |
+| **qwen-code** | `~/.agents/skills/` | `<仓库根>/.agents/skills/` | 说出名字，或按描述自动触发 |
 | **opencode** | `~/.config/opencode/commands/` + `skills/` | `.opencode/commands/` + `skills/` | `/技能名` |
 
 > [!NOTE]
 > **不是每个 CLI 都有斜杠命令。** Claude Code 和 opencode 有；Codex 用 `$技能名`；agy 只按描述自动触发（`/skills` 只是个浏览面板）。所以最稳的用法在哪都一样：**把你要做的事说出来**——「摄入 inbox 里的论文」「查一下这个报错」——描述匹配上就会自动加载对应技能。
-> `.agents/skills/` 是跨 agent 的公共约定：Codex 和 agy 共用它，装一份两家都认。opencode 也会扫这个目录，但斜杠命令来自它自己的 `.opencode/commands/`，所以安装器会另外给它写一份。
+> `.agents/skills/` 是跨 agent 的公共约定：Codex、agy、qwen 共用它，装一份三家都认。opencode 也会扫这个目录，但斜杠命令来自它自己的 `.opencode/commands/`，所以安装器会另外给它写一份。
+
+> [!NOTE]
+> **表里没有你用的 CLI？自己加一条，不用改代码。** 世上的 agent CLI 太多，列不完，所以「宿主」是一条**记录**：`config.yaml` 里的 `research.hosts` 收和内置宿主完全同形的条目。加完 `magi skills where` 就会列出它，`magi skills install --host <key>` 会往它那儿写，`magi review` 也能调它。
+>
+> ```yaml
+> research:
+>   hosts:
+>     - key: mycli
+>       label: My CLI
+>       bin: mycli                     # PATH 上的命令名
+>       marker: "{home}/.mycli"        # 这个目录在，就算装了
+>       drops:
+>         - kind: skill                # skill | command
+>           global_dir: "{home}/.mycli/skills"
+>           project_dir: "{root}/.agents/skills"
+>           layout: dir                # dir -> <目录>/<名字>/SKILL.md ; flat -> <目录>/<名字>.md
+>           invoke: "/{name}"          # 你要敲什么，报告里照原样显示
+>       argv: ["{bin}", "-p", "{prompt}"]   # 没有无头模式就不写
+>       model_flag: "--model"
+> ```
+>
+> 能替换的只有 `{home}`、`{config}`（`XDG_CONFIG_HOME`）和 `{root}`（当前 workspace）。记录里**唯一写不了**的是怎么读这个 CLI 存下来的会话——各家存法都不一样，`magi reflect read` 要的是解析器，不是模板。没有 reader 的宿主只是不给慢回路贡献会话，别的一切照常。
+> `key` 撞上内置宿主就整条替换掉内置的——你把某个 CLI 装成了别的名字，就是这么指过去。
 
 **Claude Code 还可以走插件**（一键脚本已自动执行）：技能带 `magi:` 命名空间出现，还附带一个 SessionStart 钩子每次自动跑 `magi sync`：
 
@@ -1264,7 +1288,7 @@ SOURCE: raw/papers/laughlin-1983.md
 ```powershell
 magi verify drafts/paper.md --topic-dir .            # 退出码 0=全部通过，1=有未核验
 magi verify drafts/paper.md --topic-dir . --fetch-web  # 网页来源也真的抓取比对
-magi validate wiki/theses/x.md --schema thesis       # 论断报告的结构校验
+magi validate wiki/topics/x.md                      # 一篇综述的结构校验
 ```
 
 > [!NOTE]
@@ -1272,7 +1296,7 @@ magi validate wiki/theses/x.md --schema thesis       # 论断报告的结构校�
 > 引文必须是单行引号内容；多行引文不被支持。
 
 > [!WARN]
-> `magi validate --schema research` 里那条「有 N 个段落没有引用」的提示措辞很温和，但它**会让退出码变成 1**。写 CI 时注意。
+> `magi validate` 里那条「有 N 个段落没有引用」的提示措辞很温和，但它**会让退出码变成 1**。写 CI 时注意。
 
 ---
 

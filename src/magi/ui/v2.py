@@ -147,10 +147,14 @@ def register(app, resolve_workspace) -> None:
             # Which statuses this note may become and who may say so. The
             # buttons are built from this, so the browser holds no copy of the
             # transition table — there is one, in `vocab`.
+            # `conflict` is not offered. It is what the close gate *writes* when
+            # two writers collide; a person choosing it by hand is recording a
+            # disagreement that did not happen, and only a person can undo it.
             "moves": [{"dst": dst,
                        "writers": sorted(vocab.writers(kind, status, dst)),
                        "human_only": vocab.is_human_only(kind, status, dst)}
-                      for dst in vocab.allowed_targets(kind, status)],
+                      for dst in vocab.allowed_targets(kind, status)
+                      if dst != vocab.CONFLICT],
         }
 
     @app.post("/api/workspace/thread/post")
@@ -224,19 +228,25 @@ def register(app, resolve_workspace) -> None:
 
     @app.post("/api/workspace/proposal")
     def post_workspace_proposal(payload: dict = Body(...)) -> dict:
-        """Accept, reject or promote one proposal from the slow loop.
+        """Rule on one thing the slow loop has put in front of a person.
 
         The same code path the CLI takes, so a decision made here and one made
         in the terminal write the same records — and the rule budget can refuse
         here too, which is the point of it refusing rather than truncating.
+
+        `retire` is one of them because the queue asks for it: a rule whose
+        pattern has gone quiet comes back as a question every time `magi next`
+        runs, and a question a person can only answer in a terminal is one that
+        sits in the queue forever.
         """
         from magi.reflect import cmd as reflect_cmd
 
         ws = resolve_workspace(payload.get("workspace"))
         verb = str(payload.get("verb") or "").strip()
-        if verb not in ("accept", "reject", "promote"):
-            raise HTTPException(status_code=400,
-                                detail="a decision is accept, reject or promote")
+        if verb not in ("accept", "reject", "promote", "retire"):
+            raise HTTPException(
+                status_code=400,
+                detail="a decision is accept, reject, promote or retire")
         ident = str(payload.get("id") or "").strip()
         note = str(payload.get("note") or "")
 

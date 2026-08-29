@@ -26,18 +26,20 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from .core import hosts as _hosts
+
 LANGS = ("zh", "en")
 
 _ANCHOR_RE = re.compile(r"\s*\{#([A-Za-z0-9_-]+)\}\s*$")
 _FENCE_RE = re.compile(r"^\s*```")
 _CALLOUT_RE = re.compile(r"^>\s*\[!([A-Z]+)\]\s*(.*)$")
-# Commands worth surfacing to an agent as "the thing to run next".
-# Command names the guide's extractor will pick out of a code block. All
-# four supported agent CLIs are here, not just Claude Code: an asymmetric
-# list silently drops any example written for one of the others.
+# Command names the extractor will pick out of a code block, as "the thing to
+# run next". Every agent CLI the project knows about is in here by
+# construction: a hand-kept list silently drops the examples written for
+# whichever host somebody forgot to add to it.
 _CMD_TOOLS = ("magi", "bd", "ollama", "uv", "pipx", "curl", "powershell",
-              "schtasks", "launchctl",
-              "claude", "codex", "agy", "opencode")
+              "schtasks", "launchctl") + tuple(
+                  host.command for host in _hosts.BUILTIN)
 _INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
 
 # First cell of a table header that marks the table as a symptom index.

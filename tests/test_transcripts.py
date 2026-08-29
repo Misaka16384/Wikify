@@ -1,4 +1,4 @@
-"""Four hosts, four formats, one shape — and none of them ours to change.
+"""Five hosts, five shapes, one answer — and none of them ours to change.
 
 Every fixture here is written by hand from the real files' structure rather
 than copied from a machine: a transcript is somebody's actual work, and a test
@@ -6,8 +6,8 @@ suite is the wrong place for it. What is reproduced is the shape — which keys
 carry the words, which one carries the working directory, and the ways each
 format is awkward.
 
-The property under test is mostly **failure**. Four adapters over four formats
-we do not control is four chances to be broken, and a slow loop that refuses to
+The property under test is mostly **failure**. Five adapters over five formats
+we do not control is five chances to be broken, and a slow loop that refuses to
 run because one vendor renamed a key is a slow loop that never runs. So a
 missing host, a half-written line, a moved schema and an unreadable database
 each have to end in "nothing from that host" rather than an exception.
@@ -143,11 +143,11 @@ def test_codex_finds_its_directory_in_the_session_header(home, ws, tmp_path):
 
 
 # --------------------------------------------------------------------------
-# gemini
+# qwen — the chat layout it inherited from the CLI Antigravity replaced
 # --------------------------------------------------------------------------
 
 def gemini_fixture(home, cwd, folder="acajourney"):
-    base = home / ".gemini" / "tmp" / folder
+    base = home / ".qwen" / "tmp" / folder
     (base / "chats").mkdir(parents=True)
     (base / ".project_root").write_text(cwd, encoding="utf-8")
     (base / "chats" / "session-2026-08-29T10-00-abc.json").write_text(json.dumps({
@@ -163,20 +163,61 @@ def gemini_fixture(home, cwd, folder="acajourney"):
     return base
 
 
-def test_gemini_joins_on_the_file_beside_the_chats(home, ws):
+def test_the_chat_reader_joins_on_the_file_beside_the_chats(home, ws):
     """`projectHash` is not a hash of any path we can reproduce. The
     `.project_root` next to it is the real directory."""
     gemini_fixture(home, str(ws))
-    session = transcripts.gemini_sessions(ws, home=home)[0]
+    session = transcripts.qwen_sessions(ws, home=home)[0]
 
     assert session.session_id == "g-1"
     assert "not at the boundary" in session.excerpt()
 
 
-def test_a_gemini_folder_with_no_project_root_is_skipped_not_guessed(home, ws):
+def test_a_chat_folder_with_no_project_root_is_skipped_not_guessed(home, ws):
     base = gemini_fixture(home, str(ws))
     (base / ".project_root").unlink()
-    assert transcripts.gemini_sessions(ws, home=home) == []
+    assert transcripts.qwen_sessions(ws, home=home) == []
+
+
+# --------------------------------------------------------------------------
+# antigravity
+# --------------------------------------------------------------------------
+
+def antigravity_fixture(home, cwd):
+    path = home / ".gemini" / "antigravity-cli" / "history.jsonl"
+    write_jsonl(path, [
+        {"display": "why did the sweep stall?", "timestamp": 1756000000,
+         "workspace": cwd, "conversationId": "c-1"},
+        {"display": "check the boundary condition", "timestamp": 1756000600,
+         "workspace": cwd, "conversationId": "c-1"},
+        {"display": "unrelated", "timestamp": 1756000900,
+         "workspace": "C:/somewhere/else", "conversationId": "c-2"},
+    ])
+    return path
+
+
+def test_antigravity_reads_what_the_person_typed(home, ws):
+    """Its assistant side is protobuf we have no schema for. Half a
+    transcript — the half where somebody says "no, that is not what I meant" —
+    beats guessing at field numbers and being wrong invisibly."""
+    antigravity_fixture(home, str(ws))
+
+    sessions = transcripts.antigravity_sessions(ws, home=home)
+
+    assert len(sessions) == 1
+    assert sessions[0].session_id == "c-1"
+    assert [turn.text for turn in sessions[0].turns] == [
+        "why did the sweep stall?", "check the boundary condition"]
+
+
+def test_antigravity_joins_on_the_workspace_in_each_row(home, ws):
+    antigravity_fixture(home, str(ws))
+    assert all(session.cwd == str(ws)
+               for session in transcripts.antigravity_sessions(ws, home=home))
+
+
+def test_no_antigravity_history_is_not_an_error(home, ws):
+    assert transcripts.antigravity_sessions(ws, home=home) == []
 
 
 # --------------------------------------------------------------------------
@@ -249,13 +290,13 @@ def test_one_broken_host_does_not_stop_the_others(home, ws, monkeypatch):
     def explode(*args, **kwargs):
         raise OSError("the vendor renamed a directory")
 
-    monkeypatch.setitem(transcripts.ADAPTERS, "gemini", explode)
+    monkeypatch.setitem(transcripts.ADAPTERS, "antigravity", explode)
 
     result = transcripts.sweep(ws, home=home)
 
     assert {session.host for session in result.sessions} == {"claude", "codex"}
-    assert "gemini" in result.unreadable
-    assert "renamed a directory" in result.unreadable["gemini"]
+    assert "antigravity" in result.unreadable
+    assert "renamed a directory" in result.unreadable["antigravity"]
 
 
 def test_a_machine_with_no_hosts_is_quiet(home, ws):

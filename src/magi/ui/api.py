@@ -356,6 +356,21 @@ def _shutdown_this_server() -> None:
     threading.Thread(target=stop, daemon=True).start()
 
 
+def _review_host_names() -> list:
+    """Hosts a review can actually be sent to, from the one host table.
+
+    Read at call time rather than hard-coded: a list kept by hand here went on
+    offering a CLI that had been retired, and the dropdown was the last place
+    anybody looked.
+    """
+    try:
+        from magi import review
+
+        return list(review.host_names())
+    except Exception:
+        return []
+
+
 def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     app = FastAPI(
         title="MAGI Research Workspace WebUI",
@@ -1699,7 +1714,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         # the string "null", which the server then refuses — an option the UI
         # offers and the API rejects.
         "research.review_host": {"type": "str",
-                                 "choices": ["", "claude", "codex", "gemini", "qwen"]},
+                                 "choices": [""] + _review_host_names()},
         # What a model may be pinned to. Empty means the host's own default,
         # which is what a person wants until they have a reason not to —
         # naming a model MAGI cannot reach turns every review into an error.
@@ -1718,6 +1733,12 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         # defines. Editable here because retiring one is a thing a person does,
         # and `magi reflect retire` is the other way to do it.
         "research.rules": {"type": "list_of_maps"},
+        # Agent CLIs this workspace knows about, beyond the ones that ship in
+        # `core/hosts.py`. There are too many CLIs in the world to enumerate,
+        # so a host is a record: a binary, where its skills go, how to call it
+        # headless. The one thing a record cannot supply is a transcript
+        # reader, and a host without one simply contributes no sessions.
+        "research.hosts": {"type": "list_of_maps"},
         "radar.min_relevance": {"type": "number", "nullable": True},
         "radar.days": {"type": "int"},
         "radar.max_candidates": {"type": "int"},
@@ -1767,7 +1788,9 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     def get_workspace_config(workspace: Optional[str] = Query(None)) -> dict:
         import yaml
 
-        ws = _resolve_workspace(workspace)
+        # The checking resolver: this endpoint reads a file out of whatever
+        # directory the query string named, and its sibling below creates one.
+        ws = _reading_root(workspace, None)
         cfg_path = ws / "config.yaml"
         raw = cfg_path.read_text(encoding="utf-8", errors="replace") if cfg_path.is_file() else ""
         try:
@@ -1829,7 +1852,9 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
                 raise HTTPException(status_code=400, detail=f"{key} expects a list of strings")
 
-        ws = _resolve_workspace(payload.get("workspace"))
+        # Writing `research.*` now changes what the close gate enforces, so
+        # "any path somebody typed" is not a workspace this may write to.
+        ws = _reading_root(payload.get("workspace"), None)
         cfg_path = ws / "config.yaml"
         try:
             set_config_value(cfg_path, key, value)

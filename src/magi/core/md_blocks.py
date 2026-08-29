@@ -81,6 +81,32 @@ def classify_lines(text: str) -> List[Tuple[str, str]]:
     return out
 
 
+def has_unclosed_fence(text: str) -> bool:
+    """Does this text open a code fence it never closes?
+
+    Such a text cannot be pasted into a larger document as-is: the fence keeps
+    running to the end of the *host* file, so everything written after it
+    renders as code and every parser that counts headings stops counting. The
+    callers that transcribe what a person said use this to decide that the
+    safe thing is to fence the whole quotation rather than to trust it.
+    """
+    labelled = classify_lines(normalize_newlines(text or ""))
+    if not labelled:
+        return False
+    fence = None
+    for _, line in labelled:
+        m = _FENCE.match(line)
+        if m is None:
+            continue
+        marker = m.group(2)[0] * len(m.group(2))
+        if fence is None:
+            fence = marker
+        elif marker[0] == fence[0] and len(marker) >= len(fence) \
+                and not m.group(3).strip():
+            fence = None
+    return fence is not None
+
+
 def map_prose(text: str, fn: Callable[[str], str],
               *, protect: Tuple[str, ...] = (CODE, TABLE)) -> str:
     """Apply ``fn`` to each run of unprotected lines, leaving the rest alone.

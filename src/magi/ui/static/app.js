@@ -48,6 +48,7 @@
       proposal_accept: "采纳",
       proposal_reject: "否掉",
       proposal_promote: "变成代码",
+      proposal_retire: "退掉这条规则",
       proposal_done: "已{verb}",
       lines_title: "研究线",
       lines_subtitle: "相位、线上开着几条、上次动是什么时候",
@@ -806,7 +807,8 @@
       proposal_accept: "Accept",
       proposal_reject: "Turn down",
       proposal_promote: "Make it code",
-      proposal_done: "{verb}ed",
+      proposal_retire: "Retire this rule",
+      proposal_done: "Done: {verb}",
       lines_title: "Research lines",
       lines_subtitle: "Phase, what is open on it, and when it last moved",
       lines_none: "No lines yet.",
@@ -3179,13 +3181,22 @@
     renderLookingBack(back, data.retrospective || {});
   }
 
-  //: The three things a person can do with a proposal. A table rather than a
-  //: key built at runtime: a concatenated key is one no checker can see.
-  const PROPOSAL_VERBS = [
-    { verb: "accept", key: "proposal_accept" },
-    { verb: "reject", key: "proposal_reject" },
-    { verb: "promote", key: "proposal_promote" },
-  ];
+  //: What a person can do with each kind of queue item the slow loop raises.
+  //: A table rather than a key built at runtime: a concatenated key is one no
+  //: checker can see. `retire` gets one verb because there is only one action
+  //: — leaving the rule alone is what happens if you never press anything, and
+  //: a button for that would be a button that does nothing.
+  const QUEUE_VERBS = {
+    proposal: [
+      { verb: "accept", key: "proposal_accept" },
+      { verb: "reject", key: "proposal_reject" },
+      { verb: "promote", key: "proposal_promote" },
+    ],
+    retire: [
+      { verb: "retire", key: "proposal_retire" },
+    ],
+  };
+  const PROPOSAL_VERBS = QUEUE_VERBS.proposal;
 
   function renderQueue(box, data) {
     // `decisions` is the queue with WIP already dropped — that rule lives in
@@ -3200,17 +3211,17 @@
     items.forEach((item) => {
       const row = document.createElement("div");
       row.className = "stack-row";
-      // A proposal is not a note, so its id does not open a thread — and the
-      // three things a person can do with one are the only per-kind buttons
-      // in this list. Everything else still renders the same way.
-      const isProposal = item.kind === "proposal";
-      const name = isProposal
+      // Neither a proposal nor a retire question is a note: both carry a
+      // ledger id, so rendering one as a thread link gives a person a link
+      // that opens nothing. Everything else in this list is a slug.
+      const verbs = QUEUE_VERBS[item.kind] || null;
+      const name = verbs
         ? `<code>${escapeHtml(item.slug)}</code>`
         : `<a href="#" class="thread-link" data-slug="${escapeHtml(item.slug)}">`
           + `${escapeHtml(item.slug)}</a>`;
-      const buttons = isProposal
+      const buttons = verbs
         ? `<div class="form-row">`
-          + PROPOSAL_VERBS.map((verb) =>
+          + verbs.map((verb) =>
             `<button class="btn btn-secondary btn-sm proposal-btn" `
             + `data-id="${escapeHtml(item.slug)}" data-verb="${verb.verb}">`
             + `${escapeHtml(t(verb.key))}</button>`).join("")
@@ -3241,7 +3252,8 @@
         method: "POST",
         body: JSON.stringify({ workspace: state.workspace, id, verb }),
       });
-      const named = PROPOSAL_VERBS.find((row) => row.verb === verb);
+      const named = Object.values(QUEUE_VERBS).flat()
+        .find((row) => row.verb === verb);
       showToast(t("proposal_done", { verb: t(named ? named.key : "proposal_accept") }),
                 "success");
       loadMap();

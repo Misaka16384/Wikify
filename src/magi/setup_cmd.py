@@ -544,13 +544,15 @@ def agent_cli_rows(workspace: Path | None = None) -> list[tuple[str, bool, str]]
         if prev is None or row["installed"] > prev["installed"]:
             state[row["host"]] = row
 
+    from magi.skills_cmd import detected
+
     rows: list[tuple[str, bool, str]] = []
     for host in HOSTS.values():
-        path = _which(host.binary)
-        found = host.detected()
+        path = _which(host.command)
+        found = detected(host)
         row = state.get(host.key)
         if not found:
-            rows.append(DoctorRow(host.binary, "optional",
+            rows.append(DoctorRow(host.command, "optional",
                                   f"{host.label} not installed"))
             continue
         where = path or "config dir present"
@@ -562,7 +564,7 @@ def agent_cli_rows(workspace: Path | None = None) -> list[tuple[str, bool, str]]
             extra = "no skills in this workspace — 'magi skills install'"
         else:
             extra = "installed; skills go in per workspace ('magi skills install')"
-        rows.append(DoctorRow(host.binary, "ok", f"{where} · {extra}"))
+        rows.append(DoctorRow(host.command, "ok", f"{where} · {extra}"))
     return rows
 
 

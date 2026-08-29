@@ -90,6 +90,47 @@ def test_a_workspace_with_no_theses_is_untouched(tmp_path):
     assert migrate.retire_theses(tmp_path) == (0, [])
 
 
+def _theses(tmp_path, index_body=""):
+    theses = tmp_path / "wiki" / "theses"
+    theses.mkdir(parents=True, exist_ok=True)
+    (theses / "a-thesis.md").write_text("# working out\n", encoding="utf-8")
+    (theses / "_index.md").write_text(
+        "# Theses\n\n## Contents\n\n| File |\n| :--- |\n" + index_body,
+        encoding="utf-8")
+    return theses
+
+
+def test_a_generated_index_goes_with_the_directory(tmp_path):
+    theses = _theses(tmp_path)
+
+    moved, skipped = migrate.retire_theses(tmp_path)
+
+    assert (moved, skipped) == (1, [])
+    assert not theses.exists()
+
+
+def test_an_index_somebody_wrote_in_is_not_deleted(tmp_path):
+    """Everything under `## Recent Changes` is carried through by every index
+    rebuild, precisely because a person typed it. A migration that is careful
+    with a name collision and careful with CLAUDE.md was throwing these away
+    on the way out."""
+    theses = _theses(tmp_path, "\n## Recent Changes\n\n- the sweep stalled at n=40\n")
+
+    moved, skipped = migrate.retire_theses(tmp_path)
+
+    assert moved == 1
+    assert skipped == ["_index.md"]
+    assert theses.is_dir()
+    assert "n=40" in (theses / "_index.md").read_text(encoding="utf-8")
+
+
+def test_an_empty_recent_changes_section_is_still_just_generated(tmp_path):
+    theses = _theses(tmp_path, "\n## Recent Changes\n\n")
+
+    assert migrate.retire_theses(tmp_path) == (1, [])
+    assert not theses.exists()
+
+
 # --------------------------------------------------------------------------
 # the two instruction files become one
 # --------------------------------------------------------------------------

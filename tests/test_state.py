@@ -656,6 +656,26 @@ def test_a_recorded_conflict_stops_the_session_once(ws):
     assert state.hook_payload(report)["decision"] == "block"
 
 
+def test_a_conflict_block_names_the_conflict_and_not_a_chore(ws):
+    """A block whose reason lists nothing is a block nobody can clear. The
+    payload used to describe only unrecorded work, so a session stopped purely
+    by a collision got "post what happened" followed by an empty list — an
+    instruction that does not apply to a conflict, about nothing in particular.
+    An agent told to fix something and given nothing to fix either loops or
+    invents work."""
+    collided(ws)
+    report = state.close(ws, now=NOW)
+    assert not report.blocking, "this test is about a conflict on its own"
+
+    reason = state.hook_payload(report)["reason"]
+
+    assert "p-a" in reason
+    assert "decision queue" in reason
+    assert "magi thread status" not in reason, (
+        "a conflict is not cleared by posting; saying so sends the agent to "
+        "resolve something only a person can")
+
+
 def test_one_unwritable_note_does_not_take_the_gate_down(ws):
     """A status no table knows, a file that vanished, a lock somebody holds:
     each is one note's problem. The gate answers for the whole workspace."""

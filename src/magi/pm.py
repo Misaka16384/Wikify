@@ -392,6 +392,15 @@ def main(argv: list[str] | None = None) -> int:
     p_init.add_argument("--prefix", help="Issue id prefix (default: ASCII slug of the directory name, or 'magi')")
     p_init.set_defaults(func=cmd_init)
 
+    p_backlog = sub.add_parser("backlog-sync",
+                               help="Create bd issues for uncompiled raw sources")
+    p_backlog.add_argument("--topic-dir",
+                           help="Topic workspace (default: discovered from cwd)")
+    p_backlog.set_defaults(func=cmd_backlog_sync)
+
+    args = parser.parse_args(argv)
+    return args.func(args)
+
 
 if __name__ == "__main__":
     sys.exit(main())

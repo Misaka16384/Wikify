@@ -167,7 +167,7 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [x] 托管块 = 模板 + 规则区：`managed.body()` 从 `output/reflect/ledger.jsonl` 渲染 ACCEPT 且未 promoted / 未退出的规则各一行；hash 守护模板与渲染函数，不守护渲染结果；规则区 > `rule_budget` 时由 `reflect accept` 拒绝并说先退哪条，渲染从不截断；`reflect accept | promote`、退出、`sync` 都重渲染，`install --dry-run` 走同一渲染函数；棘轮测试仍只量模板的 40 行
 - [x] durability：`output/reflect/patterns/` = ORIGINAL（原地改、唯一副本、原子写 + 锁），`output/reflect/ledger.jsonl` 与 `output/llm-ledger.jsonl` = TRANSACTIONAL（后者现在是 unknown）；`.gitignore` 模板不改——它本来就不整体忽略 `output/`——只把这三样加进「刻意不忽略」的注释
 - [x] skill 方法类提案：目标官方 skill → 队列里标「包级」，ACCEPT 只把 diff 写进账本并在 MAP 列为开发待办，不写包；目标自有 skill → ACCEPT 打补丁到 `~/.config/magi/skills/<name>/` 并提示重装；提案必须含加 / 删两行
-- [x] 官方标记与不覆盖：8 个官方 skill frontmatter 加 `origin: magi`；`skills_cmd._write` 只覆盖带标记的已有文件，替换「正文含 magi 就覆盖」；`magi install` 增 `~/.config/magi/skills/` 为第二来源，同名用户优先；测试：一个无标记的同名 fork 装两次都原样。同一处统一宿主词表：`antigravity` 降为 `gemini` 的别名，三张宿主表（`skills_cmd` / `review` / `transcripts`）文件头各写明答哪个问题并互指；qwen 的 install 目标不猜。同一家族的另一处：`magi install` 刷新 `CLAUDE.md` 指针时，人写的内容先备份到 `.backup/` 再改并说在哪（`install_cmd.py:155-160` 现在直接覆盖，`migrate.py:282-305` 是备份的——两条路对同一个文件两种态度）
+- [x] 官方标记与不覆盖：8 个官方 skill frontmatter 加 `origin: magi`；`skills_cmd._write` 只覆盖带标记的已有文件，替换「正文含 magi 就覆盖」；`magi install` 增 `~/.config/magi/skills/` 为第二来源，同名用户优先；测试：一个无标记的同名 fork 装两次都原样。同一处统一宿主词表：~~`antigravity` 降为 `gemini` 的别名~~（2026-08-29 作者改：反过来——Gemini CLI 废弃，`antigravity` 为正名，`gemini` 删，见 M7 第一条），三张宿主表（`skills_cmd` / `review` / `transcripts`）文件头各写明答哪个问题并互指；qwen 的 install 目标不猜。同一家族的另一处：`magi install` 刷新 `CLAUDE.md` 指针时，人写的内容先备份到 `.backup/` 再改并说在哪（`install_cmd.py:155-160` 现在直接覆盖，`migrate.py:282-305` 是备份的——两条路对同一个文件两种态度）
 - [x] 隔离测试：托管块、8 个 skill、`state.candidates()` 产出的 Action.run 里 grep 不到 `output/reflect`——最后那处是唯一会把路径塞进工作 agent 眼睛的地方。派生扫描（`_LINK_DIRS`、`_iter_corpus`、`graph build`）本来就不走 `output/`，不用再加排除。夹具注意 `is_topic_root` 认的是 wiki/ raw/ threads/，只有 `output/reflect` 的目录不是工作区
 
 **验收**：用真实 transcript 跑一轮产出 ≤ 5 条带引用的提案；模式页跨两次运行存活，第二次才过 ≥ 2 门；被拒的提案第三次运行不再出现且下一条提案能引用它；超预算时拒绝启动；托管块 hash 不变；PROMOTE→CODE 产出的测试可运行。
@@ -178,6 +178,8 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 
 ## M7 — 发表环、收尾、发布
 
+- [ ] **三批独立复核的发现全部修完**（2026-08-29；明细在 ROADMAP 当日条目；截至当日晚 26/31 已修，剩 M3 切片 5 条 low）：M3 切片本地 opus 14 条（`pm.main` 不解析参数致 `sync --fix` 永不收敛、skills 装进 cwd、install 默认只装 claude、CLAUDE.md 指针无备份、uninstall 无归属判断 rmtree、`ingest review --commit` 忽略 `--batch`、init 仍 spawn `hub register`…）；M4+M5 本地 opus 12 条（提示词回显被读成 `VERDICT: stands`、unclear 帖里的摘录被当答案、复核器裁决被当双翻改成 conflict、npm `.cmd` 宿主起不来、`decide --about` 换行伪造条目、config 端点未校验 workspace、浏览器可写 conflict、`dump()` 无锁无时间戳…）；M6 ultrareview 5 条（`install --coaching` 默认值绕过 None 哨兵、`already_proposed` 含 RETIRED 使退休规则回不来、WebUI 无 retire 路径…）。ultrareview M1+M2 的 2 条已在 M6 修
+- [ ] **Gemini CLI 全面退场**（2026-08-29 作者定）：宿主正名 `antigravity`（二进制 `agy`），`skills_cmd` 删 `gemini` 别名、help 列 antigravity；`review.py` 删 `gemini -p`，加 `agy -p --model`（考虑 `--json-schema` 直接要结构化裁决）；argv[0] 用 `shutil.which` 结果（修 npm `.cmd` 起不来）；transcripts 的 `~/.gemini/tmp` reader 确认为 agy 所写，否则改指 agy 的记录位置并改名 antigravity；guide / README / 托管块 / `degradation.md` 里 Gemini CLI 字样全改；用一次真实 `agy -p` 跑通端到端——花一次调用，先问人。**同一次做宿主注册表合一** `core/hosts.py`：三张表（`skills_cmd.HOSTS` / `review.HOSTS` / `transcripts.HOSTS`）变一张，每宿主一条声明（bin、skill 落点、无头模板、模型参数、reader 名、tier）；`research.hosts` 进 config 白名单让用户加记录；qwen / opencode 标 tier 2
 - [ ] （从 M3 挪来）`validate` 收成单 schema
 - [ ] （从 M3 挪来）PreToolUse 计数 / SessionStart hook：§13 会话内 fan-out 软约束、§7 会话开始时做后台调度
 - [ ] （从 M3 挪来）README「先跑起来」改为 2 条命令；guide hub 那两章重写，并入 M7 的 guide 全书重写
@@ -186,7 +188,7 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [ ] 骨架钉住（`skeleton: true`）与 MAP 静态渲染对齐
 - [ ] guide 全书按 v2 重写；`docs/degradation.md` 增审核 / 无头调用 / transcript 适配行
 - [ ] 三宿主 + 双平台冒烟；`RELEASING.md` 流程
-- [ ] [可选] opencode 完整宿主：无头复核适配器（按其文档化非交互模式）+ 一次冒烟；install 侧已有。做不成就留着 install 那半，不阻塞发布
+- [ ] [可选] 第二梯队宿主（qwen / opencode / 用户自加）：只要注册表一条记录 + 可选 reader；不冒烟、fail-soft；做不成就留着记录，不阻塞发布
 
 **验收**：全测试绿；smoke 三宿主；README / guide 与 `--help` 无冲突。
 **→ 发 `v2.0.0`。**

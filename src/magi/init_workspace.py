@@ -219,6 +219,7 @@ research:
   llm_calls: true      # master switch for MAGI's own calls
   rule_budget: 7       # lines the AGENTS.md rule section may hold
   rules: []            # rules this library earned; `magi reflect promote` adds them
+  hosts: []            # agent CLIs beyond the built-in ones; `magi skills where` lists all
 ollama:
   base_url: "http://127.0.0.1:11434"
   autostart: true      # start a stopped local Ollama on demand
@@ -331,27 +332,17 @@ Thumbs.db
     except Exception as exc:  # non-fatal: the workspace itself is scaffolded
         print(f"Warning: could not register this workspace: {exc}")
 
+    # There is no step 8. A topic under `<hub>/topics/` used to be registered
+    # in that hub as well, by shelling out to `magi hub register` — a command
+    # retired in M3 along with hubs themselves, when a research line became a
+    # view over one project rather than a directory in a tree. The call stayed
+    # behind and printed "unknown command 'hub'" as a warning on every init in
+    # such a directory, which is how a person learns to ignore warnings. What
+    # still matters is `register_kb` above: it is what `magi kb list` and the
+    # WebUI picker read, and it has already run.
+
     print("Next: cd into it, then 'magi skills install' to give your agent CLI "
           "this workspace's skills, and 'magi sync' to see what to do first.")
-
-    # 8. Auto-register in an ancestor hub when the topic sits under <hub>/topics/.
-    try:
-        import subprocess
-        from magi.core.workspace import find_hub_root
-        hub = find_hub_root(topic_path.parent)
-        if hub is not None and topic_path.parent == (hub / "topics").resolve():
-            slug = topic_path.name
-            result = subprocess.run(
-                [sys.executable, "-m", "magi", "hub", "register", slug, "--hub", str(hub)],
-                capture_output=True, text=True,
-            )
-            if result.returncode == 0:
-                print(f"Registered topic '{slug}' in hub registry at {hub}")
-            else:
-                detail = (result.stderr or result.stdout).strip()
-                print(f"Warning: could not auto-register topic in hub {hub}: {detail}")
-    except Exception as exc:  # non-fatal: workspace itself is already scaffolded
-        print(f"Warning: hub auto-registration skipped: {exc}")
 
 if __name__ == "__main__":
     sys.exit(main())

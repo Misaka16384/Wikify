@@ -2326,7 +2326,10 @@ def run_graph(args: argparse.Namespace) -> int:
         # are edges as much as any wikilink in a card's body, and reading them
         # off the frontmatter is what lets the map show which parts of the
         # library the open questions are actually touching.
-        for note_path in sorted((root / "threads").glob("*.md")):
+        # The same walk `threads.note_paths` does, so a note in a subdirectory
+        # is on the map as well as in `magi next`, and `_index.md` does not
+        # become a node of its own.
+        for note_path in sorted(threads_mod.note_paths(root)):
             try:
                 note = threads_mod.read_note(note_path)
             except (OSError, ValueError):

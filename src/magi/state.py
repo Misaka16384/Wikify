@@ -177,7 +177,15 @@ def load(root, wip_limit: int | None = None, stall_days: int = STALL_DAYS,
                 why=f"this note could not be read ({exc.__class__.__name__}: "
                     f"{exc}) — nothing can be derived from it until it is fixed"))
 
-    state = State(root=root, notes=notes, wip_limit=wip_limit or WIP_LIMIT,
+    # Zero or less is not a limit anybody meant: every line would be over WIP
+    # forever, which is the same as having no gate. The `or` covered `None` and
+    # swallowed `0` with it, so the dashboard could show 0 while the gate
+    # quietly used 7.
+    try:
+        limit = int(wip_limit)
+    except (TypeError, ValueError):
+        limit = WIP_LIMIT
+    state = State(root=root, notes=notes, wip_limit=max(1, limit),
                   coaching=coaching)
     state.lines = _lines(notes, now=now, stall_days=stall_days, limit=state.wip_limit)
     state.queue = _queue(notes, state.lines) + _proposals(root)
@@ -844,12 +852,20 @@ def dump(root, text: str):
     # format; the one thing it owes in return is that what goes in comes back.
     chunk = "\n".join(line if line.startswith(("-", "*")) else f"- {line}"
                       for line in lines) + "\n"
-    existing = path.read_text(encoding="utf-8", errors="replace") if path.is_file() else ""
-    if existing and not existing.endswith("\n"):
-        chunk = "\n" + chunk
-    ending = file_newline(path) if path.is_file() else None
-    with open(path, "a", encoding="utf-8", newline=ending) as handle:
-        handle.write(chunk)
+    # Under a lock, like every other append in this codebase: Windows does not
+    # implement `O_APPEND` atomically, and this is the one file a person's
+    # browser and their agent write to at the same moment.
+    from filelock import FileLock
+
+    lock = path.with_name(path.name + ".lock")
+    with FileLock(str(lock), timeout=30):
+        existing = (path.read_text(encoding="utf-8", errors="replace")
+                    if path.is_file() else "")
+        if existing and not existing.endswith("\n"):
+            chunk = "\n" + chunk
+        ending = file_newline(path) if path.is_file() else None
+        with open(path, "a", encoding="utf-8", newline=ending) as handle:
+            handle.write(chunk)
     return path
 
 
@@ -1171,6 +1187,13 @@ def detect_conflicts(notes, window=CONFLICT_WINDOW) -> list:
             moves = [(when, post) for when, post in moves if when > resolved]
 
         for (first_at, first), (second_at, second) in zip(moves, moves[1:]):
+            # A reviewer's verdict is a *response* to the flip before it, not
+            # a second writer who had not read the first. Calling it a conflict
+            # rewrote `disputed` — the status the design puts a claim in so a
+            # person can rule on it — into `conflict`, which says something
+            # else entirely and which only a person can leave.
+            if vocab.REVIEWER in (first.host, second.host):
+                continue
             if first.host != second.host and abs(second_at - first_at) <= window:
                 found.append((note, first, second))
                 break
@@ -1347,16 +1370,28 @@ def hook_payload(report: CloseReport) -> dict:
 
     The reason is read by the agent, not by a person, so it says what to do
     rather than what went wrong.
+
+    Two different things stop a session and they need two different sentences.
+    Unrecorded work is the agent's to clear: post it, or move the status. A
+    conflict is not — two writers collided, only a person can say which
+    reading was right, and it is already on the decision queue. Telling the
+    agent to "post what happened" about a conflict asks it to clear something
+    it has no way to clear, which is how a stop hook turns into a loop.
     """
     if report.ok:
         return {}
-    lines = [f"- {item.slug}: {item.why}" for item in report.blocking]
-    return {
-        "decision": "block",
-        "reason": ("Bookkeeping is not finished. Post what happened, or move the "
-                   "status with `magi thread status`, then stop again:\n"
-                   + "\n".join(lines)),
-    }
+    parts = []
+    if report.blocking:
+        parts.append("Bookkeeping is not finished. Post what happened, or move "
+                     "the status with `magi thread status`, then stop again:\n"
+                     + "\n".join(f"- {item.slug}: {item.why}"
+                                 for item in report.blocking))
+    if report.conflicts:
+        parts.append("Two writers moved the same note at the same time. This is "
+                     "a person's call and is already on the decision queue — say "
+                     "so, and do not resolve it yourself:\n"
+                     + "\n".join(f"- {slug}" for slug in report.conflicts))
+    return {"decision": "block", "reason": "\n\n".join(parts)}
 
 
 # ---------------------------------------------------------------- command

@@ -1,7 +1,18 @@
 #!/usr/bin/env python3
-"""Validate LLM-generated wiki output files against structural schemas.
+"""Check one long-form document an agent wrote.
 
-Checks frontmatter fields, citation existence, and body structure.
+**One schema, because v2 produces one kind of long-form output.** A research
+pass lands as propositions in `threads/` — which `threads.validate` checks on
+every read — plus at most one synthesis in `wiki/topics/`. There used to be
+three schemas here, from when there were three things to write; `wiki/theses/`
+is retired and nothing has written an enrichment log since the compile pass was
+rewritten. A required `--schema` flag with one legal value is a flag that
+exists only to be typed.
+
+Scope is why this is not part of `magi lint`: lint answers for a whole
+workspace, this answers for one file. Merging them would grow a flag to say
+which one you meant, which is the thing merging was supposed to remove.
+
 Exit code: 0 = valid, 1 = violations found, 2 = usage error.
 """
 from __future__ import annotations
@@ -13,7 +24,10 @@ import sys
 from pathlib import Path
 from magi.core.wiki_common import split_frontmatter_text, parse_frontmatter_text
 
-SCHEMAS = {"thesis", "research", "enrichment-log"}
+#: What `wiki/topics/` cards declare themselves to be. Checked rather than
+#: assumed: a card that says it is something else is a card somebody filed in
+#: the wrong place, and saying so is more useful than validating it anyway.
+SYNTHESIS = "synthesis"
 
 
 def split_frontmatter(text: str) -> tuple[dict, str] | None:
@@ -45,19 +59,16 @@ def extract_sources_list(text: str) -> list[str]:
     return sources
 
 
-def validate_thesis(file_path: Path, fm: dict[str, str], body: str, wiki_root: Path) -> list[str]:
+def validate_synthesis(file_path: Path, fm: dict[str, str], body: str,
+                       wiki_root: Path) -> list[str]:
+    """Everything the two live schemas each got right, in one pass."""
     issues: list[str] = []
     for field in ("title", "created"):
         if field not in fm:
             issues.append(f"frontmatter missing required field: {field}")
-    fm_type = fm.get("type", "")
-    if fm_type and fm_type.strip("\"'") != "thesis":
-        issues.append(f"expected type: thesis, got: {fm_type}")
-
-    raw = file_path.read_text(encoding="utf-8")
-    sources = extract_sources_list(raw[:raw.find("\n---", 4)])
-    if not sources:
-        issues.append("frontmatter 'sources' list is empty or missing")
+    declared = fm.get("type", "").strip("\"'")
+    if declared and declared != SYNTHESIS:
+        issues.append(f"expected type: {SYNTHESIS}, got: {declared}")
 
     if not re.search(r"^# ", body, re.MULTILINE):
         issues.append("body missing top-level heading (# )")
@@ -66,27 +77,17 @@ def validate_thesis(file_path: Path, fm: dict[str, str], body: str, wiki_root: P
     if not wikilinks:
         issues.append("body contains no [[wikilink]] citations")
 
-    concepts_dir = wiki_root / "wiki" / "concepts"
-    refs_dir = wiki_root / "wiki" / "references"
+    # Links that go nowhere. `threads/` and `drafts/` count: a synthesis
+    # citing the proposition it came from, or the derivation behind it, is the
+    # normal case in v2.
     for link in set(wikilinks):
         slug = link.replace(" ", "_")
-        candidates = [
-            concepts_dir / f"{slug}.md",
-            concepts_dir / f"{link}.md",
-            refs_dir / f"{slug}.md",
-            refs_dir / f"{link}.md",
-        ]
+        candidates = [wiki_root / base / f"{name}.md"
+                      for base in ("wiki/concepts", "wiki/references",
+                                   "wiki/topics", "threads", "drafts")
+                      for name in (slug, link)]
         if not any(c.exists() for c in candidates):
             issues.append(f"dangling wikilink: [[{link}]] — no matching file found")
-
-    return issues
-
-
-def validate_research(file_path: Path, fm: dict[str, str], body: str, wiki_root: Path) -> list[str]:
-    issues: list[str] = []
-    for field in ("title", "created"):
-        if field not in fm:
-            issues.append(f"frontmatter missing required field: {field}")
 
     raw = file_path.read_text(encoding="utf-8")
     sources = extract_sources_list(raw[:raw.find("\n---", 4)])
@@ -145,24 +146,6 @@ def validate_research(file_path: Path, fm: dict[str, str], body: str, wiki_root:
     return issues
 
 
-def validate_enrichment_log(file_path: Path, fm: dict[str, str], body: str, wiki_root: Path) -> list[str]:
-    issues: list[str] = []
-    wikilinks = extract_wikilinks(body)
-    concepts_dir = wiki_root / "wiki" / "concepts"
-    orphans: list[str] = []
-    for link in set(wikilinks):
-        slug = link.replace(" ", "_")
-        candidates = [
-            concepts_dir / f"{slug}.md",
-            concepts_dir / f"{link}.md",
-        ]
-        if not any(c.exists() for c in candidates):
-            orphans.append(link)
-    if orphans:
-        issues.append(f"{len(orphans)} concept(s) linked but have no file: {', '.join(sorted(orphans))}")
-    return issues
-
-
 def find_wiki_root(file_path: Path) -> Path:
     """Nearest topic workspace root for *file_path* (unified discovery)."""
     from magi.core.workspace import find_workspace_root
@@ -173,15 +156,14 @@ def find_wiki_root(file_path: Path) -> Path:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="magi validate",
-        description="Validate LLM-generated wiki output files against structural schemas.",
+        description="Check one long-form document an agent wrote: a `wiki/topics/` synthesis.",
     )
     parser.add_argument("file", help="Markdown file to validate.")
-    parser.add_argument(
-        "--schema",
-        required=True,
-        choices=sorted(SCHEMAS),
-        help="Schema to validate against.",
-    )
+    # Kept so an old command line still runs, hidden so nobody learns to type
+    # it: there is one schema, and a flag with one legal value is a flag that
+    # exists only to be typed.
+    parser.add_argument("--schema", default=SYNTHESIS, choices=[SYNTHESIS],
+                        help=argparse.SUPPRESS)
     parser.add_argument("--wiki-root", help="Wiki root path (auto-detected if omitted).")
     args = parser.parse_args(argv)
 
@@ -202,7 +184,7 @@ def main(argv=None) -> int:
     if parsed is None:
         print(json.dumps({
             "file": str(file_path),
-            "schema": args.schema,
+            "schema": SYNTHESIS,
             "valid": False,
             "issues": ["file has no YAML frontmatter (missing --- delimiters)"],
         }))
@@ -210,19 +192,11 @@ def main(argv=None) -> int:
 
     fm, body = parsed
 
-    if args.schema == "thesis":
-        issues = validate_thesis(file_path, fm, body, wiki_root)
-    elif args.schema == "research":
-        issues = validate_research(file_path, fm, body, wiki_root)
-    elif args.schema == "enrichment-log":
-        issues = validate_enrichment_log(file_path, fm, body, wiki_root)
-    else:
-        print(json.dumps({"error": f"unknown schema: {args.schema}"}))
-        return 2
+    issues = validate_synthesis(file_path, fm, body, wiki_root)
 
     report = {
         "file": str(file_path),
-        "schema": args.schema,
+        "schema": SYNTHESIS,
         "valid": len(issues) == 0,
         "issues": issues,
     }

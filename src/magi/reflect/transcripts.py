@@ -1,10 +1,8 @@
-"""Five hosts, four formats, one shape.
+"""Five hosts, five shapes, one answer.
 
 Every adapter answers the same question — *which sessions worked in this
 workspace, and what was said in them* — and each one reads a format we do not
-control and cannot ask to change. qwen-code is a fork of the Gemini CLI and
-keeps its chats the same way, so that adapter is the same reader pointed at
-`~/.qwen`. The rules are the same for all of them:
+control and cannot ask to change. The rules are the same for all of them:
 
 **Read-only.** A transcript belongs to the host that wrote it. Nothing here
 opens a file for writing, and the SQLite adapter opens its database in `mode=ro`
@@ -19,10 +17,15 @@ read" is information, and dying is not.
 
 **Joined by directory, not by name.** A session belongs to a workspace when its
 working directory is inside it. Every format carries that somewhere — Claude
-Code in each line's `cwd`, Codex in its `session_meta`, Gemini in the
-`.project_root` beside the chats, opencode in a column — and matching on the
-encoded directory *name* instead would be matching on a lossy encoding of the
-thing we actually have.
+Code in each line's `cwd`, Codex in its `session_meta`, qwen in the
+`.project_root` beside the chats, Antigravity in each history row, opencode in
+a column — and matching on the encoded directory *name* instead would be
+matching on a lossy encoding of the thing we actually have.
+
+**Half a transcript is still a transcript.** Antigravity's assistant side is
+protobuf we have no schema for; its adapter returns what the person typed and
+says so. Guessing at field numbers would produce something wrong in a way
+nobody could check, which is worse than an honest half.
 
 **Truncated on the way out, not on the way in.** A transcript is read whole and
 cut when it is handed to a model, because the cut belongs to the caller's
@@ -37,12 +40,15 @@ import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
-#: Every host MAGI knows how to read — "whose record can we make sense of?".
-#: The names match `review.HOSTS` so a verdict and a transcript can be talked
-#: about in the same words. Reading a host is not the same as installing into
-#: it or calling it headless: `skills_cmd.HOSTS` and `review.HOSTS` answer
-#: those, and each list is as long as what has actually been implemented.
-HOSTS = ("claude", "codex", "gemini", "qwen", "opencode")
+from ..core import hosts as host_table
+
+#: The one thing about a host that cannot be data. Every other fact — the
+#: binary, where its skills go, how to call it headless — is a field in
+#: `core.hosts`; a session store is a format, and a format needs a parser.
+#: So the record names a reader and this table is where the name is redeemed.
+#: A host whose reader is missing yields nothing, which is the same failure
+#: every adapter here is built to have.
+ADAPTERS: dict = {}
 
 #: How much of one session a model is shown. From the design's sampling rule
 #: (§12): enough to see what happened, small enough that eight of them fit.
@@ -254,26 +260,51 @@ def _codex_one(path: Path):
 # ---------------------------------------------------------------- gemini
 
 
-def gemini_sessions(root, home=None) -> list:
-    """`~/.gemini/tmp/<project>/chats/session-*.json`.
+def antigravity_sessions(root, home=None) -> list:
+    """`~/.gemini/antigravity-cli/history.jsonl` — what the person typed.
 
-    The sibling `.project_root` holds the real directory. `projectHash` in the
-    chat file is not a hash of any path we could reproduce, so the file beside
-    it is the join — and where that file is missing, the session is skipped
-    rather than guessed at.
+    Antigravity keeps each conversation as protobuf blobs in a
+    per-conversation SQLite file. Without the schema those are not ours to
+    parse: guessing at field numbers would produce a transcript that is wrong
+    in ways nobody could see, which is worse than having none.
+
+    What it also keeps, in the clear, is every prompt the person typed, with
+    the workspace they typed it in. That is half a session — and it is the
+    half that says what went wrong, because it is where somebody writes "no,
+    that is not what I meant". The assistant's side is missing and the
+    docstring says so rather than the code pretending otherwise.
     """
-    return _gemini_shaped(root, ".gemini", "gemini", home=home)
+    path = (home or _home()) / ".gemini" / "antigravity-cli" / "history.jsonl"
+    if not path.is_file():
+        return []
+
+    by_conversation: dict = {}
+    for row in _lines(path):
+        said = str(row.get("display") or "").strip()
+        where = str(row.get("workspace") or "")
+        if not said or not _inside(where, root):
+            continue
+        key = str(row.get("conversationId") or f"{where}@{str(row.get('timestamp'))[:10]}")
+        stamp = _iso(row.get("timestamp"))
+        session = by_conversation.get(key)
+        if session is None:
+            session = Session(host="antigravity", session_id=key, cwd=where,
+                              path=str(path), started=stamp, ended=stamp)
+            by_conversation[key] = session
+        session.ended = stamp or session.ended
+        session.turns.append(Turn(role="user", at=stamp, text=said))
+    return [session for session in by_conversation.values() if session.turns]
 
 
 def qwen_sessions(root, home=None) -> list:
     """`~/.qwen/tmp/<project>/chats/session-*.json`.
 
-    qwen-code is a fork of the Gemini CLI, so it is the same reader pointed at
-    a different directory. **Unverified against a real install** — there was no
-    `~/.qwen` on the machine this was written on, so what is claimed here is
-    the fork's inheritance, not a measurement. If the layout differs, this
-    yields nothing, which is the failure every adapter in this file is built
-    to have.
+    qwen-code is a fork of the Gemini CLI, and inherited its chat layout — the
+    one the CLI itself no longer writes, since that product is retired.
+    **Unverified against a real install**: there was no `~/.qwen` on the
+    machine this was written on, so what is claimed here is the fork's
+    inheritance, not a measurement. If the layout differs, this yields
+    nothing, which is the failure every adapter in this file is built to have.
     """
     return _gemini_shaped(root, ".qwen", "qwen", home=home)
 
@@ -384,27 +415,42 @@ def _opencode_turn(row):
 # ------------------------------------------------------------------ sweep
 
 
-ADAPTERS = {
+ADAPTERS.update({
     "claude": claude_sessions,
     "codex": codex_sessions,
-    "gemini": gemini_sessions,
+    "antigravity": antigravity_sessions,
     "qwen": qwen_sessions,
     "opencode": opencode_sessions,
-}
+})
 
 
-def sweep(root, home=None, hosts=None) -> Sweep:
+def readable_hosts(config=None) -> list:
+    """Hosts whose sessions we can actually parse, in the table's order."""
+    table = host_table.catalog(config)
+    return [key for key in host_table.names(config)
+            if table[key].reader in ADAPTERS]
+
+
+#: The hosts with readers, as of import. Kept as a name because callers and
+#: tests read it; `readable_hosts(config)` is what a config-declared host
+#: reaches.
+HOSTS = tuple(host.key for host in host_table.BUILTIN if host.reader)
+
+
+def sweep(root, home=None, hosts=None, config=None) -> Sweep:
     """Every session any host recorded in this workspace.
 
     One broken host does not stop the others: what it could not read is
-    reported alongside what the rest found. Four adapters over four formats we
-    do not control means four chances to be broken, and a slow loop that
+    reported alongside what the rest found. Five adapters over five formats we
+    do not control means five chances to be broken, and a slow loop that
     refuses to run because one vendor renamed a key is a slow loop that never
     runs.
     """
     result = Sweep()
-    for name in (hosts or HOSTS):
-        adapter = ADAPTERS.get(name)
+    table = host_table.catalog(config)
+    for name in (hosts or readable_hosts(config)):
+        entry = table.get(name)
+        adapter = ADAPTERS.get(entry.reader if entry else name)
         if adapter is None:
             continue
         try:

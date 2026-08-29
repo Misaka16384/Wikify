@@ -126,7 +126,7 @@ def test_installing_everywhere_is_never_the_default(monkeypatch):
     from magi import skills_cmd
 
     hosts = list(skills_cmd.HOSTS.values())
-    monkeypatch.setattr(skills_cmd, "detected_hosts", lambda: hosts)
+    monkeypatch.setattr(skills_cmd, "detected_hosts", lambda config=None: hosts)
 
     with pytest.raises(SystemExit) as excinfo:
         skills_cmd._resolve_hosts(None, interactive=False)
@@ -144,5 +144,5 @@ def test_a_single_detected_host_needs_no_question(monkeypatch):
     from magi import skills_cmd
 
     only = [skills_cmd.HOSTS["codex"]]
-    monkeypatch.setattr(skills_cmd, "detected_hosts", lambda: only)
+    monkeypatch.setattr(skills_cmd, "detected_hosts", lambda config=None: only)
     assert skills_cmd._resolve_hosts(None, interactive=False) == only

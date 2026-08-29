@@ -235,4 +235,10 @@ def already_proposed(root) -> set:
     Includes the open ones: proposing the same change twice while the first is
     still waiting is how a queue turns into a list of duplicates.
     """
-    return {fingerprint(p.kind, p.target, p.text) for p in all_proposals(root)}
+    # A retired proposal is not in here. Retiring says "its reason has gone",
+    # and the whole point of it being a separate verdict from `reject` is that
+    # the same idea may come back when the pattern does. Counting it as
+    # already-proposed made the two verdicts identical at the one gate where
+    # the difference shows.
+    return {fingerprint(p.kind, p.target, p.text) for p in all_proposals(root)
+            if p.verdict != RETIRED}

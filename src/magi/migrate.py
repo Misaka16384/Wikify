@@ -248,6 +248,13 @@ def retire_theses(root: Path) -> tuple[int, list[str]]:
     renamed: two files with one name are somebody's mistake to look at, not a
     migration's to guess about. Re-running is a no-op once the directory is
     gone, which is what makes `magi migrate` safe to repeat.
+
+    The directory's own `_index.md` goes with it, but only when there is
+    nothing in it a person wrote. Everything above `## Recent Changes` is
+    generated and regenerable; everything below it is carried through by every
+    rebuild precisely because somebody typed it there. An index with notes in
+    it keeps the directory alive and gets reported, the same as a name that
+    was already taken.
     """
     theses = root / "wiki" / "theses"
     if not theses.is_dir():
@@ -269,13 +276,38 @@ def retire_theses(root: Path) -> tuple[int, list[str]]:
 
     if not skipped:
         index = theses / "_index.md"
-        if index.is_file():
-            index.unlink()
-        try:
-            theses.rmdir()
-        except OSError:
-            pass
+        if _index_is_all_generated(index):
+            if index.is_file():
+                index.unlink()
+            try:
+                theses.rmdir()
+            except OSError:
+                pass
+        else:
+            skipped.append("_index.md")
     return moved, skipped
+
+
+def _index_is_all_generated(index: Path) -> bool:
+    """Is there anything in this `_index.md` that a rebuild would not restore?
+
+    `## Recent Changes` is the section every index rebuild copies forward
+    untouched — which is to say, the section a person writes in. A file with
+    words under it is not ours to delete just because the directory around it
+    is being retired.
+    """
+    from .core.wiki_common import INDEX_KEPT_HEADING
+
+    if not index.is_file():
+        return True
+    try:
+        text = index.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False        # unreadable is not "empty"; leave it alone
+    if INDEX_KEPT_HEADING not in text:
+        return True
+    kept = text.split(INDEX_KEPT_HEADING, 1)[1]
+    return not kept.strip()
 
 
 def point_claude_at_agents(root: Path) -> str | None:
@@ -347,8 +379,13 @@ def _migrate_topic(root: Path, hub: Path | None = None) -> int:
         print("           the claims inside them are propositions now — open one with "
               "`magi thread new --kind proposition` and link the draft as its derivation")
     for name in skipped:
-        print(f"  WARNING: drafts/{name} already exists; left wiki/theses/{name} in place",
-              file=sys.stderr)
+        if name == "_index.md":
+            print("  WARNING: wiki/theses/_index.md has notes under '## Recent "
+                  "Changes'; left the directory in place so you can read them",
+                  file=sys.stderr)
+        else:
+            print(f"  WARNING: drafts/{name} already exists; left "
+                  f"wiki/theses/{name} in place", file=sys.stderr)
 
     note = point_claude_at_agents(root)
     if note:

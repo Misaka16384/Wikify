@@ -200,7 +200,7 @@ def run(root, *, host=None, model=None, timeout: int = TIMEOUT, dry_run: bool = 
     report.host = chosen or ""
     if chosen is None:
         report.note = ("no CLI on PATH to read with "
-                       f"(looked for {', '.join(review.HOSTS)})")
+                       f"(looked for {', '.join(review.host_names())})")
         report.failed = True
         return report
 
@@ -396,7 +396,18 @@ def _apply_to_skill(root, proposal) -> str:
     from .. import skills_cmd
     from . import patterns as pattern_pages
 
-    name = str(proposal.target or "").strip().split("/")[-1].replace(".md", "")
+    # The directory's name, not the file's: a target of `compile/SKILL.md`
+    # named the skill `SKILL`, so a person's own fork was never patched and
+    # the change was filed as package-level instead.
+    cleaned = str(proposal.target or "").replace(chr(92), "/")
+    parts = [part for part in cleaned.split("/") if part not in ("", ".", "..")]
+    name = ""
+    for part in reversed(parts):
+        if part.lower() != "skill.md":
+            name = part[:-3] if part.lower().endswith(".md") else part
+            break
+    if not name or name != Path(name).name:
+        raise ValueError(f"not a skill name: {proposal.target!r}")
     mine = skills_cmd.user_skills_dir() / name / "SKILL.md"
     if not mine.is_file():
         raise _PackageLevel(

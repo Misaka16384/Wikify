@@ -48,6 +48,12 @@ research:
   # 那条被采纳的提案——一条追溯不到出处的规则,是一条没人能反驳、因而也没人能
   # 退掉的规则。`magi reflect promote` 加,`magi reflect retire` 删。
   rules: []
+  # 内置宿主表之外的 agent CLI。世上的 CLI 太多，列不完，所以「宿主」是一条
+  # 记录：bin、skill 落点、无头调用模板、模型参数。记录里唯一写不了的是怎么读
+  # 这个 CLI 存下来的会话——各家存法不一样，那需要解析器不是模板；没有 reader
+  # 的宿主只是不给慢回路贡献会话，别的照常。key 撞上内置的就整条替换。
+  # 字段和写法见 `magi guide` 里的宿主表一节。
+  hosts: []
 
 # 向量化用哪个服务(magi index / magi search / magi link 共用)
 embedding:

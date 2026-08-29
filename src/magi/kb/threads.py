@@ -347,6 +347,11 @@ def quote_if_structural(text: str) -> str:
         _POST_HEADER.match(line) or _HEADING_RE.match(line)
         or _POST_STATUS.match(line.strip()) or _POST_FIELD.match(line.strip()))
         for label, line in labelled)
+    # An unclosed fence runs to the end of the *thread*, not the end of the
+    # post: every later post renders inside it and `_labelled` stops seeing
+    # any of them. It also reads as safe by the test above, since everything
+    # after the fence is already `CODE`.
+    risky = risky or md_blocks.has_unclosed_fence(body)
     if not risky:
         return body
     longest = max((len(run) for run in re.findall(r"`+", body)), default=0)
@@ -431,7 +436,11 @@ def append_post(path, text: str, host: str, line: str | None = None,
     lock.parent.mkdir(parents=True, exist_ok=True)
 
     with FileLock(str(lock), timeout=APPEND_TIMEOUT):
-        existing = path.read_text(encoding="utf-8")
+        # Read back the way every reader does. A note saved from Notepad is
+        # cp1252, which `_read` already tolerates — refusing it here made a
+        # file you could read one you could not post to, and put the crash in
+        # the close gate instead of in the editor that wrote it.
+        existing = _read(path)
         with open(path, "a", encoding="utf-8", newline=file_newline(path)) as handle:
             handle.write(_join_chunk(existing, post))
             handle.flush()
@@ -474,7 +483,7 @@ def set_status(path, dst: str, text: str, host: str, line: str | None = None,
     lock.parent.mkdir(parents=True, exist_ok=True)
 
     with FileLock(str(lock), timeout=APPEND_TIMEOUT):
-        current = path.read_text(encoding="utf-8")
+        current = _read(path)
         split = split_frontmatter_text(current)
         if split is None:
             raise ValueError(f"{path} has no frontmatter to flip")
@@ -491,7 +500,7 @@ def set_status(path, dst: str, text: str, host: str, line: str | None = None,
                            src=src if src != dst else None,
                            dst=dst if src != dst else None)
         with open(path, "a", encoding="utf-8", newline=ending) as handle:
-            handle.write(_join_chunk(path.read_text(encoding="utf-8"), post))
+            handle.write(_join_chunk(_read(path), post))
     return post
 
 
@@ -512,7 +521,7 @@ def set_field(path, key: str, value, host: str, text: str = "",
     lock = lock_path(path)
     lock.parent.mkdir(parents=True, exist_ok=True)
     with FileLock(str(lock), timeout=APPEND_TIMEOUT):
-        current = path.read_text(encoding="utf-8")
+        current = _read(path)
         ending = file_newline(path)
         atomic_write(path, _replace_field(current, key, value), newline=ending)
         # The write above verifies itself, but a caller acting on "it worked"
@@ -523,7 +532,7 @@ def set_field(path, key: str, value, host: str, text: str = "",
             raise ValueError(f"{path.name}: {key} did not take")
         post = format_post(text, host=host, line=line, at=at, field=key, value=value)
         with open(path, "a", encoding="utf-8", newline=ending) as handle:
-            handle.write(_join_chunk(path.read_text(encoding="utf-8"), post))
+            handle.write(_join_chunk(_read(path), post))
 
 
 def _replace_field(text: str, key: str, value) -> str:

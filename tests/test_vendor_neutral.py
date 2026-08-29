@@ -36,11 +36,12 @@ def _value(block: str, key: str) -> str:
 # every host MAGI supports
 # --------------------------------------------------------------------------
 
-def test_all_four_hosts_are_registered():
+def test_every_host_is_registered():
     """The premise of every other test here."""
     from magi.skills_cmd import HOSTS
 
-    assert {h.binary for h in HOSTS.values()} == {"claude", "codex", "agy", "opencode"}
+    assert {h.command for h in HOSTS.values()} == {
+        "claude", "codex", "agy", "qwen", "opencode"}
 
 
 def test_the_doctor_reports_on_every_host_or_none():
@@ -51,7 +52,7 @@ def test_the_doctor_reports_on_every_host_or_none():
 
     names = {r.name if hasattr(r, "name") else r[0] for r in agent_cli_rows()}
     for host in HOSTS.values():
-        assert host.binary in names, f"{host.binary} missing from the doctor table"
+        assert host.command in names, f"{host.command} missing from the doctor table"
 
 
 def test_setup_reports_hosts_generically():
@@ -120,7 +121,7 @@ def test_the_command_whitelist_covers_every_host():
     from magi.skills_cmd import HOSTS
 
     for host in HOSTS.values():
-        assert host.binary in _CMD_TOOLS, (
-            f"{host.binary} is a supported host but the guide's extractor "
+        assert host.command in _CMD_TOOLS, (
+            f"{host.command} is a supported host but the guide's extractor "
             f"would not recognise a command starting with it"
         )

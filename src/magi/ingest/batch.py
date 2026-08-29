@@ -439,7 +439,15 @@ def cmd_list(args) -> int:
         print("no workspace found", file=sys.stderr)
         return 1
 
-    batch_ids = [args.batch] if args.batch else ledger.list_batches(topic)
+    known = ledger.list_batches(topic)
+    if args.batch and args.batch not in known:
+        # Not an empty batch — no such batch. Printing "0 items" for a typo
+        # reads as "everything in it is already decided", which is the one
+        # conclusion that makes a person stop looking.
+        print(f"no batch {args.batch!r} — run without --batch to see them",
+              file=sys.stderr)
+        return 1
+    batch_ids = [args.batch] if args.batch else known
     if not batch_ids:
         print("no batches yet. Queue something with 'magi ingest url', "
               "then run 'magi ingest batch-run'.")
@@ -553,9 +561,19 @@ def cmd_commit(args) -> int:
         print("no workspace found", file=sys.stderr)
         return 1
 
+    # `--batch` means the same thing here as it does in the listing: this one.
+    # It used to narrow what you looked at and then be dropped on the way to
+    # the commit, so "land the batch I was just reviewing" landed all of them.
+    wanted = getattr(args, "batch", None)
+    known = ledger.list_batches(topic)
+    if wanted and wanted not in known:
+        print(f"no batch {wanted!r} — 'magi ingest review' lists them",
+              file=sys.stderr)
+        return 1
+
     committed = 0
     skipped_batches = []
-    for batch_id in ledger.list_batches(topic):
+    for batch_id in ([wanted] if wanted else known):
         items = ledger.load_batch(topic, batch_id)
         if not items:
             continue

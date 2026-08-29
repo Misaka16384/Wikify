@@ -63,6 +63,12 @@ def quote_if_headings(text: str) -> str:
     labelled = md_blocks.classify_lines(md_blocks.normalize_newlines(body))
     risky = any(label != md_blocks.CODE and line.lstrip().startswith("#")
                 for label, line in labelled)
+    # A fence the quotation opens and never closes belongs to the whole file
+    # once it is pasted in: every later entry renders inside it. That text
+    # looks safe by the test above — everything after the fence is `CODE`, so
+    # no heading is ever "at risk" — which made the one body that most needed
+    # fencing the one body that did not get it.
+    risky = risky or md_blocks.has_unclosed_fence(body)
     if not risky:
         return body
     longest = max((len(run) for run in re.findall(r"`+", body)), default=0)

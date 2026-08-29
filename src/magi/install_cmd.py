@@ -37,6 +37,7 @@ from pathlib import Path
 
 from .core import managed
 from .core.wiki_common import atomic_write, parse_frontmatter
+from .core import hosts as _hosts
 from .core.workspace import find_workspace_root
 
 #: What the stop gate runs. Also the key this command recognises its own hook
@@ -44,8 +45,11 @@ from .core.workspace import find_workspace_root
 STOP_COMMAND = "magi sync --close --hook"
 
 #: Hosts with a documented stop hook. Everything else gets the instruction in
-#: the managed block and an honest line in the report.
-HOOKABLE = ("claude",)
+#: the managed block and an honest line in the report. Derived from the one
+#: host table: a record names its hook writer, the same way it names its
+#: transcript reader, because a hook is an entry in that host own settings
+#: schema and no template describes one.
+HOOKABLE = tuple(host.key for host in _hosts.BUILTIN if host.hook == "claude")
 
 
 def _settings_path(root: Path, host: str) -> Path | None:
@@ -203,7 +207,11 @@ def main(argv=None) -> int:
                         help="Which agent CLI (claude, codex, gemini, opencode). "
                              "Repeatable. Default: every detected one.")
     parser.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
-    parser.add_argument("--coaching", choices=["off", "light", "strict"], default="light",
+    # No default. `install_protocol` reads the workspace's own level when it
+    # is not told one, and writes it only when it is — otherwise every install
+    # (adding a host, refreshing skills) silently resets a library that chose
+    # strict back to light.
+    parser.add_argument("--coaching", choices=["off", "light", "strict"], default=None,
                         help="How hard the block asks its human for a prediction.")
     parser.add_argument("--no-skills", action="store_true",
                         help="Only the protocol block and the hooks.")
@@ -217,29 +225,50 @@ def main(argv=None) -> int:
               file=sys.stderr)
         return 1
 
-    hosts = args.host or list(HOOKABLE)
+    # Every CLI actually on this machine, not the one that happens to have a
+    # stop hook. `HOOKABLE` answers "who can enforce the gate"; it was being
+    # read as "who gets an install", so a machine with only Codex had skills
+    # written into `.claude/skills`.
+    from . import skills_cmd as _skills
+
+    hosts = [_skills.resolve_host(name) for name in args.host] or \
+        [host.key for host in _skills.detected_hosts()]
+    if not hosts:
+        print("no agent CLI detected — pass --host to install anyway "
+              f"({', '.join(sorted(_skills.HOSTS))})", file=sys.stderr)
+        return 1
+
+    failed = False
     report = [install_protocol(root, args.coaching, args.dry_run)]
 
     if not args.no_skills:
         from . import skills_cmd
 
-        skills_argv = ["install", "--scope", "project"]
+        skills_argv = ["install", "--scope", "project",
+                       "--project-root", str(root)]
         for host in hosts:
             skills_argv += ["--host", host]
         if args.dry_run:
             skills_argv.append("--dry-run")
-        skills_cmd.main(skills_argv)
+        # The exit code matters: skills failing to install while the protocol
+        # block succeeded is a half-installed workspace, and reporting 0 for it
+        # is how somebody finds out weeks later.
+        if skills_cmd.main(skills_argv) != 0:
+            report.append("skills: not installed — see the lines above")
+            failed = True
 
     for host in hosts:
         report.append(install_hook(root, host, args.dry_run))
 
     if args.json:
-        print(json.dumps({"workspace": str(root), "hosts": hosts, "report": report},
-                         ensure_ascii=False, indent=2))
+        print(json.dumps({"workspace": str(root), "hosts": hosts, "report": report,
+                          "ok": not failed}, ensure_ascii=False, indent=2))
     else:
         for line in report:
             print(f"  {line}")
-    return 0
+    # Non-zero when any part did not land: a half-installed workspace that
+    # reports success is one somebody finds out about weeks later.
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

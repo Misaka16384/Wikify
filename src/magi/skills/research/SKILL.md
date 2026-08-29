@@ -27,7 +27,7 @@ what", which is this skill with an adversarial brief, not a separate one.
    puts it on the decision queue where a person will see it.
 5. At most one long-form output: `wiki/topics/<slug>.md` with `type: synthesis`.
    If there is nothing to synthesise, the propositions are the result.
-6. `magi validate --schema research`, then `magi lint --fix`.
+6. `magi validate <the synthesis>`, then `magi lint --fix`.
 
 ## Rules
 - **Never** report a synthesis as complete when an angle returned nothing.

@@ -51,13 +51,13 @@ def test_skills_are_host_neutral():
 
 
 def test_every_host_declares_scopes_and_invocation():
-    assert set(HOSTS) == {"claude", "codex", "antigravity", "opencode"}
+    assert set(HOSTS) == {"claude", "codex", "antigravity", "qwen", "opencode"}
     for host in HOSTS.values():
-        assert host.targets, f"{host.key}: no target directory declared"
-        assert any(t.project_dir is not None for t in host.targets), (
+        assert host.drops, f"{host.key}: no target directory declared"
+        assert any(t.project_dir for t in host.drops), (
             f"{host.key}: must support project scope"
         )
-        for t in host.targets:
+        for t in host.drops:
             assert t.kind in {"skill", "command"}
             assert t.layout in {"dir", "flat"}
             assert t.invoke, f"{host.key}: every target must say how it is triggered"
@@ -67,22 +67,22 @@ def test_every_host_declares_scopes_and_invocation():
 def test_project_scope_is_under_the_given_root(tmp_path):
     (tmp_path / ".git").mkdir()          # repo-root anchored hosts look for this
     for host in HOSTS.values():
-        for t in host.targets:
-            if t.project_dir is None:
-                continue
+        for t in host.drops:
             dest = target_dir(t, "project", tmp_path)
+            if dest is None:
+                continue
             assert str(dest).startswith(str(tmp_path)), f"{host.key}: project scope escaped the root"
 
 
 def test_layouts_render_what_each_host_expects(tmp_path):
     skill = next(s for s in load_skills() if s.name == "radar_review")
 
-    dir_target = HOSTS["claude"].targets[0]
+    dir_target = HOSTS["claude"].drops[0]
     (path, text), = files_for(skill, dir_target, tmp_path)
     assert path.name == "SKILL.md" and path.parent.name == "radar_review"
     assert text == skill.text
 
-    cmd_target = next(t for t in HOSTS["opencode"].targets if t.kind == "command")
+    cmd_target = next(t for t in HOSTS["opencode"].drops if t.kind == "command")
     (cpath, ctext), = files_for(skill, cmd_target, tmp_path)
     assert cpath.name == "radar_review.md"
     assert ctext.startswith("---\ndescription: ")

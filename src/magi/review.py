@@ -36,28 +36,10 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from .core import hosts as host_table
 from .core import ledger, vocab
 from .core.workspace import find_workspace_root
 from .kb import threads
-
-#: How each host is asked one question and gives one answer back — "what
-#: binary do we run headless?". Every entry is a documented non-interactive
-#: mode: these are not guesses at an internal flag, and a host whose print mode
-#: is not documented does not belong here.
-#:
-#: The keys are commands, which is why Google's appears as `gemini` while
-#: `skills_cmd.HOSTS` calls the same vendor `antigravity` — that table's keys
-#: are products. The word a person types is `gemini` in both.
-HOSTS = {
-    "claude": lambda prompt, model: (
-        ["claude", "-p", prompt] + (["--model", model] if model else [])),
-    "codex": lambda prompt, model: (
-        ["codex", "exec", prompt] + (["-m", model] if model else [])),
-    "gemini": lambda prompt, model: (
-        ["gemini", "-p", prompt] + (["-m", model] if model else [])),
-    "qwen": lambda prompt, model: (
-        ["qwen", "-p", prompt] + (["-m", model] if model else [])),
-}
 
 #: Long enough for a model to read a derivation, short enough that a hung CLI
 #: does not hold a session's close hostage.
@@ -73,14 +55,15 @@ VERDICT_UNCLEAR = "unclear"
 #: whatever clause follows the word. Refusing `**VERDICT: refuted**` and
 #: reading it as "unclear" would throw away a real refutation over asterisks.
 _VERDICT_RE = re.compile(
-    r"^[\s>*\-#`]*\**\s*VERDICT\s*:?\s*\**\s*(stands|refuted|unclear)\b",
+    r"^[\s>*\-#`]*\**\s*VERDICT\s*:?\s*\**\s*(stands|refuted|unclear)\b"
+    r"(?![|/,])",
     re.IGNORECASE | re.MULTILINE)
 _REASON_RE = re.compile(r"^[\s>*\-#`]*\**\s*REASON\s*:?\s*\**\s*(.+)",
                         re.IGNORECASE | re.MULTILINE | re.DOTALL)
 
 #: What `apply_verdict` writes. `pending()` reads it back to tell a review that
 #: happened from a post that merely mentions one.
-_ANSWER_RE = re.compile(r"^VERDICT:\s*(stands|refuted)\b", re.MULTILINE)
+_ANSWER_RE = re.compile(r"^VERDICT:\s*(stands|refuted)\b")
 
 PROMPT = """You are reviewing one claim in a research library. You did not write it.
 
@@ -99,9 +82,9 @@ Decide one thing: does the claim, as written, follow from the evidence it cites?
 - You cannot tell without something that is not here: unclear.
 - Otherwise: stands.
 
-Answer in exactly this form and nothing else:
+Answer in exactly this form and nothing else — one word, not the list:
 
-VERDICT: stands|refuted|unclear
+VERDICT: <stands, refuted, or unclear>
 REASON: <two or three sentences, naming the file and the line you are talking about>
 """
 
@@ -128,9 +111,33 @@ class Verdict:
         return self.ran and self.verdict == VERDICT_REFUTED
 
 
-def installed_hosts() -> list:
-    """Which reviewer CLIs are on PATH, in a stable order."""
-    return [name for name in HOSTS if shutil.which(name)]
+def catalog(config=None) -> dict:
+    """Hosts that can be asked a question headless, by key.
+
+    A record with no `argv` declares no non-interactive mode, so there is
+    nothing to run and it is not a reviewer. Everything else about a host —
+    where its skills go, whose transcripts we can read — lives in the same
+    record and is none of this module's business.
+    """
+    return {key: host for key, host in host_table.catalog(config).items()
+            if host.argv}
+
+
+def host_names(config=None) -> list:
+    """Reviewer keys in the table's own order, for messages and `--host`."""
+    return [name for name in host_table.names(config) if name in catalog(config)]
+
+
+def installed_hosts(config=None) -> list:
+    """Which reviewer CLIs are on PATH, in a stable order.
+
+    Probed by *binary*, not by key. A host's name and its command are two
+    different strings — Antigravity's command is `agy` — and probing for the
+    name answered "not installed" for a CLI that was sitting right there.
+    """
+    table = catalog(config)
+    return [name for name in host_names(config)
+            if shutil.which(table[name].command)]
 
 
 def pick_host(author: str | None, installed=None, configured: str | None = None) -> str | None:
@@ -155,6 +162,29 @@ def build_prompt(root, slug: str) -> str:
     return PROMPT.format(root=Path(root).resolve(), slug=slug)
 
 
+#: The last line of the prompt a host might echo. Everything up to and
+#: including it is our own text coming back, not an answer.
+_ECHO_MARKS = ("REASON: <two or three sentences",
+               "Answer in exactly this form")
+
+
+def _after_echo(text: str) -> str:
+    """What the reviewer said, with our own instructions removed.
+
+    A host that echoes the prompt hands back a reply containing the answer
+    *template*, and a template that looks like an answer is an approval nobody
+    gave. Cutting at the last occurrence keeps a real answer that happens to
+    quote the instruction.
+    """
+    cut = 0
+    for mark in _ECHO_MARKS:
+        found = text.rfind(mark)
+        if found >= 0:
+            end = text.find("\n", found)
+            cut = max(cut, len(text) if end < 0 else end + 1)
+    return text[cut:] if cut else text
+
+
 def parse_verdict(text: str) -> tuple:
     """`(verdict, reason)` from a reviewer's answer.
 
@@ -163,7 +193,11 @@ def parse_verdict(text: str) -> tuple:
     and treating that as approval is how a broken adapter becomes a rubber
     stamp.
     """
-    said = {m.group(1).lower() for m in _VERDICT_RE.finditer(text or "")}
+    # Anything before the last `--- SESSIONS ---`-style echo of our own words
+    # is not the reviewer talking. Hosts that print the instruction back
+    # (codex does) otherwise hand us a verdict we wrote ourselves.
+    text = _after_echo(text or "")
+    said = {m.group(1).lower() for m in _VERDICT_RE.finditer(text)}
     reason = ""
     found = _REASON_RE.search(text or "")
     if found:
@@ -184,7 +218,18 @@ def parse_verdict(text: str) -> tuple:
 def ask(host: str, prompt: str, cwd, model: str | None = None,
         timeout: int = TIMEOUT) -> str:
     """Run one headless review. Returns the reply, or raises."""
-    argv = HOSTS[host](prompt, model)
+    entry = catalog().get(host)
+    if entry is None:
+        raise RuntimeError(f"no headless mode declared for {host!r} "
+                           f"(known: {', '.join(host_names())})")
+    argv = entry.headless(prompt, model or "")
+    # The path `which` found, not the bare name. On Windows `CreateProcess`
+    # completes `.exe` and nothing else, so an npm-installed host — `gemini`
+    # is `gemini.CMD` — was never actually run: every review failed with
+    # FileNotFoundError and the claim stayed on the list forever.
+    found = shutil.which(argv[0])
+    if found:
+        argv = [found] + argv[1:]
     proc = subprocess.run(argv, cwd=str(cwd), capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=timeout)
     if proc.returncode != 0 and not (proc.stdout or "").strip():
@@ -205,7 +250,7 @@ def review(root, slug: str, author: str | None = None, host: str | None = None,
     chosen = host or pick_host(author)
     if chosen is None:
         raise RuntimeError("no reviewer CLI on PATH "
-                           f"(looked for {', '.join(HOSTS)})")
+                           f"(looked for {', '.join(host_names())})")
     started = time.monotonic()
     try:
         reply = ask(chosen, build_prompt(root, slug), cwd=root, model=model,
@@ -282,8 +327,16 @@ def _is_answer(post) -> bool:
     Only a reviewer's `stands` or `refuted` retires a claim. Everything else a
     reviewer might leave behind — an `unclear`, a note about a failed run — is
     a post, not an answer.
+
+    Only the **first line** counts. An `unclear` post quotes the reviewer's
+    own words underneath, and a reply that argued both sides would otherwise
+    clear the claim on the strength of the word `stands` appearing inside the
+    quotation.
     """
-    return post.host == vocab.REVIEWER and bool(_ANSWER_RE.search(post.text or ""))
+    if post.host != vocab.REVIEWER:
+        return False
+    first = (post.text or "").lstrip().splitlines()
+    return bool(first) and bool(_ANSWER_RE.match(first[0]))
 
 
 def _note_path(root, slug: str) -> Path:
@@ -406,7 +459,7 @@ def main(argv=None) -> int:
     parser.add_argument("slug", nargs="*",
                         help="Propositions to review (default: everything unreviewed)")
     parser.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
-    parser.add_argument("--host", choices=list(HOSTS),
+    parser.add_argument("--host", choices=host_names(),
                         help="Reviewer CLI (default: any installed one that is not --author)")
     parser.add_argument("--author", help="The CLI that wrote the claim; the reviewer avoids it")
     parser.add_argument("--model", help="Pin the reviewer's model (a cheap one is the point)")
@@ -438,7 +491,7 @@ def main(argv=None) -> int:
     chosen = pick_host(args.author, configured=wanted_host)
     if chosen is None:
         named = f"'{wanted_host}' is not installed" if wanted_host else \
-            f"no reviewer CLI on PATH (looked for {', '.join(HOSTS)})"
+            f"no reviewer CLI on PATH (looked for {', '.join(host_names())})"
         print(f"{named}. The claim stays unreviewed rather than self-approved.",
               file=sys.stderr)
         return 1

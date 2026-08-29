@@ -17,7 +17,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 4. **确定性 CLI 是拘束具。** 能写成命令/门/测试的规则不写成 prose；prose 规则是硬化候选。
 5. **人的输入面只有一个（对话）。** 人被要求写字的时刻 = 人必须读的时刻，是同一组事件。
 6. **仪式性动作留给人。** 关线、发表只有人调用，AI 永不调用。
-7. **硬约束不变**：Windows + macOS；Claude Code / Codex / Gemini 三宿主冒烟（Qwen Code 顺带）。
+7. **硬约束不变**：Windows + macOS；Claude Code / Codex / Antigravity 三宿主冒烟。Gemini CLI 已废弃，不再是宿主；其余宿主（Qwen Code、opencode、用户自加的）是**第二梯队**：best-effort、fail-soft、不进冒烟（2026-08-29 作者定）。
 
 ## 2. 结构：project / line
 
@@ -135,7 +135,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 - `<!-- magi:begin -->…<!-- magi:end -->` 由 CLI 拥有、幂等重写；块外用户所有。`CLAUDE.md` 只含 `@AGENTS.md`。project 一块，line 不单独放。
 - 块 ≤ 40 行：入口一行（先跑 `magi next`）、目录含义各一行、五条不变量（不改 `raw/`、一文件一温度、翻状态必跟帖、子 agent 不问人、fan-out 必报数）、强制输出协议（按档位）、guide 指针。**理由不进块**——块每个会话都在付费。
 - **规则区**（2026-08-29 定，见 §12）：块内最后一节，由 CLI 从 `output/reflect/ledger.jsonl` 渲染——ACCEPT 且未 PROMOTE、未退出的规则各一行。它是派生物：块的真相 = 模板 + 账本，LLM 永不写块。行数上限 `research.rule_budget`（config，WebUI 可改；默认 7，使默认总长仍 ≤ 40）；满了 ACCEPT 拒绝，先退一条或 PROMOTE 一条。棘轮测试守模板的 40 行，规则区由 ACCEPT 闸门守。**谁改了账本谁重渲染**（`reflect accept | promote`、退出、`sync`），不等下次 `install`；渲染**从不截断**——预算只拦新的 ACCEPT，已渲染的留着，超预算时 `sync` 报一行。块仍是幂等的：同样的模板 + 账本 → 同样的块，只是输入里多了账本。块与账本的**漂移**由 `sync --close` 检查：账本里 accepted 的规则块里没有 → 阻塞并提示 `magi install` 能修（M6 复核加：「记了裁决但没重渲染」以前没有任何东西会发现）。
-- `magi install --host <claude|codex|gemini|qwen|opencode>`：一条幂等命令写 skills + hooks + 托管块。opencode 是完整宿主但**低优先级**（2026-08-29 定：作者暂不用它）——install 侧已有；无头复核适配器与冒烟做得简单就做，做不成就算，不进 §1.7 的硬约束。**宿主词表对外只有这一个**（2026-08-29 定）：`antigravity` 是 `gemini` 的别名（`--host antigravity` 能用，help 只列 gemini，label 仍写产品名）；代码里三张宿主表——装到哪 / 无头跑哪个二进制 / 谁的记录读得懂——各答各的问题，文件头写明并互指；qwen 的 install 目标等查清 qwen-code 的 skill 目录约定再加，不猜；宿主配置用解析-合并-写回并备份，不做文本追加。宿主强制力不对称按文档声明。
+- `magi install --host <claude|codex|antigravity|qwen|opencode>`：一条幂等命令写 skills + hooks + 托管块。opencode 是完整宿主但**低优先级**（2026-08-29 定：作者暂不用它）——install 侧已有；无头复核适配器与冒烟做得简单就做，做不成就算，不进 §1.7 的硬约束。**宿主词表对外只有这一个**（2026-08-29 定）：第一梯队 `claude | codex | antigravity`，第二梯队 `qwen | opencode` 及用户自加的。`gemini` 不再是宿主名，也不留别名——Gemini CLI 已废弃，Gemini 家只有 Antigravity（二进制 `agy`）。**宿主是数据不是代码**（2026-08-29 作者定：世上 CLI 太多，能通用最好）：一个宿主 = 一条声明——二进制名、skill 落点（默认走 `.agents/skills/` 跨宿主约定）、无头调用模板与模型参数、transcript reader 名——三张表（装到哪 / 无头跑哪个二进制 / 谁的记录读得懂）合成一张注册表 `core/hosts.py`，用户可在 `config.yaml` 的 `research.hosts` 里加同形记录。加一个宿主 = 加一条记录；唯一要写代码的是 transcript reader，没有 reader 就是读不到，不报错；qwen 的 install 目标等查清 qwen-code 的 skill 目录约定再加，不猜；宿主配置用解析-合并-写回并备份，不做文本追加。宿主强制力不对称按文档声明。
 - 宿主自带 auto-memory 视为私有缓存；项目状态只以 MAGI 文件为准，冲突以文件为准（写进块）。
 
 ## 10. 人机界面
@@ -147,7 +147,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 
 ## 11. 审核契约（`magi review`）
 
-- 无头调用：`claude -p` / `codex exec` / `gemini -p` / `qwen -p` 各一适配器（opencode 预留一个位置，按其文档化的非交互模式加，做不成就算）；固定提示词；只给读文件 + 冷层检索；模型钉便宜档。
+- 无头调用：命令由宿主注册表（§9）的模板生成，不在 `review.py` 里逐宿主写死；内置 `claude -p` / `codex exec` / `agy -p`，第二梯队 `qwen -p`、opencode 按其文档化的非交互模式各一条记录，做不成就算。Antigravity 的非交互模式：`agy -p`，模型用 `--model`（不是 `-m`），`--print-timeout` 默认 5 分钟，`--json-schema` 可强制结构化输出——裁决走结构化输出比正则扫文本可靠（2026-08-29 补）。**不做 `gemini -p` 适配器**：Gemini CLI 已废弃。argv[0] 用 `shutil.which` 的解析结果而不是裸名字：Windows 只自动补 `.exe`，npm 装的 `.cmd` shim 裸名字起不来；固定提示词；只给读文件 + 冷层检索；模型钉便宜档。
 - 触发：`magi sync --close` **列出**本会话翻到 `supported` 的命题；`magi next` 提议，实际调用手动或由还在干活的 agent 发起。不在每次写文件时审。（M4 实现时改：一次无头调用是几分钟延迟加真金白银，塞进 stop hook 而预算闸门在 M6，两样都没有护栏；而要等五分钟的 stop hook 是会被卸掉的 stop hook。）
 - 看什么：命题 + 推导（`derivation`）+ 冷层。**不看对话、不看 line 叙述**——"远"指不共享上下文，不指不给证据。
 - 默认跨厂商：探测 PATH 上的 CLI，选与作者宿主不同的；没有则同宿主便宜模型；零配置，config 可指定。
@@ -164,7 +164,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 - **证据分路**（2026-08-29 补）：gap 在 ≥ 2 个宿主出现 → 共享层（块外 prose / 门 / 测试）；只在一个宿主出现 → 该宿主自己的配置（如 Claude 的 hook）。只捕捉某宿主 workaround 的规则不迁移，放进共享层是让另外三个宿主每个会话付费读没用的东西。
 - **skill 方法类提案**（2026-08-29 定：出）：从成功会话提炼的「先 X 再 Y」是 skill 的 Method 步骤，不是块规则。目标是官方 skill → 提案标「包级」，ACCEPT 的含义是「这是对 `src/magi/skills/…` 的 diff，去 repo 里应用」——人手动上游，reflect 不写包；目标是用户自有 skill（§8）→ ACCEPT 时 CLI 直接打补丁（patch 词表同模式页）并提示重装。提案必须自带「加哪行、删哪行」。计入每周 5 条。
 - 输出进 MAP 决策队列；三按钮 **ACCEPT / REJECT / PROMOTE→CODE**，都是人用面（§1.6），CLI 写账本。ACCEPT → 规则一行进账本，下次渲染出现在托管块规则区（§9）；REJECT → 账本留全文；PROMOTE→CODE → 从**封闭的声明式规则词表**里选一条实例写进 `config.yaml` 的 `research.rules`（带 `from:` 指回账本条目；放 `research` 节下而非顶层，因为配置写入器是外科式的、只认 `section.key`——顶层键要么整文件重写丢掉人的注释，要么第二个写入器），`lint` / `--close` 即刻执行；或装成宿主 hook（走 `install`）。词表装不下的规则**不能 promote**——留 prose，或变成「包级」提案给 MAGI 加一种规则。账本标 promoted，规则区下次渲染自动消失。**RETIRE 是独立动词**（`magi reflect retire`，M6 复核加）：回答「这条规则还要吗」的「不要了」——写 `RETIRED`、删 `research.rules` 实例、**不进**「被拒不再提」清单。退休一条原因已消失的好规则和否掉一个坏主意不是同一件事，用 reject 记它会让好规则永远回不来。`reject` 一条已 promoted 的提案同样删实例——两者都撤规则，区别只在进不进「不再提」清单。（2026-08-29 定；否决工作区 `checks/` 可执行骨架，见 §16。）事实类提案路由到 wiki。**LLM 永不写托管块**：人是唯一的门，CLI 是唯一的笔；hash 守护的是模板与渲染函数，不是渲染结果。（2026-08-29 定：C 方案。否决块外专属区——多一个 CLI 拥有的区和一条上限规则；否决 skill Rules 节——skill 真相在包里、`magi install` 会覆盖工作区拷贝、8 个 skill 余 0–1 行、而 reflect 的证据是项目级的。）
-- 自研实现（backpass 只验证过 macOS/Linux 路径），借循环不借代码。transcript 适配器读**装了的每个宿主**（2026-08-29 实测：claude / codex / gemini / qwen / opencode，五个宿主四种格式；qwen 是 gemini 的 fork，同一 reader 指向 `~/.qwen`，**未实测**、形状不同就返回空；opencode 是 sqlite 库不是文件），按「读一个会话」抽象不按「读一个路径」；一个宿主读不了记进 sweep 不抛。**读 transcript 不等于是 §9 的安装 / 复核宿主**——opencode 要不要成为完整宿主见 §15。
+- 自研实现（backpass 只验证过 macOS/Linux 路径），借循环不借代码。transcript 适配器读**装了的每个宿主**（2026-08-29 实测：claude / codex / antigravity / qwen / opencode，五个宿主四种格式。`~/.gemini/tmp/<project>/chats/` 那个 reader 是探这台机器上的实际文件写的，须确认那是 agy 写的——Gemini CLI 已废弃，若是它的格式就改指 agy 的记录位置；qwen-code 是 Gemini CLI 的 fork，同一 reader 指向 `~/.qwen`，**未实测**、形状不同就返回空；opencode 是 sqlite 库不是文件），按「读一个会话」抽象不按「读一个路径」；一个宿主读不了记进 sweep 不抛。**读 transcript 不等于是 §9 的安装 / 复核宿主**——opencode 要不要成为完整宿主见 §15。
 
 ## 13. 成本治理
 
@@ -177,7 +177,7 @@ Melchior = 知识（冷 + 温·共享）；Balthasar = 意图（`threads/` + `de
 
 ## 15. 实现时再定（第三梯队）
 
-稳定 ID 细则、bet / decision 记分规则、`construction` kind、线级规则作用域（先全项目级）。已定：词表在 M0 冻结；threads 在知识型查询降权 0.6（M1）；决策队列不写 bd（M2）；`each` 随 hub 一起删掉（M3）——跨库批跑的替代物是 shell 里对 `magi kb list --json` 的路径做循环，不值得为它保留一条命令和一套 hub 语义；ACCEPT 的规则从账本渲染进托管块规则区、预算单列（2026-08-29，C 方案，见 §9 / §12）；reflect 出 skill 方法类提案——官方 skill 走包级人手动上游、用户自有 skill 由 CLI 打补丁（2026-08-29，§8 / §12）；opencode 是完整宿主但低优先级（2026-08-29，§9 / §11）。
+稳定 ID 细则、bet / decision 记分规则、`construction` kind、线级规则作用域（先全项目级）。已定：词表在 M0 冻结；threads 在知识型查询降权 0.6（M1）；决策队列不写 bd（M2）；`each` 随 hub 一起删掉（M3）——跨库批跑的替代物是 shell 里对 `magi kb list --json` 的路径做循环，不值得为它保留一条命令和一套 hub 语义；ACCEPT 的规则从账本渲染进托管块规则区、预算单列（2026-08-29，C 方案，见 §9 / §12）；reflect 出 skill 方法类提案——官方 skill 走包级人手动上游、用户自有 skill 由 CLI 打补丁（2026-08-29，§8 / §12）；opencode 是完整宿主但低优先级（2026-08-29，§9 / §11）；Qwen Code 同为第二梯队——它是我在 v2 设计时作为 Gemini CLI 的 fork「顺带」带进来的，作者未要求；宿主注册表合一、宿主可由用户声明（2026-08-29，§9）。
 
 ## 16. 已否决（不再讨论）
 

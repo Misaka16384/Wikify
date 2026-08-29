@@ -45,6 +45,27 @@ def test_theses_is_retired(workspace):
     assert not (workspace / "wiki" / "theses").exists()
 
 
+def test_init_never_calls_a_command_that_no_longer_exists(tmp_path):
+    """A topic under `<hub>/topics/` used to be registered in that hub too, by
+    shelling out to `magi hub register`. Hubs went away in M3 and so did the
+    command, but the call stayed — so every init in such a directory ended on
+    a warning quoting "unknown command 'hub'", which is how a person learns to
+    ignore warnings."""
+    hub = tmp_path / "hub"
+    (hub / "topics").mkdir(parents=True)
+    (hub / "hub.md").write_text("# hub\n", encoding="utf-8")
+    (hub / "config.md").write_text("# scope\n", encoding="utf-8")
+
+    done = subprocess.run(
+        [sys.executable, "-m", "magi", "init",
+         "--topic-dir", str(hub / "topics" / "t"), "--name", "T"],
+        capture_output=True, text=True, check=True)
+
+    said = done.stdout + done.stderr
+    assert "unknown command" not in said, said
+    assert "auto-register" not in said, said
+
+
 def test_the_two_human_surfaces_exist(workspace):
     """One to write decisions into, one to dump anything into. A person who
     has to choose between five places writes in none of them."""

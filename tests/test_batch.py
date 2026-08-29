@@ -197,6 +197,39 @@ def test_the_commit_is_recorded_against_the_item(ws, monkeypatch):
     assert ledger.load_batch(ws, batch_id)[0].committed_path
 
 
+def test_committing_one_batch_commits_only_that_batch(ws, monkeypatch):
+    """`--batch B --commit` reads as "land the batch I was just looking at".
+    The flag narrowed the listing and was then dropped on the way to the
+    commit, so every fully-decided batch went into `raw/` — and `raw/` is
+    ORIGINAL, so doing more than was asked is the one direction this cannot
+    fail in."""
+    _stub_route(monkeypatch, ws)
+    ledger.enqueue(ws, source_type="arxiv", value="a")
+    batch.main(["run"])
+    first = ledger.list_batches(ws)[0]
+    ledger.enqueue(ws, source_type="arxiv", value="b")
+    batch.main(["run"])
+    second = [b for b in ledger.list_batches(ws) if b != first][0]
+
+    for batch_id in (first, second):
+        for item in ledger.load_batch(ws, batch_id):
+            batch.main(["decide", "--item", item.item_id, "--decision", "approve"])
+
+    batch.main(["review", "--batch", second, "--commit"])
+
+    assert not any(i.committed_path for i in ledger.load_batch(ws, first)), \
+        "a batch nobody asked about was committed"
+    assert all(i.committed_path for i in ledger.load_batch(ws, second))
+
+
+def test_committing_a_batch_that_is_not_there_says_so(ws, monkeypatch):
+    _stub_route(monkeypatch, ws)
+    ledger.enqueue(ws, source_type="arxiv", value="a")
+    batch.main(["run"])
+
+    assert batch.main(["review", "--batch", "b-nope", "--commit"]) == 1
+
+
 def test_staged_images_travel_with_the_document(ws, monkeypatch):
     """A committed page whose figures stayed in staging is a page of broken links."""
     def fake(route, entry, staging, topic=None):

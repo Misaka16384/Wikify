@@ -315,11 +315,35 @@ The skill files ship with the CLI — **no repo clone, no network**.
 | **Claude Code** | `~/.claude/skills/` | `.claude/skills/` | `/skill-name`, and auto by description |
 | **Codex** | `~/.agents/skills/` (plus `~/.codex/skills/`) | `<repo root>/.agents/skills/` | `$skill-name`, or Codex picks it by description |
 | **Antigravity (agy)** | `~/.gemini/config/skills/` | `<repo root>/.agents/skills/` | Name it in your prompt, or auto by description; `/skills` browses |
+| **qwen-code** | `~/.agents/skills/` | `<repo root>/.agents/skills/` | Name it in your prompt, or auto by description |
 | **opencode** | `~/.config/opencode/commands/` + `skills/` | `.opencode/commands/` + `skills/` | `/skill-name` |
 
 > [!NOTE]
 > **Not every CLI has slash commands.** Claude Code and opencode do; Codex uses `$skill-name`; agy only fires on description matching (`/skills` is just a browser). So the one habit that works everywhere is simply to **say what you want** — "ingest the papers in inbox", "look up this error" — and let the matching skill load itself.
-> `.agents/skills/` is the cross-agent convention Codex and agy share, so one copy serves both. opencode scans it too, but its slash commands come from its own `.opencode/commands/`, so the installer writes there as well.
+> `.agents/skills/` is the cross-agent convention Codex, agy and qwen share, so one copy serves all three. opencode scans it too, but its slash commands come from its own `.opencode/commands/`, so the installer writes there as well.
+
+> [!NOTE]
+> **Your CLI isn't in the table? Add it — no code.** There are far too many agent CLIs to enumerate, so a host is a *record*: `research.hosts` in `config.yaml` takes entries of exactly the shape the built-in ones have. Add one and `magi skills where` lists it, `magi skills install --host <key>` writes to it, and `magi review` can call it.
+>
+> ```yaml
+> research:
+>   hosts:
+>     - key: mycli
+>       label: My CLI
+>       bin: mycli                     # what it is called on PATH
+>       marker: "{home}/.mycli"        # a directory whose presence proves it is installed
+>       drops:
+>         - kind: skill                # skill | command
+>           global_dir: "{home}/.mycli/skills"
+>           project_dir: "{root}/.agents/skills"
+>           layout: dir                # dir -> <dir>/<name>/SKILL.md ; flat -> <dir>/<name>.md
+>           invoke: "/{name}"          # what you type; shown back in the report
+>       argv: ["{bin}", "-p", "{prompt}"]   # omit if it has no headless mode
+>       model_flag: "--model"
+> ```
+>
+> The substitutions are `{home}`, `{config}` (`XDG_CONFIG_HOME`) and `{root}` (this workspace). The one thing a record **cannot** declare is how to read that CLI's saved sessions: every vendor stores them differently, and `magi reflect read` needs a parser, not a template. A host with no reader simply contributes no sessions to the slow loop — nothing else about it changes.
+> A record whose `key` matches a built-in replaces that built-in outright, which is how you point MAGI at a CLI you installed under another name.
 
 **Claude Code can also use the plugin** (the one-line installer does this for you): skills arrive namespaced, and the plugin adds a SessionStart hook that runs `magi sync` at the start of every session:
 
@@ -1345,7 +1369,7 @@ SOURCE: raw/papers/laughlin-1983.md
 ```powershell
 magi verify drafts/paper.md --topic-dir .              # exit code 0 = everything passed, 1 = something unverified
 magi verify drafts/paper.md --topic-dir . --fetch-web  # also actually fetches and checks web sources
-magi validate wiki/theses/x.md --schema thesis         # structural validation of a claims report
+magi validate wiki/topics/x.md                        # structural check of one synthesis
 ```
 
 > [!NOTE]
@@ -1353,7 +1377,7 @@ magi validate wiki/theses/x.md --schema thesis         # structural validation o
 > The evidence quote must be single-line quoted content; multi-line quotes aren't supported.
 
 > [!WARN]
-> The "N paragraphs have no citation" message from `magi validate --schema research` sounds mild, but it **does set the exit code to 1**. Keep that in mind if you're writing CI.
+> The "N paragraphs have no citation" message from `magi validate` sounds mild, but it **does set the exit code to 1**. Keep that in mind if you're writing CI.
 
 ---
 

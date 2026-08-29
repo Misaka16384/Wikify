@@ -187,7 +187,10 @@ def test_the_prompt_points_at_the_note_and_forbids_the_context(ws):
     prompt = review.build_prompt(ws, "p-gap")
     assert "threads/p-gap.md" in prompt
     assert "did not write it" in prompt
-    assert "VERDICT: stands|refuted|unclear" in prompt
+    assert "VERDICT: <stands, refuted, or unclear>" in prompt
+    assert "VERDICT: stands|refuted|unclear" not in prompt, (
+        "the answer template must not itself read as an answer — a host that "
+        "echoes the prompt would hand back an approval we wrote ourselves")
 
 
 def test_a_reviewer_that_fails_leaves_the_claim_unreviewed(ws, monkeypatch):
@@ -225,8 +228,20 @@ def test_one_failure_does_not_stop_the_batch(ws, monkeypatch):
 def test_the_model_flag_is_only_passed_when_asked_for():
     """Passing a model nobody configured is how an adapter starts failing with
     'unknown model' on a host that was working."""
-    assert "--model" not in review.HOSTS["claude"]("p", None)
-    assert review.HOSTS["claude"]("p", "haiku")[-2:] == ["--model", "haiku"]
+    claude = review.catalog()["claude"]
+    assert "--model" not in claude.headless("p")
+    assert claude.headless("p", "haiku")[-2:] == ["--model", "haiku"]
+
+
+def test_a_host_that_declares_no_headless_mode_is_not_a_reviewer():
+    """opencode installs skills and its transcripts are read, but nothing here
+    knows how to ask it a question. Half a host is not a reviewer, and finding
+    that out mid-review is finding it out too late."""
+    from magi.core import hosts
+
+    assert "opencode" in hosts.catalog()
+    assert "opencode" not in review.catalog()
+    assert "opencode" not in review.host_names()
 
 
 # --------------------------------------------------------------------------

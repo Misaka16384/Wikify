@@ -5,7 +5,8 @@ deterministic ``magi`` commands. What differs per host is only where the file
 goes and what wrapper it needs to become a slash command. This module owns
 that table, so every supported CLI gets the same skills instead of Claude
 Code getting them through the plugin and everyone else copying directories by
-hand.
+hand. The table of hosts itself lives in `core.hosts` -- one record per CLI,
+shared with the reviewer and the transcript readers.
 
 Scopes:
 - ``project`` (default) — into the MAGI workspace you are standing in, so the
@@ -30,7 +31,9 @@ import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Dict, List, Optional
+
+from .core import hosts
 
 # --------------------------------------------------------------------------
 # Packaged skills
@@ -122,75 +125,50 @@ def load_skills() -> List[Skill]:
 
 
 # --------------------------------------------------------------------------
-# Host table — "where does a skill get installed?"
+# Hosts — "where does a skill get installed?"
 #
-# One of three tables in this codebase that list hosts, and they answer three
-# different questions:
+# There is no host table here any more. There is one, in `core.hosts`, and it
+# answers this question alongside the two that used to have tables of their
+# own: what to run for a headless call, and whose session record we can read.
+# Three tables edited separately is how the same vendor ended up under two
+# names, and how one probe came to look for a binary that another table spelled
+# differently.
 #
-#   `skills_cmd.HOSTS`      where a skill gets installed (this one)
-#   `review.HOSTS`          what binary to run for a headless call
-#   `reflect.transcripts`   whose session record we know how to read
-#
-# The keys here are products; `review`'s are commands. That is why one vendor
-# appears as `antigravity` here and `gemini` there — the product is Antigravity,
-# the command is `gemini`. A person types one word, so `gemini` is accepted as
-# an alias for this table (see `resolve_host`) and is what `--help` names.
+# What is left here is the part that is actually about *installing*: turning a
+# record's path templates into real directories, and writing files into them.
 # --------------------------------------------------------------------------
+
+Host = hosts.Host
+Drop = hosts.Drop
+HOST_ALIASES = hosts.ALIASES
+
 
 def _home() -> Path:
     return Path.home()
 
 
-#: The word a person types -> the key this table uses. One vendor, two names,
-#: and nobody should have to learn which command wants which.
-HOST_ALIASES = {"gemini": "antigravity"}
-
-
 def resolve_host(name: str) -> str:
     """The key for a host somebody named, however they spelled it."""
-    key = str(name or "").strip().lower()
-    return HOST_ALIASES.get(key, key)
+    return hosts.resolve(name)
 
 
-@dataclass
-class Target:
-    """One directory a host loads instructions from.
-
-    Hosts differ in two ways that matter: the folder they scan, and whether
-    what lands there becomes a slash command or something the model invokes
-    on its own when the description matches. Both are worth installing — a
-    slash command is discoverable, description-matching is automatic.
-    """
-
-    kind: str                       # "skill" | "command"
-    global_dir: Callable[[], Path]
-    project_dir: Optional[Callable[[Path], Path]]
-    layout: str                     # "dir" -> <target>/<name>/SKILL.md ; "flat" -> <target>/<name>.md
-    invoke: str                     # what the user types, or how it fires
+def catalog(config: Optional[dict] = None) -> Dict[str, Host]:
+    """Every host: the built-in records, plus whatever `research.hosts` adds."""
+    return hosts.catalog(config)
 
 
-@dataclass
-class Host:
-    key: str
-    label: str
-    binary: str
-    targets: List[Target]
-    marker: Callable[[], Path]      # config dir whose presence proves the host is installed
-    note: str = ""
-
-    def detected(self) -> bool:
-        if shutil.which(self.binary):
-            return True
-        try:
-            return self.marker().exists()
-        except Exception:
-            return False
+HOSTS: Dict[str, Host] = hosts.catalog()
 
 
-def _config_home_opencode() -> Path:
-    xdg = os.environ.get("XDG_CONFIG_HOME")
-    base = Path(xdg) if xdg else _home() / ".config"
-    return base / "opencode"
+def detected(host: Host) -> bool:
+    """Is this CLI on the machine? Its binary on PATH, or its config dir."""
+    if shutil.which(host.command):
+        return True
+    marker = hosts.expand(host.marker)
+    try:
+        return bool(marker and marker.exists())
+    except OSError:
+        return False
 
 
 def _is_workspace(path: Path) -> bool:
@@ -219,74 +197,6 @@ def workspace_anchor(start: Optional[Path] = None) -> Path:
     except Exception:
         pass
     return cur
-
-
-# Verified against each CLI on 2026-08-20 (their own docs + a live install).
-# `.agents/skills/` is the cross-agent convention: Codex, Antigravity and
-# opencode all scan it, which is why the project scope converges there.
-HOSTS: Dict[str, Host] = {
-    "claude": Host(
-        key="claude", label="Claude Code", binary="claude",
-        marker=lambda: _home() / ".claude",
-        targets=[
-            Target(kind="skill",
-                   global_dir=lambda: _home() / ".claude" / "skills",
-                   project_dir=lambda root: root / ".claude" / "skills",
-                   layout="dir",
-                   invoke="/{name}"),
-        ],
-        note="The magi plugin already serves these as /magi:<name>; a copy here also "
-             "answers to a plain /<name>.",
-    ),
-    "codex": Host(
-        key="codex", label="Codex CLI", binary="codex",
-        marker=lambda: _home() / ".codex",
-        targets=[
-            Target(kind="skill",
-                   global_dir=lambda: _home() / ".agents" / "skills",
-                   project_dir=lambda root: workspace_anchor(root) / ".agents" / "skills",
-                   layout="dir",
-                   invoke="$" + "{name}  (or let Codex pick it by description)"),
-            Target(kind="skill",
-                   global_dir=lambda: _home() / ".codex" / "skills",
-                   project_dir=None,     # Codex has no project-level .codex/skills
-                   layout="dir",
-                   invoke="$" + "{name}  (Codex-native location)"),
-        ],
-        note="Codex skills are not slash commands: type $<name> to force one, or let it "
-             "choose by description.",
-    ),
-    "antigravity": Host(
-        key="antigravity", label="Antigravity CLI (agy)", binary="agy",
-        marker=lambda: _home() / ".gemini" / "config",
-        targets=[
-            Target(kind="skill",
-                   global_dir=lambda: _home() / ".gemini" / "config" / "skills",
-                   project_dir=lambda root: workspace_anchor(root) / ".agents" / "skills",
-                   layout="dir",
-                   invoke="named in your prompt, or auto by description (/skills lists them)"),
-        ],
-        note="agy has no per-skill slash command — /skills browses what is loaded.",
-    ),
-    "opencode": Host(
-        key="opencode", label="opencode", binary="opencode",
-        marker=lambda: _config_home_opencode(),
-        targets=[
-            Target(kind="command",
-                   global_dir=lambda: _config_home_opencode() / "commands",
-                   project_dir=lambda root: root / ".opencode" / "commands",
-                   layout="flat",
-                   invoke="/{name}"),
-            Target(kind="skill",
-                   global_dir=lambda: _config_home_opencode() / "skills",
-                   project_dir=lambda root: root / ".opencode" / "skills",
-                   layout="dir",
-                   invoke="auto by description"),
-        ],
-        note="opencode separates the two: commands/ gives you /<name>, skills/ lets the model "
-             "reach for it unprompted. Both get installed.",
-    ),
-}
 
 
 # --------------------------------------------------------------------------
@@ -323,7 +233,7 @@ def render_command(skill: Skill) -> str:
     )
 
 
-def files_for(skill: Skill, target: "Target", dest: Path):
+def files_for(skill: Skill, target: Drop, dest: Path):
     """(path, text) pairs this skill contributes to one target directory."""
     if target.layout == "dir":
         out = [(dest / skill.name / "SKILL.md", skill.text)]
@@ -339,12 +249,21 @@ def files_for(skill: Skill, target: "Target", dest: Path):
 # Install / uninstall
 # --------------------------------------------------------------------------
 
-def target_dir(target: "Target", scope: str, project_root: Optional[Path] = None) -> Optional[Path]:
+def target_dir(target: Drop, scope: str, project_root: Optional[Path] = None) -> Optional[Path]:
+    """Where one host's skills go.
+
+    A project-scope install is anchored on the *workspace*, not the cwd. You
+    may be three directories deep in `raw/` when you run this; the agent CLI is
+    launched from the workspace root and looks there. Anchoring here rather
+    than in each record is what stopped one host (Claude Code, whose template
+    did not anchor) putting skills in a directory nothing reads.
+
+    `None` means "nowhere": the host declares no directory at this scope, which
+    Codex does — it has no project-level `~/.codex/skills`.
+    """
     if scope == "global":
-        return target.global_dir()
-    if target.project_dir is None:
-        return None
-    return target.project_dir(project_root or Path.cwd())
+        return hosts.expand(target.global_dir)
+    return hosts.expand(target.project_dir, root=workspace_anchor(project_root))
 
 
 def _write(path: Path, text: str, force: bool) -> str:
@@ -375,7 +294,7 @@ def install_host(host: Host, skills: List[Skill], scope: str, force: bool,
     counts = {"created": 0, "updated": 0, "unchanged": 0, "skipped": 0}
     written: List[str] = []
 
-    for target in host.targets:
+    for target in host.drops:
         dest = override_dir if override_dir is not None else target_dir(target, scope, project_root)
         if dest is None:
             # A host can have several directories and only some of them exist
@@ -417,11 +336,26 @@ def install_host(host: Host, skills: List[Skill], scope: str, force: bool,
     }
 
 
+def _ours(path: Path) -> bool:
+    """Did MAGI write this? Only what carries the mark is ours to remove.
+
+    A directory-layout skill used to be deleted whole, so somebody's own
+    `~/.claude/skills/research/` — their prompt, their reference files — went
+    with one `magi skills uninstall`. Install already refuses to overwrite a
+    file without the mark; removing has to ask the same question.
+    """
+    md = path / "SKILL.md" if path.is_dir() else path
+    try:
+        return ORIGIN_MARK in md.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+
+
 def uninstall_host(host: Host, skills: List[Skill], scope: str, dry_run: bool,
                    project_root: Optional[Path] = None,
                    override_dir: Optional[Path] = None) -> Dict:
     removed: List[str] = []
-    for target in host.targets:
+    for target in host.drops:
         dest = override_dir if override_dir is not None else target_dir(target, scope, project_root)
         if dest is None:
             continue
@@ -444,16 +378,17 @@ def uninstall_host(host: Host, skills: List[Skill], scope: str, dry_run: bool,
     return {"host": host.key, "label": host.label, "scope": scope, "removed": removed}
 
 
-def detected_hosts() -> List[Host]:
-    return [h for h in HOSTS.values() if h.detected()]
+def detected_hosts(config: Optional[dict] = None) -> List[Host]:
+    return [host for host in catalog(config).values() if detected(host)]
 
 
-def installed_state(skills: List[Skill], project_root: Optional[Path] = None) -> List[Dict]:
+def installed_state(skills: List[Skill], project_root: Optional[Path] = None,
+                    config: Optional[dict] = None) -> List[Dict]:
     """Where the skills currently are, per host / scope / target."""
     rows = []
-    for host in HOSTS.values():
+    for host in catalog(config).values():
         for scope in ("global", "project"):
-            for target in host.targets:
+            for target in host.drops:
                 dest = target_dir(target, scope, project_root)
                 if dest is None:
                     continue
@@ -471,7 +406,7 @@ def installed_state(skills: List[Skill], project_root: Optional[Path] = None) ->
                 rows.append({
                     "host": host.key, "label": host.label, "scope": scope,
                     "kind": target.kind, "dir": str(dest), "exists": dest.exists(),
-                    "detected": host.detected(),
+                    "detected": detected(host),
                     "installed": present, "outdated": stale, "total": len(skills),
                     "invoke": target.invoke.format(name="<skill>") if "{name}" in target.invoke else target.invoke,
                 })
@@ -513,22 +448,24 @@ def _prompt_for_hosts(found: List[Host]) -> List[Host]:
     return picked
 
 
-def _resolve_hosts(names: Optional[List[str]], interactive: bool = False) -> List[Host]:
+def _resolve_hosts(names: Optional[List[str]], interactive: bool = False,
+                   config: Optional[dict] = None) -> List[Host]:
+    table = catalog(config)
     if names == ["all"]:
-        return list(HOSTS.values())
+        return list(table.values())
     if names == ["auto"]:
-        return detected_hosts()
+        return detected_hosts(config)
     if names:
         out = []
         for n in names:
-            h = HOSTS.get(resolve_host(n))
+            h = table.get(resolve_host(n))
             if h is None:
-                known = ", ".join(sorted(set(HOSTS) | set(HOST_ALIASES)))
+                known = ", ".join(sorted(set(table) | set(HOST_ALIASES)))
                 raise SystemExit(f"unknown host {n!r} — known: {known} (or auto/all)")
             out.append(h)
         return out
 
-    found = detected_hosts()
+    found = detected_hosts(config)
     if len(found) <= 1:
         return found
     if interactive:
@@ -564,6 +501,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                        help="project (default): into the MAGI workspace you are in. "
                             "global: every project on this machine — rarely what you want, "
                             "since these skills only do anything inside a workspace.")
+        p.add_argument("--project-root", default=None,
+                       help="Workspace a project-scope install belongs to "
+                            "(default: discovered from cwd)")
         p.add_argument("--dir", default=None,
                        help="Write to this directory instead of the host's standard location.")
         p.add_argument("--only", action="append", default=None,
@@ -576,6 +516,16 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     args = parser.parse_args(argv)
     cmd = args.cmd or "where"
+
+    # A host somebody declared in `research.hosts` is a host. Read from the
+    # workspace we are standing in, and never fatal: a config that will not
+    # parse costs you your own host records, not the built-in ones.
+    try:
+        from .core.config_loader import load_config
+
+        config = load_config(start=str(workspace_anchor()))
+    except Exception:
+        config = {}
 
     skills = load_skills()
     if not skills:
@@ -610,12 +560,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     if cmd == "where":
-        rows = installed_state(skills)
+        rows = installed_state(skills, config=config)
         if args.json:
-            print(json.dumps({"hosts": rows, "detected": [h.key for h in detected_hosts()]},
+            print(json.dumps({"hosts": rows,
+                              "detected": [h.key for h in detected_hosts(config)]},
                              ensure_ascii=False))
             return 0
-        det = [h.key for h in detected_hosts()]
+        det = [h.key for h in detected_hosts(config)]
         print(f"detected agent CLIs: {', '.join(det) if det else '(none)'}\n")
         for r in rows:
             mark = "+" if r["installed"] else " "
@@ -629,13 +580,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     interactive = sys.stdin.isatty() and sys.stdout.isatty() and not args.json
-    hosts = _resolve_hosts(args.host, interactive=interactive)
-    if not hosts:
+    chosen = _resolve_hosts(args.host, interactive=interactive, config=config)
+    if not chosen:
         if interactive and args.host is None:
             print("nothing installed")
             return 0
         msg = ("no agent CLI detected. Pass --host explicitly "
-               f"({', '.join(HOSTS)}) or --dir <path>.")
+               f"({', '.join(catalog(config))}) or --dir <path>.")
         print(json.dumps({"error": msg}, ensure_ascii=False) if args.json else f"error: {msg}")
         return 1
 
@@ -653,13 +604,22 @@ def main(argv: Optional[List[str]] = None) -> int:
                       f"      Run this inside a topic workspace (magi init) or its hub for\n"
                       f"      the skills to have something to work on.\n")
 
+    # Which workspace this install belongs to. `--project-root` so a caller
+    # that already knows (`magi install --topic-dir X`) does not have to hope
+    # the cwd agrees with it.
+    project_root = (Path(args.project_root).expanduser().resolve()
+                    if getattr(args, "project_root", None) else None)
+
     reports = []
-    for host in hosts:
+    for host in chosen:
         if cmd == "install":
-            reports.append(install_host(host, skills, args.scope, getattr(args, "force", False),
-                                        args.dry_run, override_dir=override))
+            reports.append(install_host(host, skills, args.scope,
+                                        getattr(args, "force", False), args.dry_run,
+                                        project_root=project_root,
+                                        override_dir=override))
         else:
             reports.append(uninstall_host(host, skills, args.scope, args.dry_run,
+                                          project_root=project_root,
                                           override_dir=override))
 
     if args.json:

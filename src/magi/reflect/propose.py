@@ -217,7 +217,7 @@ def run(root, *, host=None, model=None, timeout: int = TIMEOUT,
     report.host = chosen or ""
     if chosen is None:
         report.note = ("no CLI on PATH to think with "
-                       f"(looked for {', '.join(review.HOSTS)})")
+                       f"(looked for {', '.join(review.host_names())})")
         report.failed = True
         return report
 

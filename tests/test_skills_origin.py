@@ -118,20 +118,25 @@ def test_no_such_directory_is_not_an_error(home):
 # --------------------------------------------------------------------------
 # one word list facing the person
 #
-# Three tables in this codebase list hosts, and they answer three different
-# questions — where a skill installs, what binary to run headless, whose
-# record we can read. The names diverged for a real reason. But only one of
-# them is typed by a person, and they should not have to know that one vendor
-# is called two things depending on which command they are running.
+# There used to be three tables listing hosts — where a skill installs, what
+# binary to run headless, whose record we can read — and the names diverged
+# because each was edited on its own. There is one table now, so the question
+# is no longer "do they agree" but "does the one word a person types still
+# reach the record", including the spelling of a product that has since been
+# renamed.
 # --------------------------------------------------------------------------
 
-def test_the_word_a_person_types_is_gemini():
+def test_one_table_answers_all_three_questions():
     from magi import review
+    from magi.core import hosts
     from magi.reflect import transcripts
 
-    assert "gemini" in review.HOSTS
-    assert "gemini" in transcripts.HOSTS
-    assert skills_cmd.resolve_host("gemini") in skills_cmd.HOSTS
+    entry = hosts.catalog()[skills_cmd.resolve_host("gemini")]
+    assert entry.key == "antigravity"
+    assert entry.drops, "a record has to say where its skills go"
+    assert entry.headless("q")[0] == "agy"
+    assert entry.reader in transcripts.ADAPTERS
+    assert entry.key in review.host_names()
 
 
 def test_the_product_name_still_works():
@@ -148,7 +153,7 @@ def test_both_spellings_reach_the_same_host():
 def test_the_label_still_names_the_product():
     """The alias is about what a person types, not about renaming the tool."""
     host = skills_cmd._resolve_hosts(["gemini"])[0]
-    assert "Antigravity" in host.label and host.binary == "agy"
+    assert "Antigravity" in host.label and host.command == "agy"
 
 
 def test_an_unknown_host_lists_both_spellings():
