@@ -422,8 +422,8 @@ def cmd_run(args) -> int:
         print(f"[batch]   {status}"
               + (f" — {len(findings)} finding(s)" if findings else ""))
 
-    print(f"\nReview it:  magi ingest batch-list --batch {batch_id}")
-    print(f"Then:       magi ingest batch-commit")
+    print(f"\nReview it:  magi ingest review --batch {batch_id}")
+    print(f"Then:       magi ingest review --commit")
     if args.json:
         print(json.dumps({"batch_id": batch_id, "items": len(queued)}))
     return 0
@@ -660,6 +660,9 @@ _VERBS = {
                "Approve, reject or undo one item. Rejecting requeues it a rung down."),
     "commit": ("magi ingest batch-commit",
                "Move approved documents into raw/. Refuses a batch with undecided items."),
+    "review": ("magi ingest review",
+               "The approval step, in one command: list what is waiting, decide one "
+               "item (--item/--decision), or commit what is approved (--commit)."),
 }
 
 
@@ -686,12 +689,22 @@ def main(argv=None) -> int:
     if verb == "run":
         parser.add_argument("--limit", type=int,
                             help="Process at most N queued items")
-    if verb == "list":
+    if verb in ("list", "review"):
         parser.add_argument("--batch", help="Show only this batch id")
     if verb == "decide":
-        parser.add_argument("--item", required=True, help="Item id (see batch-list)")
+        parser.add_argument("--item", required=True, help="Item id (see the listing)")
         parser.add_argument("--decision", required=True,
                             choices=["approve", "reject", "reset"])
+    if verb == "review":
+        # One command for a three-step loop that is really one activity:
+        # look at what is waiting, say yes or no to a row, and land the yeses.
+        # Three separate commands made the middle step feel like a different
+        # tool from the one that showed you the row.
+        parser.add_argument("--item", help="Item id from the listing")
+        parser.add_argument("--decision", choices=["approve", "reject", "reset"],
+                            help="What to do with --item")
+        parser.add_argument("--commit", action="store_true",
+                            help="Move everything approved into raw/")
 
     args = parser.parse_args(argv[1:])
     # Verb-specific flags are absent from the other parsers; give every handler
@@ -699,6 +712,17 @@ def main(argv=None) -> int:
     for name in ("batch", "item", "decision", "limit"):
         if not hasattr(args, name):
             setattr(args, name, None)
+
+    if verb == "review":
+        if args.commit:
+            return cmd_commit(args)
+        if args.item or args.decision:
+            if not (args.item and args.decision):
+                print("magi ingest review: --item and --decision go together",
+                      file=sys.stderr)
+                return 2
+            return cmd_decide(args)
+        return cmd_list(args)
 
     return {"run": cmd_run, "list": cmd_list,
             "decide": cmd_decide, "commit": cmd_commit}[verb](args)

@@ -26,7 +26,6 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("migrate",): "迁移 magi 之前的 Wikify 工作区（中枢或单课题）",
     # 任务状态（Beads 桥接）
     ("pm", "init"): "初始化 beads 并写入科研专用的议题类型",
-    ("pm", "status"): "查看 beads 是否可用及各类议题数量",
     ("pm", "backlog-sync"): "把尚未编译的原始文献转成 bd 议题",
     # 研究状态（命题 / 问题 / 研究线）
     ("install",): "把这个工作区装进你的 agent CLI：skills + AGENTS.md 协议块 + 收工闸门",
@@ -44,6 +43,7 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("ingest", "zotero-dirs"): "列出本机的 Zotero 库并选定一个",
     ("ingest", "zotero"): "把某个 Zotero 分类排进队列（优先 arXiv 源码而非本地 PDF）",
     ("ingest", "batch-run"): "跑队列：获取、转换、跑验收检查，产物进暂存区待审",
+    ("ingest", "review"): "审批这一步：列出待审、给某一条下判断、把通过的落进 raw/",
     ("ingest", "batch-list"): "查看待人工审批的批次",
     ("ingest", "batch-decide"): "对某一条批次条目通过 / 拒绝 / 撤销",
     ("ingest", "batch-commit"): "把已全部决定的批次落进 raw/",

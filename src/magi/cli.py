@@ -34,7 +34,6 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("migrate",): ("magi.migrate", [], "Migrate a pre-magi (Wikify) workspace (hub or topic)"),
     # work state (Beads bridge)
     ("pm", "init"): ("magi.pm", ["init"], "Initialize beads with research issue types"),
-    ("pm", "status"): ("magi.pm", ["status"], "Beads availability + issue counts"),
     ("pm", "backlog-sync"): ("magi.pm", ["backlog-sync"], "Uncompiled raw sources -> bd issues"),
     # ingestion
     ("ingest", "auto"): ("magi.ingest.auto", [], "Route a file (or all of inbox/) to the right ingester and finalize"),
@@ -45,6 +44,8 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("ingest", "zotero-dirs"): ("magi.ingest.zotero", [], "List Zotero libraries and choose one"),
     ("ingest", "zotero"): ("magi.ingest.zotero_import", [], "Queue a Zotero collection for ingest"),
     ("ingest", "batch-run"): ("magi.ingest.batch", ["run"], "Acquire, convert and gate-check the queue"),
+    ("ingest", "review"): ("magi.ingest.batch", ["review"],
+                           "The approval step: list, decide one item, or commit"),
     ("ingest", "batch-list"): ("magi.ingest.batch", ["list"], "Review batches awaiting approval"),
     ("ingest", "batch-decide"): ("magi.ingest.batch", ["decide"], "Approve/reject/reset one batch item"),
     ("ingest", "batch-commit"): ("magi.ingest.batch", ["commit"], "Commit fully-decided batches into raw/"),

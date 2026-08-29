@@ -82,7 +82,13 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 **目标**：人上手 = 2 条命令；AI 入口 = 托管块 + `next`。
 
 - [x] porcelain / plumbing 分离：`magi --help` 只列 7 条（next / init / install / ui / search / feed / guide），**13 行**；`--help --all` 仍列全部 71 条。隐藏不是删除，有测试守着
-- [ ] 合并落地：`sync --fix` 吸收 graph build / index / wiki reindex / lint --fix / ingest finalize / pm backlog-sync；`ingest` → auto / review / url（rung 变 `--via`）；`lint` 吸收 verify / claims verify / validate / math check；`install` 吸收 setup / skills *；`radar` → radar / radar schedule
+- [x] `ingest` → auto / **review** / url：`batch-list` + `batch-decide` + `batch-commit` 合成一条 `magi ingest review`（裸跑＝列出待审，`--item/--decision`＝判一条，`--commit`＝落盘）。这三步本来就是一件事，拆成三条命令让中间那步像是另一个工具
+- [x] `pm status` 删除：`magi sync` 的 Balthasar 行已经把 ready / in progress / blocked 说完了，同一个数字两个地方读是让它们开始打架的第一步
+- [x] `sync --fix` 吸收确定性修复：`FIXABLE` 早就把 graph build / index / backlog-sync / pm init 挂在对应 hint 上，porcelain 拆分之后那些命令本来就不在人看的那一屏里
+- [→ 不做] `lint` 吸收 `verify`：`verify --fetch-web` 会发网络请求，而 lint 必须离线且快——一个跑不动的 lint 就是没人跑的 lint。两条命令回答的是不同代价的问题
+- [→ 不做] `lint` 吸收 `validate` / `math check`：作用域不同（一篇文档 vs 整个工作区）。合了以后 `lint` 得长出参数来说明你指的是哪一种，那正是合并想消除的东西
+- [→ 不做] `radar` 收成 radar / radar schedule：porcelain 拆分之后 radar 整组都是 plumbing，人看不见；改名只会打断 `radar_review` skill 和 WebUI 的 ops 面板，换不到任何人能看见的收益
+- [→ 不做] `install` 吸收 `setup`：`install` 已经在调 `skills install`；而 `setup` 是环境体检（装 bd、拉模型、查插件），跟「把工作区装进宿主」不是一件事，合并会让一条命令同时改工作区和机器
 - [x] 20 → 8 skills（`magi` / `ingest` / `compile` / `tidy` / `ask` / `research` / `draft` / `radar_review`），每个 ≤ 40 行；样板（工具能力、谁能问人、无人值守）移入托管块；纯包装的七个删掉（建库、修复、建图、连边、查手册本来就是一条确定性命令）。顺带删掉 `wiki_lint` 带的 700 个 fixture 文件——没有任何测试在跑它们
 - [x] `research` 吸收 `audit`：找茬只是换一套子 agent 提示词，产物统一为 threads 命题 + 至多一篇 `wiki/topics` synthesis
 - [ ] `validate` 收成单 schema（跟命令面合并一起做）

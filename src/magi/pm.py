@@ -319,31 +319,6 @@ def cmd_init(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_status(args: argparse.Namespace) -> int:
-    root = find_beads_root()
-    payload: dict = {
-        "bd_installed": bd_available(),
-        "beads_root": str(root) if root else None,
-        "summary": None,
-    }
-    if root:
-        payload["summary"] = bd_status_summary(root)
-    if args.json:
-        print(json.dumps(payload, ensure_ascii=False))
-    else:
-        if not payload["bd_installed"]:
-            print("bd not installed")
-        elif not root:
-            print("no beads database found (run 'magi pm init' in the project root)")
-        else:
-            s = payload["summary"] or {}
-            print(f"beads @ {root}: {s.get('ready_issues', '?')} ready, "
-                  f"{s.get('in_progress_issues', '?')} in progress, "
-                  f"{s.get('blocked_issues', '?')} blocked, "
-                  f"{s.get('open_issues', '?')} open")
-    return 0
-
-
 def cmd_backlog_sync(args: argparse.Namespace) -> int:
     """Create a bd issue (type: task, label: magi-compile) per uncompiled raw source."""
     topic = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
@@ -416,17 +391,6 @@ def main(argv: list[str] | None = None) -> int:
     p_init.add_argument("path", nargs="?", help="Directory for the beads db (default: hub root from cwd)")
     p_init.add_argument("--prefix", help="Issue id prefix (default: ASCII slug of the directory name, or 'magi')")
     p_init.set_defaults(func=cmd_init)
-
-    p_status = sub.add_parser("status", help="Beads availability + issue counts")
-    p_status.add_argument("--json", action="store_true")
-    p_status.set_defaults(func=cmd_status)
-
-    p_backlog = sub.add_parser("backlog-sync", help="Create bd issues for uncompiled raw sources")
-    p_backlog.add_argument("--topic-dir", help="Topic workspace (default: discovered from cwd)")
-    p_backlog.set_defaults(func=cmd_backlog_sync)
-
-    args = parser.parse_args(argv)
-    return args.func(args)
 
 
 if __name__ == "__main__":

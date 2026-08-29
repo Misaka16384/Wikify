@@ -1110,7 +1110,7 @@ MAGI 不自己实现任务系统，它对接 [Beads](https://github.com/gastownh
 
 ```powershell
 magi pm init          # 在 hub 根跑一次：建库 + 注册六种科研 issue 类型
-magi pm status        # 当前 ready / in progress / blocked / open 计数
+magi sync             # ready / in progress / blocked 计数，连同其余状态一起看
 magi pm backlog-sync  # 把「还没编译的 raw 源」变成待办
 ```
 

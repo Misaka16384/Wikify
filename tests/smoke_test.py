@@ -152,7 +152,7 @@ def main() -> int:
         # 7. M1: beads bridge + sync ratio (skipped when bd is not on PATH)
         if shutil.which("bd"):
             run(["pm", "init", str(hub), "--prefix", "smoke"], cwd=hub, timeout=300)
-            run(["pm", "status", "--json"], cwd=topic)
+            run(["sync", "--json"], cwd=topic)
             run(["pm", "backlog-sync", "--topic-dir", str(topic)], cwd=topic)
             s2 = run(["sync", "--json"], cwd=topic)
             rep = json.loads(s2.stdout)

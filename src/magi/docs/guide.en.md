@@ -1162,7 +1162,7 @@ MAGI doesn't implement its own task system — it connects to [Beads](https://gi
 
 ```powershell
 magi pm init          # run once at the hub root: creates the DB + registers the six research issue types
-magi pm status         # current ready / in progress / blocked / open counts
+magi sync              # ready / in progress / blocked counts, with the rest of the state
 magi pm backlog-sync   # turn "uncompiled raw sources" into to-dos
 ```
 
