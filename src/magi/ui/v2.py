@@ -78,6 +78,33 @@ def register(app, resolve_workspace) -> None:
         payload["wip_limit"] = st.wip_limit
         return payload
 
+    @app.get("/api/workspace/models")
+    def get_workspace_models(host: Optional[str] = Query(None),
+                             refresh: bool = Query(False)) -> dict:
+        """What models one host offers, or every reviewable host at once.
+
+        `source` says where the answer came from — `static` (the record knows),
+        `live` (the CLI was asked), `cache` (it was asked yesterday), `none`
+        (nobody can say, so the panel shows a text box). Never an error status:
+        a config panel that will not render because a vendor's listing command
+        was slow is worse than one with a text box in it.
+        """
+        from magi.core import hosts as host_table
+
+        table = host_table.catalog()
+        wanted = [host_table.resolve(host)] if host else list(table)
+        out = {}
+        for key in wanted:
+            entry = table.get(key)
+            if entry is None or not entry.argv:
+                continue
+            out[key] = host_table.models(entry, force=bool(refresh))
+            out[key]["cheap"] = entry.cheap
+            out[key]["takes_effort"] = bool(entry.effort_argv)
+        if host and not out:
+            raise HTTPException(status_code=404, detail=f"no such reviewer: {host}")
+        return {"hosts": out, "efforts": list(host_table.EFFORTS)}
+
     @app.get("/api/workspace/feed")
     def get_workspace_feed(workspace: Optional[str] = Query(None),
                            window: Optional[int] = Query(None),

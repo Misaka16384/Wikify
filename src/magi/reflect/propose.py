@@ -98,6 +98,8 @@ class Report:
     made: list = field(default_factory=list)         # proposal ids
     skipped: list = field(default_factory=list)      # (pattern, why)
     host: str = ""
+    model: str = ""
+    effort: str = ""
     called: bool = False
     note: str = ""
 
@@ -197,7 +199,7 @@ def parse(reply: str, ready_by_slug: dict, seen: set,
     return kept, skipped
 
 
-def run(root, *, host=None, model=None, timeout: int = TIMEOUT,
+def run(root, *, host=None, model=None, effort=None, timeout: int = TIMEOUT,
         dry_run: bool = False, now=None) -> Report:
     from .. import review
 
@@ -221,8 +223,14 @@ def run(root, *, host=None, model=None, timeout: int = TIMEOUT,
         report.failed = True
         return report
 
+    _entry, model, effort = review.plan(chosen, model, effort, settings)
+    report.model, report.effort = model, effort
+
     if dry_run:
-        report.note = (f"would ask {chosen} about {len(ready)} observation(s): "
+        report.note = (f"would ask {chosen}"
+                       + (f" ({model}" if model else " (its own default")
+                       + (f", effort {effort})" if effort else ")")
+                       + f" about {len(ready)} observation(s): "
                        + ", ".join(report.considered))
         return report
 
@@ -236,15 +244,15 @@ def run(root, *, host=None, model=None, timeout: int = TIMEOUT,
     prompt = build_prompt(ready, proposals.rejected(root))
     started = time.monotonic()
     try:
-        reply = ask(chosen, prompt, cwd=root, model=model or settings.model,
-                    timeout=timeout)
+        reply = ask(chosen, prompt, cwd=root, model=model, timeout=timeout,
+                    effort=effort)
         ok = True
     except BaseException as exc:  # noqa: BLE001 — recorded, then reported
         reply, ok = "", False
         report.failed = True
         report.note = f"the pass could not run ({exc.__class__.__name__}: {exc})"
     finally:
-        ledger.record(root, ledger.REFLECT, chosen, model=model or settings.model,
+        ledger.record(root, ledger.REFLECT, chosen, model=model, effort=effort,
                       ok=ok, seconds=time.monotonic() - started,
                       note=f"{len(ready)} observations")
     report.called = True

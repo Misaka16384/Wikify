@@ -72,9 +72,14 @@ def parse_at(stamp):
 
 
 def record(root, kind: str, host: str, *, model: str | None = None,
-           slug: str | None = None, ok: bool = True, seconds: float | None = None,
-           note: str = "", when=None) -> dict:
-    """Append one call. Returns the record written."""
+           effort: str | None = None, slug: str | None = None, ok: bool = True,
+           seconds: float | None = None, note: str = "", when=None) -> dict:
+    """Append one call. Returns the record written.
+
+    `effort` is recorded next to `model` because it is the other half of what
+    was asked for: the same review at `high` and at `low` is not the same call,
+    and a budget that cannot tell them apart cannot explain itself afterwards.
+    """
     from filelock import FileLock
 
     entry = {
@@ -82,6 +87,7 @@ def record(root, kind: str, host: str, *, model: str | None = None,
         "kind": kind,
         "host": host,
         "model": model,
+        "effort": effort,
         "slug": slug,
         "ok": bool(ok),
         "seconds": round(seconds, 1) if seconds is not None else None,

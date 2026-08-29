@@ -33,6 +33,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ..core import hosts as host_table
 from ..core import ledger
 from ..core.workspace import find_workspace_root
 from . import patterns, signals, transcripts
@@ -95,6 +96,8 @@ class Report:
     skipped: list = field(default_factory=list)      # (slug, why)
     unreadable: dict = field(default_factory=dict)   # host -> why
     host: str = ""
+    model: str = ""
+    effort: str = ""
     called: bool = False
     note: str = ""
 
@@ -165,15 +168,17 @@ def parse(reply: str, allowed: set, limit: int = MAX_PATTERNS) -> tuple:
     return kept, skipped
 
 
-def ask(host: str, prompt: str, cwd, model=None, timeout: int = TIMEOUT) -> str:
+def ask(host: str, prompt: str, cwd, model=None, timeout: int = TIMEOUT,
+        effort=None) -> str:
     """One headless call. Shares `review`'s adapters — same hosts, same modes."""
     from .. import review
 
-    return review.ask(host, prompt, cwd=cwd, model=model, timeout=timeout)
+    return review.ask(host, prompt, cwd=cwd, model=model, timeout=timeout,
+                      effort=effort)
 
 
 def run(root, *, host=None, model=None, timeout: int = TIMEOUT, dry_run: bool = False,
-        home=None, now=None) -> Report:
+        home=None, now=None, effort=None) -> Report:
     """One pass. Returns what it did."""
     from .. import review
     from ..state import loaded
@@ -204,8 +209,17 @@ def run(root, *, host=None, model=None, timeout: int = TIMEOUT, dry_run: bool = 
         report.failed = True
         return report
 
+    # Resolved before the dry run prints, and used by the call below: with
+    # nothing configured this is the host's cheap tier, and a dry run that did
+    # not say so would be describing a different call from the one that runs.
+    _entry, model, effort = review.plan(chosen, model, effort, settings)
+    report.model, report.effort = model, effort
+
     if dry_run:
-        report.note = f"would ask {chosen} to read {len(samples)} session(s)"
+        report.note = (f"would ask {chosen}"
+                       + (f" ({model}" if model else " (its own default")
+                       + (f", effort {effort})" if effort else ")")
+                       + f" to read {len(samples)} session(s)")
         return report
 
     try:
@@ -218,15 +232,15 @@ def run(root, *, host=None, model=None, timeout: int = TIMEOUT, dry_run: bool = 
     prompt = build_prompt(samples)
     started = time.monotonic()
     try:
-        reply = ask(chosen, prompt, cwd=root, model=model or settings.model,
-                    timeout=timeout)
+        reply = ask(chosen, prompt, cwd=root, model=model, timeout=timeout,
+                    effort=effort)
         ok = True
     except BaseException as exc:  # noqa: BLE001 — recorded, then reported
         reply, ok = "", False
         report.failed = True
         report.note = f"the pass could not run ({exc.__class__.__name__}: {exc})"
     finally:
-        ledger.record(root, ledger.REFLECT, chosen, model=model or settings.model,
+        ledger.record(root, ledger.REFLECT, chosen, model=model, effort=effort,
                       ok=ok, seconds=time.monotonic() - started,
                       note=f"{len(samples)} sessions")
     report.called = True
@@ -503,7 +517,10 @@ def main(argv=None) -> int:
     parser.add_argument("--note", default="", help="What you said when deciding")
     parser.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
     parser.add_argument("--host", help="Which CLI reads (default: config, then PATH)")
-    parser.add_argument("--model", help="Pin the reader's model")
+    parser.add_argument("--model", help="Pin the reader's model (default: this "
+                                        "host's cheap tier)")
+    parser.add_argument("--effort", choices=host_table.EFFORTS,
+                        help="Reasoning level, where the host takes one")
     parser.add_argument("--timeout", type=int, default=TIMEOUT)
     parser.add_argument("--dry-run", action="store_true",
                         help="Say what would be read, and stop.")
@@ -530,18 +547,21 @@ def main(argv=None) -> int:
         from . import propose as stage_two
 
         report = stage_two.run(root, host=args.host, model=args.model,
-                               timeout=args.timeout, dry_run=args.dry_run)
+                               effort=args.effort, timeout=args.timeout,
+                               dry_run=args.dry_run)
         if args.json:
             print(json.dumps({"considered": report.considered, "made": report.made,
                               "skipped": report.skipped, "host": report.host,
+                              "model": report.model or None,
+                              "effort": report.effort or None,
                               "called": report.called, "note": report.note},
                              ensure_ascii=False, indent=2))
         else:
             print(stage_two.render(report))
         return 1 if report.failed else 0
 
-    report = run(root, host=args.host, model=args.model, timeout=args.timeout,
-                 dry_run=args.dry_run)
+    report = run(root, host=args.host, model=args.model, effort=args.effort,
+                 timeout=args.timeout, dry_run=args.dry_run)
     if args.json:
         print(json.dumps({
             "sampled": report.sampled, "signals": report.signals,

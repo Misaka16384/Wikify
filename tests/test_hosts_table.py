@@ -64,8 +64,10 @@ def test_a_record_can_name_its_own_model():
     config = {"research": {"hosts": [dict(CUSTOM, model="mycli-fast")]}}
     entry = hosts.catalog(config)["mycli"]
 
-    assert entry.headless("q")[-2:] == ["--model", "mycli-fast"]
-    assert entry.headless("q", "asked-for")[-2:] == ["--model", "asked-for"]
+    assert entry.pick_model() == "mycli-fast"
+    assert entry.pick_model(configured="global-one") == "mycli-fast"
+    assert entry.pick_model("asked-for", "global-one") == "asked-for"
+    assert entry.headless("q", entry.pick_model())[-2:] == ["--model", "mycli-fast"]
 
 
 def test_a_record_with_no_argv_declares_no_headless_mode():

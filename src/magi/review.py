@@ -65,6 +65,26 @@ _REASON_RE = re.compile(r"^[\s>*\-#`]*\**\s*REASON\s*:?\s*\**\s*(.+)",
 #: happened from a post that merely mentions one.
 _ANSWER_RE = re.compile(r"^VERDICT:\s*(stands|refuted)\b")
 
+#: How much of a reason is kept. The post is the record — `raw` survives only
+#: in `--json` — so this is the whole of what a reader gets. The prompt asks
+#: for two or three sentences naming a file and a line, and one such citation
+#: rendered as a link to a Windows path runs past 200 characters on its own.
+REASON_CHARS = 1600
+
+
+def _trim(text: str, limit: int = REASON_CHARS) -> str:
+    """A reason, cut on a boundary and marked where it was cut.
+
+    Cutting at a fixed offset landed mid-URL on the first real review this
+    ever ran, which turns a citation into a broken link and reads as a
+    reviewer that stopped mid-sentence. Cut at whitespace, and say so.
+    """
+    said = " ".join(str(text or "").split())
+    if len(said) <= limit:
+        return said
+    cut = said.rfind(" ", 0, limit)
+    return said[: cut if cut > limit // 2 else limit].rstrip() + " […truncated]"
+
 PROMPT = """You are reviewing one claim in a research library. You did not write it.
 
 Workspace: {root}
@@ -201,7 +221,7 @@ def parse_verdict(text: str) -> tuple:
     reason = ""
     found = _REASON_RE.search(text or "")
     if found:
-        reason = " ".join(found.group(1).split())[:600]
+        reason = _trim(found.group(1))
 
     if len(said) == 1:
         return said.pop(), reason
@@ -215,18 +235,32 @@ def parse_verdict(text: str) -> tuple:
                              "form; its reply is quoted below")
 
 
-def ask(host: str, prompt: str, cwd, model: str | None = None,
-        timeout: int = TIMEOUT) -> str:
-    """Run one headless review. Returns the reply, or raises."""
-    entry = catalog().get(host)
+def plan(host: str, model=None, effort=None, settings: "Settings | None" = None,
+         config=None) -> tuple:
+    """`(entry, model, effort)` — what this call will actually ask for.
+
+    The chain has four links and only the record can walk it: `--model`, then
+    the host record, then `research.review_model`, then the record's cheap
+    tier. Call sites used to write `model or settings.model`, which merges the
+    first and third and leaves nowhere for the other two — so a workspace that
+    configured nothing got whichever model that CLI charges most for, which is
+    exactly what design-v2 §11 says not to do.
+    """
+    entry = catalog(config).get(host)
     if entry is None:
         raise RuntimeError(f"no headless mode declared for {host!r} "
-                           f"(known: {', '.join(host_names())})")
-    # A model the record names beats one named globally: `research.review_model`
-    # is a single string and the reviewer host is picked automatically, so a
-    # name that is right for one vendor is an "unknown model" error on the next
-    # one. `entry.model` says which host it belongs to; nothing else does.
-    argv = entry.headless(prompt, model or "")
+                           f"(known: {', '.join(host_names(config))})")
+    return (entry,
+            entry.pick_model(model or "", (settings.model if settings else "") or ""),
+            entry.pick_effort(effort or "", (settings.effort if settings else "") or ""))
+
+
+def ask(host: str, prompt: str, cwd, model: str | None = None,
+        timeout: int = TIMEOUT, effort: str | None = None,
+        settings: "Settings | None" = None) -> str:
+    """Run one headless review. Returns the reply, or raises."""
+    entry, model, effort = plan(host, model, effort, settings)
+    argv = entry.headless(prompt, model, effort)
     # The path `which` found, not the bare name. On Windows `CreateProcess`
     # completes `.exe` and nothing else, so an npm-installed host — `gemini`
     # is `gemini.CMD` — was never actually run: every review failed with
@@ -243,7 +277,8 @@ def ask(host: str, prompt: str, cwd, model: str | None = None,
 
 
 def review(root, slug: str, author: str | None = None, host: str | None = None,
-           model: str | None = None, timeout: int = TIMEOUT) -> Verdict:
+           model: str | None = None, timeout: int = TIMEOUT,
+           effort: str | None = None, settings: "Settings | None" = None) -> Verdict:
     """Ask another CLI whether one proposition holds.
 
     The call is written into the ledger whether it worked or not: a review that
@@ -255,24 +290,29 @@ def review(root, slug: str, author: str | None = None, host: str | None = None,
     if chosen is None:
         raise RuntimeError("no reviewer CLI on PATH "
                            f"(looked for {', '.join(host_names())})")
+    # Resolved once, here, so the ledger records what was asked for rather than
+    # what was typed. With nothing typed this is the cheap tier, and a ledger
+    # entry saying `model: null` for it could not tell a Haiku review from an
+    # Opus one afterwards.
+    _entry, model, effort = plan(chosen, model, effort, settings)
     started = time.monotonic()
     try:
         reply = ask(chosen, build_prompt(root, slug), cwd=root, model=model,
-                    timeout=timeout)
+                    timeout=timeout, effort=effort)
     except BaseException as exc:  # noqa: BLE001 - recorded, then re-raised
         _spend(root, chosen, slug, model, ok=False, since=started,
-               note=exc.__class__.__name__)
+               note=exc.__class__.__name__, effort=effort)
         raise
-    _spend(root, chosen, slug, model, ok=True, since=started)
+    _spend(root, chosen, slug, model, ok=True, since=started, effort=effort)
     verdict, reason = parse_verdict(reply)
     return Verdict(slug=slug, verdict=verdict, reason=reason, host=chosen, raw=reply)
 
 
-def _spend(root, host, slug, model, *, ok, since, note="") -> None:
+def _spend(root, host, slug, model, *, ok, since, note="", effort=None) -> None:
     """Record one call. Never the reason a review fails."""
     try:
-        ledger.record(root, ledger.REVIEW, host, model=model, slug=slug, ok=ok,
-                      seconds=time.monotonic() - since, note=note)
+        ledger.record(root, ledger.REVIEW, host, model=model, effort=effort,
+                      slug=slug, ok=ok, seconds=time.monotonic() - since, note=note)
     except OSError:
         pass
 
@@ -379,13 +419,14 @@ def _excerpt(raw: str, limit: int = 1200) -> str:
 
 
 def review_batch(root, slugs, author: str | None = None, host: str | None = None,
-                 model: str | None = None, timeout: int = TIMEOUT) -> list:
+                 model: str | None = None, timeout: int = TIMEOUT,
+                 effort: str | None = None, settings: "Settings | None" = None) -> list:
     """Review several propositions. One failure does not stop the rest."""
     out = []
     for slug in slugs:
         try:
             result = review(root, slug, author=author, host=host, model=model,
-                            timeout=timeout)
+                            timeout=timeout, effort=effort, settings=settings)
         except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
             out.append(Verdict(slug=slug, verdict=VERDICT_UNCLEAR, host=host or "?",
                                reason=f"the review could not run ({exc})",
@@ -435,6 +476,7 @@ class Settings:
     enabled: bool = True
     host: str | None = None
     model: str | None = None
+    effort: str | None = None
 
 
 def _config(root) -> Settings:
@@ -453,7 +495,8 @@ def _config(root) -> Settings:
         limit=config_get(config, "research.weekly_calls", ledger.DEFAULT_WEEKLY),
         enabled=bool(config_get(config, "research.llm_calls", True)),
         host=(config_get(config, "research.review_host", "") or None),
-        model=(config_get(config, "research.review_model", "") or None))
+        model=(config_get(config, "research.review_model", "") or None),
+        effort=(config_get(config, "research.review_effort", "") or None))
 
 
 def main(argv=None) -> int:
@@ -466,7 +509,10 @@ def main(argv=None) -> int:
     parser.add_argument("--host", choices=host_names(),
                         help="Reviewer CLI (default: any installed one that is not --author)")
     parser.add_argument("--author", help="The CLI that wrote the claim; the reviewer avoids it")
-    parser.add_argument("--model", help="Pin the reviewer's model (a cheap one is the point)")
+    parser.add_argument("--model", help="Pin the reviewer's model (default: this host's "
+                                        "cheap tier, which is the point)")
+    parser.add_argument("--effort", choices=host_table.EFFORTS,
+                        help="Reasoning level, where the host takes one")
     parser.add_argument("--timeout", type=int, default=TIMEOUT)
     parser.add_argument("--dry-run", action="store_true",
                         help="Say who would be asked about what, and stop.")
@@ -482,7 +528,6 @@ def main(argv=None) -> int:
     limit, enabled = settings.limit, settings.enabled
     # A flag beats the file, and the file beats the probe.
     wanted_host = args.host or settings.host
-    model = args.model or settings.model
 
     slugs = args.slug or pending(root)
     if not slugs:
@@ -500,11 +545,19 @@ def main(argv=None) -> int:
               file=sys.stderr)
         return 1
 
+    # What the call will actually ask for, resolved the same way the call
+    # resolves it. A four-link chain that only shows itself after the money is
+    # spent is a chain nobody can check.
+    _entry, model, effort = plan(chosen, args.model, args.effort, settings)
+
     if args.dry_run:
-        payload = {"host": chosen, "slugs": slugs,
-                   "budget": ledger.summary(root, limit=limit)}
+        payload = {"host": chosen, "model": model or None, "effort": effort or None,
+                   "slugs": slugs, "budget": ledger.summary(root, limit=limit)}
         print(json.dumps(payload, ensure_ascii=False) if args.json
-              else f"would ask {chosen} about: {', '.join(slugs)}")
+              else f"would ask {chosen}"
+                   + (f" ({model}" if model else " (its own default")
+                   + (f", effort {effort})" if effort else ")")
+                   + f" about: {', '.join(slugs)}")
         return 0
 
     # Before the subprocess, not after: a budget that stops the call but lets
@@ -516,7 +569,7 @@ def main(argv=None) -> int:
         return 1
 
     results = review_batch(root, slugs, author=args.author, host=chosen,
-                           model=model, timeout=args.timeout)
+                           model=model, timeout=args.timeout, effort=effort)
     lines = []
     for result in results:
         try:

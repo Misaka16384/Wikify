@@ -212,7 +212,7 @@ def test_one_failure_does_not_stop_the_batch(ws, monkeypatch):
     solved(ws, "p-b")
     calls = []
 
-    def flaky(host, prompt, cwd, model=None, timeout=0):
+    def flaky(host, prompt, cwd, model=None, timeout=0, **kw):
         calls.append(prompt)
         if "p-a" in prompt:
             raise RuntimeError("nope")

@@ -163,3 +163,18 @@ def test_the_close_gate_is_a_command_a_person_can_find():
                           errors="replace")
     assert "\n  sync " in done.stdout
     assert len(done.stdout.strip().splitlines()) <= 20, "one screen is the ratchet"
+
+
+def test_the_close_gate_takes_the_same_topic_dir_as_everything_else(workspace):
+    """`next`, `review`, `install` and `reflect` all take `--topic-dir`. `sync`
+    was the exception, so the one command the managed block tells every session
+    to end with could only be run from inside the workspace. On the menu, that
+    asymmetry reads as a bug in the reader's typing."""
+    done = subprocess.run(
+        [sys.executable, "-m", "magi", "sync", "--close",
+         "--topic-dir", str(workspace)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+    assert done.returncode == 0, done.stderr
+    assert "unrecognized arguments" not in done.stderr
+    assert (workspace / "output" / "MAP.md").is_file()

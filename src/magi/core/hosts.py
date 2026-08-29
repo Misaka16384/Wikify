@@ -32,7 +32,11 @@ what has been *verified*, so that a bug report against a tier-2 host reads as
 
 from __future__ import annotations
 
+import json
 import os
+import shutil
+import subprocess
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -76,7 +80,12 @@ class Host:
     drops: Tuple[Drop, ...] = ()
     argv: Tuple[str, ...] = ()   # headless template; () -> not callable headless
     model_flag: str = ""         # how a model is named on that command line
-    model: str = ""              # which model to ask for; "" -> the CLI own default
+    model: str = ""              # which model to ask for; "" -> fall through to `cheap`
+    cheap: str = ""              # the cheap tier, used when nobody asked for one
+    effort_argv: Tuple[str, ...] = ()   # how a reasoning level is asked for
+    effort: str = ""             # which level; "" -> the CLI own default
+    list_models: Tuple[str, ...] = ()   # argv that prints this host models
+    models: Tuple[str, ...] = ()        # what it offers, when it will not say
     reader: str = ""             # transcripts adapter; "" -> sessions unreadable
     hook: str = ""               # stop-gate writer; "" -> no hook, prose instead
     note: str = ""
@@ -85,24 +94,57 @@ class Host:
     def command(self) -> str:
         return self.bin or self.key
 
-    def headless(self, prompt: str, model: str = "") -> List[str]:
+    def pick_model(self, asked: str = "", configured: str = "") -> str:
+        """Which model this call asks for.
+
+        In order: what the command line said, what this host record says, what
+        the workspace says, and finally the cheap tier. `cheap` is last so it
+        never overrides a choice, and present at all so that "nobody
+        configured anything" stops meaning "whatever that CLI charges most
+        for" — which is what §11 asks for and what free text never delivered.
+        """
+        return asked or self.model or configured or self.cheap
+
+    def pick_effort(self, asked: str = "", configured: str = "") -> str:
+        """Which reasoning level. Same order, and no default at the end.
+
+        There is no cheap effort to fall back to: the model already carries
+        the tier, and asking for `low` on a host whose default is already low
+        is a flag that only adds a way to be wrong.
+        """
+        return asked or self.effort or configured
+
+    def headless(self, prompt: str, model: str = "", effort: str = "") -> List[str]:
         """The command line that asks this host one question.
 
         Empty when the host declares no headless mode. A CLI that has one but
         does not document it does not get guessed at here: a flag inferred
         from a sibling product is a flag that fails at the worst moment.
 
-        With no model asked for, no model flag is passed and the CLI uses
-        whatever it would use interactively. That is the right default: MAGI
-        does not know this account better than the person who configured it.
+        `model` and `effort` are final — `pick_model` and `pick_effort` decide
+        them. With neither, nothing is added and the CLI uses whatever it would
+        use interactively.
         """
         if not self.argv:
             return []
         line = [part.format(bin=self.command, prompt=prompt) for part in self.argv]
-        wanted = model or self.model
-        if wanted and self.model_flag:
-            line += [self.model_flag, wanted]
+        if model and self.model_flag:
+            line += [self.model_flag, model]
+        # A model that already names its effort settles the question. agy's
+        # Gemini ids end in `-low` / `-medium` / `-high`, so passing `--effort`
+        # as well would ask for two different things in one command.
+        if effort and self.effort_argv and not names_its_effort(model):
+            line += [part.format(effort=effort) for part in self.effort_argv]
         return line
+
+
+#: Reasoning levels, in the spelling all three tier-1 CLIs use.
+EFFORTS = ("low", "medium", "high")
+
+
+def names_its_effort(model: str) -> bool:
+    """Does this model id already carry a reasoning level?"""
+    return any(str(model or "").endswith("-" + level) for level in EFFORTS)
 
 
 # --------------------------------------------------------------------------
@@ -156,6 +198,15 @@ BUILTIN: Tuple[Host, ...] = (
                  invoke="/{name}"),
         ),
         argv=("{bin}", "-p", "{prompt}"), model_flag="--model",
+        # `haiku` rather than a dated id: Claude Code takes the alias and
+        # resolves it to whatever the current cheap model is, so this does not
+        # rot into a name the CLI no longer knows.
+        cheap="haiku", effort_argv=("--effort", "{effort}"),
+        # Claude Code has no command that lists models, so these are the
+        # aliases its own `--help` documents. Aliases rather than dated ids on
+        # purpose: the CLI resolves each to whatever currently wears the name,
+        # so this list does not rot the way `claude-sonnet-4-5` would.
+        models=("haiku", "sonnet", "opus"),
         reader="claude", hook="claude",
         note="The magi plugin already serves these as /magi:<name>; a copy here also "
              "answers to a plain /<name>.",
@@ -174,6 +225,13 @@ BUILTIN: Tuple[Host, ...] = (
                  invoke="$" + "{name}  (Codex-native location)"),
         ),
         argv=("{bin}", "exec", "{prompt}"), model_flag="-m",
+        # No `cheap` for Codex. It does not list its models and its ids are
+        # dated (`gpt-5-codex`, and whatever replaces it), so a name written
+        # here is a name that becomes an "unknown model" error on some future
+        # release — a failed call that still costs a slot in the budget. Its
+        # own default is the safer bet; a person who wants cheaper writes
+        # `model:` on this record, which is exactly what records are for.
+        effort_argv=("-c", "model_reasoning_effort={effort}"),
         reader="codex",
         note="Codex skills are not slash commands: type $<name> to force one, or let it "
              "choose by description.",
@@ -192,6 +250,10 @@ BUILTIN: Tuple[Host, ...] = (
         # CLI took the short form, which is exactly the kind of near-miss that
         # only shows up on the call you needed.
         argv=("{bin}", "-p", "{prompt}"), model_flag="--model",
+        # Measured from `agy models` on 2026-08-29: the ids carry the effort,
+        # and Flash-Low is the cheapest of the fourteen it offers.
+        cheap="gemini-3.7-flash-low", effort_argv=("--effort", "{effort}"),
+        list_models=("{bin}", "models"),
         reader="antigravity",
         note="agy has no per-skill slash command — /skills browses what is loaded.",
     ),
@@ -247,6 +309,101 @@ def resolve(name: str) -> str:
 
 
 # --------------------------------------------------------------------------
+# What models a host offers
+# --------------------------------------------------------------------------
+
+#: How long a listing is believed. A day: a vendor adding a model is not news
+#: anybody needs within the hour, and the alternative is a network round trip
+#: every time the config panel opens.
+MODELS_TTL = 24 * 60 * 60
+
+#: How long `agy models` may take before we give up and show a text box.
+LIST_TIMEOUT = 20
+
+
+def _models_cache(host: str, home: Optional[Path] = None) -> Path:
+    base = Path(home) if home is not None else Path.home()
+    return base / ".config" / "magi" / f"models-{host}.json"
+
+
+def parse_models(text: str) -> List[dict]:
+    """`id\tlabel` per line, as `agy models` prints it.
+
+    Tolerant on purpose: a header line, a blank, a line with no tab. This
+    parses another program's stdout, which is a format nobody promised us —
+    the failure it must have is "fewer models than there are", never a crash
+    that takes the config panel with it.
+    """
+    out, seen = [], set()
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line or line.endswith("...") or " " not in line and "\t" not in line:
+            continue
+        ident, _, label = line.partition("\t")
+        if not _:
+            ident, _, label = line.partition("  ")
+        ident, label = ident.strip(), label.strip()
+        # An id is a token. A sentence is a progress message.
+        if not ident or " " in ident or ident in seen:
+            continue
+        seen.add(ident)
+        out.append({"id": ident, "label": label or ident})
+    return out
+
+
+def models(host: Host, home: Optional[Path] = None, force: bool = False,
+           now: Optional[float] = None) -> dict:
+    """`{"models": [...], "source": ..., "error": ...}` for one host.
+
+    `source` is `static` (the record says), `live` (the CLI said), `cache` (it
+    said so yesterday) or `none` (nobody can say — show a text box). A failure
+    to list is never an exception: the config panel has to render either way,
+    and a person who knows the name can still type it.
+    """
+    if host.models:
+        return {"models": [{"id": m, "label": m} for m in host.models],
+                "source": "static"}
+    if not host.list_models:
+        return {"models": [], "source": "none"}
+
+    cache = _models_cache(host.key, home)
+    cached = None
+    try:
+        cached = json.loads(cache.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cached = None
+    fresh = (isinstance(cached, dict) and not force
+             and (now or time.time()) - float(cached.get("at") or 0) < MODELS_TTL)
+    if fresh and cached.get("models"):
+        return {"models": cached["models"], "source": "cache"}
+
+    argv = [part.format(bin=host.command) for part in host.list_models]
+    found = shutil.which(argv[0])
+    try:
+        proc = subprocess.run([found or argv[0]] + argv[1:], capture_output=True,
+                              text=True, encoding="utf-8", errors="replace",
+                              timeout=LIST_TIMEOUT)
+        listed = parse_models(proc.stdout) if proc.returncode == 0 else []
+        why = "" if listed else (proc.stderr or proc.stdout or "").strip()[-200:]
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        listed, why = [], f"{exc.__class__.__name__}: {exc}"
+
+    if listed:
+        try:
+            cache.parent.mkdir(parents=True, exist_ok=True)
+            cache.write_text(json.dumps({"at": now or time.time(), "models": listed},
+                                        ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+        return {"models": listed, "source": "live"}
+    # Stale beats nothing: a day-old list of real model names is more use than
+    # an empty dropdown because the network was down for a second.
+    if isinstance(cached, dict) and cached.get("models"):
+        return {"models": cached["models"], "source": "cache", "error": why}
+    return {"models": [], "source": "none", "error": why}
+
+
+# --------------------------------------------------------------------------
 # Records from config
 # --------------------------------------------------------------------------
 
@@ -293,6 +450,13 @@ def host_from(raw) -> Optional[Host]:
                 argv=argv,
                 model_flag=str(raw.get("model_flag") or ""),
                 model=str(raw.get("model") or ""),
+                cheap=str(raw.get("cheap") or ""),
+                effort_argv=tuple(str(part) for part in raw.get("effort_argv") or []
+                                  if str(part)),
+                effort=str(raw.get("effort") or ""),
+                list_models=tuple(str(part) for part in raw.get("list_models") or []
+                                  if str(part)),
+                models=tuple(str(m) for m in raw.get("models") or [] if str(m)),
                 reader=str(raw.get("reader") or ""),
                 note=str(raw.get("note") or ""))
 

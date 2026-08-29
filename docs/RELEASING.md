@@ -5,6 +5,57 @@
 `pyproject.toml`, `src/magi/__init__.py`, `plugin.json`, `.claude-plugin/plugin.json`,
 and the badge in `src/magi/ui/static/index.html`. All five must match before tagging.
 
+## Before cutting: the three-host smoke
+
+`pytest -q` being green does not mean the product works. Every host adapter
+stubs its subprocess, because a suite that really calls three vendors' CLIs is
+a suite nobody runs — so the thing the whole v2 loop turns on, that another
+vendor's CLI can be asked a question and give an answer we can parse, is
+exactly what "green" does not cover.
+
+Tier 1 is Claude Code, Codex and Antigravity: smoke tested against a real
+install each release. Tier 2 (qwen, opencode) is declared from vendor docs and
+fails soft; that difference is the whole meaning of the tiers.
+
+```powershell
+# a throwaway workspace with one claim deliberately too broad for its evidence
+magi init --topic-dir $env:TEMP\magi-smoke --name Smoke
+# ... add raw/papers/<source>.md, a drafts/<derivation>.md, and a proposition
+#     whose `derivation:` points at it, then:
+magi thread status p-x supported --text "claimed" --host claude
+
+magi review --topic-dir $env:TEMP\magi-smoke --host claude       --dry-run
+magi review --topic-dir $env:TEMP\magi-smoke --host codex        --dry-run
+magi review --topic-dir $env:TEMP\magi-smoke --host antigravity  --dry-run
+magi review --topic-dir $env:TEMP\magi-smoke --host antigravity  --json   # one real call
+```
+
+**The claim must be one a correct reviewer has to refute.** A claim that
+*stands* is also what a rubber stamp produces, so a smoke test built on one
+cannot tell a working reviewer from a broken adapter that answers "yes". Make
+the proposition broader than the source it cites — the source measuring one
+case and the claim asserting all of them — and the pass condition is that the
+reviewer says so, naming the line.
+
+What each step has to show:
+
+| Step | What proves it worked |
+|---|---|
+| `installed_hosts()` | all three, probed by **binary** — Antigravity's is `agy`, and probing for the key answered "not installed" for a CLI sitting on PATH |
+| Each `--dry-run` | the host, and the model it would use: `haiku`, `its own default` (Codex declares no cheap tier), `gemini-3.7-flash-low` |
+| The real call | `refuted`, with the reviewer naming the file and line that contradicts the claim |
+| `threads/<slug>.md` | `status: disputed` — a rejection is a question for a person, never `refuted` and never silently back to `supported` |
+| `output/llm-ledger.jsonl` | one line, with `host`, `model`, `effort`, `seconds` and `ok` |
+| `magi next` | the human decision above the agent work |
+| `magi sync --close` | the gate runs and the MAP is written |
+
+**Last run:** 2026-08-29, on Windows 11. `agy -p` with
+`gemini-3.7-flash-low`, 21.3 s, verdict `refuted`, citing all three files by
+line. It also found a bug the suite could not: the reason was being cut at 600
+characters, mid-URL, and the post is the record — `raw` survives only in
+`--json`. macOS has not been smoke tested since v2 (stated here rather than
+implied by its absence).
+
 ## Cutting a release
 
 ```powershell

@@ -1129,6 +1129,33 @@ magi decide --about p-gap --bet supported --text "我赌它在体相里成立"
 「远」指的是不共享上下文，不是不给证据。它**只能发表意见**：驳回把命题打到 `disputed`
 （那是要人判的事），不是 `refuted`（那会是一个结论），也不会在下一次运行时自己翻回去。
 
+**不配置就跑在便宜档上。** 一次复核读一条命题、答三句话，用不着你账号上最大的那个模型，
+而预算是按次数算的——花在哪都是一次。所以每条宿主记录都写了一个便宜模型：Claude Code 是
+`haiku`，agy 是 `gemini-3.7-flash-low`，什么都不配就跑这个。Codex 没写，因为它不列出
+自己的模型、id 又是带日期的：写死在 MAGI 里的名字迟早会在某个版本变成 "unknown model"，
+而失败的调用照样扣一次预算。
+
+决定模型的有四层，越具体越优先：
+
+```bash
+magi review --model sonnet --effort high     # 1. 这一次调用
+# 2. research.hosts 里那条宿主记录的 `model:`
+# 3. config.yaml 里的 research.review_model
+# 4. 宿主记录里的便宜档
+```
+
+`research.review_model` 是一个字符串、对所有厂商生效，而复核宿主是自动挑的——对一家
+正确的名字就是另一家的 "unknown model"。要么连 `research.review_host` 一起钉住，要么
+把 `model:` 写到那条记录上。WebUI 配置面板已经替你处理了：钉住宿主之后，模型那一栏会
+变成那个宿主真正提供的列表（agy 走 `agy models`，缓存一天；Claude Code 是它自己文档里
+的三个别名；Codex 问不出来，就还是个输入框）。
+
+`--effort low|medium|high` 是同一条链，末尾没有便宜档兜底——因为模型 id 往往已经带了
+档位：`gemini-3.7-flash-low` **就是**低档那个，所以 agy 不会在它之上再收到 `--effort`。
+
+`magi review --dry-run` 会打印它将用的宿主、模型和档位。一条四层的链，在花钱之前看一眼
+是最便宜的检查。
+
 **没跑成的复核什么都不写。** 一条命题之所以不再排队等复核，是因为帖子里有人读过它——所以
 CLI 没装、超时、进程崩了，note 一个字都不动，命题继续在队列里。读不懂的回答会写帖（原文附
 在里面：那是分辨"适配器坏了"和"这条真判不了"的唯一办法），但 `unclear` 也不是答案，命题

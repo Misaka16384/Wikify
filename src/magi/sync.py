@@ -503,9 +503,10 @@ def _close(args) -> int:
     from magi import state as state_mod
     from magi.core.workspace import find_workspace_root
 
-    root = find_workspace_root()
+    root = Path(args.topic_dir).resolve() if getattr(args, "topic_dir", None) \
+        else find_workspace_root()
     if root is None:
-        message = "no workspace found (run inside a topic)"
+        message = "no workspace found (run inside a topic or pass --topic-dir)"
         if args.hook:
             # Nothing to gate, so nothing to say: a stop hook that reports an
             # error for being run outside a workspace blocks every session
@@ -543,6 +544,8 @@ def _close(args) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="magi sync", description="Workspace onboarding: sync ratio + three-core status")
+    parser.add_argument("--topic-dir",
+                        help="Workspace (default: discovered from cwd)")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
     parser.add_argument("--fix", action="store_true",
                         help="Run the repairs this report suggests (graph build, index, "

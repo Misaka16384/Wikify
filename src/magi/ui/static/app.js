@@ -84,6 +84,15 @@
       need_reason: "改状态要写理由：翻状态和说明为什么是一件事，不是两件",
       need_workspace: "先在顶栏选一个工作空间——不然这行字会写进服务器启动的那个目录",
       cfg_review_host_auto: "自动（探测 PATH，选一个不是作者的）",
+      cfg_f_review_host: "复核跑在哪个 CLI 上。留空 = 自动挑一个不是作者的——跨厂商是「独立」最便宜的近似。",
+      cfg_f_review_model: "复核用哪个模型。留空 = 那个宿主的便宜档。",
+      cfg_f_review_effort: "推理档位。留空 = 那个宿主自己的默认；模型 id 往往已经带了档位。",
+      cfg_model_cheap: "便宜档（{id}）",
+      cfg_model_default: "那个宿主自己的默认",
+      cfg_model_pin_host: "先钉住 review_host 才能挑模型——模型名各家不通用",
+      cfg_model_typed: "这个宿主不列出模型，自己填",
+      cfg_model_stale: "列表来自缓存（最多一天前）",
+      cfg_effort_default: "那个宿主自己的默认",
       moves_human_only: "带 * 的只有人能做",
       feed_title: "时间线",
       feed_subtitle: "所有跟帖，最新在前——它是 note 的一个视图，不是第二份日志",
@@ -843,6 +852,15 @@
       need_reason: "A status change needs a reason: the flip and the sentence saying why are one action, not two",
       need_workspace: "Pick a workspace in the top bar first — otherwise this lands in whichever directory the server was started in",
       cfg_review_host_auto: "auto (probe PATH for one that is not the author)",
+      cfg_f_review_host: "Which CLI reviews a claim. Empty picks one that is not the author — a different vendor is the cheapest approximation of independence.",
+      cfg_f_review_model: "Which model reviews. Empty means that host's cheap tier.",
+      cfg_f_review_effort: "How hard it thinks. Empty means that host's own default; the model id often carries the level already.",
+      cfg_model_cheap: "the cheap tier ({id})",
+      cfg_model_default: "that host's own default",
+      cfg_model_pin_host: "pin review_host first — model names are not portable between vendors",
+      cfg_model_typed: "this host does not list its models; type one",
+      cfg_model_stale: "listed from cache (up to a day old)",
+      cfg_effort_default: "that host's own default",
       moves_human_only: "* only a person can make this move",
       feed_title: "Feed",
       feed_subtitle: "Every post, newest first — a view over the notes, not a second log",
@@ -4649,6 +4667,9 @@
     "embedding.base_url": "cfg_f_embedding_base_url",
     "embedding.model": "cfg_f_embedding_model",
     "embedding.api_key": "cfg_f_embedding_api_key",
+    "research.review_host": "cfg_f_review_host",
+    "research.review_model": "cfg_f_review_model",
+    "research.review_effort": "cfg_f_review_effort",
   };
 
   // `only` picks which keys a card shows: the Dashboard keeps the general
@@ -4671,6 +4692,62 @@
     // is a row nobody picks on purpose.
     "research.review_host=": "cfg_review_host_auto",
   };
+
+  //: What each reviewer host offers, once asked. Keyed by host so switching
+  //: `review_host` and switching back does not ask twice.
+  const modelLists = {};
+
+  async function hostModels(host) {
+    if (!host) return null;
+    if (modelLists[host]) return modelLists[host];
+    try {
+      const data = await apiFetch(`/api/workspace/models?host=${encodeURIComponent(host)}`);
+      modelLists[host] = (data.hosts || {})[host] || null;
+    } catch (err) {
+      // A listing that will not load is a text box, not a broken panel.
+      modelLists[host] = null;
+    }
+    return modelLists[host];
+  }
+
+  //: The model row, which is a dropdown only when there is something real to
+  //: put in it: a pinned host that can name its models. With the host on auto
+  //: the reviewer could be any vendor, and a list from one of them would be
+  //: three ways to write a name the next one rejects.
+  async function fillModelChoices(input, note, host) {
+    const listed = host ? await hostModels(host) : null;
+    if (!listed || !listed.models || !listed.models.length) {
+      note.textContent = t(host ? "cfg_model_typed" : "cfg_model_pin_host");
+      return;
+    }
+    const current = input.value;
+    const select = document.createElement("select");
+    select.className = "select-input cfg-input";
+    const blank = document.createElement("option");
+    blank.value = "";
+    blank.textContent = listed.cheap
+      ? t("cfg_model_cheap", { id: listed.cheap })
+      : t("cfg_model_default");
+    select.appendChild(blank);
+    listed.models.forEach((m) => {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = m.label && m.label !== m.id ? `${m.label} — ${m.id}` : m.id;
+      select.appendChild(opt);
+    });
+    // A name already in the config that the host no longer lists still has to
+    // be selectable, or opening the panel would silently change the setting.
+    if (current && !listed.models.some((m) => m.id === current)) {
+      const kept = document.createElement("option");
+      kept.value = current;
+      kept.textContent = current;
+      select.appendChild(kept);
+    }
+    select.value = current || "";
+    note.textContent = listed.source === "cache" ? t("cfg_model_stale") : "";
+    input.replaceWith(select);
+    return select;
+  }
 
   async function loadConfigCard(box, only) {
     box = box || document.getElementById("config-fields");
@@ -4753,6 +4830,23 @@
         }
         row.appendChild(input);
 
+        // Host, model, effort are one decision made in that order. The model
+        // becomes a list once the host is pinned and can name its models; the
+        // note under it says why it is not one when it is not.
+        if (f.key === "research.review_model") {
+          const note = document.createElement("div");
+          note.className = "cfg-desc cfg-model-note";
+          label.appendChild(note);
+          const hostField = (data.fields || []).find(
+            (x) => x.key === "research.review_host");
+          const pinned = hostField && hostField.value ? String(hostField.value) : "";
+          fillModelChoices(input, note, pinned).then((select) => {
+            // Reassign, or the save button below would still be reading the
+            // text box this replaced.
+            if (select) input = select;
+          });
+        }
+
         const save = document.createElement("button");
         save.className = "btn btn-secondary btn-sm";
         save.textContent = t("btn_cfg_save");
@@ -4786,7 +4880,12 @@
               input.value = "";
               input.placeholder = t("cfg_secret_set");
             }
-            if (f.key === "embedding.provider") loadConfigCard(box, only);
+            // Both of these change what the rows below them may contain:
+            // the provider decides which embedding fields apply, and the host
+            // decides which model names are even valid.
+            if (f.key === "embedding.provider" || f.key === "research.review_host") {
+              loadConfigCard(box, only);
+            }
           } catch (_) {}
         });
         row.appendChild(save);

@@ -1185,6 +1185,37 @@ opinion**: a rejection moves the claim to `disputed`, which is a question for a
 person. Not `refuted`, which would be a finding, and never back to `supported`
 on the next run.
 
+**It runs on the cheap tier unless you say otherwise.** A review reads one claim
+and answers in three sentences; the largest model on your account is not what that
+needs, and the budget is counted in calls whatever you spend them on. So each host
+record names a cheap model — `haiku` for Claude Code, `gemini-3.7-flash-low` for
+agy — and that is what runs when nothing is configured. Codex has none, because it
+will not list its models and its ids are dated: a name written into MAGI becomes an
+"unknown model" error on some future release, and a failed call still spends a slot.
+
+Four things decide the model, most specific first:
+
+```bash
+magi review --model sonnet --effort high     # 1. this call
+# 2. `model:` on that host's record in research.hosts
+# 3. research.review_model in config.yaml
+# 4. the host record's cheap tier
+```
+
+`research.review_model` is one string and the reviewer host is picked automatically,
+so a name that is right for one vendor is an "unknown model" error on the next: pin
+`research.review_host` alongside it, or put `model:` on the record instead. The WebUI
+config panel does this for you — pin a host and the model field becomes a list of
+what that host actually offers (`agy models`, cached for a day; Claude Code's three
+aliases; a text box for Codex, which cannot be asked).
+
+`--effort low|medium|high` is the same chain with no cheap tier at the end, because
+the model id often carries the level already: `gemini-3.7-flash-low` **is** the low
+one, so agy is not sent `--effort` on top of it.
+
+`magi review --dry-run` prints the host, the model and the effort it would use, which
+is the cheap way to check a four-link chain before spending a call.
+
 **A review that could not run writes nothing.** A claim stops being offered for
 review the moment a reviewer posts on it, so a missing CLI, a timeout or a
 crashed process leaves the note untouched and the claim on the list. A reply

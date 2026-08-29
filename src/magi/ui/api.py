@@ -1715,10 +1715,18 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         # offers and the API rejects.
         "research.review_host": {"type": "str",
                                  "choices": [""] + _review_host_names()},
-        # What a model may be pinned to. Empty means the host's own default,
-        # which is what a person wants until they have a reason not to —
-        # naming a model MAGI cannot reach turns every review into an error.
+        # What a model may be pinned to. Empty no longer means "that CLI's own
+        # default": it falls through to the host record's cheap tier, because
+        # design-v2 §11 asks for a cheap reviewer and a setting nobody fills in
+        # was quietly getting the most expensive model on the account. Naming a
+        # model MAGI cannot reach still turns every review into an error, which
+        # is why the WebUI offers a list where the host can produce one.
         "research.review_model": {"type": "str", "nullable": True},
+        # How hard the reviewer thinks. Empty means that host's own default —
+        # unlike the model, there is no cheap tier to fall back to, because the
+        # model id usually already carries the level.
+        "research.review_effort": {"type": "str",
+                                   "choices": ["", "low", "medium", "high"]},
         # Calls per calendar week before the gate refuses, and the switch that
         # turns MAGI's own calls off entirely. Counted in calls because a
         # headless CLI does not say what a request cost.
