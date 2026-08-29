@@ -240,3 +240,60 @@ def test_the_count_is_derived_and_ignored(tmp_path):
                    "output/fanout.jsonl"], capture_output=True)
 
     assert done.returncode == 0, "a per-session counter in git is a merge conflict"
+
+
+def test_the_fanout_log_does_not_grow_without_end(tmp_path):
+    """`output/fanout.jsonl` is DERIVED — it answers "how many so far this
+    session" and nothing reconstructs anything from it — and every spawn reads
+    the whole file. Left unpruned that is a hook that gets slower for the life
+    of the workspace."""
+    import datetime as dt
+    import json
+
+    from magi import hook_cmd
+
+    path = tmp_path / "output" / "fanout.jsonl"
+    path.parent.mkdir(parents=True)
+    stale = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=30)).isoformat(
+        timespec="seconds")
+    with open(path, "w", encoding="utf-8", newline="\n") as handle:
+        for index in range(hook_cmd.PRUNE_AT + 10):
+            handle.write(json.dumps({"at": stale, "session": f"old-{index}",
+                                     "tool": "Task"}) + "\n")
+
+    count = hook_cmd.note_spawn(tmp_path, "now", "Task")
+
+    assert count == 1, "this session has spawned once"
+    assert len(hook_cmd._rows(path)) == 1, "and the month-old rows are gone"
+
+
+def test_a_row_it_cannot_date_is_kept(tmp_path):
+    """Dropping what cannot be dated would quietly lose a live session."""
+    import json
+
+    from magi import hook_cmd
+
+    path = tmp_path / "output" / "fanout.jsonl"
+    path.parent.mkdir(parents=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as handle:
+        for index in range(hook_cmd.PRUNE_AT + 5):
+            handle.write(json.dumps({"at": "not a date", "session": "live",
+                                     "tool": "Task"}) + "\n")
+
+    hook_cmd.note_spawn(tmp_path, "live", "Task")
+
+    assert hook_cmd.spawns(tmp_path, "live") == hook_cmd.PRUNE_AT + 6
+
+
+def test_a_recent_row_survives_a_prune(tmp_path):
+    import json
+
+    from magi import hook_cmd
+
+    path = tmp_path / "output" / "fanout.jsonl"
+    path.parent.mkdir(parents=True)
+    hook_cmd.note_spawn(tmp_path, "live", "Task")
+    for _ in range(3):
+        hook_cmd.note_spawn(tmp_path, "live", "Agent")
+
+    assert hook_cmd.spawns(tmp_path, "live") == 4

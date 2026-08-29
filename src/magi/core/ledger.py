@@ -193,15 +193,31 @@ def check(root, limit: int | None = None, enabled: bool = True, when=None) -> No
 
 
 def summary(root, limit: int | None = None, when=None) -> dict:
-    """What the week has cost, for `MAP.md` and the dashboard."""
+    """What the week has cost, for `MAP.md` and the dashboard.
+
+    One pass. The obvious spelling — `spent()` for the total and `spent()`
+    again per kind — read and re-parsed the whole file once per kind plus
+    once more, for a number that is a tally of the same rows. `magi map` and
+    the dashboard both call this on every render.
+    """
     limit = DEFAULT_WEEKLY if limit is None else limit
-    used = spent(root, when=when)
+    week = week_of(when or _now())
+    used = 0
+    by_kind = {kind: 0 for kind in KINDS}
+    for entry in entries(root):
+        stamp = parse_at(entry.get("at"))
+        if stamp is None or week_of(stamp) != week:
+            continue
+        used += 1
+        kind = entry.get("kind")
+        if kind in by_kind:
+            by_kind[kind] += 1
     return {
-        "week": week_of(when or _now()),
+        "week": week,
         "spent": used,
         "limit": limit,
         "left": max(0, limit - used),
         "over": used >= limit,
         "until": next_monday(when),
-        "by_kind": {kind: spent(root, when=when, kind=kind) for kind in KINDS},
+        "by_kind": by_kind,
     }

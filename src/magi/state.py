@@ -793,9 +793,22 @@ def focus(root, line: str) -> set:
     wiki, and a focus set that contains everything ranks nothing.
     """
     root = Path(root)
-    projection = load(root)
-    seeds = [note for note in projection.notes
-             if note.slug == line or line in (note.lines or [])]
+    # The notes, not the projection. `load()` also computes debt, runs the
+    # rule engine and builds a link index of its own — none of which a focus
+    # set reads, and `_link_index` below then walks the tree a second time.
+    # `retrieval._line_focus` calls this on every `--line` search, so it was
+    # a full projection and two sweeps to produce a ranking multiplier.
+    seeds = []
+    for path in threads.note_paths(root):
+        try:
+            note = threads.read_note(path)
+        except (OSError, ValueError):
+            # A note nobody can read is debt, and `load()` reports it as such.
+            # Here it is one note that cannot contribute to a focus set, which
+            # is not a reason to refuse to rank anything.
+            continue
+        if note.slug == line or line in (note.lines or []):
+            seeds.append(note)
 
     links = _link_index(root)
     found: set = set()
@@ -930,7 +943,7 @@ def unreviewed(state: State) -> list:
     try:
         from . import review as review_mod
 
-        return review_mod.pending(state.root)
+        return review_mod.pending(state.root, notes=state.notes)
     except Exception:  # noqa: BLE001
         return []
 
@@ -1379,15 +1392,13 @@ def _reload(root):
     The gate has to agree with `magi next` about what counts as debt, and
     under `coaching: strict` that includes a missing prediction. A gate reading
     defaults while the router reads config is two answers to one question.
-    """
-    from .core.config_loader import get as config_get
-    from .core.config_loader import load_config
 
-    config = load_config(start=root)
-    return load(root,
-                wip_limit=config_get(config, "research.wip_limit", WIP_LIMIT),
-                stall_days=config_get(config, "research.stall_days", STALL_DAYS),
-                coaching=config_get(config, "research.coaching", vocab.DEFAULT_COACHING))
+    Which is why this is `loaded` and not a second copy of it. It was a second
+    copy — the same four config lookups written out again — and two spellings
+    of "read the workspace's own settings" is how the gate and the router get
+    to disagree in the first place. `magi sync` had a third.
+    """
+    return loaded(root)
 
 
 def _recent(item: DebtItem, cutoff) -> bool:

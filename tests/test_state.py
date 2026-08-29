@@ -1306,3 +1306,31 @@ def test_debt_dated_only_by_an_mtime_never_holds_a_session_closed(ws):
     found = [item for item in load(ws).debt if "gap-argument" in item.why]
     assert found, "it is still reported"
     assert found[0].blocks is False, "and it is still not a gate"
+
+
+def test_a_focus_set_does_not_build_the_whole_projection(ws, monkeypatch):
+    """`focus` ran `load()` — debt, the rule engine, its own link index — and
+    then `_link_index` again, to produce a ranking multiplier.
+    `retrieval._line_focus` calls it on every `--line` search."""
+    line(ws)
+    proposition(ws, "p-a", status="testing")
+
+    def refuse(*a, **k):
+        raise AssertionError("focus built the full projection")
+
+    monkeypatch.setattr(state, "load", refuse)
+
+    found = state.focus(ws, "qec")
+
+    assert any("p-a" in str(item) for item in found)
+
+
+def test_the_gate_and_the_router_read_settings_through_one_function(ws):
+    """`_reload` was a second copy of `loaded` — the same four config lookups
+    written out again. Two spellings of "read the workspace's own settings" is
+    how they get to disagree, which is the bug `magi sync` had."""
+    import inspect
+
+    body = inspect.getsource(state._reload)
+    assert "loaded(root)" in body
+    assert "config_get" not in body, "the second copy is back"

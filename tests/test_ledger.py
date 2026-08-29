@@ -252,3 +252,40 @@ def test_a_requeued_item_is_not_swept_into_the_batch_it_came_from(topic):
 
     assert [e.req_id for e in snapshot] == [req]
     assert ledger.pending(topic)[0].route == "tex"
+
+
+def test_the_summary_reads_the_file_once(tmp_path, monkeypatch):
+    """It called `spent()` for the total and `spent()` again for every kind,
+    so a number that is a tally of one set of rows cost one full read and
+    re-parse per kind. `magi map` and the dashboard both render this."""
+    from magi.core import ledger
+
+    for index in range(5):
+        ledger.record(tmp_path, ledger.REVIEW, "codex", slug=f"s-{index}")
+
+    reads = []
+    real = ledger.entries
+    monkeypatch.setattr(ledger, "entries",
+                        lambda root: reads.append(1) or real(root))
+
+    found = ledger.summary(tmp_path)
+
+    assert len(reads) == 1, f"read the ledger {len(reads)} times for one summary"
+    assert found["spent"] == 5
+    assert found["by_kind"][ledger.REVIEW] == 5
+
+
+def test_and_it_still_splits_the_week_by_kind(tmp_path):
+    """The answer the count is for. Kept beside it so the optimisation cannot
+    quietly become a different number."""
+    from magi.core import ledger
+
+    ledger.record(tmp_path, ledger.REVIEW, "codex", slug="a")
+    ledger.record(tmp_path, ledger.REFLECT, "codex")
+    ledger.record(tmp_path, ledger.REFLECT, "claude")
+
+    found = ledger.summary(tmp_path, limit=10)
+
+    assert found["spent"] == 3 and found["left"] == 7
+    assert found["by_kind"][ledger.REVIEW] == 1
+    assert found["by_kind"][ledger.REFLECT] == 2

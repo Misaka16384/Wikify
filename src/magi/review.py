@@ -466,7 +466,7 @@ def review_batch(root, slugs, author: str | None = None, host: str | None = None
     return out
 
 
-def pending(root) -> list:
+def pending(root, notes=None) -> list:
     """Propositions claiming to be solved that no reviewer has answered on.
 
     "Answered" is a reviewer's post *after* the last flip to `supported`, in
@@ -485,7 +485,14 @@ def pending(root) -> list:
     back on the list rather than retiring on a non-answer.
     """
     out = []
-    for note in (threads.read_note(p) for p in threads.note_paths(root)):
+    # `notes` when the caller has them. `state.close` runs inside the Stop
+    # hook with the whole projection already in memory, and this used to open
+    # and re-parse every file in `threads/` to answer a question about notes
+    # it was holding — a second reader of the same files, which `rules.check`
+    # calls "a second answer waiting to disagree".
+    source = notes if notes is not None else (
+        threads.read_note(p) for p in threads.note_paths(root))
+    for note in source:
         if note.kind != vocab.PROPOSITION or note.status != "supported":
             continue
         last_supported = -1

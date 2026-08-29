@@ -595,3 +595,42 @@ def test_a_zero_limit_still_reports_what_the_week_cost(ws):
 
     assert caught.value.spent == 12
     assert "(12/0)" in str(caught.value)
+
+
+def test_pending_uses_the_notes_it_is_given(ws):
+    """`state.close` runs inside the Stop hook holding the whole projection,
+    and this used to open and re-parse every file in `threads/` to answer a
+    question about notes it already had."""
+    from magi import state
+
+    solved(ws)
+    projection = state.load(ws)
+
+    # The files are gone; the answer comes from the notes in hand.
+    for path in (ws / "threads").glob("*.md"):
+        path.unlink()
+
+    assert review.pending(ws, notes=projection.notes) == ["p-gap"]
+    assert review.pending(ws) == [], "and with no notes given it reads the disk"
+
+
+def test_the_close_gate_does_not_re_read_the_tree_for_it(ws, monkeypatch):
+    """The count is the point: `rules.check`'s docstring calls a second reader
+    of the same files "a second answer waiting to disagree", and the Stop hook
+    is where paying for one hurts most."""
+    from pathlib import Path
+
+    from magi import state
+    from magi.kb import threads as threads_mod
+
+    solved(ws)
+    seen = []
+    real = threads_mod.read_note
+    monkeypatch.setattr(threads_mod, "read_note",
+                        lambda path: seen.append(Path(path).name) or real(path))
+
+    state.close(ws, write=False)
+
+    assert seen.count("p-gap.md") == 1, (
+        f"the gate parsed p-gap.md {seen.count('p-gap.md')} times; the "
+        f"projection reads it once and `pending` should reuse that")
