@@ -216,7 +216,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"magi {group}: unknown subcommand '{argv[1]}'. Available: {subs}", file=sys.stderr)
         return 2
     else:
-        print(f"magi: unknown command '{argv[0]}'. Run 'magi --help'.", file=sys.stderr)
+        # `magi review` suggests a slug when you misspell one; typing the
+        # command name wrong got "run --help" and a menu of 76 to scan.
+        import difflib
+
+        known = sorted({key[0] for key in _COMMANDS})
+        near = difflib.get_close_matches(argv[0], known, n=3, cutoff=0.6)
+        hint = f" Did you mean: {', '.join(near)}?" if near else ""
+        print(f"magi: unknown command '{argv[0]}'.{hint} Run 'magi --help'.",
+              file=sys.stderr)
         return 2
 
     module_name, prepend, _ = entry

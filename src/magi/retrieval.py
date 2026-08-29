@@ -1034,6 +1034,15 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
             raise SearchError("no searchable index found in any target KB",
                               "run 'magi index' in the workspace(s)")
 
+        # Said before the results as well as after them. Putting it last fixed
+        # one half — above a page of output it was scrolled past — and the
+        # retest found the other: the hits from other libraries are topically
+        # convincing, and somebody who reads the top one first has already
+        # acted on a stranger's note by the time the caveat arrives.
+        if "local" in kbs_skipped:
+            print("This workspace has no index — everything below is from "
+                  "other libraries, not from here.", file=sys.stderr)
+
         n = max(k * 3, 20)
         qvec = None
         vector_degraded = False

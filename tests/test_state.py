@@ -1399,3 +1399,51 @@ def test_an_unrelated_human_post_long_before_does_not_count(ws):
 
     blocked = {item.slug for item in state.close(ws, now=NOW, write=False).blocking}
     assert "p-a" in blocked
+
+
+def test_the_close_report_says_which_lines_are_a_wall(ws):
+    """`magi sync --close` printed "Bookkeeping is current." and then a list
+    under "Claiming to be solved, nobody independent has read them" — while
+    `--hook`, the form wired to the Stop hook, returned `{}`.
+
+    Both are right: an unreviewed claim is not undocumented work, it is work
+    waiting for a second reader, so it advises and does not block. Nothing on
+    screen said which of those two kinds any line was, so following the advice
+    changed nothing visible and ignoring it looked like ignoring a gate. The
+    file already invented the label one section down ("Older debt, not
+    blocking").
+    """
+    path = threads.create(ws / "threads" / "p-a.md", vocab.PROPOSITION, "A", "why")
+    threads.set_status(path, "testing", "a", host="claude")
+    threads.set_status(path, "supported", "it holds", host="claude")
+
+    report = state.close(ws, now=NOW, write=False)
+    text = state.render_close(report)
+
+    assert report.ok, "an unreviewed claim must not hold a session"
+    assert "not blocking" in text, "the advisory list is in the blocking voice"
+    assert "nothing is holding this session" in text
+
+
+def test_a_blocking_report_still_reads_as_one(ws):
+    """The other side. Making the advisory section quieter must not make the
+    section that really does stop you quieter too."""
+    path = threads.create(ws / "threads" / "p-b.md", vocab.PROPOSITION, "B", "why")
+    threads.set_status(path, "testing", "a", host="claude")
+    threads.set_status(path, vocab.CONFLICT, "two writers collided", host="magi")
+    threads.set_status(path, "refuted", "I say no", host="claude")
+
+    text = state.render_close(state.close(ws, now=NOW, write=False))
+
+    assert "Not finished" in text
+    assert "nothing is holding this session" not in text
+
+
+def test_an_empty_library_is_not_told_it_has_knowledge(ws):
+    """This branch is reached precisely when there are no notes at all, and on
+    a freshly scaffolded workspace there is no wiki either."""
+    text = state.focus_text(ws) if hasattr(state, "focus_text") else None
+    projection = state.load(ws, now=NOW)
+    rendered = state.render(projection, state.candidates(projection))
+
+    assert "has knowledge" not in rendered

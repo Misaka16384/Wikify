@@ -750,8 +750,11 @@ def render(state: State, actions: list) -> str:
         # `next` is the single entry, so in a library that has a wiki and no
         # research state yet it has to point at what there is rather than
         # report that nothing is owed — which is true and useless.
-        return ("No propositions yet — this library has knowledge but nothing "
-                "it is currently trying to find out.\n"
+        # Not "has knowledge". This branch is reached precisely when there are
+        # no notes at all, and on a freshly scaffolded workspace there is no
+        # wiki either — so the sentence reassured somebody about a library that
+        # was empty.
+        return ("No propositions yet — nothing here is being tested yet.\n"
                 "  magi thread new <slug> --kind proposition --title '<claim>' "
                 "--purpose '<why now>'\n"
                 "  magi sync    # what the library itself needs")
@@ -1443,10 +1446,20 @@ def render_close(report: CloseReport) -> str:
         out.append("Post what you did (`magi thread post`) or move the status "
                    "(`magi thread status`), then close again.")
     else:
-        out.append("Bookkeeping is current.")
+        # "nothing is holding this session" and not merely "current", because
+        # everything printed below this line is advice and a bare
+        # "Bookkeeping is current." above a list of things to do reads as a
+        # contradiction rather than as a heading.
+        out.append("Bookkeeping is current — nothing is holding this session.")
     if report.unreviewed:
         out.append("")
-        out.append(f"Claiming to be solved, nobody independent has read them "
+        # Labelled the way `older` already is. An unreviewed claim is not
+        # undocumented work — it is work waiting for a second reader — so the
+        # gate advises and does not block, and the session that ends here ends
+        # legitimately. Printing it in the same voice as the blocking section
+        # made following it change nothing visible and made ignoring it look
+        # like ignoring a gate.
+        out.append(f"Waiting on a second reader, not blocking "
                    f"({len(report.unreviewed)}):")
         out.extend(f"  magi review {slug}" for slug in report.unreviewed[:5])
     if report.older:

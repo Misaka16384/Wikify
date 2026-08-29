@@ -1107,3 +1107,61 @@ def test_a_dead_ocr_subprocess_does_not_put_a_traceback_on_the_cli(tmp_path,
     assert "Traceback" not in joined
     assert "line 41" not in joined
     assert "FileNotFoundError" in joined, "and it still says what went wrong"
+
+
+def test_the_listing_reads_the_queue_as_well_as_the_batches(ws, capsys):
+    """A paper lives in one of two places before it reaches the library —
+    still queued, or claimed by a batch — and this command read only the
+    second. With two papers waiting it said "no batches yet. Queue something",
+    which is false about the workspace and advises what the person has already
+    done. After an interrupted run it is how a paper appears to have vanished.
+    """
+    ledger.enqueue(ws, source_type="arxiv", value="2307.12008")
+    ledger.enqueue(ws, source_type="arxiv", value="2401.00001")
+
+    batch.main(["list", "--topic-dir", str(ws)])
+
+    out = capsys.readouterr().out
+    assert "2 item(s) queued" in out
+    assert "Queue something" not in out, "it told them to do what they had done"
+
+
+def test_a_batch_that_never_recorded_anything_says_so(ws, monkeypatch, capsys):
+    """`start_batch` writes its record before the first item is converted, so
+    an interrupted run leaves an empty one behind. Printed as "0 item(s)" it
+    read as a batch whose items had all been decided."""
+    ledger.start_batch(ws)
+
+    batch.main(["list", "--topic-dir", str(ws)])
+
+    out = capsys.readouterr().out
+    assert "started, nothing recorded" in out
+    assert "0 item(s)" not in out
+
+
+def test_a_rejected_mineru_key_is_explained_in_our_words():
+    """A physicist who has never heard of MinerU was shown a trace id and
+    `A0202`:
+
+        Error getting upload URL: {"traceId":"49dbc9a1b500","msgCode":"A0202",
+        "msg":"user authenticate failed",...}
+
+    Nothing on that line said MinerU is a paid cloud service, that the token
+    lives in config.yaml, or that this rung is optional and the ladder has
+    another below it. `degradation.md` states the rule: an upstream going away
+    changes how well MAGI works, never whether the user is told — and being
+    told in another company's vocabulary is not being told.
+
+    A source assertion, because the branch is three lines inside a request
+    handler and restructuring production code to make it callable would be
+    letting the test design the module.
+    """
+    from magi.ingest import mineru
+
+    src = pathlib.Path(mineru.__file__).read_text(encoding="utf-8")
+
+    assert "MinerU rejected the API key" in src
+    assert "ocr.mineru_api_token" in src
+    assert "the ladder falls" in src, "it does not say the rung is optional"
+    assert 'print("Error getting upload URL:", res.text)' not in src, (
+        "the vendor's raw JSON is going to the CLI again")

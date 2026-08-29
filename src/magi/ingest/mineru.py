@@ -95,8 +95,21 @@ def convert(input_path, output_dir) -> ConversionResult:
         print(f"Error: upload-URL response was not JSON (status {res.status_code}): {res.text}")
         return ConversionResult.failed(f"upload-URL response was not JSON (status {res.status_code})")
     if res.status_code != 200 or body.get("code") != 0:
-        print("Error getting upload URL:", res.text)
-        return ConversionResult.failed(f"getting upload URL failed: {res.text}")
+        said = str(body.get("msg") or "").strip()
+        # Their words, kept, with ours around them. A trace id and `A0202` are
+        # the vendor's vocabulary for a problem the reader has to solve in
+        # ours: the key in `config.yaml` is wrong, and this rung is optional.
+        if res.status_code in (401, 403) or "authenticate" in said.lower():
+            why = ("MinerU rejected the API key. MinerU is a paid cloud OCR "
+                   "service; set a working key as `ocr.mineru_api_token` in "
+                   "config.yaml, or leave this rung out — the ladder falls "
+                   "through to local OCR without it.")
+        else:
+            why = (f"MinerU refused the upload"
+                   + (f" ({said})" if said else "")
+                   + ". This rung is optional; the ladder continues below it.")
+        print("MinerU:", why)
+        return ConversionResult.failed(why, res.text)
 
     result_data = body.get("data") or {}
     batch_id = result_data.get("batch_id")

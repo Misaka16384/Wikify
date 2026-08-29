@@ -352,7 +352,12 @@ Thumbs.db
     # still matters is `register_kb` above: it is what `magi kb list` and the
     # WebUI picker read, and it has already run.
 
-    print("Next: cd into it, then 'magi skills install' to give your agent CLI "
+    # `magi install`, not `magi skills install`. The narrower one installs
+    # skills and asks which host; this one does skills, the AGENTS.md protocol
+    # block and all three hooks without prompting, and is the one `magi --help`
+    # lists. Sending a first-timer to the sibling is how somebody ends up with
+    # skills and no end-of-session gate.
+    print("Next: cd into it, then 'magi install' to give your agent CLI "
           "this workspace's skills, and 'magi sync' to see what to do first.")
 
 if __name__ == "__main__":

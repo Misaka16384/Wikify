@@ -522,10 +522,24 @@ def cmd_list(args) -> int:
               file=sys.stderr)
         return 1
     batch_ids = [args.batch] if args.batch else known
+    # The queue, not just the batches. A paper lives in one of two places
+    # before it reaches the library — still queued, or claimed by a batch —
+    # and this command only ever read the second. With two papers waiting it
+    # said "no batches yet. Queue something", which is false about the
+    # workspace and advises the thing the person has already done; after an
+    # interrupted run it is how a paper appears to have vanished.
+    waiting = len(ledger.pending(topic))
     if not batch_ids:
-        print("no batches yet. Queue something with 'magi ingest url', "
-              "then run 'magi ingest batch-run'.")
+        if waiting:
+            print(f"{waiting} item(s) queued and not yet run.")
+            print("Run them:  magi ingest batch-run")
+        else:
+            print("no batches yet. Queue something with 'magi ingest url', "
+                  "then run 'magi ingest batch-run'.")
         return 0
+    if waiting:
+        print(f"({waiting} more item(s) queued and not yet run — "
+              f"'magi ingest batch-run')")
 
     payload = []
     for batch_id in batch_ids:
@@ -534,6 +548,14 @@ def cmd_list(args) -> int:
         # flags is not thereby checked. See `ledger.review_order`.
         items = ledger.review_order(ledger.load_batch(topic, batch_id))
         undecided = ledger.undecided(items)
+        if not items:
+            # `start_batch` writes its record before the first item is
+            # converted, so a run that was interrupted leaves this behind. It
+            # is not a batch whose items were all decided — it is a batch that
+            # never got one, and saying "0 item(s)" let it read as the former.
+            print(f"=== {batch_id} — started, nothing recorded "
+                  f"(the run did not finish; anything queued is still queued) ===")
+            continue
         payload.append({
             "batch_id": batch_id,
             "items": [i._asdict() for i in items],
