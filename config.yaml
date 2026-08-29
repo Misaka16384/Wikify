@@ -30,6 +30,24 @@ research:
   # 复核跑在哪个宿主上。留空 = 探测 PATH,选一个不是作者的那个,
   # 这也是默认想要的：跨厂商是"独立"最便宜的近似。
   review_host:
+  # 钉住复核用的模型。留空 = 用那个宿主自己的默认——指一个 MAGI 够不着的
+  # 模型名,会把每一次复核都变成一个错误。
+  review_model:
+  # MAGI 自己发起的调用,每个自然周多少次封顶。单位是次数不是钱:无头 CLI
+  # 不会可靠地告诉你一次请求花了多少,而一个用没人能测的数计价的预算,是一个
+  # 安静地什么也不做的预算。失败的调用照数——超时也花了时间和钱。
+  weekly_calls: 40
+  # 总开关。关掉之后 review / reflect 拒绝启动,并且不会有任何东西算作已复核。
+  llm_calls: true
+  # AGENTS.md 托管块里"规则区"最多几行。块是每个会话在每个宿主上都要读一遍的
+  # 东西,所以一条规则要进来,得值回后面每一次会话为读它付的钱。
+  rule_budget: 7
+  # 这个库自己挣来的规则,`magi lint` 和 `sync --close` 会执行它们。词表是封闭的
+  # (见 core/rules.py):require_field / field_points_into / forbid_transition /
+  # max_open_per_line / leaving_status_requires_post_by。每条带 `from:`,指回
+  # 那条被采纳的提案——一条追溯不到出处的规则,是一条没人能反驳、因而也没人能
+  # 退掉的规则。`magi reflect promote` 加,`magi reflect retire` 删。
+  rules: []
 
 # 向量化用哪个服务(magi index / magi search / magi link 共用)
 embedding:

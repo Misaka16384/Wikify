@@ -3,6 +3,7 @@ name: magi
 description: "Entry point for a MAGI research workspace: run magi next, do what it says, and call the skill it names."
 commands:
   magi: "Work out what this research workspace needs next, and do it."
+origin: magi
 ---
 
 # magi — the entry

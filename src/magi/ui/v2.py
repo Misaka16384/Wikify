@@ -222,6 +222,39 @@ def register(app, resolve_workspace) -> None:
         except (decide_cmd.Refused, ValueError, OSError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
 
+    @app.post("/api/workspace/proposal")
+    def post_workspace_proposal(payload: dict = Body(...)) -> dict:
+        """Accept, reject or promote one proposal from the slow loop.
+
+        The same code path the CLI takes, so a decision made here and one made
+        in the terminal write the same records — and the rule budget can refuse
+        here too, which is the point of it refusing rather than truncating.
+        """
+        from magi.reflect import cmd as reflect_cmd
+
+        ws = resolve_workspace(payload.get("workspace"))
+        verb = str(payload.get("verb") or "").strip()
+        if verb not in ("accept", "reject", "promote"):
+            raise HTTPException(status_code=400,
+                                detail="a decision is accept, reject or promote")
+        ident = str(payload.get("id") or "").strip()
+        note = str(payload.get("note") or "")
+
+        import contextlib
+        import io
+
+        errors, said = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stderr(errors), contextlib.redirect_stdout(said):
+            code = reflect_cmd._decide(ws, verb, ident, note, as_json=False)
+        if code != 0:
+            raise HTTPException(status_code=400,
+                                detail=errors.getvalue().strip() or "refused")
+        # What the CLI would have printed comes back rather than being dropped.
+        # Re-rendering the block can move somebody's `CLAUDE.md` to a backup,
+        # and being told that only in a terminal nobody was looking at is the
+        # same as not being told.
+        return {"id": ident, "verdict": verb, "said": said.getvalue().strip()}
+
     @app.post("/api/workspace/dump")
     def post_workspace_dump(payload: dict = Body(...)) -> dict:
         """The one box a person is allowed to be untidy in.

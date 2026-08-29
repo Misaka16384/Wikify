@@ -337,3 +337,66 @@ def test_a_scalar_line_arrives_as_a_list(client):
     payload = get(client, "/api/workspace/thread", slug="p-scalar")
     assert payload["lines"] == ["qec"]
     assert payload["frontmatter"]["line"] == "qec", "raw, as written"
+
+
+# --------------------------------------------------------------------------
+# the slow loop's three buttons, from the browser
+#
+# Same code path as the CLI, which is what makes "the budget refuses" true in
+# both places rather than only in the terminal.
+# --------------------------------------------------------------------------
+
+def test_a_proposal_is_a_decision_waiting_on_a_person(client):
+    from magi.reflect import proposals
+
+    made = proposals.propose(client.ws, kind=proposals.RULE, target="AGENTS.md",
+                             text="Check the boundary first.", pattern="p-stall")
+
+    payload = get(client, "/api/workspace/map")
+    kinds = [item["kind"] for item in payload["decisions"]]
+    assert "proposal" in kinds
+    assert any(made.id == item["slug"] for item in payload["decisions"])
+
+
+def test_accepting_from_the_browser_writes_the_same_records(client):
+    from magi.reflect import proposals
+
+    made = proposals.propose(client.ws, kind=proposals.RULE, target="AGENTS.md",
+                             text="Check the boundary first.", pattern="p-stall")
+
+    res = post(client, "/api/workspace/proposal", id=made.id, verb="accept")
+
+    assert res.status_code == 200
+    assert proposals.get(client.ws, made.id).verdict == proposals.ACCEPTED
+
+
+def test_a_verb_nobody_defined_is_refused(client):
+    res = post(client, "/api/workspace/proposal", id="r-1", verb="delete")
+    assert res.status_code == 400
+
+
+def test_a_proposal_that_is_not_there_is_refused(client):
+    res = post(client, "/api/workspace/proposal", id="r-nope", verb="accept")
+    assert res.status_code == 400
+    assert "no proposal" in res.json()["detail"]
+
+
+def test_the_rule_budget_refuses_in_the_browser_too(client):
+    """It has to be able to say no here, or the block and the ledger part
+    company the first time somebody uses the dashboard."""
+    from magi.core import managed
+    from magi.reflect import proposals
+
+    (client.ws / "config.yaml").write_text("research:\n  rule_budget: 1\n",
+                                           encoding="utf-8")
+    first = proposals.propose(client.ws, kind=proposals.RULE, target="AGENTS.md",
+                              text="The first one.", pattern="p")
+    second = proposals.propose(client.ws, kind=proposals.RULE, target="AGENTS.md",
+                               text="The second one.", pattern="p")
+    post(client, "/api/workspace/proposal", id=first.id, verb="accept")
+
+    res = post(client, "/api/workspace/proposal", id=second.id, verb="accept")
+
+    assert res.status_code == 400
+    assert "full" in res.json()["detail"]
+    assert proposals.get(client.ws, second.id).open

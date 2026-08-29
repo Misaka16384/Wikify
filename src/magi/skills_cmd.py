@@ -49,12 +49,31 @@ def skills_dir() -> Path:
     return Path(__file__).parent / "skills"
 
 
+#: The mark on a skill MAGI ships. Install replaces a file that carries it and
+#: nothing else — a fork of an official skill necessarily mentions "magi", so
+#: the old "does the text say magi" test ate people's edits every install.
+ORIGIN_MARK = "origin: magi"
+
+
+def user_skills_dir() -> Path:
+    """Where somebody keeps a skill they made.
+
+    User-level, beside `registry.json`: a skill somebody trained is about how
+    *they* work, not about one library, and copying it into every workspace is
+    how it starts drifting.
+    """
+    from magi.core.workspace import config_home
+
+    return config_home() / "skills"
+
+
 @dataclass
 class Skill:
     name: str
     path: Path          # the SKILL.md itself
     description: str
     extras: List[Path] = field(default_factory=list)   # templates/ etc.
+    official: bool = True
 
     @property
     def text(self) -> str:
@@ -74,8 +93,7 @@ def _frontmatter_description(text: str) -> str:
     return ""
 
 
-def load_skills() -> List[Skill]:
-    root = skills_dir()
+def _skills_under(root: Path, official: bool) -> List[Skill]:
     out: List[Skill] = []
     if not root.is_dir():
         return out
@@ -85,17 +103,53 @@ def load_skills() -> List[Skill]:
             continue
         extras = sorted((d / "templates").glob("*.md")) if (d / "templates").is_dir() else []
         out.append(Skill(name=d.name, path=md,
-                         description=_frontmatter_description(md.read_text(encoding="utf-8", errors="replace")),
-                         extras=extras))
+                         description=_frontmatter_description(
+                             md.read_text(encoding="utf-8", errors="replace")),
+                         extras=extras, official=official))
     return out
 
 
+def load_skills() -> List[Skill]:
+    """The eight MAGI ships, plus whatever the person made.
+
+    A name in both places is the person's: they went and wrote one, and the
+    packaged copy losing to it is the whole point of the directory existing.
+    """
+    packaged = {skill.name: skill for skill in _skills_under(skills_dir(), True)}
+    for skill in _skills_under(user_skills_dir(), False):
+        packaged[skill.name] = skill
+    return [packaged[name] for name in sorted(packaged)]
+
+
 # --------------------------------------------------------------------------
-# Host table
+# Host table — "where does a skill get installed?"
+#
+# One of three tables in this codebase that list hosts, and they answer three
+# different questions:
+#
+#   `skills_cmd.HOSTS`      where a skill gets installed (this one)
+#   `review.HOSTS`          what binary to run for a headless call
+#   `reflect.transcripts`   whose session record we know how to read
+#
+# The keys here are products; `review`'s are commands. That is why one vendor
+# appears as `antigravity` here and `gemini` there — the product is Antigravity,
+# the command is `gemini`. A person types one word, so `gemini` is accepted as
+# an alias for this table (see `resolve_host`) and is what `--help` names.
 # --------------------------------------------------------------------------
 
 def _home() -> Path:
     return Path.home()
+
+
+#: The word a person types -> the key this table uses. One vendor, two names,
+#: and nobody should have to learn which command wants which.
+HOST_ALIASES = {"gemini": "antigravity"}
+
+
+def resolve_host(name: str) -> str:
+    """The key for a host somebody named, however they spelled it."""
+    key = str(name or "").strip().lower()
+    return HOST_ALIASES.get(key, key)
 
 
 @dataclass
@@ -302,8 +356,10 @@ def _write(path: Path, text: str, force: bool) -> str:
             current = None
         if current == text:
             return "unchanged"
-        if not force and current is not None and "magi" not in current.lower():
-            # Someone else's file with the same name — never clobber it silently.
+        if not force and current is not None and ORIGIN_MARK not in current:
+            # Not a file MAGI wrote — somebody else's, or a fork of ours they
+            # have since made their own. A fork necessarily still mentions
+            # "magi", which is why the mark and not the word decides.
             return "skipped"
         path.write_text(text, encoding="utf-8", newline="\n")
         return "updated"
@@ -465,9 +521,10 @@ def _resolve_hosts(names: Optional[List[str]], interactive: bool = False) -> Lis
     if names:
         out = []
         for n in names:
-            h = HOSTS.get(n)
+            h = HOSTS.get(resolve_host(n))
             if h is None:
-                raise SystemExit(f"unknown host {n!r} — known: {', '.join(HOSTS)} (or auto/all)")
+                known = ", ".join(sorted(set(HOSTS) | set(HOST_ALIASES)))
+                raise SystemExit(f"unknown host {n!r} — known: {known} (or auto/all)")
             out.append(h)
         return out
 

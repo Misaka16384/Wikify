@@ -3,6 +3,7 @@ name: ingest
 description: "Turn whatever the human has — a PDF, a link, a DOI, a screenshot of a citation — into raw/ sources this workspace can compile."
 commands:
   ingest: "Ingest papers, articles and notes into raw/."
+origin: magi
 ---
 
 # ingest
@@ -29,9 +30,8 @@ citation the human read out.
    so nothing catches it. Work that list with the `tidy` skill.
 
 ## Rules
-- **Never** fall back to transcribing pages through vision because a converter
-  failed. It costs one sub-agent call per page — say the page count and do not
-  start until a person has said yes. At most 10 concurrent if they do.
+- **Never** transcribe pages through vision because a converter failed: it costs
+  one sub-agent call per page. Not until a person has said yes; 10 at once.
 - **Never** commit a batch the human has not seen the findings for.
 - A converter that exits non-zero: report its stderr and stop. An unreadable
   file: name it and carry on. Report **partial** work as partial — "9 of 12".

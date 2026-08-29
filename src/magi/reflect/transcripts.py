@@ -37,8 +37,11 @@ import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
-#: Every host MAGI knows how to read. The names match `review.HOSTS` so a
-#: verdict and a transcript can be talked about in the same words.
+#: Every host MAGI knows how to read — "whose record can we make sense of?".
+#: The names match `review.HOSTS` so a verdict and a transcript can be talked
+#: about in the same words. Reading a host is not the same as installing into
+#: it or calling it headless: `skills_cmd.HOSTS` and `review.HOSTS` answer
+#: those, and each list is as long as what has actually been implemented.
 HOSTS = ("claude", "codex", "gemini", "qwen", "opencode")
 
 #: How much of one session a model is shown. From the design's sampling rule

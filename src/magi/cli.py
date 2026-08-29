@@ -67,6 +67,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("next",): ("magi.state", ["next"], "What to do next, derived from the notes"),
     ("decide",): ("magi.decide_cmd", [], "Write down what the person decided (verbatim, where it can be audited)"),
     ("review",): ("magi.review", [], "Have another agent CLI check a claim that says it is solved"),
+    ("reflect",): ("magi.reflect.cmd", [], "Read the sessions where something happened, and write down what keeps happening"),
     ("feed",): ("magi.state", ["feed"], "Every post, newest first"),
     ("thread", "new"): ("magi.kb.thread_cmd", ["new"],
                         "Open a proposition, question or research line"),

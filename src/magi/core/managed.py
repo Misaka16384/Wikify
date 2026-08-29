@@ -180,14 +180,58 @@ Never answer a research question from memory: retrieve, then cite `[[wikilinks]]
 """
 
 
-def body(name: str, scope: str, coaching: str = "light") -> str:
-    """The managed block's contents. Nothing in here explains itself.
+#: How many earned rules the block may carry. Separate from the template's
+#: forty lines, and small: every line here is read at the start of every
+#: session on every host, so a rule that goes in has to be worth what all of
+#: them pay to read it. When it is full, something comes out before something
+#: goes in.
+RULE_BUDGET = 7
 
-    Every line is read at the start of every session on every host, so the
-    reasons live in `docs/design-v2.md` and the guide, and this says only what
-    to do. Forty lines is the budget (`tests/test_v2_ratchets.py`); the way to
-    add something is to take something out.
+
+def template(name: str, scope: str, coaching: str = "light") -> str:
+    """The part of the block that ships with MAGI.
+
+    This is what the ratchet measures and what a hash guards. It is the same
+    for every workspace at a given version; what differs is the rules a person
+    accepted, and those are rendered separately from a file that records who
+    decided each one.
     """
     prompt = _COACHING.get(coaching, _COACHING["light"])
     section = f"\n## When the human is here\n{prompt}\n" if prompt else ""
     return _BODY.format(name=name, scope=scope, coaching_section=section)
+
+
+def rules_section(rules) -> str:
+    """The rules a person accepted, one line each.
+
+    Rendered, never truncated. The ledger is the truth and the block may not
+    say less than it — a budget that silently dropped the eighth rule would
+    leave somebody sure they had accepted something the agent never sees.
+    Refusing a new one is `magi reflect accept`'s job.
+    """
+    # Every kind of line break, not just `\n`: a rule carrying a stray `\r`
+    # rendered as two lines, which made `write` see a difference every time and
+    # rewrite the file on every run forever.
+    lines = [" ".join(str(getattr(rule, "text", rule)).split())
+             for rule in (rules or [])]
+    lines = [line for line in lines if line]
+    if not lines:
+        return ""
+    return "\n## Rules this workspace earned\n" + "\n".join(
+        f"- {line}" for line in lines) + "\n"
+
+
+def body(name: str, scope: str, coaching: str = "light", rules=None) -> str:
+    """The managed block's contents. Nothing in here explains itself.
+
+    Every line is read at the start of every session on every host, so the
+    reasons live in `docs/design-v2.md` and the guide, and this says only what
+    to do. Forty lines is the template's budget
+    (`tests/test_v2_ratchets.py`); the way to add something is to take
+    something out.
+
+    `rules` are what a person accepted from the slow loop — passed in rather
+    than read here, so this function stays pure and the one place that knows
+    where the ledger lives is the one that writes files.
+    """
+    return template(name, scope, coaching) + rules_section(rules)

@@ -24,6 +24,16 @@ from magi.core import vocab
 from magi.kb import threads
 
 
+@pytest.fixture(autouse=True)
+def installed(monkeypatch):
+    """What is on PATH is a fact about this machine, not about the code.
+
+    Individual tests still override this where the point *is* what happens
+    when a host is missing.
+    """
+    monkeypatch.setattr(review, "installed_hosts", lambda: ["claude", "codex"])
+
+
 @pytest.fixture
 def ws(tmp_path):
     (tmp_path / "threads").mkdir()

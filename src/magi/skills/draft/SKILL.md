@@ -3,6 +3,7 @@ name: draft
 description: "Write in drafts/ against the library: grounded prose, exported citations, and the derivation a proposition points at."
 commands:
   draft: "Write or revise a draft in drafts/, grounded in the wiki."
+origin: magi
 ---
 
 # draft

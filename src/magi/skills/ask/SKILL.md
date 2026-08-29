@@ -3,6 +3,7 @@ name: ask
 description: "Answer a question from this workspace's own knowledge — retrieved, read and cited, never from memory."
 commands:
   ask: "Answer a question from the knowledge base, with citations."
+origin: magi
 ---
 
 # ask

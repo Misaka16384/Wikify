@@ -3,6 +3,7 @@ name: compile
 description: "Compile raw sources into dense, interlinked reference and concept cards, and mine the concepts a compiled card left implicit."
 commands:
   compile: "Compile raw sources into wiki cards, and enrich thin ones."
+origin: magi
 ---
 
 # compile

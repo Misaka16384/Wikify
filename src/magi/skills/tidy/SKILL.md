@@ -3,6 +3,7 @@ name: tidy
 description: "Repair what the mechanical passes cannot: broken LaTeX from conversion, sprawling tags, and concepts that are secretly the same concept."
 commands:
   tidy: "Fix conversion damage, tag sprawl and duplicate concepts."
+origin: magi
 ---
 
 # tidy
@@ -25,9 +26,8 @@ before `magi tags apply` — it rewrites every card. Two tags that are aliases o
 each other usually mean two cards about one concept.
 
 **Concepts.** `magi link --dedup-only` proposes merges. Confirm each is really
-one concept, then `magi wiki refactor-concept --old <a> --new <b>`. A
-sub-concept merges into its parent, never the other way. Read the merged
-context with `magi wiki context` before rewriting the definition.
+one concept, then `magi wiki refactor-concept --old <a> --new <b>`. A sub-concept
+merges into its parent; read the result with `magi wiki context` before rewriting.
 
 Close with `magi lint --fix` and `magi index`.
 

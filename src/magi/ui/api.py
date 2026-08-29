@@ -1700,6 +1700,24 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         # offers and the API rejects.
         "research.review_host": {"type": "str",
                                  "choices": ["", "claude", "codex", "gemini", "qwen"]},
+        # What a model may be pinned to. Empty means the host's own default,
+        # which is what a person wants until they have a reason not to —
+        # naming a model MAGI cannot reach turns every review into an error.
+        "research.review_model": {"type": "str", "nullable": True},
+        # Calls per calendar week before the gate refuses, and the switch that
+        # turns MAGI's own calls off entirely. Counted in calls because a
+        # headless CLI does not say what a request cost.
+        "research.weekly_calls": {"type": "int"},
+        "research.llm_calls": {"type": "bool"},
+        # How many lines the rule section in AGENTS.md may hold. Small on
+        # purpose: the block is read at the start of every session on every
+        # host, so a rule that goes in has to be worth what every later
+        # session pays to read it.
+        "research.rule_budget": {"type": "int"},
+        # The library's own rules, in the closed vocabulary `core/rules.py`
+        # defines. Editable here because retiring one is a thing a person does,
+        # and `magi reflect retire` is the other way to do it.
+        "research.rules": {"type": "list_of_maps"},
         "radar.min_relevance": {"type": "number", "nullable": True},
         "radar.days": {"type": "int"},
         "radar.max_candidates": {"type": "int"},

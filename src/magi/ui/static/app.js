@@ -45,6 +45,10 @@
       queue_title: "等你拍板的决定",
       queue_subtitle: "只有这几类事允许打断你",
       queue_none: "没有。每个开着的问题都轮到别人了。",
+      proposal_accept: "采纳",
+      proposal_reject: "否掉",
+      proposal_promote: "变成代码",
+      proposal_done: "已{verb}",
       lines_title: "研究线",
       lines_subtitle: "相位、线上开着几条、上次动是什么时候",
       lines_none: "还没有线。",
@@ -799,6 +803,10 @@
       queue_title: "Decisions waiting on you",
       queue_subtitle: "The only events allowed to interrupt you",
       queue_none: "Nothing. Every open question is somebody else's turn.",
+      proposal_accept: "Accept",
+      proposal_reject: "Turn down",
+      proposal_promote: "Make it code",
+      proposal_done: "{verb}ed",
       lines_title: "Research lines",
       lines_subtitle: "Phase, what is open on it, and when it last moved",
       lines_none: "No lines yet.",
@@ -3171,6 +3179,14 @@
     renderLookingBack(back, data.retrospective || {});
   }
 
+  //: The three things a person can do with a proposal. A table rather than a
+  //: key built at runtime: a concatenated key is one no checker can see.
+  const PROPOSAL_VERBS = [
+    { verb: "accept", key: "proposal_accept" },
+    { verb: "reject", key: "proposal_reject" },
+    { verb: "promote", key: "proposal_promote" },
+  ];
+
   function renderQueue(box, data) {
     // `decisions` is the queue with WIP already dropped — that rule lives in
     // Python, where `MAP.md` applies it too. Filtering here as well would be a
@@ -3184,11 +3200,26 @@
     items.forEach((item) => {
       const row = document.createElement("div");
       row.className = "stack-row";
+      // A proposal is not a note, so its id does not open a thread — and the
+      // three things a person can do with one are the only per-kind buttons
+      // in this list. Everything else still renders the same way.
+      const isProposal = item.kind === "proposal";
+      const name = isProposal
+        ? `<code>${escapeHtml(item.slug)}</code>`
+        : `<a href="#" class="thread-link" data-slug="${escapeHtml(item.slug)}">`
+          + `${escapeHtml(item.slug)}</a>`;
+      const buttons = isProposal
+        ? `<div class="form-row">`
+          + PROPOSAL_VERBS.map((verb) =>
+            `<button class="btn btn-secondary btn-sm proposal-btn" `
+            + `data-id="${escapeHtml(item.slug)}" data-verb="${verb.verb}">`
+            + `${escapeHtml(t(verb.key))}</button>`).join("")
+          + `</div>`
+        : "";
       row.innerHTML =
         `<div><span class="badge badge-terracotta">${escapeHtml(item.kind)}</span> `
-        + `<a href="#" class="thread-link" data-slug="${escapeHtml(item.slug)}">`
-        + `${escapeHtml(item.slug)}</a>`
-        + `<p class="card-subtitle">${escapeHtml(item.why)}</p></div>`;
+        + name
+        + `<p class="card-subtitle">${escapeHtml(item.why)}</p>${buttons}</div>`;
       box.appendChild(row);
     });
     box.querySelectorAll(".thread-link").forEach((a) => {
@@ -3198,6 +3229,27 @@
         openThread(a.dataset.slug);
       });
     });
+    box.querySelectorAll(".proposal-btn").forEach((btn) => {
+      btn.addEventListener("click", () => decideProposal(btn.dataset.id,
+                                                         btn.dataset.verb));
+    });
+  }
+
+  async function decideProposal(id, verb) {
+    try {
+      await apiFetch("/api/workspace/proposal", {
+        method: "POST",
+        body: JSON.stringify({ workspace: state.workspace, id, verb }),
+      });
+      const named = PROPOSAL_VERBS.find((row) => row.verb === verb);
+      showToast(t("proposal_done", { verb: t(named ? named.key : "proposal_accept") }),
+                "success");
+      loadMap();
+    } catch (err) {
+      // The rule budget refuses here, and what it says names the rule to
+      // retire first — so the message is the useful part.
+      showToast(err.message, "error");
+    }
   }
 
   function renderLines(body, data) {

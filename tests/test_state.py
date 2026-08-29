@@ -19,6 +19,7 @@ nothing at all.
 
 import datetime as dt
 import json
+from pathlib import Path
 
 import pytest
 
@@ -1004,3 +1005,236 @@ def test_a_thought_that_starts_with_a_hash_comes_back(ws):
 def test_a_bullet_somebody_typed_is_left_alone(ws):
     state.dump(ws, "- already a bullet")
     assert state.unfiled(ws) == ["- already a bullet"]
+
+
+# --------------------------------------------------------------------------
+# what the week cost, where a person looks
+#
+# A limit that only announces itself by refusing is a limit that surprises
+# somebody mid-sentence. The map is the file the design says a person reads.
+# --------------------------------------------------------------------------
+
+def test_the_map_says_what_the_week_has_cost(ws):
+    from magi.core import ledger
+
+    line(ws)
+    (ws / "config.yaml").write_text("research:\n  weekly_calls: 10\n", encoding="utf-8")
+    for index in range(3):
+        ledger.record(ws, ledger.REVIEW, "codex", slug=f"p-{index}")
+
+    text = state.render_map(load(ws), now=NOW)
+
+    assert "## Spending" in text
+    assert "3/10 model calls this week" in text
+
+
+def test_a_spent_budget_says_nothing_counts_as_reviewed(ws):
+    """The failure to avoid is a gate that stops the call and lets the claim
+    retire anyway — that would spend nothing and approve everything."""
+    from magi.core import ledger
+
+    line(ws)
+    (ws / "config.yaml").write_text("research:\n  weekly_calls: 2\n", encoding="utf-8")
+    for index in range(2):
+        ledger.record(ws, ledger.REVIEW, "codex", slug=f"p-{index}")
+
+    text = state.render_map(load(ws), now=NOW)
+    assert "nothing counts as reviewed" in text
+
+
+def test_the_master_switch_is_said_out_loud(ws):
+    line(ws)
+    (ws / "config.yaml").write_text("research:\n  llm_calls: false\n", encoding="utf-8")
+
+    assert "switched off" in state.render_map(load(ws), now=NOW)
+
+
+def test_a_workspace_with_no_ledger_still_draws_its_map(ws):
+    line(ws)
+    text = state.render_map(load(ws), now=NOW)
+    assert "0/40 model calls" in text, "the default limit, nothing spent"
+
+
+# --------------------------------------------------------------------------
+# the slow loop's proposals are a queue kind, not a special case
+# --------------------------------------------------------------------------
+
+def test_an_undecided_proposal_is_something_only_a_person_can_settle(ws):
+    from magi.reflect import proposals
+
+    made = proposals.propose(ws, kind=proposals.RULE, target="AGENTS.md",
+                             text="Check the boundary first.", pattern="p-stall")
+
+    item = [q for q in load(ws).queue if q.kind == "proposal"][0]
+    assert item.slug == made.id
+    assert "Check the boundary first." in item.why
+
+
+def test_a_decided_proposal_leaves_the_queue(ws):
+    from magi.reflect import proposals
+
+    made = proposals.propose(ws, kind=proposals.RULE, target="AGENTS.md",
+                             text="Check the boundary first.", pattern="p-stall")
+    proposals.decide(ws, made.id, proposals.ACCEPTED)
+
+    assert not [q for q in load(ws).queue if q.kind == "proposal"]
+
+
+def test_the_action_says_the_three_things_a_person_can_do(ws):
+    from magi.reflect import proposals
+
+    made = proposals.propose(ws, kind=proposals.RULE, target="AGENTS.md",
+                             text="Check the boundary first.", pattern="p-stall")
+
+    action = [a for a in state.candidates(load(ws)) if a.key == "proposal"][0]
+    assert made.id in action.run
+    assert "reject" in action.run and "promote" in action.run
+
+
+def test_a_workspace_that_never_reflected_has_no_proposals(ws):
+    """No ledger is not an error."""
+    assert not [q for q in load(ws).queue if q.kind == "proposal"]
+
+
+# --------------------------------------------------------------------------
+# the way out
+#
+# Without this the loop only adds. Every accepted rule is read at the start of
+# every session forever, and the reason it was accepted can stop being true
+# without anybody noticing.
+# --------------------------------------------------------------------------
+
+def test_a_rule_whose_reason_went_quiet_is_asked_about(ws):
+    import datetime as date_mod
+
+    from magi.reflect import patterns, proposals
+
+    old = date_mod.date.today() - date_mod.timedelta(days=100)
+    for host in ("claude", "codex"):
+        patterns.observe(ws, "sweeps-stall", title="t", body="b",
+                         session=f"{host}/s", host=host, when=old)
+    made = proposals.propose(ws, kind=proposals.RULE, target="AGENTS.md",
+                             text="Check the boundary first.", pattern="sweeps-stall")
+    proposals.decide(ws, made.id, proposals.ACCEPTED)
+
+    item = [q for q in load(ws).queue if q.kind == "retire"][0]
+    assert item.slug == made.id
+    assert "90 days" in item.why and "Check the boundary first." in item.why
+
+
+def test_a_rule_whose_pattern_still_recurs_is_left_alone(ws):
+    from magi.reflect import patterns, proposals
+
+    for host in ("claude", "codex"):
+        patterns.observe(ws, "sweeps-stall", title="t", body="b",
+                         session=f"{host}/s", host=host)
+    made = proposals.propose(ws, kind=proposals.RULE, target="AGENTS.md",
+                             text="Check the boundary first.", pattern="sweeps-stall")
+    proposals.decide(ws, made.id, proposals.ACCEPTED)
+
+    assert not [q for q in load(ws).queue if q.kind == "retire"]
+
+
+def test_the_question_is_leave_it_or_drop_it(ws):
+    """Ninety silent days may be the rule working. Only a person can tell that
+    apart from a rule nobody needed."""
+    import datetime as date_mod
+
+    from magi.reflect import patterns, proposals
+
+    old = date_mod.date.today() - date_mod.timedelta(days=100)
+    for host in ("claude", "codex"):
+        patterns.observe(ws, "sweeps-stall", title="t", body="b",
+                         session=f"{host}/s", host=host, when=old)
+    made = proposals.propose(ws, kind=proposals.RULE, target="AGENTS.md",
+                             text="Check the boundary first.", pattern="sweeps-stall")
+    proposals.decide(ws, made.id, proposals.ACCEPTED)
+
+    action = [a for a in state.candidates(load(ws)) if a.key == "retire"][0]
+    assert "retire" in action.run and "leave it" in action.run
+    assert "reject" not in action.run, (
+        "rejecting says the idea was bad and bans it from ever being proposed "
+        "again; retiring says its reason has gone")
+
+
+# --------------------------------------------------------------------------
+# one unreadable note must not take the projection with it
+#
+# `sync --close --hook` is the worst case: it is supposed to print JSON for a
+# Stop hook, and a note nobody can read *is* unrecorded work — so the gate
+# failing to run on account of one is the gate failing at exactly the moment
+# it exists for.
+# --------------------------------------------------------------------------
+
+def test_a_note_that_cannot_be_read_becomes_debt_not_a_crash(ws, monkeypatch):
+    line(ws)
+    proposition(ws, "p-fine", status="testing")
+    (ws / "threads" / "p-broken.md").write_text("---\nkind: proposition\n---\n",
+                                                encoding="utf-8")
+
+    real = threads.read_note
+
+    def refuse(path):
+        if Path(path).name == "p-broken.md":
+            raise OSError("Permission denied")
+        return real(path)
+
+    monkeypatch.setattr(threads, "read_note", refuse)
+
+    loaded = load(ws)
+
+    assert [item.slug for item in loaded.debt][:1] == ["p-broken"]
+    assert "could not be read" in loaded.debt[0].why
+    assert any(note.slug == "p-fine" for note in loaded.notes), "the rest survives"
+
+
+def test_the_close_gate_still_answers_with_a_broken_note(ws, monkeypatch):
+    line(ws)
+    (ws / "threads" / "p-broken.md").write_text("x", encoding="utf-8")
+
+    real = threads.read_note
+
+    def refuse(path):
+        if Path(path).name == "p-broken.md":
+            raise OSError("Permission denied")
+        return real(path)
+
+    monkeypatch.setattr(threads, "read_note", refuse)
+
+    report = state.close(ws, write=False, now=NOW)
+
+    assert not report.ok, "an unreadable note is unrecorded work"
+    assert any("could not be read" in item.why for item in report.blocking)
+
+
+# --------------------------------------------------------------------------
+# --line means this line's everything
+# --------------------------------------------------------------------------
+
+def test_open_questions_are_this_lines_questions(ws, capsys):
+    line(ws, "qec")
+    line(ws, "other")
+    threads.create(ws / "threads" / "q-here.md", vocab.QUESTION, "Here?", "p",
+                   lines=["qec"])
+    threads.create(ws / "threads" / "q-there.md", vocab.QUESTION, "There?", "p",
+                   lines=["other"])
+
+    state.main(["next", "--topic-dir", str(ws), "--line", "qec", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["open_questions"] == ["q-here"]
+
+
+def test_debt_on_the_lines_own_note_is_not_dropped(ws, capsys):
+    """A line note has no `line:` field, so "does it name this line" was false
+    for the one note that *is* this line — and its debt vanished from the view
+    whose first promise is that debt comes first."""
+    path = line(ws, "qec")
+    text = path.read_text(encoding="utf-8").replace("status: exploring",
+                                                    "status: active", 1)
+    path.write_text(text, encoding="utf-8")
+
+    state.main(["next", "--topic-dir", str(ws), "--line", "qec", "--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert [item["slug"] for item in payload["debt"]] == ["qec"]

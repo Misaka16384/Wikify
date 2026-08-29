@@ -48,7 +48,7 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [x] 检索：collection 增 `threads`（`drafts` 早就有）；threads 在未指定 collection 时降权 0.6；`threads/` **不进** `CORPUS_DIRS`——那个元组喂的是会重写文件的维护流程，帖子不能被重排
 - [x] 线内 `focus` 从 wikilink 派生并加权：`magi search --line X` 把该线的 note 一跳内引用到的文件加权 1.5——是加权不是过滤，因为线内提问的答案常常在这条线从没引过的论文里
 - [x] beads 迁到项目根（`pm init` 不再往上找 hub）；新增 `line:` 标签与 `--line` 过滤，`topic:` 保留以便读旧的 hub 库；任务行多一个 `line` 字段
-- [ ] `pm status` 并入 `sync`（挪到 M3 的命令面收缩一起做，那里才决定哪些命令消失）
+- [x] ~~`pm status` 并入 `sync`~~ 在 M3 以**删除**结案：`sync` 的 Balthasar 行已经说完了同一组数字
 - [→ M3] hub 退场**挪到 M3**：`test_docs_in_sync` 会拦下「文档里写了已经不存在的命令」，所以删 `hub *` 就必须同时重写 guide 的「先跑通一遍」「建立文献库」两章和两个 README——而 M3 本来就要把 README 改成 2 条命令、把 guide 对应章节更新。分两次写等于同一批文档改两遍。跨项目检索的替代物早就在了（registry + `retrieval.run_search` 的联邦检索），所以推迟不阻塞任何东西
 - [x] `magi migrate` v2 第一半：`wiki/theses/*` → `drafts/`（重名就原地不动并报出来，不猜）；`CLAUDE.md` 收成 `@AGENTS.md`（人写过的内容进 `.backup/` 并告诉他在哪）；重跑零改动有测试守着
 - [→ M3] `magi migrate` v2 第二半：`hub/topics/*` → 多个 project（跟 hub 退场一起）；`log.md` 停写保留
@@ -91,21 +91,21 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [→ 不做] `install` 吸收 `setup`：`install` 已经在调 `skills install`；而 `setup` 是环境体检（装 bd、拉模型、查插件），跟「把工作区装进宿主」不是一件事，合并会让一条命令同时改工作区和机器
 - [x] 20 → 8 skills（`magi` / `ingest` / `compile` / `tidy` / `ask` / `research` / `draft` / `radar_review`），每个 ≤ 40 行；样板（工具能力、谁能问人、无人值守）移入托管块；纯包装的七个删掉（建库、修复、建图、连边、查手册本来就是一条确定性命令）。顺带删掉 `wiki_lint` 带的 700 个 fixture 文件——没有任何测试在跑它们
 - [x] `research` 吸收 `audit`：找茬只是换一套子 agent 提示词，产物统一为 threads 命题 + 至多一篇 `wiki/topics` synthesis
-- [ ] `validate` 收成单 schema（跟命令面合并一起做）
+- [→ M7] `validate` 收成单 schema（跟命令面合并一起做）
 - [x] 托管块内容（`core/managed.py` 的 `body()`，33 行 / 预算 40）：入口一行、目录含义各一行、五条不变量、收工一行、强制输出按档位、手册指针。理由一律不进块——块每个会话都在付费。幂等重写与 `CLAUDE.md = @AGENTS.md` 在 M1 已落地
 - [x] `magi install [--host …]`：skills + 托管块 + Claude Code 的 Stop hook（跑 `magi sync --close --hook`）。settings.json 解析-合并-写回并备份，认自己的那条 hook 靠命令字符串所以重装是更新不是追加；别人写的 Stop hook 原样保留。**宿主强制力不对称照实说**：只有 Claude Code 有文档化的 Stop hook，其余宿主同一条规则只以托管块指令存在
-- [ ] PreToolUse 计数 / SessionStart hook（成本治理那半在 M6 一起做）
+- [→ M7] PreToolUse 计数 / SessionStart hook（说好 M6 一起做，M6 没做；2026-08-29 挪 M7）
 - [x] **hub 退场**：`hub *` / `each` 全删；`hub/` 包没了，`init_workspace.py` 升到 `magi/`；llmwiki 的注册表机器（archive / restore / register / resolve_hub / wikis.json 读写）连同 `--hub`、`--include-archived` 一起删；sync 的 hub 模式、WebUI 把 hub 根当工作区都清掉。`find_hub_root` / `is_hub_root` 留着，只有一个读者——`magi migrate` 要认得旧形状才能转换
 - [x] **migrate 第二半**：hub 下每个 topic 就地迁并登记进用户级 registry，**目录一个不搬**——搬目录是这次变更里唯一破坏性的一半，而有用的那一半不花钱。迁完告诉人 hub 自己的 `wikis.json` / `topics/` / `log.md` 已经不起作用，删不删由他
 - [x] `log.md` 停写：lint 和 ingest 都不再往里追加，`magi init` 也不再创建。记录就是 `threads/` 里的跟帖，按时间读用 `magi feed`——同一批事件写两个地方，第一次有人只改一个就开始打架。老库里的 `log.md` 原样留着
-- [ ] `pm status` 并入 `sync`（从 M1 挪来）
-- [ ] README「先跑起来」改为 2 条命令；guide 对应章节更新；WebUI Operations 面板对齐新 plumbing——hub 那两章要一起重写，这是把 hub 退场挪到本里程碑的原因
+- [x] ~~`pm status` 并入 `sync`（从 M1 挪来）~~ 与上面「`pm status` 删除」是同一件事，2026-08-29 清账
+- [→ M7] README「先跑起来」改为 2 条命令；guide 对应章节更新——hub 那两章要一起重写（Operations 面板那半 M5 已做；2026-08-29 挪 M7）
 - [x] 三条棘轮测试达标：`--help` 13 行（≤20）、8 个 skill 全部 ≤40 行、托管块 33 行（≤40）。xfail 标记全部摘掉——从现在起超标就是真失败，修法是拿掉东西不是抬高数字
 
 **验收**：棘轮全绿；`magi --help` 一屏；三宿主各跑一次冒烟（install → next → compile 一篇 → --close）；现有 README/guide 与 `--help` 一致性测试通过。
 **待定**：`each` 去留；plumbing 是否再压缩。
 
-**→ 发 `v2.0.0-beta`。**
+**→ ~~发 `v2.0.0-beta`~~**（2026-08-29 作者定：不发 beta，M0–M7 全部修好后直接发 `v2.0.0`；M3 的三条欠账在 M6 收尾前还清）
 
 ---
 
@@ -154,20 +154,21 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 
 ## M6 — 慢环与成本
 
-- [ ] `output/llm-ledger.jsonl` + 周预算门 + 总开关；超预算时 review / reflect 拒绝启动并在 MAP 说明
-- [ ] WebUI 配置：预算、模型分配、规则区预算 `research.rule_budget`（前两项从 M5 挪来——没有账本的预算数字是装饰）；三个键同时进 config 白名单 + 出厂 `config.yaml` + `magi init` 模板
-- [ ] `magi reflect` 第一段：五宿主四格式 transcript 适配器（claude / codex / gemini / qwen / opencode，qwen 未实测；golden fixture 手写不拷真实 transcript、fail-soft、Windows 路径）；抽样 ≤ 8 会话（≤ 5 loss / ≤ 3 win，各截 15k）；MAGI 结构化 loss + win → `output/reflect/patterns/*.md`（一模式一页，记会话与宿主；patch 词表 append / replace / insert_after，目标须为精确子串）
-- [ ] `magi reflect` 第二段：读模式页 + 提案账本 → ≤ 5 条提案，一条一个目标；≥ 2 会话、被拒不再提、90 天过期全部是对模式页 + 账本的查询，不是 prose
-- [ ] `output/reflect/ledger.jsonl`：CLI 在三按钮时写（目标、证据、来源宿主、裁决、日期）；被拒留全文；ACCEPT / PROMOTE 指回模式页。与 `llm-ledger.jsonl` 是两个文件。写入面（CLI / HTTP）走校验过的 workspace 解析（`_reading_root`，不是 `_resolve_workspace`），签名字段同 `format_post` 的字符集规则——M5 复核出的两条安全修复在这里同样成立
-- [ ] 提案进 MAP / WebUI；三按钮 ACCEPT / REJECT / PROMOTE→CODE 是人用面（`magi reflect accept|reject|promote`，与 `close` / `publish` 同级）：ACCEPT 写账本，PROMOTE 生成 hook / 测试骨架并标 promoted；队列条目 kind = `proposal`：CLI 侧加进 `state._QUEUE_ACTION`，WebUI 侧 `renderQueue` 加按 kind 的按钮块（渲染本来就按 kind 分发，`next` 的 Action.key 即 item.kind，不用改）
-- [ ] 证据分路：≥ 2 宿主 → 共享层；单宿主 → 该宿主配置
-- [ ] 退出：模式 90 天未再现 → 它产生的规则进队列问去留
-- [ ] 事实类提案路由到 wiki
-- [ ] 托管块 = 模板 + 规则区：`managed.body()` 从 `output/reflect/ledger.jsonl` 渲染 ACCEPT 且未 promoted / 未退出的规则各一行；hash 守护模板与渲染函数，不守护渲染结果；规则区 > `rule_budget` 时由 `reflect accept` 拒绝并说先退哪条，渲染从不截断；`reflect accept | promote`、退出、`sync` 都重渲染，`install --dry-run` 走同一渲染函数；棘轮测试仍只量模板的 40 行
-- [ ] durability：`output/reflect/patterns/` = ORIGINAL（原地改、唯一副本、原子写 + 锁），`output/reflect/ledger.jsonl` 与 `output/llm-ledger.jsonl` = TRANSACTIONAL（后者现在是 unknown）；`.gitignore` 模板不改——它本来就不整体忽略 `output/`——只把这三样加进「刻意不忽略」的注释
-- [ ] skill 方法类提案：目标官方 skill → 队列里标「包级」，ACCEPT 只把 diff 写进账本并在 MAP 列为开发待办，不写包；目标自有 skill → ACCEPT 打补丁到 `~/.config/magi/skills/<name>/` 并提示重装；提案必须含加 / 删两行
-- [ ] 官方标记与不覆盖：8 个官方 skill frontmatter 加 `origin: magi`；`skills_cmd._write` 只覆盖带标记的已有文件，替换「正文含 magi 就覆盖」；`magi install` 增 `~/.config/magi/skills/` 为第二来源，同名用户优先；测试：一个无标记的同名 fork 装两次都原样。同一处统一宿主词表：`antigravity` 降为 `gemini` 的别名，三张宿主表（`skills_cmd` / `review` / `transcripts`）文件头各写明答哪个问题并互指；qwen 的 install 目标不猜
-- [ ] 隔离测试：托管块、8 个 skill、`state.candidates()` 产出的 Action.run 里 grep 不到 `output/reflect`——最后那处是唯一会把路径塞进工作 agent 眼睛的地方。派生扫描（`_LINK_DIRS`、`_iter_corpus`、`graph build`）本来就不走 `output/`，不用再加排除。夹具注意 `is_topic_root` 认的是 wiki/ raw/ threads/，只有 `output/reflect` 的目录不是工作区
+- [x] `output/llm-ledger.jsonl` + 周预算门 + 总开关；超预算时 review / reflect 拒绝启动并在 MAP 说明
+- [x] WebUI 配置：预算、模型分配、规则区预算 `research.rule_budget`（前两项从 M5 挪来——没有账本的预算数字是装饰）；三个键同时进 config 白名单 + 出厂 `config.yaml` + `magi init` 模板
+- [x] `magi reflect` 第一段：五宿主四格式 transcript 适配器（claude / codex / gemini / qwen / opencode，qwen 未实测；golden fixture 手写不拷真实 transcript、fail-soft、Windows 路径）；抽样 ≤ 8 会话（≤ 5 loss / ≤ 3 win，各截 15k）；MAGI 结构化 loss + win → `output/reflect/patterns/*.md`（一模式一页，记会话与宿主；patch 词表 append / replace / insert_after，目标须为精确子串）
+- [x] `magi reflect` 第二段：读模式页 + 提案账本 → ≤ 5 条提案，一条一个目标；≥ 2 会话、被拒不再提、90 天过期全部是对模式页 + 账本的查询，不是 prose
+- [x] `output/reflect/ledger.jsonl`：CLI 在三按钮时写（目标、证据、来源宿主、裁决、日期）；被拒留全文；ACCEPT / PROMOTE 指回模式页。与 `llm-ledger.jsonl` 是两个文件。写入面（CLI / HTTP）走校验过的 workspace 解析（`_reading_root`，不是 `_resolve_workspace`），签名字段同 `format_post` 的字符集规则——M5 复核出的两条安全修复在这里同样成立
+- [x] 提案进 MAP / WebUI；三按钮 ACCEPT / REJECT / PROMOTE→CODE 是人用面（`magi reflect accept|reject|promote|retire`，与 `close` / `publish` 同级）：ACCEPT 写账本，PROMOTE 写一条 `research.rules` 实例（或宿主 hook）并标 promoted；队列条目 kind = `proposal`：CLI 侧加进 `state._QUEUE_ACTION`，WebUI 侧 `renderQueue` 加按 kind 的按钮块（渲染本来就按 kind 分发，`next` 的 Action.key 即 item.kind，不用改）
+- [x] 证据分路：≥ 2 宿主 → 共享层；单宿主 → 该宿主配置
+- [x] 退出：模式 90 天未再现 → 它产生的规则进队列问去留；「不要了」= `magi reflect retire`（独立动词，写 RETIRED、删 `research.rules` 实例、不进 rejected 清单）；`reject` 一条已 promoted 的提案同样删实例——两者都撤规则，区别只在进不进「不再提」清单；`sync --close` 比对块与账本，漂移则阻塞并指向 `magi install`
+- [x] 规则词表 `core/rules.py`：封闭词表，初始 ≤ 6 种（要求字段 / 字段须指向某目录 / 禁止某跃迁 / 每线 open 上限 / 离开某状态须某签名的帖 …），每条实例 = 谓词 + 参数 + `from:`；`lint` 与 `--close` 共用一个执行器，报错带规则来源的逐字引用；`research.rules` 进 config 白名单 + WebUI；词表装不下的提案 promote 按钮灰掉并说明。已写的 `checks/` 骨架代码与测试**删除**（2026-08-29 作者定）
+- [x] 事实类提案路由到 wiki
+- [x] 托管块 = 模板 + 规则区：`managed.body()` 从 `output/reflect/ledger.jsonl` 渲染 ACCEPT 且未 promoted / 未退出的规则各一行；hash 守护模板与渲染函数，不守护渲染结果；规则区 > `rule_budget` 时由 `reflect accept` 拒绝并说先退哪条，渲染从不截断；`reflect accept | promote`、退出、`sync` 都重渲染，`install --dry-run` 走同一渲染函数；棘轮测试仍只量模板的 40 行
+- [x] durability：`output/reflect/patterns/` = ORIGINAL（原地改、唯一副本、原子写 + 锁），`output/reflect/ledger.jsonl` 与 `output/llm-ledger.jsonl` = TRANSACTIONAL（后者现在是 unknown）；`.gitignore` 模板不改——它本来就不整体忽略 `output/`——只把这三样加进「刻意不忽略」的注释
+- [x] skill 方法类提案：目标官方 skill → 队列里标「包级」，ACCEPT 只把 diff 写进账本并在 MAP 列为开发待办，不写包；目标自有 skill → ACCEPT 打补丁到 `~/.config/magi/skills/<name>/` 并提示重装；提案必须含加 / 删两行
+- [x] 官方标记与不覆盖：8 个官方 skill frontmatter 加 `origin: magi`；`skills_cmd._write` 只覆盖带标记的已有文件，替换「正文含 magi 就覆盖」；`magi install` 增 `~/.config/magi/skills/` 为第二来源，同名用户优先；测试：一个无标记的同名 fork 装两次都原样。同一处统一宿主词表：`antigravity` 降为 `gemini` 的别名，三张宿主表（`skills_cmd` / `review` / `transcripts`）文件头各写明答哪个问题并互指；qwen 的 install 目标不猜。同一家族的另一处：`magi install` 刷新 `CLAUDE.md` 指针时，人写的内容先备份到 `.backup/` 再改并说在哪（`install_cmd.py:155-160` 现在直接覆盖，`migrate.py:282-305` 是备份的——两条路对同一个文件两种态度）
+- [x] 隔离测试：托管块、8 个 skill、`state.candidates()` 产出的 Action.run 里 grep 不到 `output/reflect`——最后那处是唯一会把路径塞进工作 agent 眼睛的地方。派生扫描（`_LINK_DIRS`、`_iter_corpus`、`graph build`）本来就不走 `output/`，不用再加排除。夹具注意 `is_topic_root` 认的是 wiki/ raw/ threads/，只有 `output/reflect` 的目录不是工作区
 
 **验收**：用真实 transcript 跑一轮产出 ≤ 5 条带引用的提案；模式页跨两次运行存活，第二次才过 ≥ 2 门；被拒的提案第三次运行不再出现且下一条提案能引用它；超预算时拒绝启动；托管块 hash 不变；PROMOTE→CODE 产出的测试可运行。
 **待定**：ACCEPT 后规则类 prose 的落点（design-v2 §15）。
@@ -177,6 +178,9 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 
 ## M7 — 发表环、收尾、发布
 
+- [ ] （从 M3 挪来）`validate` 收成单 schema
+- [ ] （从 M3 挪来）PreToolUse 计数 / SessionStart hook：§13 会话内 fan-out 软约束、§7 会话开始时做后台调度
+- [ ] （从 M3 挪来）README「先跑起来」改为 2 条命令；guide hub 那两章重写，并入 M7 的 guide 全书重写
 - [ ] `magi close <line>`（人用面）：线归档、open 命题处置提示
 - [ ] `magi publish`：我方论文进 `raw/`；相关命题批量 `superseded_by`；线关闭
 - [ ] 骨架钉住（`skeleton: true`）与 MAP 静态渲染对齐

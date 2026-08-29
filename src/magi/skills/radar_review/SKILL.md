@@ -3,6 +3,7 @@ name: radar_review
 description: "Triage a literature-radar digest: judge each candidate against what this library is actually doing, and queue only what earns it."
 commands:
   radar_review: "Triage the pending radar digest."
+origin: magi
 ---
 
 # radar_review

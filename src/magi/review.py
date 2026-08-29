@@ -40,9 +40,14 @@ from .core import ledger, vocab
 from .core.workspace import find_workspace_root
 from .kb import threads
 
-#: How each host is asked one question and gives one answer back. Every entry
-#: is a documented non-interactive mode: these are not guesses at an internal
-#: flag, and a host whose print mode is not documented does not belong here.
+#: How each host is asked one question and gives one answer back — "what
+#: binary do we run headless?". Every entry is a documented non-interactive
+#: mode: these are not guesses at an internal flag, and a host whose print mode
+#: is not documented does not belong here.
+#:
+#: The keys are commands, which is why Google's appears as `gemini` while
+#: `skills_cmd.HOSTS` calls the same vendor `antigravity` — that table's keys
+#: are products. The word a person types is `gemini` in both.
 HOSTS = {
     "claude": lambda prompt, model: (
         ["claude", "-p", prompt] + (["--model", model] if model else [])),
@@ -366,14 +371,32 @@ def pending(root) -> list:
     return out
 
 
-def _config(root):
-    """`(weekly call limit, master switch)` for this workspace."""
+@dataclass
+class Settings:
+    """What the workspace says about reviewing, in one object."""
+    limit: int = ledger.DEFAULT_WEEKLY
+    enabled: bool = True
+    host: str | None = None
+    model: str | None = None
+
+
+def _config(root) -> Settings:
+    """The review settings for this workspace.
+
+    `host` and `model` are read here rather than only accepted as flags: a
+    field the WebUI can set, the shipped config documents, and the command
+    ignores is worse than a missing one — somebody sets it, nothing changes,
+    and the config becomes a file they stop believing.
+    """
     from .core.config_loader import get as config_get
     from .core.config_loader import load_config
 
     config = load_config(start=root)
-    return (config_get(config, "research.weekly_calls", ledger.DEFAULT_WEEKLY),
-            bool(config_get(config, "research.llm_calls", True)))
+    return Settings(
+        limit=config_get(config, "research.weekly_calls", ledger.DEFAULT_WEEKLY),
+        enabled=bool(config_get(config, "research.llm_calls", True)),
+        host=(config_get(config, "research.review_host", "") or None),
+        model=(config_get(config, "research.review_model", "") or None))
 
 
 def main(argv=None) -> int:
@@ -398,9 +421,11 @@ def main(argv=None) -> int:
         print("no workspace found (run inside a topic or pass --topic-dir)", file=sys.stderr)
         return 1
 
-    config = _config(root)
-    limit = config[0]
-    enabled = config[1]
+    settings = _config(root)
+    limit, enabled = settings.limit, settings.enabled
+    # A flag beats the file, and the file beats the probe.
+    wanted_host = args.host or settings.host
+    model = args.model or settings.model
 
     slugs = args.slug or pending(root)
     if not slugs:
@@ -410,9 +435,9 @@ def main(argv=None) -> int:
     # `--host` names a preference, not a fact. Sending it through `pick_host`
     # is what makes "you asked for codex and there is no codex" say so instead
     # of failing once per claim and calling each one reviewed.
-    chosen = pick_host(args.author, configured=args.host)
+    chosen = pick_host(args.author, configured=wanted_host)
     if chosen is None:
-        named = f"'{args.host}' is not installed" if args.host else \
+        named = f"'{wanted_host}' is not installed" if wanted_host else \
             f"no reviewer CLI on PATH (looked for {', '.join(HOSTS)})"
         print(f"{named}. The claim stays unreviewed rather than self-approved.",
               file=sys.stderr)
@@ -434,7 +459,7 @@ def main(argv=None) -> int:
         return 1
 
     results = review_batch(root, slugs, author=args.author, host=chosen,
-                           model=args.model, timeout=args.timeout)
+                           model=model, timeout=args.timeout)
     lines = []
     for result in results:
         try:

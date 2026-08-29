@@ -186,3 +186,34 @@ def test_a_dry_run_changes_nothing(tmp_path):
 
     install_cmd.install_protocol(root, "strict", dry_run=True)
     assert (root / "config.yaml").read_bytes() == before
+
+
+# --------------------------------------------------------------------------
+# the file somebody may have written in
+# --------------------------------------------------------------------------
+
+def test_installing_keeps_what_was_in_claude_md(tmp_path):
+    """`migrate` collapsing this file keeps a copy and says where. `install`
+    is the one people run again and again, so it is the one that must not eat
+    what a person wrote."""
+    root = tmp_path / "topic"
+    init_workspace.main(["--topic-dir", str(root), "--name", "T", "--scope", "S"])
+    (root / "CLAUDE.md").write_text("# House rules\n\nAlways ask before deleting.\n",
+                                    encoding="utf-8")
+
+    note = install_cmd.install_protocol(root, "light")
+
+    assert (root / "CLAUDE.md").read_text(encoding="utf-8").strip() == "@AGENTS.md"
+    kept = list((root / ".backup").glob("CLAUDE_*.md"))
+    assert kept, "the old text is somewhere recoverable"
+    assert "Always ask before deleting" in kept[0].read_text(encoding="utf-8")
+    assert "CLAUDE.md held text" in note, "and the operator is told where"
+
+
+def test_a_pointer_that_is_already_a_pointer_is_left_alone(tmp_path):
+    root = tmp_path / "topic"
+    init_workspace.main(["--topic-dir", str(root), "--name", "T", "--scope", "S"])
+
+    install_cmd.install_protocol(root, "light")
+
+    assert not (root / ".backup").exists(), "nothing to keep, nothing kept"

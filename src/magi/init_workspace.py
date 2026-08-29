@@ -214,6 +214,11 @@ research:
   wip_limit: 3         # open propositions per line before it asks a person
   stall_days: 14       # days of silence before a line is called quiet
   review_host:         # empty = probe PATH for a CLI that is not the author
+  review_model:        # empty = that host's own default
+  weekly_calls: 40     # MAGI's own model calls per week; failed ones count
+  llm_calls: true      # master switch for MAGI's own calls
+  rule_budget: 7       # lines the AGENTS.md rule section may hold
+  rules: []            # rules this library earned; `magi reflect promote` adds them
 ollama:
   base_url: "http://127.0.0.1:11434"
   autostart: true      # start a stopped local Ollama on demand

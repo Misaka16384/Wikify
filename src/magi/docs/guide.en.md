@@ -1180,6 +1180,79 @@ exactly this: `status: testing -> refuted`" gets that line quoted in a fence
 rather than parsed — otherwise it would come back as a transition **signed with
 their name**, and inventing a person's signature is worse than losing a line.
 
+### The slow loop {#reflect}
+
+```bash
+magi reflect --dry-run    # which sessions would be read, and by whom
+magi reflect              # read them, and write down what keeps happening
+```
+
+Everything above happens inside one session. `magi reflect` is the loop that
+runs *across* them: it reads the transcripts your agent CLIs already keep, and
+writes down patterns — things that recur, with the words that showed them.
+
+It does not read every session. MAGI already knows *that* certain things
+happened — a claim that was solved and then refuted, bookkeeping nobody
+recorded, a review that rejected something, a claim that went out and stood
+first time — and each of those happened at a knowable moment. The sessions that
+were running at those moments are the ones worth paying to read: at most eight
+of them, and **at least a few where the work went well**. A loop fed only
+failures grows only prohibitions; improvements to method can only come from
+sessions where the method worked.
+
+What comes back lands in `output/reflect/patterns/`, one page per pattern,
+recording which sessions and which hosts showed it. That directory exists so
+two rules can be checked rather than hoped for: *the same thing in at least two
+independent sessions* before anything is proposed, and *ninety days without
+recurring* before what it produced is questioned.
+
+> [!NOTE]
+> **Nothing your working agent reads mentions that directory** — not the
+> `AGENTS.md` block, not a skill, not a suggestion from `magi next`. An agent
+> that can read the pattern library starts defending against the patterns
+> instead of following the rules, and then the loop can no longer tell whether
+> the rules it hardened are doing anything. That is measured, not assumed.
+
+Reading costs one model call per pass, counted against the same weekly budget
+as the reviewer, and refused the same way when it is spent.
+
+```bash
+magi reflect propose      # turn what recurred into at most five proposals
+magi reflect list         # what is waiting on you
+magi reflect accept  <id> # put it in the protocol every session reads
+magi reflect reject  <id> # no — and say why, in your words
+magi reflect promote <id> # make it a rule the gates actually check
+magi reflect retire  <id> # its reason has gone; take it back out
+```
+
+Nothing is proposed until an observation has been seen in **two independent
+sessions**. That gate is a query against the pattern files, not a wish in a
+prompt, and it usually takes two runs a week apart to pass — which is the
+point: one bad afternoon is not evidence.
+
+What you turn down is kept in full and handed back to the next pass, so the
+loop stops suggesting it and has to say what makes the next idea different.
+Being told no is the one place you said what you actually wanted.
+
+**The four verbs are the only way a verdict is ever written.** The loop
+proposes; you decide; the CLI writes. Accepting a rule puts one line into the
+`AGENTS.md` block — the most expensive place in the system, since every session
+on every host reads it, which is why that section has its own small budget
+(`research.rule_budget`, seven lines). When it is full, accepting says which
+rule to retire first rather than quietly dropping the eighth.
+
+**Promoting is the way out of prose.** A rule in the block is read by every
+session and reliably followed by none; a check runs. `magi reflect promote`
+turns a proposal into an instance of one of five predicates — `require_field`,
+`field_points_into`, `forbid_transition`, `max_open_per_line`,
+`leaving_status_requires_post_by` — which lands in `research.rules` and is
+enforced from then on by `magi lint` and `magi sync --close`. The prose comes
+out of the block, because the check has replaced it.
+
+A proposal that fits none of the five cannot be promoted, and that is not a
+failure: most good advice is prose. Keep it as a rule, or propose adding a
+predicate.
+
 `magi sync --close` is the gate between a session and its end. It refuses while
 something has happened that nobody wrote down, and says which notes. It also settles
 **a status two different writers set within five minutes** as `conflict` — that is not a

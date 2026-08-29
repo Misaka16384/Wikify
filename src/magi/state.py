@@ -117,6 +117,10 @@ class State:
     notes: list = field(default_factory=list)
     wip_limit: int = WIP_LIMIT
     coaching: str = vocab.DEFAULT_COACHING
+    #: Violations of the rules this library promoted for itself. Not debt —
+    #: debt is work somebody did without recording it, and this is work that
+    #: broke a rule a person accepted.
+    violations: list = field(default_factory=list)
 
     @property
     def open_questions(self) -> list:
@@ -159,13 +163,26 @@ def load(root, wip_limit: int | None = None, stall_days: int = STALL_DAYS,
     """Read `threads/` once and derive everything from it."""
     root = Path(root)
     now = now or dt.datetime.now(dt.timezone.utc)
-    notes = [threads.read_note(path) for path in threads.note_paths(root)]
+    notes, unreadable = [], []
+    for path in threads.note_paths(root):
+        try:
+            notes.append(threads.read_note(path))
+        except (OSError, ValueError) as exc:
+            # One note nobody can read must not take the whole projection with
+            # it. `magi next`, `feed` and above all `sync --close --hook` have
+            # to answer — and a note in this state *is* unrecorded work, so it
+            # is reported as debt rather than skipped into silence.
+            unreadable.append(DebtItem(
+                slug=path.stem, path=path,
+                why=f"this note could not be read ({exc.__class__.__name__}: "
+                    f"{exc}) — nothing can be derived from it until it is fixed"))
 
     state = State(root=root, notes=notes, wip_limit=wip_limit or WIP_LIMIT,
                   coaching=coaching)
     state.lines = _lines(notes, now=now, stall_days=stall_days, limit=state.wip_limit)
-    state.queue = _queue(notes, state.lines)
-    state.debt = _debt(root, notes)
+    state.queue = _queue(notes, state.lines) + _proposals(root)
+    state.debt = unreadable + _debt(root, notes)
+    state.violations = _violations(root, state)
     if coaching == "strict":
         missing = _missing_bets(notes)
         state.debt.extend(missing)
@@ -176,6 +193,33 @@ def load(root, wip_limit: int | None = None, stall_days: int = STALL_DAYS,
         state.queue = [item for item in state.queue
                        if not (item.kind == "bet" and item.slug in covered)]
     return state
+
+
+def _violations(root, state) -> list:
+    """What this library's own promoted rules catch.
+
+    Read from `config.yaml` on every load, like everything else here. A rule
+    that cannot be parsed is reported as a violation of itself rather than
+    skipped: a gate quietly ignoring the rule somebody thought they had is
+    discovered by not catching anything, which is the worst way to find out.
+    """
+    from .core import rules as rules_mod
+    from .core.config_loader import get as config_get
+    from .core.config_loader import load_config
+
+    try:
+        config = load_config(start=root)
+        parsed = rules_mod.parse(config_get(config, "research.rules", []) or [])
+    except rules_mod.RuleError as exc:
+        return [rules_mod.Violation(rules_mod.Rule(name="rules", params={}),
+                                    "config.yaml",
+                                    f"config.yaml: {exc}")]
+    except Exception:  # noqa: BLE001
+        return []
+    try:
+        return rules_mod.check(state, parsed)
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def _missing_bets(notes) -> list:
@@ -287,6 +331,35 @@ def _disputed_by(note) -> str:
     if who == vocab.HUMAN:
         return "you put this in dispute — it is waiting on what you decide"
     return "this was disputed after it was claimed solved"
+
+
+def _proposals(root: Path) -> list:
+    """What the slow loop has suggested and nobody has ruled on.
+
+    Read here rather than kept anywhere: the ledger is the record, and a
+    projection of it that could disagree is the thing this whole system is
+    built to avoid. Failing to an empty list — a workspace that has never run
+    `magi reflect` has no ledger, and that is not an error.
+    """
+    try:
+        from .reflect import patterns, proposals as ledger
+
+        items = [QueueItem(kind="proposal", slug=item.id, line=None,
+                           why=f"[{item.kind}] {item.target}: {item.text}")
+                 for item in ledger.open_proposals(root)]
+
+        # A rule whose reason has gone quiet. Asked about rather than dropped:
+        # ninety silent days may be the rule working, and only a person can
+        # tell that apart from a rule nobody needed.
+        quiet = {page.slug for page in patterns.stale(root)}
+        items.extend(
+            QueueItem(kind="retire", slug=rule.id, line=None,
+                      why=f"nothing has matched \"{rule.pattern}\" for 90 days, and "
+                          f"this rule came from it: {rule.text}")
+            for rule in ledger.live_rules(root) if rule.pattern in quiet)
+        return items
+    except Exception:  # noqa: BLE001
+        return []
 
 
 def _debt(root: Path, notes, links=None) -> list:
@@ -460,6 +533,10 @@ _QUEUE_ACTION = {
             "magi thread status <slug> <supported|refuted> --text '<why>'"),
     "phase": ("is this line still going, or is it dormant?",
               "magi thread status {slug} <active|writing|dormant> --text '<why>'"),
+    "proposal": ("accept it, turn it down, or turn it into code",
+                 "magi reflect accept {slug}  # or reject / promote"),
+    "retire": ("is this rule still earning its place?",
+               "magi reflect retire {slug}  # or leave it and it stays"),
 }
 
 
@@ -488,6 +565,14 @@ def candidates(state: State) -> list:
         actions.append(Action(
             key="debt", slug=item.slug, why=item.why, cost="llm",
             run=f"open threads/{item.slug}.md and post what happened"))
+
+    for item in state.violations:
+        # The rule's own id, so a person can go and read why it exists — or
+        # retire it, which is the other half of having accepted it.
+        source = f" (rule from {item.rule.source})" if item.rule.source else ""
+        actions.append(Action(
+            key="rule", slug=item.slug, cost="llm", why=item.why + source,
+            run=f"fix it, or retire the rule: magi reflect list"))
 
     for item in state.queue:
         prompt, run = _QUEUE_ACTION.get(item.kind, ("decide", "magi thread status {slug} …"))
@@ -521,6 +606,10 @@ def candidates(state: State) -> list:
 
     for slug in unreviewed(state):
         note = by_slug.get(slug)
+        if note is None:
+            # `pending()` reads the directory; this projection may have been
+            # narrowed to one line. A claim outside it is somebody else's turn.
+            continue
         actions.append(Action(
             key="review", slug=slug, cost="llm",
             line=(note.lines or [None])[0] if note else None,
@@ -912,6 +1001,28 @@ def _recent_decisions(root, limit: int) -> list:
     return headings[-limit:]
 
 
+def budget(root) -> dict:
+    """What MAGI's own calls have cost this week.
+
+    Read on demand and stored nowhere, like everything else here. Failing to
+    an empty answer rather than raising: a workspace whose ledger is missing or
+    unreadable still has to be able to draw its map.
+    """
+    try:
+        from .core import ledger
+        from .core.config_loader import get as config_get
+        from .core.config_loader import load_config
+
+        config = load_config(start=root)
+        if not bool(config_get(config, "research.llm_calls", True)):
+            return {"off": True}
+        return ledger.summary(
+            root, limit=config_get(config, "research.weekly_calls",
+                                   ledger.DEFAULT_WEEKLY))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def render_map(state: State, now=None) -> str:
     """`MAP.md`: the two things a person is supposed to look at.
 
@@ -970,6 +1081,20 @@ def render_map(state: State, now=None) -> str:
         if back["decisions"]:
             out.extend(["", "Decisions, most recent last:", ""])
             out.extend(f"- {heading[3:]}" for heading in back["decisions"])
+
+    spent = budget(state.root)
+    if spent.get("off"):
+        out.extend(["", "## Spending", "",
+                    "MAGI's own model calls are switched off "
+                    "(`research.llm_calls: false`). Nothing is reviewed until "
+                    "somebody turns them back on."])
+    elif "limit" in spent:
+        line = (f"{spent['spent']}/{spent['limit']} model calls this week "
+                f"({spent['week']}), refilling {spent['until']}.")
+        if spent.get("over"):
+            line += (" The reviewer is off until then — and nothing counts as "
+                     "reviewed in the meantime.")
+        out.extend(["", "## Spending", "", line])
 
     out.append("")
     return "\n".join(out)
@@ -1100,6 +1225,17 @@ def close(root, window_hours: int = CLOSE_WINDOW_HOURS, write: bool = True,
         else:
             report.older.append(item)
 
+    # No window on these. Debt is dated by the event that made it, so old debt
+    # can be listed rather than blocked; a rule violation is a state the
+    # workspace is in *now*, and being in it for a while does not make it fine.
+    for item in state.violations:
+        source = f" (rule from {item.rule.source})" if item.rule.source else ""
+        report.blocking.append(DebtItem(slug=item.slug, why=item.why + source))
+
+    drift = block_drift(root)
+    if drift:
+        report.blocking.append(DebtItem(slug="AGENTS.md", why=drift))
+
     # Named, not run. Design-v2 §11 triggers the reviewer here, and it will —
     # but a headless call per claim is minutes of latency and real money inside
     # a stop hook, and neither has a budget gate until M6. Naming them keeps
@@ -1111,6 +1247,36 @@ def close(root, window_hours: int = CLOSE_WINDOW_HOURS, write: bool = True,
     if write:
         report.map_path = str(write_map(state))
     return report
+
+
+def block_drift(root) -> str:
+    """Whether `AGENTS.md` still says what the ledger says. Empty when it does.
+
+    The block's content is template + accepted rules, and the two are written
+    at different moments: a verdict is recorded, then the block is re-rendered.
+    A crash in between leaves them disagreeing, and a person reading either one
+    has no way to tell. Checking costs one file read.
+    """
+    try:
+        from .core import managed
+        from .reflect import proposals
+
+        agents = Path(root) / "AGENTS.md"
+        if not agents.is_file():
+            return ""
+        current = managed.read(agents.read_text(encoding="utf-8", errors="replace"))
+        if current is None:
+            return ""
+        live = proposals.live_rules(root)
+        missing = [rule.text for rule in live
+                   if " ".join(rule.text.split()) not in current]
+        if missing:
+            return (f"AGENTS.md is missing {len(missing)} accepted rule(s) — the "
+                    f"ledger says they were accepted and the block does not show "
+                    f"them. `magi install` rewrites it. First: {missing[0]!r}")
+    except Exception:  # noqa: BLE001
+        return ""
+    return ""
 
 
 def _reload(root):
@@ -1230,11 +1396,19 @@ def _next(argv) -> int:
 
     state = loaded(_root_of(args.topic_dir))
     if args.line:
+        # The notes first, and everything else from them. Narrowing only the
+        # derived lists left `open_questions` answering for the whole project,
+        # and dropped debt on the line's *own* note — a line note has no
+        # `line:` field, so "does it name this line" was false for the one note
+        # that is this line.
+        state.notes = [note for note in state.notes
+                       if note.slug == args.line or args.line in (note.lines or [])]
+        kept = {note.slug for note in state.notes}
         state.lines = [view for view in state.lines if view.slug == args.line]
-        state.queue = [item for item in state.queue if item.line == args.line]
-        state.debt = [item for item in state.debt
-                      if any(item.slug == note.slug and args.line in (note.lines or [])
-                             for note in state.notes)]
+        state.queue = [item for item in state.queue
+                       if item.line == args.line or item.slug in kept]
+        state.debt = [item for item in state.debt if item.slug in kept]
+        state.violations = [item for item in state.violations if item.slug in kept]
 
     actions = candidates(state)
     if args.line:

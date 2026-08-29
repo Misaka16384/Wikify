@@ -3,6 +3,7 @@ name: research
 description: "Investigate a question across the library from several angles at once, verify what comes back, and land it as propositions plus at most one synthesis."
 commands:
   research: "Investigate a question from several angles and land the findings."
+origin: magi
 ---
 
 # research

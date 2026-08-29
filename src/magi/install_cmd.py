@@ -133,17 +133,39 @@ def write_coaching(root: Path, coaching: str) -> None:
         pass
 
 
-def install_protocol(root: Path, coaching: str = "light", dry_run: bool = False) -> str:
-    """Refresh the managed block and the `CLAUDE.md` pointer."""
+def install_protocol(root: Path, coaching: str | None = None,
+                    dry_run: bool = False) -> str:
+    """Refresh the managed block and the `CLAUDE.md` pointer.
+
+    `coaching=None` means "whatever this workspace already says" — and, in
+    particular, do not write it. Re-rendering the block is something several
+    commands do (accepting a rule, retiring one, closing a session); every one
+    of them used to pass the default and quietly reset the level a person had
+    chosen.
+    """
+    from .core.config_loader import get as config_get
+    from .core.config_loader import load_config
     config = root / "config.md"
     front = parse_frontmatter(config.read_text(encoding="utf-8", errors="replace")) \
         if config.is_file() else {}
     name = str(front.get("title") or root.name)
     scope = str(front.get("scope") or "A topic wiki.")
 
-    body = managed.body(name, scope, coaching)
-    if not dry_run:
-        write_coaching(root, coaching)
+    # Template plus the rules a person accepted: the block's truth is those
+    # two things, and whoever changes the ledger re-renders rather than waiting
+    # for somebody to run `install` again.
+    from .reflect import proposals
+
+    asked = coaching
+    if coaching is None:
+        coaching = config_get(load_config(start=root), "research.coaching",
+                              "light")
+
+    body = managed.body(name, scope, coaching, rules=proposals.live_rules(root))
+    if not dry_run and asked is not None:
+        # Only when somebody asked for a level. A re-render is not a decision
+        # about coaching, and writing it here is how one got made by accident.
+        write_coaching(root, asked)
     agents = root / "AGENTS.md"
     if dry_run:
         current = managed.read(agents.read_text(encoding="utf-8")) if agents.is_file() else None
@@ -152,16 +174,24 @@ def install_protocol(root: Path, coaching: str = "light", dry_run: bool = False)
 
     changed = managed.write(agents, body)
 
+    # One protocol, not two: a `CLAUDE.md` holding its own copy is how "what
+    # was the agent told" starts depending on which host read which. But this
+    # command is the one people run again and again, and it must not eat text
+    # somebody wrote — `migrate` already collapses this file the careful way,
+    # keeping a copy and saying where it went, so install uses that rather
+    # than a second, blunter version of the same idea.
+    from .migrate import point_claude_at_agents
+
     pointer = root / "CLAUDE.md"
-    current = pointer.read_text(encoding="utf-8").strip() if pointer.is_file() else ""
-    if current != "@AGENTS.md":
-        # One protocol, not two. A `CLAUDE.md` holding its own copy is how
-        # "what was the agent told" starts depending on which host read which.
-        atomic_write(pointer, "@AGENTS.md\n")
+    before = pointer.read_text(encoding="utf-8", errors="replace") if pointer.is_file() else ""
+    kept = point_claude_at_agents(root)
+    after = pointer.read_text(encoding="utf-8", errors="replace") if pointer.is_file() else ""
+    if before != after:
         changed = True
 
-    return ("AGENTS.md: managed block rewritten" if changed
-            else "AGENTS.md: block already current")
+    note = "AGENTS.md: managed block rewritten" if changed \
+        else "AGENTS.md: block already current"
+    return f"{note} ({kept})" if kept else note
 
 
 def main(argv=None) -> int:
@@ -170,7 +200,7 @@ def main(argv=None) -> int:
         description="Install this workspace into your agent CLIs: skills, the "
                     "AGENTS.md protocol block, and the end-of-session gate.")
     parser.add_argument("--host", action="append", default=[],
-                        help="Which agent CLI (claude, codex, antigravity, opencode). "
+                        help="Which agent CLI (claude, codex, gemini, opencode). "
                              "Repeatable. Default: every detected one.")
     parser.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
     parser.add_argument("--coaching", choices=["off", "light", "strict"], default="light",
