@@ -279,6 +279,37 @@ def act_on_task(workspace: Path, task_id: str, action: str) -> tuple[bool, str]:
     return True, (proc.stdout or "").strip()[-300:]
 
 
+def _agreed_to_hand_over(root: Path, assumed_yes: bool) -> bool:
+    """Say what `bd init` will do to this directory, and on a terminal, ask.
+
+    It was said afterwards, under `bd`'s own output — by which point the git
+    commit is in their history under their name and the hooks are installed,
+    and the only decision left is whether to undo it.
+
+    Only prompts on a tty. Agents run this command too, and a question nobody
+    can answer is a hang; without a terminal the notice is printed and the run
+    continues, which is the same information at the only moment it can still
+    be acted on.
+    """
+    print(f"'magi pm init' hands {root} to bd (Beads), another program. It will:")
+    print("  - create .beads/ and a task database")
+    print("  - run 'git init' here if this is not a repository yet")
+    print("  - commit the files it created, authored by your own git identity")
+    print("  - install its own agent hook files (.claude/, AGENTS.md)")
+    print("Task tracking is optional in MAGI — nothing else needs it.")
+    if assumed_yes or not sys.stdin.isatty():
+        return True
+    try:
+        answer = input("Go ahead? [y/N] ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print()
+        answer = ""
+    if answer not in ("y", "yes"):
+        print("nothing was handed over.")
+        return False
+    return True
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     # The project root, not the hub above it. A store shared by every topic in
     # a hub could only answer "17 issues, and some of them are yours" — which
@@ -296,6 +327,8 @@ def cmd_init(args: argparse.Namespace) -> int:
         print(f"beads already initialized at {root}")
     else:
         prefix = args.prefix or _prefix_from_dirname(root.name)
+        if not _agreed_to_hand_over(root, getattr(args, "yes", False)):
+            return 1
         proc = _run_bd(["init", "--prefix", prefix], cwd=root, timeout=300)
         lines = proc.stdout.splitlines()
         if lines:
@@ -390,6 +423,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     p_init.add_argument("path", nargs="?", help="Directory for the beads db (default: hub root from cwd)")
     p_init.add_argument("--prefix", help="Issue id prefix (default: ASCII slug of the directory name, or 'magi')")
+    p_init.add_argument("--yes", action="store_true",
+                        help="Do not ask before handing the directory to bd.")
     p_init.set_defaults(func=cmd_init)
 
     p_backlog = sub.add_parser("backlog-sync",

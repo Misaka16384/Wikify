@@ -101,6 +101,16 @@ OPS: dict[str, dict] = {
     # stream and the concurrency gate this machinery already provides. Neither
     # is destructive: batch-run writes only into staging, and batch-commit
     # refuses any batch with an undecided item.
+    # What the Dashboard's own advice — "drop sources into inbox/" — needs on
+    # the other end. `magi ingest auto` with no paths takes the whole of
+    # `inbox/`, and it had no button anywhere in the app.
+    "ingest-auto": {"home": None,
+        "argv": ["ingest", "auto"],
+        "scope": "kb",
+        "danger": False,
+        "label_i18n": "op_ingest_auto",
+        "desc_i18n": "op_desc_ingest_auto",
+    },
     "ingest-batch-run": {"home": None, 
         "argv": ["ingest", "batch-run"],
         "scope": "kb",

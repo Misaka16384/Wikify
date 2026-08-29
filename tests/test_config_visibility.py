@@ -246,3 +246,49 @@ def test_the_week_s_spending_is_shown_where_it_is_configured():
     assert "function renderSpending(" in js, "nothing draws the week's spend"
     assert "renderSpending(data.budget" in js, "it is defined and never called"
     assert "dash_spending_line" in js, "the figure has no words around it"
+
+
+def test_the_graph_empty_state_carries_its_own_button():
+    """`graphMissingBox` puts a build button under "no knowledge graph yet"
+    and the graph tab printed the same sentence as inert text — so which tab
+    you were standing on decided whether the thing the sentence tells you to
+    do was something you could do. The comment above `graphMissingBox` says
+    this was fixed once; this was the third place."""
+    js = APP_JS.read_text(encoding="utf-8", errors="replace")
+
+    # The exact line, not a slice. Two earlier attempts at this test passed
+    # with the fix removed: one anchored on the first `graphMapNote.textContent`
+    # in the file, which is the unrelated "no d3" branch, and one took a slice
+    # wide enough to contain `graphMissingBox`'s own definition.
+    assert "els.graphMapNote.appendChild(graphMissingBox(" in js, (
+        "the graph tab is back to printing the sentence with no way to act on it")
+
+
+def test_a_job_that_stays_put_changes_something_where_you_clicked():
+    """Clicking "Rebuild the concept graph" and staying on the tab left every
+    visible thing saying exactly what it had said before, including the "no
+    knowledge graph yet" line. The job had finished."""
+    js = APP_JS.read_text(encoding="utf-8", errors="replace")
+    start = js.index('if (state.activeTab === "radar") loadRadar();')
+    after = js[start:start + 400]
+    assert "loadGraphMap()" in after and "loadMelchior()" in after
+
+
+def test_handing_the_directory_to_bd_is_announced_first():
+    """`magi sync` offers `magi pm init` as its very first suggestion, and it
+    hands the directory to another program that git-inits it and commits under
+    the person's own identity. That was said afterwards, under bd's output, by
+    which point the commit is in their history."""
+    pm = (ROOT / "src" / "magi" / "pm.py").read_text(encoding="utf-8")
+    start = pm.index("def _agreed_to_hand_over(")
+    body = pm[start:start + 1800]
+
+    assert "your own git identity" in body
+    assert "isatty" in body, "it would hang an agent that cannot answer"
+
+    # The call, not the definition — `def _agreed_to_hand_over(root: Path`
+    # matches a looser search and sits above `_run_bd` either way, so the
+    # first version of this test passed with the call deleted.
+    called = pm.index('_agreed_to_hand_over(root, getattr')
+    ran = pm.index('_run_bd(["init"')
+    assert called < ran, "asked after handing it over"

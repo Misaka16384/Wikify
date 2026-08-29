@@ -361,7 +361,13 @@ def build_report(cwd: Path | None = None) -> dict:
             _hint("beads-missing",
                   "install beads (bd) for work-state tracking: https://github.com/gastownhall/beads")
         elif not b["beads_root"]:
-            _hint("pm-uninit", "magi pm init   # initialize beads in this project")
+            # Named, not just offered. This one hands the directory to
+            # another program that git-inits and commits under the person's
+            # own identity, and a one-line nudge that does not say so is how
+            # somebody ends up with a commit they did not make.
+            _hint("pm-uninit",
+                  "magi pm init   # optional task tracking; hands this "
+                  "directory to bd, which git-inits and commits")
         elif (b["ready"] or 0) > 0:
             _hint("bd-ready", "bd ready   # there is actionable work", ready=b["ready"])
 

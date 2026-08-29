@@ -485,6 +485,11 @@
       ingest_requeued: "已拒绝，自动改走下一档：{route}（会出现在下一批）",
       ingest_queued: "已排队（识别为 {kind}）：{value}",
       op_ingest_batch_run: "跑摄入队列",
+      op_ingest_auto: "收下 inbox/ 里的文件",
+      op_desc_ingest_auto: "把 inbox/ 里散着的文件各自送去合适的摄入路线并归档。",
+      inbox_title: "inbox/ 里还躺着 {n} 个文件",
+      inbox_sub: "面板上那句「把 PDF 丢进 inbox/」说的就是这里。它们还没有进队列——队列只装从上面几个框加进来的东西。",
+      inbox_pickup: "收下这些",
       op_ingest_batch_commit: "提交已审批批次",
       op_build_graph: "重建概念图谱",
       op_reindex_wiki: "刷新目录清单",
@@ -1274,6 +1279,11 @@
       ingest_requeued: "Rejected — retrying on the next route down: {route} (it appears in the next batch)",
       ingest_queued: "Queued as {kind}: {value}",
       op_ingest_batch_run: "Run ingest queue",
+      op_ingest_auto: "Pick up what is in inbox/",
+      op_desc_ingest_auto: "Routes each loose file in inbox/ to the right ingester and files it.",
+      inbox_title: "{n} file(s) sitting in inbox/",
+      inbox_sub: "This is where the dashboard's \"drop paper PDFs into inbox/\" puts them. They are not in the queue — the queue only holds what was added through the boxes below.",
+      inbox_pickup: "Pick these up",
       op_ingest_batch_commit: "Commit approved batches",
       op_build_graph: "Rebuild the concept graph",
       op_reindex_wiki: "Refresh the contents lists",
@@ -4573,8 +4583,14 @@
       buildGraphMap(data.results || {}, key);
     } catch (err) {
       if (els.graphMapNote) {
-        els.graphMapNote.textContent = /graph\.db|graph build/i.test(err.message || "")
-          ? t("graph_needs_build") : err.message;
+        // The same condition, the same box. `graphMissingBox` already puts a
+        // build button under this sentence elsewhere; here it was inert text,
+        // so which tab you were standing on decided whether the thing the
+        // sentence tells you to do was something you could do. The comment
+        // above `graphMissingBox` says this was fixed once — this was the
+        // third place.
+        els.graphMapNote.textContent = "";
+        els.graphMapNote.appendChild(graphMissingBox(err.message || ""));
         els.graphMapNote.style.display = "";
       }
     }
@@ -7076,7 +7092,39 @@
   // is undecided.
   // ------------------------------------------------------------------------
 
+  async function loadInbox() {
+    // The panel counted only what its own widgets had queued, so a directory
+    // holding two papers read as "WAITING IN QUEUE 0" — under a dashboard
+    // whose own advice is to put papers exactly there.
+    const card = document.getElementById("inbox-card");
+    if (!card) return;
+    if (!state.workspace) { card.hidden = true; return; }
+    let data;
+    try {
+      data = await apiFetch(`/api/workspace/inbox?workspace=`
+        + encodeURIComponent(state.workspace));
+    } catch (_) { card.hidden = true; return; }
+
+    card.hidden = !(data.count > 0);
+    if (card.hidden) return;
+    document.getElementById("inbox-title").textContent =
+      t("inbox_title", { n: data.count });
+    document.getElementById("inbox-sub").textContent = t("inbox_sub");
+    document.getElementById("inbox-files").innerHTML = (data.files || [])
+      .map((f) => `<div class="stack-row"><div><code>${escapeHtml(f.name)}</code>`
+        + ` <span class="badge badge-muted">${Math.max(1, Math.round(f.bytes / 1024))} KB</span>`
+        + `</div></div>`).join("");
+    const btn = document.getElementById("btn-inbox-pickup");
+    btn.textContent = t("inbox_pickup");
+    if (!btn.dataset.wired) {
+      btn.dataset.wired = "1";
+      btn.addEventListener("click", () =>
+        launchJob("ingest-auto", t("op_ingest_auto")));
+    }
+  }
+
   async function loadIngest() {
+    loadInbox();
     // Reading the Zotero tree is a SQLite copy of a file that can be 80 MB, so
     // it happens the first time this panel is looked at rather than on page
     // load. Deliberately not awaited: a slow or absent Zotero must not hold up
@@ -7479,8 +7527,16 @@
             setActiveJobs(0);
             loadSyncRatio();
             // A job that ran without leaving its own panel should leave that
-            // panel showing what it produced.
+            // panel showing what it produced. Without this the graph build
+            // was the worst case of all: you clicked "Rebuild the concept
+            // graph", stayed on the tab, and every visible thing — including
+            // the "no knowledge graph yet" line and the freshness card — said
+            // exactly what it had said before. The job had finished.
             if (state.activeTab === "radar") loadRadar();
+            if (jobName && /graph/i.test(jobName)) {
+              loadGraphMap();
+              loadMelchior();
+            }
           } else if (payload.status === "failed" || payload.status === "cancelled") {
             els.termStatusDot.className = "status-dot error";
             if (termContainer) termContainer.classList.remove("is-running");

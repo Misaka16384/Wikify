@@ -197,6 +197,37 @@ def register(app, resolve_workspace) -> None:
                       if dst != vocab.CONFLICT],
         }
 
+    @app.get("/api/workspace/inbox")
+    def get_workspace_inbox(workspace: Optional[str] = Query(None)) -> dict:
+        """Documents sitting in `inbox/` that nothing has picked up yet.
+
+        The dashboard tells people to drop papers here and then had no way to
+        show them: the Ingest Queue counts only what its own widgets queued,
+        so a directory with two PDFs in it read as `WAITING IN QUEUE 0`.
+
+        `notes.md` is not a document — it is the pile, it has its own box, and
+        it is never ingested. `radar/` is generated. Directories are skipped
+        rather than descended: `ingest auto` takes the top level, and a
+        listing that goes deeper than the thing that acts on it would offer
+        files nothing will collect.
+        """
+        ws = resolve_workspace(workspace)
+        inbox = ws / "inbox"
+        out = []
+        if inbox.is_dir():
+            for path in sorted(inbox.iterdir()):
+                if path.is_dir() or path.name.startswith("."):
+                    continue
+                if path.name == "notes.md":
+                    continue
+                try:
+                    stat = path.stat()
+                except OSError:
+                    continue
+                out.append({"name": path.name, "suffix": path.suffix.lower(),
+                            "bytes": stat.st_size})
+        return {"files": out, "count": len(out)}
+
     @app.get("/api/workspace/review/plan")
     def get_workspace_review_plan(workspace: Optional[str] = Query(None),
                                   slug: str = Query(...)) -> dict:

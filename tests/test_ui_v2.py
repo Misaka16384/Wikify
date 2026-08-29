@@ -573,3 +573,48 @@ def test_the_dashboard_can_see_what_the_week_cost(client):
 
     assert payload["budget"]["spent"] == 1
     assert payload["budget"]["limit"] >= 1
+
+
+# --------------------------------------------------------------------------
+# what is sitting in inbox/
+# --------------------------------------------------------------------------
+
+def test_the_browser_can_see_the_files_it_told_you_to_drop_there(client):
+    """The Dashboard's own suggested action is "drop paper PDFs into inbox/".
+    Do it, and the Ingest Queue showed `WAITING IN QUEUE 0` over a directory
+    with two papers in it, because that counter only ever tracked what its own
+    URL/upload widgets had queued. There was no file listing for `inbox/`
+    anywhere in the app."""
+    (client.ws / "inbox" / "a-paper.pdf").write_bytes(b"%PDF-1.7 body")
+    (client.ws / "inbox" / "notes-from-a-talk.md").write_text("x", encoding="utf-8")
+
+    payload = get(client, "/api/workspace/inbox")
+
+    assert payload["count"] == 2
+    assert {f["name"] for f in payload["files"]} == {"a-paper.pdf",
+                                                     "notes-from-a-talk.md"}
+
+
+def test_the_pile_is_not_a_document(client):
+    """`inbox/notes.md` is the pile: it has its own text box, `magi next`
+    sorts it, and it is never something to ingest. Offering it here would put
+    a "pick this up" button on the one file that must not be picked up."""
+    (client.ws / "inbox" / "notes.md").write_text("- a thought\n", encoding="utf-8")
+    (client.ws / "inbox" / "radar").mkdir(exist_ok=True)
+
+    payload = get(client, "/api/workspace/inbox")
+
+    assert payload["count"] == 0
+
+
+def test_an_empty_inbox_says_zero_rather_than_failing(client):
+    assert get(client, "/api/workspace/inbox") == {"files": [], "count": 0}
+
+
+def test_there_is_an_operation_that_picks_them_up(client):
+    """`magi ingest auto` with no paths takes the whole of `inbox/` and had no
+    button anywhere — so the advice had no other end."""
+    from magi.ui import jobs
+
+    assert "ingest-auto" in jobs.OPS
+    assert jobs.OPS["ingest-auto"]["argv"] == ["ingest", "auto"]
