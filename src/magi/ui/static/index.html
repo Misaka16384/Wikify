@@ -283,6 +283,7 @@
           </table>
         </div>
         <div id="looking-back" class="stack-list"></div>
+        <div id="spending" class="stack-list"></div>
       </div>
 
       <!-- Actionable sync hints (populated from the sync report) -->
@@ -323,6 +324,10 @@
           </div>
           <button class="btn btn-secondary btn-sm" id="refresh-kb-btn" data-i18n="btn_refresh">Refresh</button>
         </div>
+        <label class="kb-filter" id="kb-hide-gone-wrap" hidden>
+          <input type="checkbox" id="kb-hide-gone" checked>
+          <span id="kb-hide-gone-label"></span>
+        </label>
         <div class="table-scroll">
           <table class="data-table" id="kb-table">
             <thead>
@@ -460,6 +465,11 @@
           <button class="btn btn-primary btn-sm" id="thread-post-btn" data-i18n="btn_post">Post</button>
         </div>
         <div class="form-row" id="thread-moves"></div>
+        <div class="form-row" id="thread-review-row" hidden>
+          <button class="btn btn-secondary btn-sm" id="thread-review-btn"></button>
+          <span class="card-subtitle" id="thread-review-note"></span>
+        </div>
+        <div id="thread-review-out"></div>
       </div>
 
       <div class="card" id="feed-card">

@@ -85,6 +85,10 @@ def register(app, resolve_workspace) -> None:
         payload["unreviewed"] = state_mod.unreviewed(st)
         payload["coaching"] = st.coaching
         payload["wip_limit"] = st.wip_limit
+        # What the week has cost. `MAP.md` has carried this under `## Spending`
+        # since M6 and the dashboard had no equivalent, so the browser could
+        # set `research.weekly_calls` and never see the number it governs.
+        payload["budget"] = state_mod.budget(ws)
         return payload
 
     @app.get("/api/workspace/models")
@@ -192,6 +196,98 @@ def register(app, resolve_workspace) -> None:
                       for dst in vocab.allowed_targets(kind, status)
                       if dst != vocab.CONFLICT],
         }
+
+    @app.get("/api/workspace/review/plan")
+    def get_workspace_review_plan(workspace: Optional[str] = Query(None),
+                                  slug: str = Query(...)) -> dict:
+        """Who would be asked, which model, and what is left of the week.
+
+        Spends nothing. The CLI has `--dry-run`; a browser needs the same
+        answer before it presses, because otherwise a button that costs money
+        looks exactly like a button that does not.
+        """
+        from magi import review as review_mod
+        from magi.core import ledger
+
+        ws = resolve_workspace(workspace)
+        settings = review_mod._config(ws)
+        refused = review_mod.unreviewable(ws, [slug])
+        out = {
+            "slug": slug,
+            "budget": ledger.summary(ws, limit=settings.limit),
+            "enabled": settings.enabled,
+            "refused": [{"slug": s, "why": why, "near": near}
+                        for s, why, near in refused],
+        }
+        if refused:
+            return dict(out, host=None, model=None, effort=None)
+
+        chosen = review_mod.pick_host(None, configured=settings.host,
+                                      config=settings.config)
+        if chosen is None:
+            return dict(out, host=None, model=None, effort=None,
+                        refused=out["refused"] + [
+                            {"slug": slug,
+                             "why": "no reviewer CLI is installed on this machine",
+                             "near": []}])
+        _entry, model, effort = review_mod.plan(chosen, None, None, settings)
+        return dict(out, host=chosen, model=model or None, effort=effort or None)
+
+    @app.post("/api/workspace/review")
+    def post_workspace_review(payload: dict = Body(...)) -> dict:
+        """Review one proposition, from the browser.
+
+        One slug, always. `magi review` with no argument reviews everything
+        unreviewed at once, which is the shape that let a workspace 39 calls
+        into a limit of 40 finish the week at 99/40 — a button must not be
+        able to do that by being pressed twice.
+
+        Synchronous on purpose. A headless CLI call is fifteen seconds or so
+        and the verdict is the whole point of pressing; handing back a job id
+        and putting the answer in a log would be the terminal again, wearing a
+        different hat. The caller is expected to show that it is working.
+        """
+        from magi import review as review_mod
+        from magi.core import ledger
+
+        ws = resolve_workspace(payload.get("workspace"))
+        slug = (payload.get("slug") or "").strip()
+        if not slug:
+            raise HTTPException(status_code=400, detail="which proposition?")
+
+        refused = review_mod.unreviewable(ws, [slug])
+        if refused:
+            _slug, why, near = refused[0]
+            hint = f" Did you mean: {', '.join(near)}?" if near else ""
+            raise HTTPException(status_code=400, detail=f"{why}.{hint}")
+
+        settings = review_mod._config(ws)
+        chosen = review_mod.pick_host(None, configured=settings.host,
+                                      config=settings.config)
+        if chosen is None:
+            raise HTTPException(
+                status_code=400,
+                detail="no reviewer CLI on this machine. The claim stays "
+                       "unreviewed rather than self-approved.")
+        _entry, model, effort = review_mod.plan(chosen, None, None, settings)
+        try:
+            result = review_mod.review(ws, slug, host=chosen, model=model,
+                                       effort=effort, settings=settings)
+        except (ledger.OverBudget, ledger.SwitchedOff) as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        except (RuntimeError, OSError) as exc:
+            raise HTTPException(status_code=502, detail=str(exc))
+
+        try:
+            line = review_mod.apply_verdict(ws, result)
+        except (ValueError, OSError) as exc:
+            raise HTTPException(
+                status_code=500,
+                detail=f"{slug} was reviewed and the verdict could not be "
+                       f"written ({exc}) — the call was spent")
+        return {"slug": slug, "verdict": result.verdict, "host": result.host,
+                "model": model or None, "reason": result.reason, "said": line,
+                "budget": ledger.summary(ws, limit=settings.limit)}
 
     @app.post("/api/workspace/thread/post")
     def post_workspace_thread_post(payload: dict = Body(...)) -> dict:

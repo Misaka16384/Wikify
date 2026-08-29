@@ -83,8 +83,29 @@
       need_words: "先写点什么——空帖子记不下任何事",
       need_reason: "改状态要写理由：翻状态和说明为什么是一件事，不是两件",
       need_workspace: "先在顶栏选一个工作空间——不然这行字会写进服务器启动的那个目录",
+      badge_kb_gone: "目录不在了",
+      btn_review: "找人复核这条",
+      btn_review_running: "正在问…",
+      review_hint: "让另一个厂商的 CLI 读这条命题——它没有你这段对话的上下文。要花一次周预算。",
+      review_confirm: "要问 {host}（模型 {model}）复核这条命题吗？\n\n这会花掉本周预算的一次:还剩 {left}/{limit}。\n一般十几秒。",
+      review_running: "已经在问 {host} 了,通常十几秒。",
+      review_switched_off: "MAGI 自己的模型调用被关掉了(research.llm_calls)。开了才能复核。",
+      review_by: "{host} 判的（{model}）",
+      review_unclear: "「说不清」既不是通过也不是否决——复核方说它按现有证据判不了。命题还在待复核队列里。",
+      review_budget_left: "本周还剩 {left}/{limit} 次调用。",
+      dash_spending: "本周 MAGI 自己发起的调用",
+      dash_spending_line: "{spent}/{limit} 次,还剩 {left}",
+      kb_hide_gone: "隐藏目录已不存在的 ({n})",
       cfg_review_host_auto: "自动（探测 PATH，选一个不是作者的）",
       cfg_f_review_host: "复核跑在哪个 CLI 上。留空 = 自动挑一个不是作者的——跨厂商是「独立」最便宜的近似。",
+      cfg_f_coaching: "结束会话时这道门推得多紧。off = 不拦；light = 缺记账就提醒；strict = 没写下预测就不许开始推导。",
+      cfg_f_wip_limit: "一条线上同时开着几个命题算多。七是工作记忆的数字,不是测量值:再多人就抓不住这条线上到底有什么没结。",
+      cfg_f_stall_days: "多少天没动静就把一条线标成安静。久到休一周不算,短到被忘掉的线一个月内会浮上来。",
+      cfg_f_weekly_calls: "MAGI 自己每周能发起多少次模型调用(复核、慢环、堆放区分类)。数的是**次数**不是钱——无头 CLI 不告诉我们一次要多少。失败的也算:超时同样花了墙钟时间。用完就拒绝启动,不会偷偷少做。",
+      cfg_f_llm_calls: "MAGI 自己那些调用的总开关。关掉之后它一次也不发起,而不是安静地少做几次。你自己让 agent 干的活不受这个影响。",
+      cfg_f_rule_budget: "AGENTS.md 里规则那一节最多几行。每次会话、每个宿主都要读这一段,所以一条规则进去,后面每一次会话都在为读它付钱。",
+      cfg_f_rules: "这个库自己挣来的规则,用一套封闭词汇写成,每次运行都真的被检查。`magi reflect promote` 往里加,这里可以退役。",
+      cfg_f_hosts: "内建那几个之外,这个工作区还认识哪些 agent CLI。世界上的 CLI 太多了,所以宿主是一条记录:二进制名、skill 装到哪、怎么无头调用。",
       cfg_f_review_model: "复核用哪个模型。留空 = 那个宿主的便宜档。",
       cfg_f_review_effort: "推理档位。留空 = 那个宿主自己的默认；模型 id 往往已经带了档位。",
       cfg_model_cheap: "便宜档（{id}）",
@@ -851,8 +872,29 @@
       need_words: "Write something first — an empty post records nothing",
       need_reason: "A status change needs a reason: the flip and the sentence saying why are one action, not two",
       need_workspace: "Pick a workspace in the top bar first — otherwise this lands in whichever directory the server was started in",
+      badge_kb_gone: "directory gone",
+      btn_review: "Have this reviewed",
+      btn_review_running: "asking…",
+      review_hint: "Asks another vendor's CLI to read this claim — one that does not share your conversation. Costs one call from the week's budget.",
+      review_confirm: "Ask {host} (model {model}) to review this claim?\n\nThis spends one call from this week's budget: {left}/{limit} left.\nUsually about fifteen seconds.",
+      review_running: "Asking {host} — usually about fifteen seconds.",
+      review_switched_off: "MAGI's own model calls are switched off (research.llm_calls). Turn them on to review.",
+      review_by: "{host} decided ({model})",
+      review_unclear: "\"Unclear\" is neither a pass nor a rejection — the reviewer is saying it could not tell from the evidence it was given. The claim stays on the list.",
+      review_budget_left: "{left}/{limit} calls left this week.",
+      dash_spending: "MAGI's own calls this week",
+      dash_spending_line: "{spent}/{limit} used, {left} left",
+      kb_hide_gone: "Hide the {n} whose directory is gone",
       cfg_review_host_auto: "auto (probe PATH for one that is not the author)",
       cfg_f_review_host: "Which CLI reviews a claim. Empty picks one that is not the author — a different vendor is the cheapest approximation of independence.",
+      cfg_f_coaching: "How hard the end-of-session gate pushes. off = never blocks; light = asks for missing bookkeeping; strict = no derivation starts without a written prediction.",
+      cfg_f_wip_limit: "How many propositions may be open on one line at once. Seven is a working-memory number, not a measurement: past it nobody can hold what is still unsettled on that line.",
+      cfg_f_stall_days: "Days of silence before a line is called quiet. Long enough that a week off is not a flag, short enough that a forgotten line surfaces within a month.",
+      cfg_f_weekly_calls: "How many model calls MAGI may make on its own initiative each week (review, the slow loop, sorting the pile). Counted in **calls**, not money — a headless CLI does not say what a request cost. Failed ones count: a timeout spent the wall clock too. Once spent it refuses to start rather than quietly doing less.",
+      cfg_f_llm_calls: "The master switch for MAGI's own calls. Off means it makes none at all, rather than silently making fewer. Work you ask your agent to do is unaffected.",
+      cfg_f_rule_budget: "How many lines the rules section in AGENTS.md may hold. Every session on every host reads that block, so a rule that goes in is paid for by every session afterwards.",
+      cfg_f_rules: "The rules this library has earned, written in a closed vocabulary so that each one is actually checked on every run. `magi reflect promote` adds them; this is where one is retired.",
+      cfg_f_hosts: "Agent CLIs this workspace knows about beyond the built-in ones. There are too many CLIs in the world to enumerate, so a host is a record: its binary, where its skills go, how to call it headless.",
       cfg_f_review_model: "Which model reviews. Empty means that host's cheap tier.",
       cfg_f_review_effort: "How hard it thinks. Empty means that host's own default; the model id often carries the level already.",
       cfg_model_cheap: "the cheap tier ({id})",
@@ -2921,9 +2963,17 @@
       // grey, not come up live and grey itself a moment later.
       await loadFeatures();
 
-      // Restore this browser's last viewed workspace (session-level concept)
+      // Restore this browser's last viewed workspace — but only when the
+      // server did not answer the question itself. `magi ui` run inside a
+      // workspace reports that directory as `active_workspace`, and that is
+      // a deliberate act: somebody stood in a workspace and started a server
+      // there. A path remembered in this browser from some previous session
+      // used to win anyway, so from the second workspace onward the dashboard
+      // opened on the wrong one — with notes the person had never written,
+      // and a 138-row picker to find their own again.
       const savedView = viewWorkspaceGet();
-      if (savedView && savedView !== state.workspace &&
+      if (!state.serverWorkspace && savedView &&
+          savedView !== state.workspace &&
           state.kbs.some((kb) => kb.path === savedView)) {
         state.workspace = savedView;
         renderWorkspaceSelect();
@@ -3197,6 +3247,7 @@
     renderQueue(queue, data);
     renderLines(lines, data);
     renderLookingBack(back, data.retrospective || {});
+    renderSpending(data.budget || {});
   }
 
   //: What a person can do with each kind of queue item the slow loop raises.
@@ -3309,6 +3360,22 @@
         openThread(a.dataset.slug);
       });
     });
+  }
+
+  function renderSpending(b) {
+    // design-v2 §13 asks for the weekly budget to be configured in the
+    // WebUI and explained when it runs out. It was configurable and never
+    // shown, so the one number the configuration governs could only be
+    // read by opening MAP.md or the ledger by hand.
+    const box = document.getElementById("spending");
+    if (!box) return;
+    if (b.limit === undefined || b.limit === null) { box.innerHTML = ""; return; }
+    const tone = b.over ? "badge-danger" : "badge-muted";
+    box.innerHTML = `<div class="stack-row"><div>`
+      + `<strong>${escapeHtml(t("dash_spending"))}</strong> `
+      + `<span class="badge ${tone}">`
+      + escapeHtml(t("dash_spending_line", { spent: b.spent, limit: b.limit, left: b.left }))
+      + `</span></div></div>`;
   }
 
   function renderLookingBack(box, back) {
@@ -3476,7 +3543,108 @@
     moves.querySelectorAll(".move-btn").forEach((btn) => {
       btn.addEventListener("click", () => moveThread(data.slug, btn.dataset.dst));
     });
+    renderReviewRow(data);
     view.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  // ---------------------------------------------------------------- review
+
+  //: Only a proposition claiming to be solved can be reviewed — `pending()`
+  //: offers nothing else, and the prompt asks whether a claim holds. Showing
+  //: the button anywhere else would be a control that always refuses.
+  function reviewable(data) {
+    return data && data.kind === "proposition" && data.status === "supported";
+  }
+
+  function renderReviewRow(data) {
+    const row = document.getElementById("thread-review-row");
+    const out = document.getElementById("thread-review-out");
+    if (!row) return;
+    if (out) out.innerHTML = "";
+    row.hidden = !reviewable(data);
+    if (row.hidden) return;
+
+    const btn = document.getElementById("thread-review-btn");
+    const note = document.getElementById("thread-review-note");
+    btn.textContent = t("btn_review");
+    btn.disabled = false;
+    note.textContent = t("review_hint");
+    if (!btn.dataset.wired) {
+      btn.dataset.wired = "1";
+      btn.addEventListener("click", () => askForReview());
+    }
+  }
+
+  async function askForReview() {
+    if (!state.thread) return;
+    const slug = state.thread.slug;
+    const btn = document.getElementById("thread-review-btn");
+    const out = document.getElementById("thread-review-out");
+
+    // The plan first, always. This is the browser's `--dry-run`: a button that
+    // spends money must not look like every other button, and the answer to
+    // "who is this asking, and what is left of the week" has to arrive before
+    // the press, not in a log afterwards.
+    let plan;
+    try {
+      plan = await apiFetch(`/api/workspace/review/plan?workspace=`
+        + encodeURIComponent(state.workspace) + `&slug=` + encodeURIComponent(slug));
+    } catch (err) {
+      showToast(err.message, "error");
+      return;
+    }
+    if ((plan.refused || []).length) {
+      out.innerHTML = `<p class="card-subtitle">${escapeHtml(plan.refused[0].why)}</p>`;
+      return;
+    }
+    if (plan.enabled === false) {
+      out.innerHTML = `<p class="card-subtitle">${escapeHtml(t("review_switched_off"))}</p>`;
+      return;
+    }
+    const b = plan.budget || {};
+    const ok = window.confirm(t("review_confirm", {
+      host: plan.host, model: plan.model || t("cfg_model_default"),
+      left: b.left, limit: b.limit,
+    }));
+    if (!ok) return;
+
+    btn.disabled = true;
+    btn.textContent = t("btn_review_running");
+    out.innerHTML = `<p class="card-subtitle">${escapeHtml(t("review_running", { host: plan.host }))}</p>`;
+    try {
+      const res = await apiFetch(`/api/workspace/review`, {
+        method: "POST",
+        body: JSON.stringify({ workspace: state.workspace, slug }),
+      });
+      renderVerdict(res);
+      openThread(slug);
+      loadMap();
+      loadFeed();
+    } catch (err) {
+      out.innerHTML = `<p class="card-subtitle">${escapeHtml(err.message)}</p>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = t("btn_review");
+    }
+  }
+
+  function renderVerdict(res) {
+    const out = document.getElementById("thread-review-out");
+    if (!out) return;
+    const tone = res.verdict === "stands" ? "badge-sage"
+      : res.verdict === "refuted" ? "badge-danger" : "badge-muted";
+    // `unclear` is spelled out. On the CLI it printed as one word and told the
+    // reader neither what was decided nor what to do about it.
+    const gloss = res.verdict === "unclear" ? `<p class="card-subtitle">${escapeHtml(t("review_unclear"))}</p>` : "";
+    const b = res.budget || {};
+    out.innerHTML = `
+      <div class="stack-row"><div>
+        <span class="badge ${tone}">${escapeHtml(res.verdict)}</span>
+        <span class="card-subtitle">${escapeHtml(t("review_by", { host: res.host, model: res.model || "" }))}</span>
+        ${gloss}
+        <p>${escapeHtml(res.reason || "").replace(/\n/g, "<br>")}</p>
+        <p class="card-subtitle">${escapeHtml(t("review_budget_left", { left: b.left, limit: b.limit }))}</p>
+      </div></div>`;
   }
 
   function saidText() {
@@ -3596,7 +3764,22 @@
     on("graph-map-skeleton", "change", loadGraphMap);
   }
 
-  function renderKBTable(kbs) {
+  function renderKBTable(allKbs) {
+    // Hidden, not dropped: `unregister` is a real action with its own button,
+    // and a filter that removed rows for good would be a worse version of the
+    // problem it exists to fix. The box only appears when it has work to do.
+    const gone = allKbs.filter((kb) => kb.exists === false);
+    const wrap = document.getElementById("kb-hide-gone-wrap");
+    const box = document.getElementById("kb-hide-gone");
+    if (wrap && box) {
+      wrap.hidden = gone.length === 0;
+      const label = document.getElementById("kb-hide-gone-label");
+      if (label) label.textContent = t("kb_hide_gone", { n: gone.length });
+    }
+    const kbs = (box && box.checked && gone.length)
+      ? allKbs.filter((kb) => kb.exists !== false)
+      : allKbs;
+
     if (!kbs.length) {
       els.kbTableBody.innerHTML = `<tr><td colspan="7" class="empty-cell">${t("no_kbs_registered")}</td></tr>`;
       return;
@@ -3616,10 +3799,17 @@
           ? `<span class="badge badge-sage">${t("badge_graph_built")}</span>`
           : `<span class="badge badge-danger">${t("badge_graph_missing")}</span>`;
 
+        // `/api/kb` has always returned this and nothing read it, so a
+        // directory deleted months ago drew exactly like a real workspace
+        // that simply has no index yet — in the one table that is supposed
+        // to answer "what is on this machine".
+        const gone = kb.exists === false;
+
         return `
-          <tr>
+          <tr${gone ? ` class="kb-row-gone"` : ""}>
             <td>
               <strong>${escapeHtml(kb.name)}</strong>
+              ${gone ? `<span class="badge badge-danger" style="margin-left: 0.4rem;">${t("badge_kb_gone")}</span>` : ""}
               ${kb.current ? `<span class="badge badge-terracotta" style="margin-left: 0.4rem;">${t("badge_current")}</span>` : ""}
             </td>
             <td><code style="font-size: 0.8rem;">${escapeHtml(kb.path)}</code></td>
@@ -3637,6 +3827,12 @@
         `;
       })
       .join("");
+
+    const hideBox = document.getElementById("kb-hide-gone");
+    if (hideBox && !hideBox.dataset.wired) {
+      hideBox.dataset.wired = "1";
+      hideBox.addEventListener("change", () => renderKBTable(state.kbs || []));
+    }
 
     // Attach listeners
     els.kbTableBody.querySelectorAll(".kb-toggle-cb").forEach((cb) => {
@@ -4667,6 +4863,14 @@
     "embedding.base_url": "cfg_f_embedding_base_url",
     "embedding.model": "cfg_f_embedding_model",
     "embedding.api_key": "cfg_f_embedding_api_key",
+    "research.coaching": "cfg_f_coaching",
+    "research.wip_limit": "cfg_f_wip_limit",
+    "research.stall_days": "cfg_f_stall_days",
+    "research.weekly_calls": "cfg_f_weekly_calls",
+    "research.llm_calls": "cfg_f_llm_calls",
+    "research.rule_budget": "cfg_f_rule_budget",
+    "research.rules": "cfg_f_rules",
+    "research.hosts": "cfg_f_hosts",
     "research.review_host": "cfg_f_review_host",
     "research.review_model": "cfg_f_review_model",
     "research.review_effort": "cfg_f_review_effort",

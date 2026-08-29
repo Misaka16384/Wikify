@@ -1718,6 +1718,21 @@ textarea.text-input {
    9. Tables
    -------------------------------------------------------------------------- */
 
+/* A registered workspace whose directory is gone. Dimmed rather than hidden
+   outright, because the row is still the only place its name and path can be
+   read before unregistering it. */
+.kb-row-gone { opacity: 0.55; }
+.kb-row-gone code { text-decoration: line-through; }
+
+.kb-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 1rem 0.6rem;
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
 .table-scroll {
   overflow: auto;
   min-width: 0;

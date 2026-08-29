@@ -145,3 +145,104 @@ def test_every_whitelisted_field_type_has_a_validator():
     missing = declared - handled
     assert not missing, (
         f"CONFIG_FIELDS declares {sorted(missing)} with nothing that validates it")
+
+
+# --------------------------------------------------------------------------
+# and it has to be readable once you find it
+# --------------------------------------------------------------------------
+
+APP_JS = ROOT / "src" / "magi" / "ui" / "static" / "app.js"
+
+
+def _label_keys() -> dict:
+    """`CONFIG_FIELDS` key -> i18n key, out of `CFG_LABEL_KEYS` in app.js."""
+    js = APP_JS.read_text(encoding="utf-8", errors="replace")
+    start = js.index("const CFG_LABEL_KEYS = {")
+    block = js[start:js.index("}", start)]
+    return dict(re.findall(r'"([\w.]+)":\s*"([\w.]+)"', block))
+
+
+def _i18n_keys(lang: str) -> set:
+    """Every key defined under one language in app.js's I18N table."""
+    js = APP_JS.read_text(encoding="utf-8", errors="replace")
+    start = js.index(f"    {lang}: {{")
+    end = js.index("\n    },", start)
+    return set(re.findall(r"^\s{6}(\w+):", js[start:end], re.MULTILINE))
+
+
+def test_every_editable_field_says_what_it_is():
+    """A field whose description is its own dotted key name is not configured
+    in the WebUI in any sense a person would recognise.
+
+    design-v2 §13 puts the weekly budget, the per-work model and the master
+    switch in the WebUI. All three, and the whole `research.*` group v2 added
+    with them, rendered as `research.weekly_calls` described as
+    "research.weekly_calls" — because `CFG_LABEL_KEYS` had no entry and the
+    lookup falls back to the key itself.
+    """
+    fields = set(re.findall(r'"([\w.]+)":\s*\{"type"', _config_fields_block()))
+    labelled = _label_keys()
+
+    missing = sorted(key for key in fields if key not in labelled)
+
+    assert not missing, (
+        f"these render their own key name as their description: {missing}")
+
+
+def test_every_description_exists_in_both_languages():
+    """An entry pointing at a key no language defines falls back to the key
+    too, which is the same failure with an extra step."""
+    used = set(_label_keys().values())
+    for lang in ("zh", "en"):
+        missing = sorted(key for key in used if key not in _i18n_keys(lang))
+        assert not missing, f"{lang} has no text for: {missing}"
+
+
+def test_the_kb_table_shows_which_workspaces_are_gone():
+    """`/api/kb` has always returned `exists` per row and the renderer never
+    read it, so a directory deleted months ago drew exactly like a real
+    workspace that merely has no index yet — in the one table that answers
+    "what is on this machine"."""
+    api = (ROOT / "src" / "magi" / "ui" / "api.py").read_text(encoding="utf-8")
+    assert '"exists": p.is_dir()' in api, "the backend stopped computing it"
+
+    js = APP_JS.read_text(encoding="utf-8", errors="replace")
+    start = js.index("function renderKBTable(")
+    body = js[start:start + 3000]
+
+    # Two distinct uses, and the test names both because they are two
+    # different promises: the row says so, and the table can put them away.
+    # A source-level check is the ceiling here — app.js is an IIFE and the
+    # smoke harness only proves it loads — so what is pinned is that both
+    # still read `exists` and that the badge is still rendered from it.
+    assert body.count("kb.exists === false") >= 2, (
+        "the row rendering or the filter stopped reading `exists`")
+    assert "badge_kb_gone" in body, "the row no longer marks a dead workspace"
+    assert "kb_hide_gone" in body, "there is no way to put the dead rows away"
+
+
+def test_the_server_decides_which_workspace_opens():
+    """`magi ui` run inside a workspace reports that directory as
+    `active_workspace`, and that is a deliberate act — somebody stood in a
+    workspace and started a server there. A path remembered in this browser
+    from a previous session used to win anyway, so from the second workspace
+    onward the dashboard opened on the wrong one, showing notes the person had
+    never written."""
+    js = APP_JS.read_text(encoding="utf-8", errors="replace")
+    start = js.index("const savedView = viewWorkspaceGet();")
+    guard = js[start:start + 260]
+
+    assert "!state.serverWorkspace" in guard, (
+        "the remembered workspace overrides the one the server was started in")
+
+
+def test_the_week_s_spending_is_shown_where_it_is_configured():
+    """design-v2 §13 asks for the weekly budget to be configured in the WebUI
+    and explained when it runs out. It was configurable there and never
+    displayed, so the one number the configuration governs could only be read
+    by opening `MAP.md` or the ledger by hand."""
+    js = APP_JS.read_text(encoding="utf-8", errors="replace")
+
+    assert "function renderSpending(" in js, "nothing draws the week's spend"
+    assert "renderSpending(data.budget" in js, "it is defined and never called"
+    assert "dash_spending_line" in js, "the figure has no words around it"

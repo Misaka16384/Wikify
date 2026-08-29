@@ -450,3 +450,126 @@ def test_capturing_a_clis_output_is_serialised(client, monkeypatch):
 
     assert held == [True], "the capture ran without holding the lock"
     assert not v2._CAPTURE_LOCK.locked(), "and it is released afterwards"
+
+
+# --------------------------------------------------------------------------
+# review, from the browser
+# --------------------------------------------------------------------------
+
+def _solved(ws, slug="p-gap"):
+    """Walk the fixture's proposition to the one status review answers."""
+    path = ws / "threads" / f"{slug}.md"
+    threads.set_status(path, "supported", "the sweep converged", host="claude")
+    return path
+
+
+def test_the_plan_says_who_and_what_is_left_before_anything_is_spent(
+        client, monkeypatch):
+    """The browser's `--dry-run`. A button that spends money must not look
+    like every other button, and "who is this asking, and what is left of the
+    week" has to arrive before the press rather than in a log afterwards."""
+    from magi import review as review_mod
+    from magi.core import ledger
+
+    _solved(client.ws)
+    called = []
+    monkeypatch.setattr(review_mod, "installed_hosts",
+                        lambda *_a, **_k: ["codex"])
+    monkeypatch.setattr(review_mod, "ask", lambda *a, **k: called.append(1) or "")
+
+    plan = get(client, "/api/workspace/review/plan", slug="p-gap")
+
+    assert plan["host"] == "codex"
+    assert plan["budget"]["limit"] and plan["budget"]["left"] >= 1
+    assert not called, "planning spent a call"
+    assert ledger.entries(client.ws) == []
+
+
+def test_a_slug_that_cannot_be_reviewed_is_refused_by_the_plan(client, monkeypatch):
+    """Same guard as the CLI, at the same point: before the money. The panel
+    can then say so instead of offering a button that will fail."""
+    from magi import review as review_mod
+
+    monkeypatch.setattr(review_mod, "installed_hosts", lambda *_a, **_k: ["codex"])
+
+    plan = get(client, "/api/workspace/review/plan", slug="q-why")
+
+    assert plan["refused"], "a question is not a claim and cannot be reviewed"
+    assert plan["host"] is None
+
+
+def test_reviewing_from_the_browser_writes_the_same_record(client, monkeypatch):
+    """One slug, and the verdict lands in the note exactly as the CLI writes
+    it — the browser is a second face on one library, not a second library."""
+    from magi import review as review_mod
+
+    _solved(client.ws)
+    monkeypatch.setattr(review_mod, "installed_hosts", lambda *_a, **_k: ["codex"])
+    monkeypatch.setattr(review_mod, "ask",
+                        lambda *a, **k: "VERDICT: stands\nREASON: the sweep supports it.")
+
+    res = post(client, "/api/workspace/review", slug="p-gap")
+    assert res.status_code == 200, res.text
+    res = res.json()
+
+    assert res["verdict"] == "stands"
+    assert "sweep supports it" in res["reason"]
+    assert res["budget"]["spent"] == 1
+    note = threads.read_note(client.ws / "threads" / "p-gap.md")
+    assert note.posts[-1].host == "reviewer"
+
+
+def test_the_endpoint_reviews_one_claim_and_never_a_batch(client, monkeypatch):
+    """`magi review` with no argument reviews everything unreviewed at once —
+    the shape that let a workspace 39 calls into a limit of 40 finish at
+    99/40. A button pressed twice must not be able to do that."""
+    from magi import review as review_mod
+
+    _solved(client.ws)
+    threads.create(client.ws / "threads" / "p-two.md", vocab.PROPOSITION,
+                   "Another", "why", lines=["qec"])
+    _solved(client.ws, "p-two")
+    called = []
+    monkeypatch.setattr(review_mod, "installed_hosts", lambda *_a, **_k: ["codex"])
+    monkeypatch.setattr(review_mod, "ask",
+                        lambda *a, **k: called.append(1) or "VERDICT: stands\nREASON: ok.")
+
+    assert post(client, "/api/workspace/review", slug="p-gap").status_code == 200
+
+    assert len(called) == 1, "one press, one claim"
+    assert "p-two" in review_mod.pending(client.ws)
+
+
+def test_a_spent_budget_refuses_and_says_so(client, monkeypatch):
+    """409, not 500: the server is fine and the answer is "not this week"."""
+    from magi import review as review_mod
+    from magi.core import ledger
+
+    _solved(client.ws)
+    (client.ws / "config.yaml").write_text(
+        "research:\n  weekly_calls: 1\n", encoding="utf-8")
+    ledger.record(client.ws, ledger.REVIEW, "codex", slug="earlier")
+    called = []
+    monkeypatch.setattr(review_mod, "installed_hosts", lambda *_a, **_k: ["codex"])
+    monkeypatch.setattr(review_mod, "ask", lambda *a, **k: called.append(1) or "")
+
+    res = client.post("/api/workspace/review",
+                      json={"workspace": str(client.ws), "slug": "p-gap"})
+
+    assert res.status_code == 409
+    assert "budget" in res.json()["detail"]
+    assert not called
+
+
+def test_the_dashboard_can_see_what_the_week_cost(client):
+    """design-v2 §13 puts the weekly budget in the WebUI. It was configurable
+    there and never displayed, so the one number the configuration governs
+    could only be read by opening MAP.md or the ledger by hand."""
+    from magi.core import ledger
+
+    ledger.record(client.ws, ledger.REVIEW, "codex", slug="p-gap")
+
+    payload = get(client, "/api/workspace/map")
+
+    assert payload["budget"]["spent"] == 1
+    assert payload["budget"]["limit"] >= 1
