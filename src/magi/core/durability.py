@@ -53,8 +53,8 @@ every paper already rejected comes back.
 
 The practical consequences, which are the reason to write this down:
 
-* "delete ``output/`` and re-run" is safe **except for ``output/ingest/`` and
-  ``output/radar/``**;
+* "delete ``output/`` and re-run" is safe **except for ``output/ingest/``,
+  ``output/radar/``, ``output/reflect/`` and ``output/llm-ledger.jsonl``**;
 * a backup that covers ``raw/``, ``wiki/``, the two config files, the global
   config directory and the two transactional trees is complete;
 * anything ORIGINAL needs an atomic write and a lock; anything DERIVED does not.
@@ -68,6 +68,11 @@ ORIGINAL = (
     "inbox/",
     "threads/",
     "drafts/",
+    # A pattern page is what one run of `magi reflect` understood from a
+    # host's transcript cache — a cache that is private, rotates, and will not
+    # answer the same question next month. Nothing can regenerate it, it is
+    # edited in place across runs, and there is one copy.
+    "output/reflect/patterns/",
     "decisions.md",
     "config.yaml",
     "config.md",
@@ -87,6 +92,13 @@ DERIVED = (
 TRANSACTIONAL = (
     "output/ingest/",
     "output/radar/",
+    # What was proposed and how a person ruled on it. A rejection is kept in
+    # full because it is the input to the next proposal, so this log is not
+    # replaceable by anything a command could recompute.
+    "output/reflect/ledger.jsonl",
+    # What MAGI's own model calls cost. Append-only, and the budget gate reads
+    # it — a week's spending is not derivable from anything else.
+    "output/llm-ledger.jsonl",
 )
 
 

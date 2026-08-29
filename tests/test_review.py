@@ -402,3 +402,85 @@ def test_a_reviewer_that_answered_properly_is_not_quoted_twice(ws, monkeypatch):
     post = threads.read_note(ws / "threads" / "p-gap.md").posts[-1].text
     assert post.count("cites no evidence") == 1
     assert "What it actually said" not in post
+
+
+# --------------------------------------------------------------------------
+# what a review costs, and the two ways the budget says no
+#
+# The refusal has to happen *before* the subprocess. A gate that stops the call
+# but lets the claim retire unreviewed would spend nothing and approve
+# everything, which is the same rubber stamp this file spends the rest of its
+# length avoiding.
+# --------------------------------------------------------------------------
+
+def test_a_review_is_written_into_the_ledger(ws, monkeypatch):
+    from magi.core import ledger
+
+    solved(ws)
+    monkeypatch.setattr(review, "ask",
+                        lambda *a, **k: "VERDICT: stands\nREASON: it does.")
+
+    review.review(ws, "p-gap", host="codex")
+
+    entry = ledger.entries(ws)[-1]
+    assert (entry["kind"], entry["host"], entry["slug"]) == ("review", "codex", "p-gap")
+    assert entry["ok"] is True
+
+
+def test_a_review_that_failed_is_still_written_down(ws, monkeypatch):
+    """It spent the wall clock and, on a metered account, the money. A budget
+    that only counts successes is one a broken adapter walks through."""
+    from magi.core import ledger
+
+    solved(ws)
+    monkeypatch.setattr(review, "ask", failing(RuntimeError("codex exited 127")))
+
+    with pytest.raises(RuntimeError):
+        review.review(ws, "p-gap", host="codex")
+
+    entry = ledger.entries(ws)[-1]
+    assert entry["ok"] is False and entry["note"] == "RuntimeError"
+
+
+def test_over_budget_nothing_is_called(ws, monkeypatch):
+    from magi.core import ledger
+
+    solved(ws)
+    (ws / "config.yaml").write_text("research:\n  weekly_calls: 2\n", encoding="utf-8")
+    for index in range(2):
+        ledger.record(ws, ledger.REVIEW, "codex", slug=f"old-{index}")
+    called = []
+    monkeypatch.setattr(review, "installed_hosts", lambda: ["codex"])
+    monkeypatch.setattr(review, "ask", lambda *a, **k: called.append(1) or "")
+
+    code = review.main(["--topic-dir", str(ws), "--host", "codex"])
+
+    assert code == 1 and not called
+    assert review.pending(ws) == ["p-gap"], "and it is still waiting for a reader"
+
+
+def test_the_master_switch_stops_it_too(ws, monkeypatch, capsys):
+    solved(ws)
+    (ws / "config.yaml").write_text("research:\n  llm_calls: false\n", encoding="utf-8")
+    called = []
+    monkeypatch.setattr(review, "installed_hosts", lambda: ["codex"])
+    monkeypatch.setattr(review, "ask", lambda *a, **k: called.append(1) or "")
+
+    assert review.main(["--topic-dir", str(ws), "--host", "codex"]) == 1
+    assert not called
+    assert "switched off" in capsys.readouterr().err
+
+
+def test_a_dry_run_says_what_is_left(ws, monkeypatch, capsys):
+    """The one place to look before spending: who would be asked, about what,
+    and how much of the week is gone."""
+    import json as json_mod
+
+    solved(ws)
+    monkeypatch.setattr(review, "installed_hosts", lambda: ["codex"])
+
+    review.main(["--topic-dir", str(ws), "--host", "codex", "--dry-run", "--json"])
+    payload = json_mod.loads(capsys.readouterr().out)
+
+    assert payload["slugs"] == ["p-gap"]
+    assert payload["budget"]["left"] == payload["budget"]["limit"], "nothing spent yet"

@@ -154,7 +154,7 @@ created: {today}
 |-----------|---------|
 | [raw/](raw/) | Raw source materials |
 | [wiki/](wiki/) | Compiled knowledge base |
-| [output/](output/) | Generated artifacts — except `output/ingest/` and `output/radar/`, which record decisions you made and cannot be rebuilt |
+| [output/](output/) | Generated artifacts — except `output/ingest/`, `output/radar/`, `output/reflect/` and `output/llm-ledger.jsonl`, which record decisions you made or what they cost, and cannot be rebuilt |
 | [inbox/](inbox/) | Pending ingestion |
 
 ## Statistics
@@ -274,9 +274,11 @@ radar:
     #
     #    The two exclusions are the point. `output/` looks entirely generated
     #    and mostly is, but `output/ingest/` records what was queued, converted
-    #    and approved, and `output/radar/` records which candidates a person
-    #    said no to — re-running rebuilds neither, because the upstream windows
-    #    have moved on. A blanket `output/` would quietly drop both.
+    #    and approved, `output/radar/` records which candidates a person said
+    #    no to, and `output/reflect/` holds what the slow loop understood from
+    #    transcripts that have since rotated away — re-running rebuilds none of
+    #    them, because the upstream windows have moved on. A blanket `output/`
+    #    would quietly drop all of it.
     gitignore = """# What `magi` will make again. Everything else here is yours.
 
 scratch/
@@ -287,10 +289,13 @@ output/.lint_cache.json
 output/.embeddings_cache*
 
 # Deliberately NOT ignored, and not an oversight:
-#   output/ingest/   what was queued, converted, decided and committed
-#   output/radar/    which candidates you already said no to
-# Neither can be regenerated — a re-run returns a different world — so they
-# are tracked alongside the library they describe.
+#   output/ingest/           what was queued, converted, decided and committed
+#   output/radar/            which candidates you already said no to
+#   output/reflect/          what the slow loop noticed, and what you did about it
+#   output/llm-ledger.jsonl  what MAGI's own model calls cost you this week
+# None of it can be regenerated — a re-run returns a different world, and the
+# transcripts the slow loop read have rotated away — so they are tracked
+# alongside the library they describe.
 
 # Ingest leaves the originals here until they are filed.
 inbox/.processed/

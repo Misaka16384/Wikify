@@ -32,10 +32,11 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from .core import vocab
+from .core import ledger, vocab
 from .core.workspace import find_workspace_root
 from .kb import threads
 
@@ -189,14 +190,37 @@ def ask(host: str, prompt: str, cwd, model: str | None = None,
 
 def review(root, slug: str, author: str | None = None, host: str | None = None,
            model: str | None = None, timeout: int = TIMEOUT) -> Verdict:
-    """Ask another CLI whether one proposition holds."""
+    """Ask another CLI whether one proposition holds.
+
+    The call is written into the ledger whether it worked or not: a review that
+    timed out spent the wall clock and, on a metered account, the money, and a
+    budget that only counts successes is a budget a broken adapter can walk
+    straight through.
+    """
     chosen = host or pick_host(author)
     if chosen is None:
         raise RuntimeError("no reviewer CLI on PATH "
                            f"(looked for {', '.join(HOSTS)})")
-    reply = ask(chosen, build_prompt(root, slug), cwd=root, model=model, timeout=timeout)
+    started = time.monotonic()
+    try:
+        reply = ask(chosen, build_prompt(root, slug), cwd=root, model=model,
+                    timeout=timeout)
+    except BaseException as exc:  # noqa: BLE001 - recorded, then re-raised
+        _spend(root, chosen, slug, model, ok=False, since=started,
+               note=exc.__class__.__name__)
+        raise
+    _spend(root, chosen, slug, model, ok=True, since=started)
     verdict, reason = parse_verdict(reply)
     return Verdict(slug=slug, verdict=verdict, reason=reason, host=chosen, raw=reply)
+
+
+def _spend(root, host, slug, model, *, ok, since, note="") -> None:
+    """Record one call. Never the reason a review fails."""
+    try:
+        ledger.record(root, ledger.REVIEW, host, model=model, slug=slug, ok=ok,
+                      seconds=time.monotonic() - since, note=note)
+    except OSError:
+        pass
 
 
 def apply_verdict(root, result: Verdict) -> str:
@@ -342,6 +366,16 @@ def pending(root) -> list:
     return out
 
 
+def _config(root):
+    """`(weekly call limit, master switch)` for this workspace."""
+    from .core.config_loader import get as config_get
+    from .core.config_loader import load_config
+
+    config = load_config(start=root)
+    return (config_get(config, "research.weekly_calls", ledger.DEFAULT_WEEKLY),
+            bool(config_get(config, "research.llm_calls", True)))
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="magi review",
@@ -364,6 +398,10 @@ def main(argv=None) -> int:
         print("no workspace found (run inside a topic or pass --topic-dir)", file=sys.stderr)
         return 1
 
+    config = _config(root)
+    limit = config[0]
+    enabled = config[1]
+
     slugs = args.slug or pending(root)
     if not slugs:
         print("nothing to review — no proposition is claiming to be solved unanswered.")
@@ -381,10 +419,19 @@ def main(argv=None) -> int:
         return 1
 
     if args.dry_run:
-        payload = {"host": chosen, "slugs": slugs}
+        payload = {"host": chosen, "slugs": slugs,
+                   "budget": ledger.summary(root, limit=limit)}
         print(json.dumps(payload, ensure_ascii=False) if args.json
               else f"would ask {chosen} about: {', '.join(slugs)}")
         return 0
+
+    # Before the subprocess, not after: a budget that stops the call but lets
+    # the claim retire unreviewed would spend nothing and approve everything.
+    try:
+        ledger.check(root, limit=limit, enabled=enabled)
+    except (ledger.OverBudget, ledger.SwitchedOff) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
 
     results = review_batch(root, slugs, author=args.author, host=chosen,
                            model=args.model, timeout=args.timeout)
