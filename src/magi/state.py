@@ -217,7 +217,15 @@ def _violations(root, state) -> list:
 
     try:
         config = load_config(start=root)
-        parsed = rules_mod.parse(config_get(config, "research.rules", []) or [])
+        # `BUILTIN_SHAPE` first. It is documented as "rules MAGI enforces for
+        # everybody" and nothing imported it, so `derivation:` could point
+        # anywhere and a `conflict` could be walked out of unsigned — while
+        # this module's docstring says everything executable is checked on
+        # every run rather than believed. Parsed through the same function as
+        # a person's own rules, because a built-in that took a different path
+        # would be a second implementation to keep in step.
+        parsed = rules_mod.parse(list(rules_mod.BUILTIN_SHAPE)
+                                 + (config_get(config, "research.rules", []) or []))
     except rules_mod.RuleError as exc:
         return [rules_mod.Violation(rules_mod.Rule(name="rules", params={}),
                                     "config.yaml",

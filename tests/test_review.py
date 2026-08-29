@@ -509,3 +509,89 @@ def test_a_dry_run_says_what_is_left(ws, monkeypatch, capsys):
 
     assert payload["slugs"] == ["p-gap"]
     assert payload["budget"]["left"] == payload["budget"]["limit"], "nothing spent yet"
+
+
+def test_a_batch_stops_at_the_budget_instead_of_running_past_it(ws, monkeypatch):
+    """The check was at the top of the batch and the spending was per slug, so
+    one command could run sixty calls against a limit of forty. `ledger.check`
+    calls itself "one call at the top of anything that spends"; the gate now
+    lives in `review()`, where a new caller cannot leave it out."""
+    from magi.core import ledger
+
+    for index in range(5):
+        solved(ws, f"p-{index}")
+    (ws / "config.yaml").write_text("research:\n  weekly_calls: 3\n", encoding="utf-8")
+    ledger.record(ws, ledger.REVIEW, "codex", slug="last-week")
+    called = []
+    monkeypatch.setattr(review, "installed_hosts", lambda: ["codex"])
+    monkeypatch.setattr(review, "ask", lambda *a, **k: called.append(1) or
+                        "VERDICT: stands\nREASON: fine.")
+
+    review.main(["--topic-dir", str(ws), "--host", "codex"])
+
+    assert len(called) == 2, "the budget was 3 and one call was already spent"
+    assert ledger.spent(ws) == 3
+
+
+def test_running_out_says_so_once_and_not_once_per_claim(ws, monkeypatch):
+    """`OverBudget` subclasses `RuntimeError`, which `review_batch` catches to
+    turn a failed review into a not-reviewed result. Caught in that order the
+    loop ran on and produced one identical "budget is spent" result per
+    remaining claim — and since the results then still numbered one per slug,
+    nothing downstream could tell a run that stopped early from one that
+    finished.
+
+    Nothing was ever written to the notes: `apply_verdict` opens with
+    `if not result.ran` and refuses to post a review that did not happen. The
+    cost was the report, not the notes — which is worth stating precisely,
+    because the first version of this test asserted the notes were clean and
+    so passed against both implementations.
+    """
+    for index in range(4):
+        solved(ws, f"p-{index}")
+    monkeypatch.setattr(review, "installed_hosts", lambda: ["codex"])
+    monkeypatch.setattr(review, "ask", lambda *a, **k: "VERDICT: stands\nREASON: fine.")
+
+    results = review.review_batch(ws, [f"p-{i}" for i in range(4)], host="codex",
+                                  settings=review.Settings(limit=2))
+
+    assert len(results) == 2, "the loop kept going after the budget said no"
+    assert all(r.ran for r in results), "and every result it did return is a real review"
+    assert [r.slug for r in results] == ["p-0", "p-1"], "it stopped, it did not skip"
+
+
+def test_it_says_which_ones_it_did_not_get_to(ws, monkeypatch, capsys):
+    """A short list of results is the only sign the run stopped early, and
+    counting it is not somebody's job."""
+    from magi.core import ledger
+
+    for index in range(3):
+        solved(ws, f"p-{index}")
+    (ws / "config.yaml").write_text("research:\n  weekly_calls: 1\n", encoding="utf-8")
+    monkeypatch.setattr(review, "installed_hosts", lambda: ["codex"])
+    monkeypatch.setattr(review, "ask", lambda *a, **k: "VERDICT: stands\nREASON: fine.")
+
+    code = review.main(["--topic-dir", str(ws), "--host", "codex"])
+
+    err = capsys.readouterr().err
+    assert code == 1
+    assert "stopped after 1 of 3" in err
+    assert "still unreviewed" in err
+    for slug in review.pending(ws):
+        assert slug in err
+
+
+def test_a_zero_limit_still_reports_what_the_week_cost(ws):
+    """`OverBudget(0, limit, ...)` hardcoded the spend, so a workspace twelve
+    calls into a switched-off week was told its budget was "spent (0/0)" —
+    which reads as a fresh week rather than as a switch somebody threw."""
+    from magi.core import ledger
+
+    for index in range(12):
+        ledger.record(ws, ledger.REVIEW, "codex", slug=f"old-{index}")
+
+    with pytest.raises(ledger.OverBudget) as caught:
+        ledger.check(ws, limit=0)
+
+    assert caught.value.spent == 12
+    assert "(12/0)" in str(caught.value)

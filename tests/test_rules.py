@@ -189,3 +189,59 @@ def test_a_predicate_with_missing_parameters_is_not_promotable():
         patch = {"rule": rules.REQUIRE_FIELD, "kind": "proposition"}
 
     assert rules.from_proposal(Proposal()) is None
+
+
+# --------------------------------------------------------------------------
+# the rules nobody has to write down
+# --------------------------------------------------------------------------
+
+def test_the_builtin_rules_run_in_a_workspace_with_no_config(ws):
+    """`BUILTIN_SHAPE` is documented as "rules MAGI enforces for everybody"
+    and nothing imported it — `grep` matched its own definition and nothing
+    else. So `derivation:` could point anywhere, in every workspace, while
+    `rules.py` said everything executable is checked on every run."""
+    proposition(ws, "p-good", derivation=["[[drafts/gap-argument]]"])
+    proposition(ws, "p-bad", derivation=["[[wiki/concepts/gap]]"])
+
+    found = state.load(ws, now=NOW).violations
+
+    assert [v.slug for v in found] == ["p-bad"]
+    assert "not under drafts/" in found[0].message
+
+
+def test_walking_out_of_conflict_unsigned_is_caught_by_default(ws):
+    """The other built-in. `conflict` is the CLI observing that two writers
+    collided; deciding which reading was right is a person's call, and leaving
+    the status without a human post is skipping it."""
+    path = proposition(ws, "p-gap", status="testing")
+    threads.set_status(path, vocab.CONFLICT, "two writers collided", host="magi")
+    threads.set_status(path, "testing", "carrying on", host="claude")
+
+    found = state.load(ws, now=NOW).violations
+
+    assert [v.slug for v in found] == ["p-gap"]
+
+
+def test_a_human_post_settles_it(ws):
+    """The rule asks for a decision, not for ceremony."""
+    path = proposition(ws, "p-gap", status="testing")
+    threads.set_status(path, vocab.CONFLICT, "two writers collided", host="magi")
+    threads.set_status(path, "testing", "mine was right, carrying on",
+                       host=vocab.HUMAN)
+
+    assert state.load(ws, now=NOW).violations == []
+
+
+def test_the_builtins_are_added_to_a_persons_rules_not_swapped_for_them(ws):
+    """Both, or the fix trades one silent gap for another."""
+    import yaml
+
+    proposition(ws, "p-bad", derivation=["[[wiki/concepts/gap]]"])
+    proposition(ws, "p-nofield", status="testing")
+    (ws / "config.yaml").write_text(yaml.safe_dump({"research": {"rules": [
+        {"rule": rules.REQUIRE_FIELD, "kind": "proposition",
+         "status": "testing", "field": "bet"}]}}), encoding="utf-8")
+
+    found = {v.slug for v in state.load(ws, now=NOW).violations}
+
+    assert found == {"p-bad", "p-nofield"}

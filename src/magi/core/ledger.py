@@ -183,10 +183,12 @@ def check(root, limit: int | None = None, enabled: bool = True, when=None) -> No
     if not enabled:
         raise SwitchedOff()
     limit = DEFAULT_WEEKLY if limit is None else limit
-    if limit <= 0:
-        raise OverBudget(0, limit, next_monday(when))
+    # Counted before either refusal, so both report the same true number. A
+    # limit of zero used to be reported as "spent (0/0)" in a workspace that
+    # had already made twelve calls, which reads as a fresh week rather than
+    # as a switch somebody turned off.
     used = spent(root, when=when)
-    if used >= limit:
+    if limit <= 0 or used >= limit:
         raise OverBudget(used, limit, next_monday(when))
 
 

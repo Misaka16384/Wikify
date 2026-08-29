@@ -290,6 +290,13 @@ def review(root, slug: str, author: str | None = None, host: str | None = None,
     if chosen is None:
         raise RuntimeError("no reviewer CLI on PATH "
                            f"(looked for {', '.join(host_names())})")
+    # Here, not in the caller. `ledger.check` calls itself "one call at the top
+    # of anything that spends", and the batch path spent once per slug behind a
+    # single check: a workspace 39 calls into a limit of 40 could run sixty
+    # reviews and finish the week at 99/40. `reflect` and `propose` both gate
+    # per call; this was the one path that did not.
+    ledger.check(root, limit=(settings.limit if settings else None),
+                 enabled=(settings.enabled if settings else True))
     # Resolved once, here, so the ledger records what was asked for rather than
     # what was typed. With nothing typed this is the cheap tier, and a ledger
     # entry saying `model: null` for it could not tell a Haiku review from an
@@ -421,12 +428,28 @@ def _excerpt(raw: str, limit: int = 1200) -> str:
 def review_batch(root, slugs, author: str | None = None, host: str | None = None,
                  model: str | None = None, timeout: int = TIMEOUT,
                  effort: str | None = None, settings: "Settings | None" = None) -> list:
-    """Review several propositions. One failure does not stop the rest."""
+    """Review several propositions. One failure does not stop the rest.
+
+    Running out of budget is not one of those failures. It stops the loop, and
+    the shorter list of results is how the caller learns that — every slug
+    after the last result is untouched and still unreviewed, which is the
+    honest outcome and the one `ledger` is built to produce.
+    """
     out = []
     for slug in slugs:
         try:
             result = review(root, slug, author=author, host=host, model=model,
                             timeout=timeout, effort=effort, settings=settings)
+        except (ledger.OverBudget, ledger.SwitchedOff):
+            # Before the `RuntimeError` clause, which `OverBudget` subclasses.
+            # Nothing reaches the notes either way — `apply_verdict` refuses to
+            # post a review that never happened — but falling through returns
+            # one identical "budget is spent" result per remaining claim, and
+            # then the count of results still matches the count of slugs, so
+            # nothing downstream can tell a run that stopped early from one
+            # that finished. Stopping is what makes the short list mean
+            # something.
+            break
         except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
             out.append(Verdict(slug=slug, verdict=VERDICT_UNCLEAR, host=host or "?",
                                reason=f"the review could not run ({exc})",
@@ -569,7 +592,8 @@ def main(argv=None) -> int:
         return 1
 
     results = review_batch(root, slugs, author=args.author, host=chosen,
-                           model=model, timeout=args.timeout, effort=effort)
+                           model=model, timeout=args.timeout, effort=effort,
+                           settings=settings)
     lines = []
     for result in results:
         try:
@@ -583,6 +607,19 @@ def main(argv=None) -> int:
     else:
         for line in lines:
             print(f"  {line}")
+
+    # A short list is the only sign the budget stopped the run, so it is said
+    # out loud rather than left for somebody to notice by counting.
+    if len(results) < len(slugs):
+        left = slugs[len(results):]
+        try:
+            ledger.check(root, limit=limit, enabled=enabled)
+            why = "the weekly budget ran out"
+        except (ledger.OverBudget, ledger.SwitchedOff) as exc:
+            why = str(exc)
+        print(f"stopped after {len(results)} of {len(slugs)} — {why}\n"
+              f"still unreviewed: {', '.join(left)}", file=sys.stderr)
+        return 1
     # A run where nothing could be asked is a failure, not a quiet success.
     # Exiting 0 there is how a broken install looks like a reviewed library.
     return 1 if any(r.rejected or not r.ran for r in results) else 0
