@@ -239,6 +239,14 @@ def run(root, *, host=None, model=None, timeout: int = TIMEOUT, dry_run: bool = 
         reply, ok = "", False
         report.failed = True
         report.note = f"the pass could not run ({exc.__class__.__name__}: {exc})"
+        if not isinstance(exc, Exception):
+            # `KeyboardInterrupt` and `SystemExit` are the operator, not a
+            # failed pass. Recorded like any other spend — the subprocess ran
+            # and cost wall clock — and then re-raised, because absorbing
+            # Ctrl+C during a fifteen-minute headless call leaves somebody
+            # pressing it again and wondering what it is doing.
+            # `review.review` has always done this; these two did not.
+            raise
     finally:
         ledger.record(root, ledger.REFLECT, chosen, model=model, effort=effort,
                       ok=ok, seconds=time.monotonic() - started,

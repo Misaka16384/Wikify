@@ -172,12 +172,20 @@ def test_all_three_hooks_are_installed_for_claude(ws):
     assert "Stop" in line and "PreToolUse" in line and "SessionStart" in line
 
 
-def test_the_fanout_hook_only_matches_the_tool_that_spawns(ws):
+def test_the_fanout_hook_matches_every_tool_the_counter_counts(ws):
+    """It matched `Task` alone while `hook_cmd.SPAWNING` counts `Agent` and
+    `Dispatch` too, so the hook never saw two thirds of what its own message
+    claims to be counting. Still not a bare matcher: a `PreToolUse` hook that
+    matches everything runs on every file read."""
+    from magi import hook_cmd
+
     install_cmd.install_hook(ws, "claude")
 
     settings = json.loads((ws / ".claude" / "settings.json").read_text(
         encoding="utf-8"))
-    assert settings["hooks"]["PreToolUse"][0]["matcher"] == "Task"
+    matcher = settings["hooks"]["PreToolUse"][0]["matcher"]
+    assert set(matcher.split("|")) == set(hook_cmd.SPAWNING)
+    assert matcher, "an empty matcher would fire on every tool call"
 
 
 def test_installing_twice_adds_nothing(ws):

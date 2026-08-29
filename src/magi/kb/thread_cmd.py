@@ -120,8 +120,48 @@ def cmd_post(args) -> int:
                    f"posted to {args.slug}")
 
 
+def _warn_if_closing_a_line(args, path) -> None:
+    """Name what a line-closing flip through this command would silence.
+
+    `magi close` surveys first because closing a line with three open
+    propositions is a decision about those three propositions. This path
+    reaches the same status without the survey, so the least it can do is say
+    which notes stop being routed. Never raises: a warning that can break the
+    command it is warning about is worse than no warning.
+    """
+    if args.to != "closed":
+        return
+    try:
+        from .. import close_cmd
+
+        if threads.read_note(path).kind != vocab.LINE:
+            return
+        found = close_cmd.survey(_root(args), args.slug)
+    except Exception:  # noqa: BLE001
+        return
+    if not found["open"]:
+        return
+    names = ", ".join(item["slug"] for item in found["open"])
+    print(f"warning: {len(found['open'])} note(s) on {args.slug} stop being "
+          f"routed and nothing will mention them again: {names}", file=sys.stderr)
+    print(f"         `magi close {args.slug}` shows this before it flips, and "
+          f"signs the decision as a person's.", file=sys.stderr)
+
+
 def cmd_status(args) -> int:
     path = _path(args, args.slug)
+
+    # Closing a line through this command is allowed and lands as debt for
+    # `sync --close` to report — that is the decided shape, and refusing here
+    # would move `vocab`'s enforcement to the keystroke, which is the layer
+    # design-v2 §10 keeps it out of: a `human` signature means the decision
+    # belongs to a person, not that a person typed it.
+    #
+    # What is missing is the survey. `magi close` shows what would go quiet
+    # before flipping, and after this flip nothing ever mentions those notes
+    # again. So they are named here. A report, not a gate.
+    _warn_if_closing_a_line(args, path)
+
     try:
         threads.set_status(path, args.to, args.text, host=host_name(args.host), line=args.line)
     except FileNotFoundError:

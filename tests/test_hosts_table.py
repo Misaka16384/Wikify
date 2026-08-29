@@ -327,3 +327,38 @@ def test_and_magi_install_is_the_one_that_has_to_pass_it(tmp_path, capsys):
     install_cmd.main(["--topic-dir", str(tmp_path), "--dry-run"])
 
     assert "mycli" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------
+# reading another program's stdout
+# --------------------------------------------------------------------------
+
+def test_a_cli_that_prints_one_id_per_line_is_read(monkeypatch):
+    """Requiring a space or a tab meant a CLI listing bare ids parsed to zero
+    models and the picker came up empty. The documented failure mode is
+    *fewer* models than there are, never none."""
+    found = hosts.parse_models("gpt-5\nclaude-haiku-4-5\no3\n")
+    assert [row["id"] for row in found] == ["gpt-5", "claude-haiku-4-5", "o3"]
+
+
+def test_a_column_heading_is_still_not_a_model():
+    """The reason the separator was being required at all."""
+    found = hosts.parse_models("NAME\nModels\nAvailable\ngpt-5\n")
+    assert [row["id"] for row in found] == ["gpt-5"]
+
+
+def test_the_tab_and_two_space_forms_still_win(monkeypatch):
+    found = hosts.parse_models("gpt-5\tGPT 5\nclaude-opus-5  Opus 5\n")
+    assert found == [{"id": "gpt-5", "label": "GPT 5"},
+                     {"id": "claude-opus-5", "label": "Opus 5"}]
+
+
+def test_the_model_cache_follows_xdg_config_home(tmp_path, monkeypatch):
+    """It hardcoded `~/.config` while `_config_home()` reads
+    `XDG_CONFIG_HOME`, so this one file landed outside the directory the same
+    process had been told to use."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+
+    where = hosts._models_cache("antigravity")
+
+    assert where == tmp_path / "xdg" / "magi" / "models-antigravity.json"

@@ -56,9 +56,13 @@ STOP_COMMAND = "magi sync --close --hook"
 #:
 #: Claude Code only. It is the one host that documents any of this, and a hook
 #: guessed at is a hook that fails silently in somebody else's editor.
+from . import hook_cmd as _hook_cmd
+
 HOOKS = {
     "Stop": (STOP_COMMAND, ""),
-    "PreToolUse": ("magi hook fanout", "Task"),
+    # Every tool `hook_cmd.SPAWNING` counts, or the count is of one of
+    # them and the message speaks about all three. Matchers are regexes.
+    "PreToolUse": ("magi hook fanout", "|".join(_hook_cmd.SPAWNING)),
     "SessionStart": ("magi hook session-start", ""),
 }
 

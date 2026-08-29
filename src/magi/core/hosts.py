@@ -322,8 +322,24 @@ LIST_TIMEOUT = 20
 
 
 def _models_cache(host: str, home: Optional[Path] = None) -> Path:
-    base = Path(home) if home is not None else Path.home()
-    return base / ".config" / "magi" / f"models-{host}.json"
+    """Where a host's model list is remembered between runs.
+
+    Through `_config_home()`, which honours `XDG_CONFIG_HOME`, so this file
+    lands beside the rest of MAGI's config instead of in a `~/.config` that
+    the same process has been told not to use.
+    """
+    base = Path(home) / ".config" if home is not None else _config_home()
+    return base / "magi" / f"models-{host}.json"
+
+
+def _looks_like_a_model_id(token: str) -> bool:
+    """Is a bare word plausibly a model id rather than a column heading?
+
+    Every id any of these CLIs prints carries a digit or a hyphen — `gpt-5`,
+    `claude-haiku-4-5`, `gemini-3.7-flash-low`, `o3`, `qwen3-coder`. Headings
+    do not.
+    """
+    return bool(token) and ("-" in token or any(ch.isdigit() for ch in token))
 
 
 def parse_models(text: str) -> List[dict]:
@@ -337,12 +353,19 @@ def parse_models(text: str) -> List[dict]:
     out, seen = [], set()
     for line in (text or "").splitlines():
         line = line.strip()
-        if not line or line.endswith("...") or " " not in line and "\t" not in line:
+        if not line or line.endswith("..."):
             continue
         ident, _, label = line.partition("\t")
         if not _:
             ident, _, label = line.partition("  ")
         ident, label = ident.strip(), label.strip()
+        if not label and not _looks_like_a_model_id(ident):
+            # A bare token with no separator. Requiring one at all meant a CLI
+            # that prints `gpt-5` one per line parsed to zero models and the
+            # picker came up empty — the failure this is supposed to degrade
+            # to is *fewer* models, not none. A header (`NAME`, `Models`) has
+            # neither a digit nor a hyphen and still does not get in.
+            continue
         # An id is a token. A sentence is a progress message.
         if not ident or " " in ident or ident in seen:
             continue

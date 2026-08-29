@@ -260,3 +260,23 @@ def test_a_dry_run_costs_nothing(ws, monkeypatch):
 
     assert not called and "would ask codex" in report.note
     assert ledger.entries(ws) == []
+
+
+def test_ctrl_c_during_the_proposal_call_is_not_swallowed(ws, monkeypatch):
+    """Same shape as `reflect`, same fix: a 900-second subprocess behind
+    `except BaseException` with no re-raise absorbs the interrupt, records a
+    failed call and hands back a report. `review.review` has always re-raised.
+    """
+    from magi.core import ledger
+
+    recurring(ws)
+
+    def interrupted(*a, **k):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("magi.reflect.propose.ask", interrupted)
+
+    with pytest.raises(KeyboardInterrupt):
+        propose.run(ws, host="codex", now=TODAY)
+
+    assert ledger.entries(ws)[-1]["ok"] is False, "and the spend is still recorded"

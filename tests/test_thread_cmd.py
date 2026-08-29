@@ -192,3 +192,49 @@ def test_a_note_needs_a_purpose(ws, capsys):
                "--title", "T", "--purpose", "  ") == 1
     assert "needs a purpose" in capsys.readouterr().err
 
+
+def test_closing_a_line_here_names_what_goes_quiet(ws, capsys):
+    """Not a refusal. `test_an_agent_signed_close_is_debt_the_gate_reports`
+    decided that: the flip is allowed and lands as debt, because `vocab` is
+    enforced downstream in `sync --close` and not at the keystroke.
+
+    What was missing is the survey. `magi close` shows what would go silent
+    before flipping; this path reached the same status and said nothing, and
+    afterwards nothing ever mentions those notes again."""
+    run(ws, "new", "qec", "--kind", "line", "--title", "QEC", "--purpose", "Whether.")
+    run(ws, "new", "p-a", "--kind", "proposition", "--title", "A",
+        "--purpose", "Why.", "--line", "qec")
+
+    code = thread_cmd.main(["status", "qec", "closed", "--topic-dir", str(ws),
+                            "--text", "done", "--host", "claude"])
+
+    err = capsys.readouterr().err
+    assert code == 0, "still allowed — the gate is downstream"
+    assert note(ws, "qec").status == "closed"
+    assert "p-a" in err and "magi close qec" in err
+
+
+def test_a_line_with_nothing_open_says_nothing(ws, capsys):
+    """A warning that fires when there is nothing to warn about is a warning
+    people stop reading."""
+    run(ws, "new", "qec", "--kind", "line", "--title", "QEC", "--purpose", "Whether.")
+
+    thread_cmd.main(["status", "qec", "closed", "--topic-dir", str(ws),
+                     "--text", "done", "--host", "claude"])
+
+    assert "stop being routed" not in capsys.readouterr().err
+
+
+def test_a_proposition_still_moves_normally(ws):
+    """The guard is about lines, and only about closing them."""
+    run(ws, "new", "p-a", "--kind", "proposition", "--title", "A", "--purpose", "Why.")
+    run(ws, "status", "p-a", "testing", "--text", "started")
+
+    assert note(ws, "p-a").status == "testing"
+
+
+def test_a_line_may_still_be_moved_anywhere_else(ws):
+    run(ws, "new", "qec", "--kind", "line", "--title", "QEC", "--purpose", "Whether.")
+    run(ws, "status", "qec", "active", "--text", "picking it up")
+
+    assert note(ws, "qec").status == "active"

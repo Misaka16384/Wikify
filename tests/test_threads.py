@@ -864,3 +864,28 @@ def test_a_signature_is_checked_not_trusted(tmp_path):
     with pytest.raises(ValueError):
         threads.append_post(path, "hi", host="human · reviewer")
     assert threads.read_note(path).posts == [], "and nothing was written"
+
+
+def test_a_document_the_lint_cannot_place_is_checked_rather_than_skipped(tmp_path):
+    """`relative_to` raising made the check `continue`, so a document it could
+    not place under the root became silently exempt and the run came back
+    clean. A check that fails open reports nothing and looks exactly like a
+    check that found nothing."""
+    from magi.core.wiki_common import parse_frontmatter, split_frontmatter_text
+    from magi.kb import llmwiki
+
+    text = "---\ntitle: Gap\nbet: supported\n---\n\n# Gap\n"
+    path = tmp_path / "wiki" / "concepts" / "gap.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+    split = split_frontmatter_text(text)
+    # A root the document is not under — what a symlink or a UNC path does.
+    ctx = llmwiki.LintContext(tmp_path / "somewhere-else")
+    ctx.documents = {path.resolve(): llmwiki.Document(
+        path=path, frontmatter=parse_frontmatter(text),
+        body=split[1] if split else text, raw_text=text)}
+
+    llmwiki.check_one_tier_per_file(ctx)
+
+    assert any("belongs to a proposition" in issue.message for issue in ctx.issues)

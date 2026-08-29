@@ -282,3 +282,34 @@ def test_one_event_is_not_evidence_from_two_sessions(ws, sessions):
     seen = [signal.slug for item in picked for signal in item.signals]
 
     assert len(seen) == len(set(seen)), "no event counted twice"
+
+
+def test_ctrl_c_during_a_headless_pass_is_not_swallowed(ws, sessions, monkeypatch):
+    """A fifteen-minute subprocess behind `except BaseException` with no
+    re-raise absorbs the interrupt, records it as a failed call, and returns a
+    report — so the operator presses Ctrl+C and watches it carry on.
+    `review.review` has always re-raised; these two did not."""
+    def interrupted(*a, **k):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cmd, "ask", interrupted)
+
+    with pytest.raises(KeyboardInterrupt):
+        cmd.run(ws, host="codex")
+
+
+def test_and_the_call_is_still_recorded_before_it_propagates(ws, sessions, monkeypatch):
+    """It spent the wall clock and, on a metered account, the money. A budget
+    that only counts the calls that finished is one an interrupt walks
+    through."""
+    from magi.core import ledger
+
+    def interrupted(*a, **k):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(cmd, "ask", interrupted)
+
+    with pytest.raises(KeyboardInterrupt):
+        cmd.run(ws, host="codex")
+
+    assert ledger.entries(ws)[-1]["ok"] is False

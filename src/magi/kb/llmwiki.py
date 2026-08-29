@@ -1814,7 +1814,14 @@ def check_one_tier_per_file(ctx: LintContext) -> None:
         try:
             rel = doc.path.resolve().relative_to(ctx.root)
         except ValueError:
-            continue
+            # A symlink, a case difference, a UNC path — the file is real and
+            # we cannot say where it sits. `continue` here turned that into
+            # "this document is exempt", so the check silently covered fewer
+            # files than it claimed to and looked exactly like a clean run.
+            # Fall back to the unresolved path: the worst case is checking a
+            # `threads/` file we could not recognise, which reports rather
+            # than hides.
+            rel = doc.path
         if threads_mod.is_thread_path(rel):
             continue
         for field_name in ("bet", "key_move"):
