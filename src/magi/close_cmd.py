@@ -49,8 +49,14 @@ def survey(root, line: str) -> dict:
         out["exists"] = note.kind == vocab.LINE
         out["status"] = note.status
 
-    for path in sorted(directory.glob("*.md")) if directory.is_dir() else []:
-        if path.name == f"{line}.md":
+    # `threads.note_paths`, not a flat glob: it is what `state` walks to build
+    # the projection, so a workspace that files notes as `threads/qec/p-1.md`
+    # has them counted by `magi next` and — before this — invisible to the one
+    # survey that exists to show a person what closing the line would silence.
+    # It also skips `_index.md` and dotfiles, which the flat glob handed to
+    # `read_note` to fail on.
+    for path in threads.note_paths(root):
+        if path == header:
             continue
         try:
             note = threads.read_note(path)

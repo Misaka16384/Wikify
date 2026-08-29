@@ -129,11 +129,18 @@ def file_newline(path: str | Path) -> str:
     return os.linesep
 
 
-def atomic_write(filepath: str | Path, content: str, encoding: str = "utf-8", newline: str | None = None) -> None:
+def atomic_write(filepath: str | Path, content: str, encoding: str = "utf-8",
+                 newline: str | None = None, errors: str = "strict") -> None:
     """Safely and atomically write content to a file.
 
     Creates a temporary file in the same directory as the target file,
     writes the content, and then renames it to target file using os.replace.
+
+    `errors` defaults to `"strict"` so that a mis-encoded write fails loudly.
+    The one caller that overrides it is `managed.write`, which pairs
+    `surrogateescape` on the read with `surrogateescape` here to round-trip
+    a file somebody saved as cp1252 without touching the bytes it did not
+    come to change.
     """
     import os
     import tempfile
@@ -145,7 +152,7 @@ def atomic_write(filepath: str | Path, content: str, encoding: str = "utf-8", ne
 
     fd, temp_path_str = tempfile.mkstemp(dir=dir_name, prefix=".tmp_atomic_")
     try:
-        with open(fd, 'w', encoding=encoding, newline=newline) as f:
+        with open(fd, 'w', encoding=encoding, newline=newline, errors=errors) as f:
             f.write(content)
         os.replace(temp_path_str, path)
     except Exception:

@@ -208,7 +208,7 @@ def install_protocol(root: Path, coaching: str | None = None,
     if dry_run:
         from .migrate import POINTER
 
-        current = managed.read(agents.read_text(encoding="utf-8")) if agents.is_file() else None
+        current = managed.read(managed.read_tolerantly(agents)) if agents.is_file() else None
         parts = []
         if current != body.strip():
             parts.append("would rewrite the managed block in AGENTS.md")

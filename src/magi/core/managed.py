@@ -113,6 +113,26 @@ def apply(text: str, body: str) -> str:
     return "\n\n".join(parts) + "\n"
 
 
+def read_tolerantly(path) -> str:
+    """`AGENTS.md` as text, whatever a person's editor saved it as.
+
+    `state.block_drift` reads this same file with replacements, reports
+    "AGENTS.md is missing N accepted rule(s) — `magi install` rewrites it",
+    and blocks the session on it. So `magi install` has to survive the file
+    that gate is complaining about, or the gate names a fix that cannot run.
+
+    Not `errors="replace"`, which is right for a reader and wrong here: the
+    text goes straight back to disk, and replacement would turn one smart
+    quote in somebody's project instructions into U+FFFD permanently.
+    `surrogateescape` carries undecodable bytes through `str` untouched, and
+    the matching `errors` on the write puts them back exactly as they were.
+    """
+    path = Path(path)
+    if not path.exists():
+        return ""
+    return path.read_text(encoding="utf-8", errors="surrogateescape")
+
+
 def write(path, body: str) -> bool:
     """Set the managed block in `path`. Returns True when the file changed.
 
@@ -123,11 +143,12 @@ def write(path, body: str) -> bool:
     all of them to suit this machine turns one edit into a whole-file diff.
     """
     path = Path(path)
-    existing = path.read_text(encoding="utf-8") if path.exists() else ""
+    existing = read_tolerantly(path)
     updated = apply(existing, body)
     if normalize_newlines(existing) == updated:
         return False
-    atomic_write(path, updated, newline=file_newline(path))
+    atomic_write(path, updated, newline=file_newline(path),
+                 errors="surrogateescape")
     return True
 
 

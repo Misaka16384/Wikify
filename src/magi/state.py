@@ -450,10 +450,13 @@ def _decisions_mention(root: Path, slug: str) -> bool:
     """
     import re
 
-    path = Path(root) / DECISIONS
-    try:
-        text = path.read_text(encoding="utf-8")
-    except OSError:
+    # `_read_text`, not a strict decode: `decisions.md` is a file the design
+    # tells a person to write in, Notepad still saves cp1252, and a decode
+    # error here escaped the `except OSError` and took `magi next`, the Stop
+    # hook and every v2 endpoint down with it. `_recent_decisions` reads the
+    # same file the same way.
+    text = _read_text(Path(root) / DECISIONS)
+    if text is None:
         return False
     return re.search(rf"(?<![\w-]){re.escape(slug)}(?![\w-])", text) is not None
 

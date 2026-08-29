@@ -270,9 +270,7 @@ def run(root, *, host=None, model=None, effort=None, timeout: int = TIMEOUT,
         report.made.append(made.id)
         # The observation has been acted on. It stays on disk for provenance —
         # an accepted rule has to be able to point at what produced it.
-        page = patterns.read(patterns.path_for(root, row["pattern"]))
-        page.status = patterns.PROPOSED
-        patterns.save(root, page)
+        patterns.mark(root, row["pattern"], patterns.PROPOSED)
     return report
 
 

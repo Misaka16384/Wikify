@@ -112,6 +112,32 @@ def test_the_observation_is_marked_as_acted_on(ws, monkeypatch):
     assert patterns.ready(ws, now=TODAY) == [], "and it does not come round again"
 
 
+def test_and_it_is_marked_through_the_locked_path(ws, monkeypatch):
+    """`read()` then `save()` reads outside the lock that `save()` takes, so a
+    sighting landing in between is overwritten by the stale copy — the failure
+    `patterns.observe` documents and guards against on the same file, which
+    `durability` classifies ORIGINAL.
+
+    Shaped as a ban on `save` rather than as the race itself, deliberately.
+    Single-threaded, the two implementations are indistinguishable: they
+    differ only when another writer lands between the read and the write, and
+    the only seam between those two statements in the old code *is* the call
+    to `save`. So what this pins is the call site — that `propose` no longer
+    writes a pattern page through the unlocked pair — while the tests on
+    `patterns.mark` in `test_guarantees_the_docstrings_make.py` cover the
+    re-read under the lock.
+    """
+    recurring(ws)
+    monkeypatch.setattr("magi.reflect.propose.ask", answering(a_row()))
+    monkeypatch.setattr(patterns, "save", lambda *a, **k: pytest.fail(
+        "propose wrote a pattern page through the unlocked read+save pair"))
+
+    report = propose.run(ws, host="codex", now=TODAY)
+
+    assert len(report.made) == 1
+    assert patterns.read(patterns.path_for(ws, "sweeps-stall")).status == patterns.PROPOSED
+
+
 # --------------------------------------------------------------------------
 # where a fix may go
 # --------------------------------------------------------------------------

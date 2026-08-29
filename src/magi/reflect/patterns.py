@@ -229,6 +229,29 @@ def observe(root, slug: str, *, title: str, body: str, session: str, host: str,
     return pattern
 
 
+def mark(root, slug: str, status: str) -> "Pattern | None":
+    """Set one page's status, re-reading it under the lock first.
+
+    `read()` then `save()` looks like it is safe because `save()` locks, but
+    the read is outside it: `propose` held a two-session copy while `observe`
+    added the third under its own lock, and the write put the stale copy back.
+    That is the same attack on the >=2-independent-sessions gate `observe`
+    documents, on a directory `durability` classifies ORIGINAL — nothing
+    regenerates it once the transcripts have rotated.
+
+    Returns `None` if the page is gone, which is not an error: the proposal is
+    already in the ledger, and that is the part that has to survive.
+    """
+    path = path_for(root, slug)
+    with _lock_for(path):
+        if not path.is_file():
+            return None
+        pattern = read(path)
+        pattern.status = status
+        _write(path, pattern)
+    return pattern
+
+
 def ready(root, minimum: int = 2, now=None) -> list:
     """Patterns that have earned a proposal: seen enough, and still current."""
     return [pattern for pattern in all_patterns(root)

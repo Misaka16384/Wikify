@@ -47,9 +47,11 @@ UNFINISHED = frozenset({"open", "conjectured", "testing"})
 def members(root, lines) -> list:
     """Every proposition and question on any of these lines, in slug order."""
     wanted = set(lines)
-    directory = Path(root) / "threads"
     out = []
-    for path in sorted(directory.glob("*.md")) if directory.is_dir() else []:
+    # Recursive, for the reason `close_cmd.survey` is: a note this misses is
+    # one that keeps its old status on a line that just closed, so nothing
+    # routes it and nothing says the paper superseded it.
+    for path in threads.note_paths(root):
         try:
             note = threads.read_note(path)
         except (OSError, ValueError):
@@ -93,6 +95,22 @@ def survey(root, paper: Path, lines) -> dict:
     return found
 
 
+def _candidates(paper: Path):
+    """Names to try for a paper, in order, until one is free or is itself.
+
+    Endless on purpose: the caller stops at the first name that is either
+    unused or already holds this exact file, and a bounded list would have to
+    decide what to do when it ran out. Overwriting is the one answer `raw/`
+    does not allow.
+    """
+    yield paper.name
+    yield f"{paper.stem}--published{paper.suffix}"
+    nth = 2
+    while True:
+        yield f"{paper.stem}--published-{nth}{paper.suffix}"
+        nth += 1
+
+
 def file_paper(root, paper: Path) -> Path:
     """Copy the paper onto the cold shelf. Returns where it landed.
 
@@ -103,9 +121,17 @@ def file_paper(root, paper: Path) -> Path:
     """
     dest_dir = Path(root).joinpath(*DEST)
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / paper.name
-    if dest.is_file() and dest.read_bytes() != paper.read_bytes():
-        dest = dest_dir / f"{paper.stem}--published{paper.suffix}"
+    body = paper.read_bytes()
+
+    # Every candidate is tested, not just the first. Guarding one collision
+    # and then trusting `--published` meant the third paper of that name
+    # silently overwrote the second: the fallback was computed but never
+    # re-checked, on the one directory this module's docstring calls the
+    # immutable cold shelf.
+    for name in _candidates(paper):
+        dest = dest_dir / name
+        if not dest.is_file() or dest.read_bytes() == body:
+            break
     shutil.copy2(paper, dest)
     return dest
 
