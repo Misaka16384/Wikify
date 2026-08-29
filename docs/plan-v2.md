@@ -3,7 +3,7 @@
 > 配套 [`design-v2.md`](design-v2.md)（共识）；本文只讲顺序、交付物、验收。
 > 完成一步：勾选此处 + 在 `ROADMAP.md` 当日条目记录。发现与 design-v2 冲突：先改 design-v2 并写明原因，再改代码。
 > 约定：小步 checkpoint；commit 前缀 feat/fix/refactor/chore/docs；子 agent 用便宜模型；重大决策才停下来问人；每个里程碑结束 `tests/` 全绿 + 三宿主冒烟 + 发一个版本（beta 也发）。
-> 起点：v1.16.3，1685 tests passed。**终点：v2.0.0 于 2026-08-29 commit（tag + push 留给作者）**，M0–M7 一天之内从 M4 走完，测试 2378+（最终数见 ROADMAP 头部）。
+> 起点：v1.16.3，1685 tests passed。**终点：v2.0.0 于 2026-08-29 commit（tag + push 留给作者）**，M0–M7 一天之内从 M4 走完，v2.0.0 commit `ac888b9`，**2379 passed / 1 skipped**（裸 runner 2355 / 22，差的是 pandoc 和 bd，CI 里都装了）。
 
 ## 总览与依赖
 
@@ -190,6 +190,7 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [x] guide 全书按 v2 重写（explorer 陈旧性审计八簇，每条带 `src/` file:line 证据，主导模式是任务库从 hub 移到项目后迁移章 / 任务章没跟）；`docs/degradation.md` 增审核 / 无头调用 / transcript 适配行。RELEASING 检查表加两行：README / guide 里每段示例输出都是本次真跑照抄的；凡描述「X 是什么」的句子对一遍 §2 / §14——两类都是 `test_docs_in_sync` 查不到的
 - [x] 三宿主冒烟（Windows，已跑一次真实 `agy -p`）+ **macOS 走 CI**（2026-08-29 作者定，没有 Mac）：新增 `.github/workflows/tests.yml`，`push` / `pull_request` 触发，矩阵 `ubuntu / macos / windows` × 一个 Python 版本跑 `pytest -q`；`release.yml` 保持 ubuntu；RELEASING.md 写明 macOS 只有 CI 绿、未冒烟。**已做**（2026-08-29）：裸 runner 模拟 2355 passed / 22 skipped，翻出 README 打包副本未同步、guide 漏 `magi hook`、guide 三处 v1 残留（含一条已修掉的「已知缺陷」说明）——都修了；`pytest -rs` 让 CI 逐条列出跳过的。CI 装 pandoc（apt / brew / choco 一行，无第三方 action）。**`bd`**：装，钉 tag（`v1.2.2`）并对 release 自带的 `checksums.txt` 做 `sha256sum -c`——这是完整性不是供应链信任（release 被替换则 checksums 一起被替换）；手抄进 workflow 的 hash 是没人会重新推导的 hash，升级时会被删掉了事，所以不用；要信任锚可在此之上加 sigstore 验签或人工核对一次写进仓库。`bd version` 冒烟一步。不 `curl | sh` 最新。`-rs` 把剩余 skip 印在页面上（端到端驱动二进制的用例换桩就是另一个测试）。**`tests.yml` 在首次 push 前未经 Actions 验证**——YAML 结构、asset 名、校验流程、解包布局都对着真实 release 验过，runner 上的 `choco install pandoc`、`$GITHUB_PATH`、Windows bash step 只有第一次 push 会告诉我们
 - [ ] [可选] 第二梯队宿主（qwen / opencode / 用户自加）：只要注册表一条记录 + 可选 reader；不冒烟、fail-soft；做不成就留着记录，不阻塞发布
+- [ ] **两条更强的文档同步测试**（2026-08-29 定：tag 前做，不留 v2.1——guide 审计八簇里六簇是「描述对不对」，`test_docs_in_sync` 只查「提没提」；目录树错了整整一个大版本，而它是新用户第一眼看的）：(1) guide / README 里出现的每个 `magi <cmd>` 必须在 `cli._COMMANDS` 里存在，历史语境里的退役命令（迁移章提到旧 `hub`）进显式 allowlist 并写理由——测试记录例外而不是失败；(2) 文档里「`magi init` 生成什么」那棵树必须等于 `init_workspace` 实际建的顶层集合——把脚手架跑进 tmp 目录取真集合，文档里的树放在带固定首行标记的围栏块里让解析稳定；中英 + 打包副本都验
 
 **验收**：全测试绿（本机 Windows + CI 三平台）；smoke 三宿主（Windows）；README / guide 与 `--help` 无冲突。
 **→ 发 `v2.0.0`。** 2026-08-29：版本号五处改为 2.0.0（`pyproject.toml` / `__init__.py` / 两个 `plugin.json` / `index.html` 徽章），ROADMAP 头部与 M7 条目已写；**做到 commit 为止**——`git tag v2.0.0` + `git push`（含 tag，触发 `release.yml`）是作者的仪式动作，与 `close` / `publish` 同一条原则。push 之前 `tests.yml` 未经 Actions 验证。
