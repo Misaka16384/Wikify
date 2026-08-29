@@ -133,6 +133,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 
 - `<!-- magi:begin -->…<!-- magi:end -->` 由 CLI 拥有、幂等重写；块外用户所有。`CLAUDE.md` 只含 `@AGENTS.md`。project 一块，line 不单独放。
 - 块 ≤ 40 行：入口一行（先跑 `magi next`）、目录含义各一行、五条不变量（不改 `raw/`、一文件一温度、翻状态必跟帖、子 agent 不问人、fan-out 必报数）、强制输出协议（按档位）、guide 指针。**理由不进块**——块每个会话都在付费。
+- **规则区**（2026-08-29 定，见 §12）：块内最后一节，由 CLI 从 `output/reflect/ledger.jsonl` 渲染——ACCEPT 且未 PROMOTE、未退出的规则各一行。它是派生物：块的真相 = 模板 + 账本，LLM 永不写块。行数上限 `research.rule_budget`（config，WebUI 可改；默认 7，使默认总长仍 ≤ 40）；满了 ACCEPT 拒绝，先退一条或 PROMOTE 一条。棘轮测试守模板的 40 行，规则区由 ACCEPT 闸门守。**谁改了账本谁重渲染**（`reflect accept | promote`、退出、`sync`），不等下次 `install`；渲染**从不截断**——预算只拦新的 ACCEPT，已渲染的留着，超预算时 `sync` 报一行。块仍是幂等的：同样的模板 + 账本 → 同样的块，只是输入里多了账本。
 - `magi install --host <claude|codex|gemini|qwen>`：一条幂等命令写 skills + hooks + 托管块；宿主配置用解析-合并-写回并备份，不做文本追加。宿主强制力不对称按文档声明。
 - 宿主自带 auto-memory 视为私有缓存；项目状态只以 MAGI 文件为准，冲突以文件为准（写进块）。
 
@@ -154,10 +155,14 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 
 ## 12. 慢环（`magi reflect`，backpass 式）
 
-- 输入：四宿主本地 transcript + MAGI 结构化 loss（`supported → refuted`、记账债、审核驳回、`next` 同一建议连续被忽略）。
-- 门：同一 gap ≥ 2 个独立会话；每周 ≤ 5 条提案；逐字引用；被拒不再提；90 天未再现过期。
-- 输出进 MAP 决策队列；三按钮 **ACCEPT / REJECT / PROMOTE→CODE**（变成 hook / 门 / 测试并删 prose）。事实类提案路由到 wiki，不进 AGENTS.md。永不改托管块。
-- 自研实现（backpass 只验证过 macOS/Linux 路径），借循环不借代码。
+- 输入：四宿主本地 transcript + MAGI 结构化 loss（`supported → refuted`、记账债、审核驳回、`next` 同一建议连续被忽略）**+ 结构化 win**（命题一次过审）。每次运行抽样 ≤ 8 个会话（≤ 5 带 loss、≤ 3 带 win），每份 transcript 截 15k 字符。（2026-08-29 补：只喂 loss 的慢环只会长出禁令；skill 方法步骤的改进只能来自成功会话。数字抄 WikiSkill，不行再改。）
+- **两段，中间落盘**（2026-08-29 对照 WikiSkill 后改）：transcript → `output/reflect/patterns/*.md`（一模式一页：现象、根因、逐字引用、出现的会话与宿主）→ 提案。不是「派生不存储」的例外：transcript 是宿主私有缓存（§9），不在项目里、会轮转、四种格式，从它算出的东西不可重算，是真相不是派生物；「≥ 2 个独立会话」这道门也只有第一次观察有处落脚时才可执行。模式页**只有 reflect 读写**：不进托管块、不进 `next`、不进任何 skill 的读取面——工作 agent 直接读模式库会按模式防御而不按规则行事，慢环就再也分不清硬化的规则有没有起作用（WikiSkill 消融：给工作 agent 开 wiki 反而掉分）。
+- 门：同一 gap ≥ 2 个独立会话；每周 ≤ 5 条提案；**一条提案一个目标**（一行 prose / 一个 hook / 一个测试）；逐字引用；被拒不再提；90 天未再现过期。
+- **提案账本** `output/reflect/ledger.jsonl`（2026-08-29 补）：每条提案的目标、证据（模式页 + 引用）、来源宿主、裁决、日期，**由 CLI 在按钮按下时写**，AI 不写。被拒的留全文——被拒不是过滤条件，是下一条提案的输入。「被拒不再提」「90 天过期」由此从 prose 变成对文件的查询。不进 `decisions.md`（那是研究决定）；与 `output/llm-ledger.jsonl`（§13）是两个文件：一个记提了什么，一个记花了什么。
+- **溯源与退出**（2026-08-29 补）：ACCEPT / PROMOTE 的账本条目指回催生它的模式页；模式 90 天未再现 → 由它产生的规则进决策队列问「还要吗」。没有退出，prose 和 hook 只会累加。
+- **证据分路**（2026-08-29 补）：gap 在 ≥ 2 个宿主出现 → 共享层（块外 prose / 门 / 测试）；只在一个宿主出现 → 该宿主自己的配置（如 Claude 的 hook）。只捕捉某宿主 workaround 的规则不迁移，放进共享层是让另外三个宿主每个会话付费读没用的东西。
+- 输出进 MAP 决策队列；三按钮 **ACCEPT / REJECT / PROMOTE→CODE**，都是人用面（§1.6），CLI 写账本。ACCEPT → 规则一行进账本，下次渲染出现在托管块规则区（§9）；REJECT → 账本留全文；PROMOTE→CODE → 生成 hook / 门 / 测试，账本标 promoted，规则区下次渲染自动消失。事实类提案路由到 wiki。**LLM 永不写托管块**：人是唯一的门，CLI 是唯一的笔；hash 守护的是模板与渲染函数，不是渲染结果。（2026-08-29 定：C 方案。否决块外专属区——多一个 CLI 拥有的区和一条上限规则；否决 skill Rules 节——skill 真相在包里、`magi install` 会覆盖工作区拷贝、8 个 skill 余 0–1 行、而 reflect 的证据是项目级的。）
+- 自研实现（backpass 只验证过 macOS/Linux 路径），借循环不借代码。transcript 适配器读**装了的每个宿主**（2026-08-29 实测：claude / codex / gemini / qwen / opencode，五个宿主四种格式；qwen 是 gemini 的 fork，同一 reader 指向 `~/.qwen`，**未实测**、形状不同就返回空；opencode 是 sqlite 库不是文件），按「读一个会话」抽象不按「读一个路径」；一个宿主读不了记进 sweep 不抛。**读 transcript 不等于是 §9 的安装 / 复核宿主**——opencode 要不要成为完整宿主见 §15。
 
 ## 13. 成本治理
 
@@ -170,7 +175,7 @@ Melchior = 知识（冷 + 温·共享）；Balthasar = 意图（`threads/` + `de
 
 ## 15. 实现时再定（第三梯队）
 
-稳定 ID 细则、bet / decision 记分规则、`construction` kind、线级规则作用域（先全项目级）。已定：词表在 M0 冻结；threads 在知识型查询降权 0.6（M1）；决策队列不写 bd（M2）；`each` 随 hub 一起删掉（M3）——跨库批跑的替代物是 shell 里对 `magi kb list --json` 的路径做循环，不值得为它保留一条命令和一套 hub 语义。
+稳定 ID 细则、bet / decision 记分规则、`construction` kind、线级规则作用域（先全项目级）、**reflect 是否出 skill 方法类提案**（2026-08-29 补：从成功会话提炼的「先 X 再 Y」属于 skill 的 Method 步骤；skill 真相在包里，这类提案是对 MAGI 本身的改动，只能由人在 repo 里应用。要么 reflect 出这类提案并标「包级」，要么不出）、**opencode 是否成为完整宿主**（2026-08-29 补：reflect 已读它的 transcript，但 §9 的 install 和 §11 的 review 清单仍是 claude / codex / gemini / qwen；加一个宿主 = 一个 install 目标 + 一个无头适配器 + 一轮冒烟）。已定：词表在 M0 冻结；threads 在知识型查询降权 0.6（M1）；决策队列不写 bd（M2）；`each` 随 hub 一起删掉（M3）——跨库批跑的替代物是 shell 里对 `magi kb list --json` 的路径做循环，不值得为它保留一条命令和一套 hub 语义；ACCEPT 的规则从账本渲染进托管块规则区、预算单列（2026-08-29，C 方案，见 §9 / §12）。
 
 ## 16. 已否决（不再讨论）
 
@@ -178,4 +183,4 @@ Melchior = 知识（冷 + 温·共享）；Balthasar = 意图（`threads/` + `de
 
 ## 17. 对照过的外部方案
 
-Claude Code auto memory（MEMORY.md 索引上限 → 借"有界索引"）、Codex memories（空闲触发两阶段 → 借"批量后台"）、Qwen Code（`pinned/` + team-memory → 借"人工条目免清理"）、OpenClaw（dreaming 打分门 → 否决）、agentmemory / ai-memory（markdown 为真相源、SQLite 为派生索引 → 与 MAGI 同路线）、backpass（慢环）、A-MEM（note 互链）、MemoryOS（分级晋升）、CoALA（记忆分类学）。
+Claude Code auto memory（MEMORY.md 索引上限 → 借"有界索引"）、Codex memories（空闲触发两阶段 → 借"批量后台"）、Qwen Code（`pinned/` + team-memory → 借"人工条目免清理"）、OpenClaw（dreaming 打分门 → 否决）、agentmemory / ai-memory（markdown 为真相源、SQLite 为派生索引 → 与 MAGI 同路线）、backpass（慢环）、A-MEM（note 互链）、MemoryOS（分级晋升）、CoALA（记忆分类学）、WikiSkill（2026-08-29；trace → 模式 wiki → 一条原子 skill 提案，wiki 不回滚、账本由 harness 写 → 借「慢环中间层 + 程序写的提案账本 + 工作 agent 不读模式库」；它的验证集门控不借，科研没有 ground truth，人是门）。

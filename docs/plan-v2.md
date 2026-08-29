@@ -139,12 +139,14 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 
 ## M5 — WebUI v2（可与 M4 并行）
 
-- [ ] MAP 视图 + 决策队列操作（accept / reject / 翻状态需跟帖）
-- [ ] feed tab；thread 视图（论坛渲染）
-- [ ] 一张图：按 kind / status / 温度着色，按 line / kind / 层过滤，骨架缩放（度数 top-k / `skeleton: true`）
-- [ ] 堆放区文本框（写 `inbox/notes.md`）
-- [ ] 配置：预算、模型分配、coaching 档位、审核宿主
-- [ ] Operations 面板对齐新 plumbing
+- [x] MAP 视图 + 决策队列操作：翻状态和写理由是一件事，所以是一个表单——`set_status` 在一把锁下同时写迁移和跟帖，没有理由的翻状态到不了文件。按钮来自 `vocab.allowed_targets`，只有人能做的那些带 `*`；浏览器里没有第二份转移表
+- [x] feed 与 thread 视图都在 Melchior（`threads/` 就是 v2 的认知状态）。单条视图给**正文**而不是整个 `body`——`body` 是 frontmatter 以下的全部，包括讨论，照着屏幕才看出来它把讨论画了两遍（于是有了 `Note.prose`）
+- [x] `magi graph build` 现在索引 `threads/`：种类是节点类型、状态是 `category`、温层和线作为标签（图本来就能按标签过滤，再造一套是同一个问题的第二个答案）。三种新配色，地图可以只看库 / 只看研究状态 / 缩到骨架（度数 top-k，丢掉断链）
+- [→ 改法] `skeleton: true` 的**钉住**留到 M7：那是给人往图里加一条「这条必须留下」的手段，和「按度数缩」是两件事，M7 的骨架钉住条目本来就在管它
+- [x] 堆放区文本框：原样追加，保留文件自己的换行，不重排已经在里面的东西——一个会把你另外两百行重新排版的框，是一个你不会再用的框。Ctrl/Cmd+Enter 直接提交
+- [x] 配置：`research.coaching` / `wip_limit` / `stall_days` / `review_host` 进白名单，同时写进出厂 `config.yaml` 和 `magi init` 模板——WebUI 能改而配置文件只字不提，就是一个打开文件的人看不出它存在的设置
+- [→ 改法] 预算与模型分配留到 M6：它们要跟 `output/llm-ledger.jsonl` 一起才有意义，一个没有账本的预算数字是一个装饰
+- [x] Operations 拿到一个非危险区的挂载点，`magi install` 和收工检查落在那里——一个可以反复跑的安装被放在要输入操作 ID 确认的红框里，就是没人会重跑的安装。`magi review` 刻意不给按钮：它花真钱，而一个安静花钱的按钮会被点两次
 
 **验收**：API 与 `--json` 契约逐字段一致（沿用现有测试风格）；`tests/test_ui_api.py` 覆盖新端点；JS 只渲染不判断（D4 判据）。
 
@@ -153,11 +155,21 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 ## M6 — 慢环与成本
 
 - [ ] `output/llm-ledger.jsonl` + 周预算门 + 总开关；超预算时 review / reflect 拒绝启动并在 MAP 说明
-- [ ] `magi reflect`：四宿主 transcript 适配器（golden fixture、fail-soft、Windows 路径）；MAGI 结构化 loss；gap 账本；≥ 2 会话；≤ 5 / 周；逐字引用；拒绝记忆；90 天过期
-- [ ] 提案进 MAP / WebUI；三按钮 ACCEPT / REJECT / PROMOTE→CODE（生成 hook / 测试骨架并删 prose）
-- [ ] 事实类提案路由到 wiki；托管块 hash 守护（永不改）
+- [ ] WebUI 配置：预算、模型分配、规则区预算 `research.rule_budget`（前两项从 M5 挪来——没有账本的预算数字是装饰）；三个键同时进 config 白名单 + 出厂 `config.yaml` + `magi init` 模板
+- [ ] `magi reflect` 第一段：五宿主四格式 transcript 适配器（claude / codex / gemini / qwen / opencode，qwen 未实测；golden fixture 手写不拷真实 transcript、fail-soft、Windows 路径）；抽样 ≤ 8 会话（≤ 5 loss / ≤ 3 win，各截 15k）；MAGI 结构化 loss + win → `output/reflect/patterns/*.md`（一模式一页，记会话与宿主；patch 词表 append / replace / insert_after，目标须为精确子串）
+- [ ] `magi reflect` 第二段：读模式页 + 提案账本 → ≤ 5 条提案，一条一个目标；≥ 2 会话、被拒不再提、90 天过期全部是对模式页 + 账本的查询，不是 prose
+- [ ] `output/reflect/ledger.jsonl`：CLI 在三按钮时写（目标、证据、来源宿主、裁决、日期）；被拒留全文；ACCEPT / PROMOTE 指回模式页。与 `llm-ledger.jsonl` 是两个文件。写入面（CLI / HTTP）走校验过的 workspace 解析（`_reading_root`，不是 `_resolve_workspace`），签名字段同 `format_post` 的字符集规则——M5 复核出的两条安全修复在这里同样成立
+- [ ] 提案进 MAP / WebUI；三按钮 ACCEPT / REJECT / PROMOTE→CODE 是人用面（`magi reflect accept|reject|promote`，与 `close` / `publish` 同级）：ACCEPT 写账本，PROMOTE 生成 hook / 测试骨架并标 promoted；队列条目 kind = `proposal`：CLI 侧加进 `state._QUEUE_ACTION`，WebUI 侧 `renderQueue` 加按 kind 的按钮块（渲染本来就按 kind 分发，`next` 的 Action.key 即 item.kind，不用改）
+- [ ] 证据分路：≥ 2 宿主 → 共享层；单宿主 → 该宿主配置
+- [ ] 退出：模式 90 天未再现 → 它产生的规则进队列问去留
+- [ ] 事实类提案路由到 wiki
+- [ ] 托管块 = 模板 + 规则区：`managed.body()` 从 `output/reflect/ledger.jsonl` 渲染 ACCEPT 且未 promoted / 未退出的规则各一行；hash 守护模板与渲染函数，不守护渲染结果；规则区 > `rule_budget` 时由 `reflect accept` 拒绝并说先退哪条，渲染从不截断；`reflect accept | promote`、退出、`sync` 都重渲染，`install --dry-run` 走同一渲染函数；棘轮测试仍只量模板的 40 行
+- [ ] durability：`output/reflect/patterns/` = ORIGINAL（原地改、唯一副本、原子写 + 锁），`output/reflect/ledger.jsonl` 与 `output/llm-ledger.jsonl` = TRANSACTIONAL（后者现在是 unknown）；`.gitignore` 模板不改——它本来就不整体忽略 `output/`——只把这三样加进「刻意不忽略」的注释
+- [ ] 隔离测试：托管块、8 个 skill、`state.candidates()` 产出的 Action.run 里 grep 不到 `output/reflect`——最后那处是唯一会把路径塞进工作 agent 眼睛的地方。派生扫描（`_LINK_DIRS`、`_iter_corpus`、`graph build`）本来就不走 `output/`，不用再加排除。夹具注意 `is_topic_root` 认的是 wiki/ raw/ threads/，只有 `output/reflect` 的目录不是工作区
 
-**验收**：用真实 transcript 跑一轮产出 ≤ 5 条带引用的提案；超预算时拒绝启动；托管块 hash 不变；PROMOTE→CODE 产出的测试可运行。
+**验收**：用真实 transcript 跑一轮产出 ≤ 5 条带引用的提案；模式页跨两次运行存活，第二次才过 ≥ 2 门；被拒的提案第三次运行不再出现且下一条提案能引用它；超预算时拒绝启动；托管块 hash 不变；PROMOTE→CODE 产出的测试可运行。
+**待定**：ACCEPT 后规则类 prose 的落点（design-v2 §15）。
+**来源**：2026-08-29 对照 WikiSkill（arXiv 2608.27454）后改，见 design-v2 §12/§17。
 
 ---
 
