@@ -76,6 +76,7 @@ class Host:
     drops: Tuple[Drop, ...] = ()
     argv: Tuple[str, ...] = ()   # headless template; () -> not callable headless
     model_flag: str = ""         # how a model is named on that command line
+    model: str = ""              # which model to ask for; "" -> the CLI own default
     reader: str = ""             # transcripts adapter; "" -> sessions unreadable
     hook: str = ""               # stop-gate writer; "" -> no hook, prose instead
     note: str = ""
@@ -90,12 +91,17 @@ class Host:
         Empty when the host declares no headless mode. A CLI that has one but
         does not document it does not get guessed at here: a flag inferred
         from a sibling product is a flag that fails at the worst moment.
+
+        With no model asked for, no model flag is passed and the CLI uses
+        whatever it would use interactively. That is the right default: MAGI
+        does not know this account better than the person who configured it.
         """
         if not self.argv:
             return []
         line = [part.format(bin=self.command, prompt=prompt) for part in self.argv]
-        if model and self.model_flag:
-            line += [self.model_flag, model]
+        wanted = model or self.model
+        if wanted and self.model_flag:
+            line += [self.model_flag, wanted]
         return line
 
 
@@ -286,6 +292,7 @@ def host_from(raw) -> Optional[Host]:
                 drops=drops,
                 argv=argv,
                 model_flag=str(raw.get("model_flag") or ""),
+                model=str(raw.get("model") or ""),
                 reader=str(raw.get("reader") or ""),
                 note=str(raw.get("note") or ""))
 

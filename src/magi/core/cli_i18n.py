@@ -14,7 +14,7 @@ from __future__ import annotations
 COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     # 工作区 / 中枢
     ("init",): "初始化课题工作区（raw/ wiki/ inbox/ output/ 目录骨架）",
-    ("sync",): "工作区体检：同步率与三核状态",
+    ("sync",): "工作区现在什么样；--close 结束一次会话",
     ("ui",): "启动本地 MAGI 网页控制台",
     ("guide",): "阅读内置使用指南（分章阅读、--search 全文检索、--symptoms 故障索引）",
     ("skills", "list"): "列出随 magi 一起分发的 agent 技能",

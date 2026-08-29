@@ -22,7 +22,7 @@ from magi import __version__
 _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     # workspace / hub
     ("init",): ("magi.init_workspace", [], "Scaffold a topic workspace (raw/ wiki/ inbox/ output/)"),
-    ("sync",): ("magi.sync", [], "Workspace onboarding: sync ratio + three-core status"),
+    ("sync",): ("magi.sync", [], "Where the workspace stands; --close to end a session"),
     ("ui",): ("magi.ui.server", [], "Launch the local MAGI WebUI dashboard"),
     ("guide",): ("magi.guide", [], "Read the built-in manual (chapters, --search, --symptoms)"),
     ("skills", "list"): ("magi.skills_cmd", ["list"], "List the agent skills bundled with magi"),
@@ -131,7 +131,12 @@ _GROUP_HELP = {
 #: seventy leaf commands listed at once, which is a reference manual printed
 #: where a menu belongs: it made a first-time reader's job harder and told an
 #: agent nothing it could not get from `magi next`.
-PORCELAIN = ("next", "init", "install", "ui", "search", "feed", "guide")
+#:
+#: `sync` is on this list because the managed block tells every session to end
+#: with `magi sync --close`, and on the three hosts with no stop hook that is
+#: the only self-check a person has. A command the protocol requires and the
+#: menu hides is a command somebody has to already know about.
+PORCELAIN = ("next", "sync", "init", "install", "ui", "search", "feed", "guide")
 
 
 def _print_help(everything: bool = False) -> None:

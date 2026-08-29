@@ -48,6 +48,26 @@ def test_the_headless_line_comes_from_the_record():
     assert codex.headless("hello", "o3") == ["codex", "exec", "hello", "-m", "o3"]
 
 
+def test_no_model_asked_for_means_no_model_flag():
+    """MAGI does not know this account better than the person who configured
+    it. With nothing pinned, the CLI uses whatever it uses interactively."""
+    for host in hosts.BUILTIN:
+        if not (host.argv and host.model_flag):
+            continue
+        assert host.model_flag not in host.headless("q"), host.key
+
+
+def test_a_record_can_name_its_own_model():
+    """`research.review_model` is one string and the reviewer host is picked
+    automatically, so a name that is right for one vendor is an "unknown model"
+    error on the next. The record says which host its model belongs to."""
+    config = {"research": {"hosts": [dict(CUSTOM, model="mycli-fast")]}}
+    entry = hosts.catalog(config)["mycli"]
+
+    assert entry.headless("q")[-2:] == ["--model", "mycli-fast"]
+    assert entry.headless("q", "asked-for")[-2:] == ["--model", "asked-for"]
+
+
 def test_a_record_with_no_argv_declares_no_headless_mode():
     """Not "we forgot" — "this is not verified", which is a different claim and
     the reviewer must not paper over it with a guessed flag."""

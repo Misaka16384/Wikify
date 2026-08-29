@@ -222,6 +222,10 @@ def ask(host: str, prompt: str, cwd, model: str | None = None,
     if entry is None:
         raise RuntimeError(f"no headless mode declared for {host!r} "
                            f"(known: {', '.join(host_names())})")
+    # A model the record names beats one named globally: `research.review_model`
+    # is a single string and the reviewer host is picked automatically, so a
+    # name that is right for one vendor is an "unknown model" error on the next
+    # one. `entry.model` says which host it belongs to; nothing else does.
     argv = entry.headless(prompt, model or "")
     # The path `which` found, not the bare name. On Windows `CreateProcess`
     # completes `.exe` and nothing else, so an npm-installed host — `gemini`

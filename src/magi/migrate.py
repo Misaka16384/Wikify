@@ -147,7 +147,14 @@ _LEGACY_CONFIG_DIRS = (".agents", ".claude", ".gemini")
 
 
 def find_legacy_config(topic: Path, hub: Path | None = None) -> Path | None:
-    """The old config.yaml, looked for beside the topic and at the hub."""
+    """The old config.yaml, looked for beside the topic and at the hub.
+
+    The home-directory leg of this search is loose on purpose — Wikify was
+    installed by copying a directory, so its config could be under any of
+    these — and loose is safe only because `carry_legacy_config` carries just
+    the keys this program has. A `config.yaml` under `~/.claude` is far more
+    likely to belong to Claude Code than to Wikify.
+    """
     roots = [topic]
     if hub is not None:
         roots.append(hub)
@@ -220,6 +227,14 @@ def carry_legacy_config(topic: Path, legacy: Path) -> list[str]:
         for key, value in values.items():
             if value is None or value == "" or isinstance(value, (dict, list)):
                 continue
+            # A setting MAGI has is one that appears in the scaffolded config
+            # or in the defaults above. Anything else is a key from some other
+            # program's file — the search looks in `~/.claude` and `~/.gemini`,
+            # which belong to the agent CLIs and not to Wikify, and a section
+            # the new config lacks used to sail straight through the guard
+            # below on `current is None`.
+            if not _is_ours(section, key, new, defaults):
+                continue
             current = (new.get(section) or {}).get(key)
             if current == value:
                 continue
@@ -232,6 +247,20 @@ def carry_legacy_config(topic: Path, legacy: Path) -> list[str]:
                 continue
             carried.append(f"{section}.{key}")
     return carried
+
+
+def _is_ours(section: str, key: str, new: dict, defaults: dict) -> bool:
+    """Is `section.key` a setting this program actually has?
+
+    Either the freshly scaffolded config has a slot for it, or it is one of
+    the few that are deliberately absent from the scaffold — `mineru_api_token`
+    above all, which is left out rather than written empty so that an empty
+    string here cannot shadow a token set once in the user-level config.
+    """
+    here = new.get(section)
+    if isinstance(here, dict) and key in here:
+        return True
+    return key in defaults.get(section, {})
 
 
 def retire_theses(root: Path) -> tuple[int, list[str]]:
@@ -363,8 +392,14 @@ def _migrate_topic(root: Path, hub: Path | None = None) -> int:
     from magi.init_workspace import main as init_main
 
     rc = init_main(["--topic-dir", str(root), "--name", name, "--scope", scope])
-    if rc not in (0, None):
-        print("warning: scaffolding step reported an error; continuing", file=sys.stderr)
+    scaffolded = rc in (0, None)
+    if not scaffolded:
+        # Everything below this point writes into a workspace that was supposed
+        # to exist by now. Say so once here, and again in the return code —
+        # which used to be 0 no matter what happened, so a hub whose six topics
+        # all failed still printed "6/6 topics migrated".
+        print("ERROR: scaffolding failed; this workspace is not migrated",
+              file=sys.stderr)
 
     for stale in _stale_skill_dirs(root, hub):
         print(f"  WARNING: legacy Wikify skills still at {stale}", file=sys.stderr)
@@ -400,13 +435,24 @@ def _migrate_topic(root: Path, hub: Path | None = None) -> int:
         else:
             print(f"  config: nothing to carry from {legacy_cfg}")
 
+    derived_failed = []
     for step in (["graph", "build", str(root)], ["wiki", "reindex", str(root)]):
         proc = subprocess.run([sys.executable, "-m", "magi", *step],
                               capture_output=True, text=True, encoding="utf-8", errors="replace")
         status = "ok" if proc.returncode == 0 else f"FAILED ({proc.stderr.strip()[-200:]})"
         print(f"  magi {' '.join(step[:2])}: {status}")
+        if proc.returncode != 0:
+            derived_failed.append(" ".join(step[:2]))
 
-    return 0
+    # A failed graph or index is not a failed migration: both are derived from
+    # files that are now in place, and `magi sync --fix` rebuilds them. Saying
+    # which one to re-run is more useful than a non-zero exit that stops a hub
+    # loop over the topics that would have worked.
+    if derived_failed:
+        print(f"  note: {', '.join(derived_failed)} can be rebuilt later — "
+              f"run 'magi sync --fix' in {root}")
+
+    return 0 if scaffolded else 1
 
 
 if __name__ == "__main__":

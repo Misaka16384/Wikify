@@ -172,9 +172,25 @@ def install_protocol(root: Path, coaching: str | None = None,
         write_coaching(root, asked)
     agents = root / "AGENTS.md"
     if dry_run:
+        from .migrate import POINTER
+
         current = managed.read(agents.read_text(encoding="utf-8")) if agents.is_file() else None
-        return ("AGENTS.md: block is current" if current == body.strip()
-                else "AGENTS.md: would rewrite the managed block")
+        parts = []
+        if current != body.strip():
+            parts.append("would rewrite the managed block in AGENTS.md")
+        # The real run also collapses `CLAUDE.md` to a pointer, keeping a copy
+        # of anything a person wrote there. A dry run that only looked at the
+        # block announced "block is current" and then the real run moved that
+        # file — a dry run writes nothing, but it still has to predict what a
+        # real one does.
+        pointer = root / "CLAUDE.md"
+        held = pointer.read_text(encoding="utf-8", errors="replace") \
+            if pointer.is_file() else ""
+        if held.strip() != POINTER.strip():
+            parts.append("would point CLAUDE.md at AGENTS.md"
+                         + (" (keeping a copy of what is in it)" if held.strip() else ""))
+        return "AGENTS.md: " + ("; ".join(parts) if parts
+                                else "block is current, CLAUDE.md already a pointer")
 
     changed = managed.write(agents, body)
 
@@ -239,6 +255,7 @@ def main(argv=None) -> int:
         return 1
 
     failed = False
+    skills_payload = None
     report = [install_protocol(root, args.coaching, args.dry_run)]
 
     if not args.no_skills:
@@ -250,10 +267,30 @@ def main(argv=None) -> int:
             skills_argv += ["--host", host]
         if args.dry_run:
             skills_argv.append("--dry-run")
+        # Under `--json` the skills step gets `--json` too, and its output is
+        # captured rather than printed. It used to write its human-readable
+        # report to stdout ahead of the JSON object, so `magi install --json`
+        # was not parseable JSON at all — which is the one failure a `--json`
+        # flag exists to make impossible.
+        if args.json:
+            import contextlib
+            import io
+
+            skills_argv.append("--json")
+            said = io.StringIO()
+            with contextlib.redirect_stdout(said):
+                rc = skills_cmd.main(skills_argv)
+            raw = said.getvalue().strip()
+            try:
+                skills_payload = json.loads(raw) if raw else {}
+            except json.JSONDecodeError:
+                skills_payload = {"output": raw}
+        else:
+            rc = skills_cmd.main(skills_argv)
         # The exit code matters: skills failing to install while the protocol
         # block succeeded is a half-installed workspace, and reporting 0 for it
         # is how somebody finds out weeks later.
-        if skills_cmd.main(skills_argv) != 0:
+        if rc != 0:
             report.append("skills: not installed — see the lines above")
             failed = True
 
@@ -261,8 +298,11 @@ def main(argv=None) -> int:
         report.append(install_hook(root, host, args.dry_run))
 
     if args.json:
-        print(json.dumps({"workspace": str(root), "hosts": hosts, "report": report,
-                          "ok": not failed}, ensure_ascii=False, indent=2))
+        payload = {"workspace": str(root), "hosts": hosts, "report": report,
+                   "ok": not failed}
+        if skills_payload is not None:
+            payload["skills"] = skills_payload
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         for line in report:
             print(f"  {line}")
