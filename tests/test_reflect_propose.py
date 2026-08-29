@@ -32,7 +32,7 @@ TODAY = dt.date(2026, 8, 29)
 def installed(monkeypatch):
     from magi import review
 
-    monkeypatch.setattr(review, "installed_hosts", lambda: ["claude", "codex"])
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["claude", "codex"])
 
 
 @pytest.fixture

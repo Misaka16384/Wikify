@@ -281,11 +281,17 @@ def main(argv=None) -> int:
     # written into `.claude/skills`.
     from . import skills_cmd as _skills
 
+    # The workspace's own config, so a CLI declared under `research.hosts` is
+    # installed into like any built-in. `_skills.HOSTS` is a snapshot taken at
+    # import and can only ever hold the five that ship.
+    from .core.config_loader import load_config
+
+    host_config = load_config(start=root)
     hosts = [_skills.resolve_host(name) for name in args.host] or \
-        [host.key for host in _skills.detected_hosts()]
+        [host.key for host in _skills.detected_hosts(host_config)]
     if not hosts:
         print("no agent CLI detected — pass --host to install anyway "
-              f"({', '.join(sorted(_skills.HOSTS))})", file=sys.stderr)
+              f"({', '.join(sorted(_skills.catalog(host_config)))})", file=sys.stderr)
         return 1
 
     failed = False

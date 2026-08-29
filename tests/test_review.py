@@ -31,7 +31,7 @@ def installed(monkeypatch):
     Individual tests still override this where the point *is* what happens
     when a host is missing.
     """
-    monkeypatch.setattr(review, "installed_hosts", lambda: ["claude", "codex"])
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["claude", "codex"])
 
 
 @pytest.fixture
@@ -394,7 +394,7 @@ def test_a_slug_with_a_separator_in_it_is_refused(ws):
 
 def test_asking_for_a_host_that_is_not_installed_reviews_nothing(ws, monkeypatch, capsys):
     solved(ws)
-    monkeypatch.setattr(review, "installed_hosts", lambda: ["claude"])
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["claude"])
     called = []
     monkeypatch.setattr(review, "ask", lambda *a, **k: called.append(1) or "")
 
@@ -408,7 +408,7 @@ def test_asking_for_a_host_that_is_not_installed_reviews_nothing(ws, monkeypatch
 def test_a_run_where_nothing_could_be_asked_is_a_failure(ws, monkeypatch):
     """Exiting 0 there is how a broken install looks like a reviewed library."""
     solved(ws)
-    monkeypatch.setattr(review, "installed_hosts", lambda: ["codex"])
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
     monkeypatch.setattr(review, "ask", failing(RuntimeError("codex exited 127")))
     assert review.main(["--topic-dir", str(ws), "--host", "codex"]) == 1
 
@@ -475,7 +475,7 @@ def test_over_budget_nothing_is_called(ws, monkeypatch):
     for index in range(2):
         ledger.record(ws, ledger.REVIEW, "codex", slug=f"old-{index}")
     called = []
-    monkeypatch.setattr(review, "installed_hosts", lambda: ["codex"])
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
     monkeypatch.setattr(review, "ask", lambda *a, **k: called.append(1) or "")
 
     code = review.main(["--topic-dir", str(ws), "--host", "codex"])
@@ -488,7 +488,7 @@ def test_the_master_switch_stops_it_too(ws, monkeypatch, capsys):
     solved(ws)
     (ws / "config.yaml").write_text("research:\n  llm_calls: false\n", encoding="utf-8")
     called = []
-    monkeypatch.setattr(review, "installed_hosts", lambda: ["codex"])
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
     monkeypatch.setattr(review, "ask", lambda *a, **k: called.append(1) or "")
 
     assert review.main(["--topic-dir", str(ws), "--host", "codex"]) == 1
@@ -502,7 +502,7 @@ def test_a_dry_run_says_what_is_left(ws, monkeypatch, capsys):
     import json as json_mod
 
     solved(ws)
-    monkeypatch.setattr(review, "installed_hosts", lambda: ["codex"])
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
 
     review.main(["--topic-dir", str(ws), "--host", "codex", "--dry-run", "--json"])
     payload = json_mod.loads(capsys.readouterr().out)
@@ -523,7 +523,7 @@ def test_a_batch_stops_at_the_budget_instead_of_running_past_it(ws, monkeypatch)
     (ws / "config.yaml").write_text("research:\n  weekly_calls: 3\n", encoding="utf-8")
     ledger.record(ws, ledger.REVIEW, "codex", slug="last-week")
     called = []
-    monkeypatch.setattr(review, "installed_hosts", lambda: ["codex"])
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
     monkeypatch.setattr(review, "ask", lambda *a, **k: called.append(1) or
                         "VERDICT: stands\nREASON: fine.")
 
@@ -549,7 +549,7 @@ def test_running_out_says_so_once_and_not_once_per_claim(ws, monkeypatch):
     """
     for index in range(4):
         solved(ws, f"p-{index}")
-    monkeypatch.setattr(review, "installed_hosts", lambda: ["codex"])
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
     monkeypatch.setattr(review, "ask", lambda *a, **k: "VERDICT: stands\nREASON: fine.")
 
     results = review.review_batch(ws, [f"p-{i}" for i in range(4)], host="codex",
@@ -568,7 +568,7 @@ def test_it_says_which_ones_it_did_not_get_to(ws, monkeypatch, capsys):
     for index in range(3):
         solved(ws, f"p-{index}")
     (ws / "config.yaml").write_text("research:\n  weekly_calls: 1\n", encoding="utf-8")
-    monkeypatch.setattr(review, "installed_hosts", lambda: ["codex"])
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
     monkeypatch.setattr(review, "ask", lambda *a, **k: "VERDICT: stands\nREASON: fine.")
 
     code = review.main(["--topic-dir", str(ws), "--host", "codex"])

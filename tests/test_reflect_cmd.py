@@ -43,7 +43,7 @@ def installed(monkeypatch):
     """What is on PATH is a fact about this machine, not about the code."""
     from magi import review
 
-    monkeypatch.setattr(review, "installed_hosts", lambda: ["claude", "codex"])
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["claude", "codex"])
 
 
 @pytest.fixture

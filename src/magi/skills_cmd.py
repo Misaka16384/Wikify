@@ -495,8 +495,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                            ("uninstall", "Remove MAGI's skills from a host's skills directory.")):
         p = sub.add_parser(name, help=helptext)
         p.add_argument("--host", action="append", default=None,
-                       help=f"Which agent CLI ({', '.join(HOSTS)}). Repeatable. Omit and you "
-                            f"are asked; 'auto' = every detected CLI, 'all' = every known one.")
+                       help=f"Which agent CLI ({', '.join(HOSTS)}, or any declared under "
+                            f"research.hosts). Repeatable. Omit and you are asked; "
+                            f"'auto' = every detected CLI, 'all' = every known one.")
         p.add_argument("--scope", choices=["project", "global"], default="project",
                        help="project (default): into the MAGI workspace you are in. "
                             "global: every project on this machine — rarely what you want, "
@@ -518,12 +519,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     cmd = args.cmd or "where"
 
     # A host somebody declared in `research.hosts` is a host. Read from the
-    # workspace we are standing in, and never fatal: a config that will not
-    # parse costs you your own host records, not the built-in ones.
+    # workspace being installed *into* — `--project-root` when there is one,
+    # and only then the cwd. Anchoring on the cwd meant `magi install`, which
+    # passes `--project-root` and can be run from anywhere, resolved host names
+    # against some other workspace's config or none at all, and then rejected
+    # the host it had itself detected two lines earlier. Never fatal: a config
+    # that will not parse costs you your own host records, not the built-in
+    # ones.
     try:
         from .core.config_loader import load_config
 
-        config = load_config(start=str(workspace_anchor()))
+        here = getattr(args, "project_root", None)
+        config = load_config(start=str(workspace_anchor(Path(here) if here else None)))
     except Exception:
         config = {}
 

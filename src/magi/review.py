@@ -160,7 +160,8 @@ def installed_hosts(config=None) -> list:
             if shutil.which(table[name].command)]
 
 
-def pick_host(author: str | None, installed=None, configured: str | None = None) -> str | None:
+def pick_host(author: str | None, installed=None, configured: str | None = None,
+              config=None) -> str | None:
     """Which CLI reviews a claim written by `author`.
 
     Cross-vendor first: the point is a reader that does not share the writer's
@@ -169,7 +170,7 @@ def pick_host(author: str | None, installed=None, configured: str | None = None)
     the conversation is not nothing — but it is second choice, and the verdict
     says which one it was so a reader can weigh it.
     """
-    available = installed if installed is not None else installed_hosts()
+    available = installed if installed is not None else installed_hosts(config)
     if configured:
         return configured if configured in available else None
     others = [name for name in available if name != author]
@@ -246,6 +247,11 @@ def plan(host: str, model=None, effort=None, settings: "Settings | None" = None,
     configured nothing got whichever model that CLI charges most for, which is
     exactly what design-v2 §11 says not to do.
     """
+    # The settings carry the config when the caller did not name one, which
+    # is every caller: `plan` is reached from `ask`, `review` and `main`, and
+    # all three have settings and none of them had a config to pass.
+    if config is None and settings is not None:
+        config = settings.config
     entry = catalog(config).get(host)
     if entry is None:
         raise RuntimeError(f"no headless mode declared for {host!r} "
@@ -286,10 +292,11 @@ def review(root, slug: str, author: str | None = None, host: str | None = None,
     budget that only counts successes is a budget a broken adapter can walk
     straight through.
     """
-    chosen = host or pick_host(author)
+    config = settings.config if settings else None
+    chosen = host or pick_host(author, config=config)
     if chosen is None:
         raise RuntimeError("no reviewer CLI on PATH "
-                           f"(looked for {', '.join(host_names())})")
+                           f"(looked for {', '.join(host_names(config))})")
     # Here, not in the caller. `ledger.check` calls itself "one call at the top
     # of anything that spends", and the batch path spent once per slug behind a
     # single check: a workspace 39 calls into a limit of 40 could run sixty
@@ -494,12 +501,20 @@ def pending(root) -> list:
 
 @dataclass
 class Settings:
-    """What the workspace says about reviewing, in one object."""
+    """What the workspace says about reviewing, in one object.
+
+    `config` is the loaded file itself, kept because the host table is part of
+    what the workspace says: `research.hosts` declares CLIs beyond the built-in
+    five, and every function that reads it takes a `config` argument that
+    nothing was passing. Carrying it here means one load per command and one
+    place that can forget it, instead of six call sites that each could.
+    """
     limit: int = ledger.DEFAULT_WEEKLY
     enabled: bool = True
     host: str | None = None
     model: str | None = None
     effort: str | None = None
+    config: dict | None = None
 
 
 def _config(root) -> Settings:
@@ -519,7 +534,8 @@ def _config(root) -> Settings:
         enabled=bool(config_get(config, "research.llm_calls", True)),
         host=(config_get(config, "research.review_host", "") or None),
         model=(config_get(config, "research.review_model", "") or None),
-        effort=(config_get(config, "research.review_effort", "") or None))
+        effort=(config_get(config, "research.review_effort", "") or None),
+        config=config)
 
 
 def main(argv=None) -> int:
@@ -529,7 +545,12 @@ def main(argv=None) -> int:
     parser.add_argument("slug", nargs="*",
                         help="Propositions to review (default: everything unreviewed)")
     parser.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
-    parser.add_argument("--host", choices=host_names(),
+    # No `choices=` on purpose. The table depends on `research.hosts`, and the
+    # workspace it comes from is not known until `--topic-dir` has been parsed
+    # — so `choices=` could only ever list the built-in five, and rejected the
+    # host a person had declared themselves before anything read their config.
+    # Checked below instead, where the message can name their host.
+    parser.add_argument("--host",
                         help="Reviewer CLI (default: any installed one that is not --author)")
     parser.add_argument("--author", help="The CLI that wrote the claim; the reviewer avoids it")
     parser.add_argument("--model", help="Pin the reviewer's model (default: this host's "
@@ -550,6 +571,13 @@ def main(argv=None) -> int:
     settings = _config(root)
     limit, enabled = settings.limit, settings.enabled
     # A flag beats the file, and the file beats the probe.
+    known = host_names(settings.config)
+    if args.host and args.host not in known:
+        print(f"unknown host {args.host!r} — known: {', '.join(known)}. "
+              f"Declare another under `research.hosts` in config.yaml.",
+              file=sys.stderr)
+        return 1
+
     wanted_host = args.host or settings.host
 
     slugs = args.slug or pending(root)
@@ -560,10 +588,10 @@ def main(argv=None) -> int:
     # `--host` names a preference, not a fact. Sending it through `pick_host`
     # is what makes "you asked for codex and there is no codex" say so instead
     # of failing once per claim and calling each one reviewed.
-    chosen = pick_host(args.author, configured=wanted_host)
+    chosen = pick_host(args.author, configured=wanted_host, config=settings.config)
     if chosen is None:
         named = f"'{wanted_host}' is not installed" if wanted_host else \
-            f"no reviewer CLI on PATH (looked for {', '.join(host_names())})"
+            f"no reviewer CLI on PATH (looked for {', '.join(known)})"
         print(f"{named}. The claim stays unreviewed rather than self-approved.",
               file=sys.stderr)
         return 1

@@ -196,3 +196,134 @@ def test_a_drop_naming_no_directory_is_dropped():
     record = dict(CUSTOM, drops=[{"kind": "skill"}, {"kind": "nonsense",
                                                      "global_dir": "{home}/x"}])
     assert hosts.host_from(record).drops == ()
+
+
+# --------------------------------------------------------------------------
+# and the commands that are supposed to read it
+# --------------------------------------------------------------------------
+
+#: A record whose binary really is on PATH, so `installed_hosts` finds it
+#: without a stub. `argv` never runs — `ask` is replaced — but it has to be
+#: there or the host declares no headless mode.
+RUNNABLE = {
+    "key": "mycli",
+    "bin": "python",
+    "argv": ["{bin}", "-c", "print({prompt!r})"],
+    "model_flag": "--model",
+    "model": "big-one",
+}
+
+
+@pytest.fixture
+def declared(tmp_path):
+    """A workspace with one proposition waiting and one host declared."""
+    import yaml
+
+    from magi.core import vocab as _vocab
+    from magi.kb import threads as _threads
+
+    (tmp_path / "threads").mkdir()
+    path = _threads.create(tmp_path / "threads" / "p-gap.md", _vocab.PROPOSITION,
+                           "The gap survives", "Decide before a month of numerics.")
+    _threads.set_status(path, "testing", "started", host="claude")
+    _threads.set_status(path, "supported", "converged", host="claude")
+    (tmp_path / "config.yaml").write_text(
+        yaml.safe_dump({"research": {"hosts": [RUNNABLE],
+                                     "review_host": "mycli"}}), encoding="utf-8")
+    return tmp_path
+
+
+def test_magi_review_accepts_a_host_the_config_declares(declared, monkeypatch):
+    """`--host` had `choices=host_names()`, built when the parser was built —
+    before `--topic-dir` was parsed, so it could only ever list the built-in
+    five. A person who wrote the documented record and named it was told by
+    argparse that there is no such host."""
+    seen = []
+    monkeypatch.setattr(review, "ask",
+                        lambda host, *a, **k: seen.append(host) or
+                        "VERDICT: stands\nREASON: it holds.")
+
+    code = review.main(["--topic-dir", str(declared), "--host", "mycli"])
+
+    assert code == 0
+    assert seen == ["mycli"]
+
+
+def test_research_review_host_can_name_one_too(declared, monkeypatch):
+    """The other way in, and the one a person configures once instead of
+    typing every time."""
+    seen = []
+    monkeypatch.setattr(review, "ask",
+                        lambda host, *a, **k: seen.append(host) or
+                        "VERDICT: stands\nREASON: it holds.")
+
+    assert review.main(["--topic-dir", str(declared)]) == 0
+    assert seen == ["mycli"]
+
+
+def test_the_declared_record_decides_the_model(declared, monkeypatch):
+    """The whole point of `model:` on the record: one `review_model` string
+    cannot be right for two vendors, so the model belongs to the host."""
+    seen = {}
+    monkeypatch.setattr(review, "ask",
+                        lambda host, prompt, cwd, model=None, **k:
+                        seen.update(model=model) or "VERDICT: stands\nREASON: ok.")
+
+    review.main(["--topic-dir", str(declared), "--host", "mycli"])
+
+    assert seen["model"] == "big-one"
+
+
+def test_an_undeclared_host_is_still_refused_and_says_where_to_declare_one(
+        declared, monkeypatch, capsys):
+    """Dropping `choices=` must not drop the check. It moves to where the
+    config is loaded, which is also where the message can be useful."""
+    monkeypatch.setattr(review, "ask", lambda *a, **k: "VERDICT: stands\nREASON: ok.")
+
+    code = review.main(["--topic-dir", str(declared), "--host", "nosuchcli"])
+
+    err = capsys.readouterr().err
+    assert code == 1
+    assert "nosuchcli" in err and "mycli" in err
+    assert "research.hosts" in err
+
+
+def test_magi_install_installs_into_a_declared_host(tmp_path, monkeypatch):
+    """`skills_cmd.HOSTS` is a snapshot taken at import: five records, forever.
+    `magi install` read it to decide what was on the machine."""
+    import yaml
+
+    from magi import skills_cmd as _skills
+
+    # `threads/` is what makes this a workspace; without it `load_config`
+    # walks past the directory and the record is never read.
+    (tmp_path / "threads").mkdir()
+    (tmp_path / "config.yaml").write_text(
+        yaml.safe_dump({"research": {"hosts": [RUNNABLE]}}), encoding="utf-8")
+    from magi.core.config_loader import load_config
+
+    config = load_config(start=tmp_path)
+
+    assert "mycli" in [host.key for host in _skills.detected_hosts(config)], (
+        "python is on PATH, so a record naming it is a detected host")
+    assert "mycli" not in [host.key for host in _skills.detected_hosts()], (
+        "and it is only detected because the config was passed")
+
+
+def test_and_magi_install_is_the_one_that_has_to_pass_it(tmp_path, capsys):
+    """The assertion above proves the helper works when handed a config, which
+    was never in doubt — `install_cmd` called it without one. Testing the
+    helper and calling that coverage is how the first version of this test
+    stayed green with the bug put back."""
+    import yaml
+
+    from magi import install_cmd
+
+    (tmp_path / "threads").mkdir()
+    (tmp_path / "AGENTS.md").write_text("# House rules\n", encoding="utf-8")
+    (tmp_path / "config.yaml").write_text(
+        yaml.safe_dump({"research": {"hosts": [RUNNABLE]}}), encoding="utf-8")
+
+    install_cmd.main(["--topic-dir", str(tmp_path), "--dry-run"])
+
+    assert "mycli" in capsys.readouterr().out
