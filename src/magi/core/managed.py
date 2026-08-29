@@ -129,3 +129,65 @@ def write(path, body: str) -> bool:
         return False
     atomic_write(path, updated, newline=file_newline(path))
     return True
+
+
+# ---------------------------------------------------------------- the body
+
+
+#: What the human is asked for, per coaching level. The block is read at the
+#: start of every session on every host, so this is the one place the protocol
+#: is stated — a skill repeating it is a skill charging for it again.
+_COACHING = {
+    "off": "",
+    "light": ("When a proposition opens or closes, ask the human for a one-line prediction "
+              "and transcribe it (`bet:` or `decisions.md`). \"Don't know\" is an answer."),
+    "strict": ("Ask the human for a prediction before a derivation starts, and do not start "
+               "without one. Transcribe it (`bet:` or `decisions.md`). \"Don't know\" is an "
+               "answer; silence is not."),
+}
+
+_BODY = """# MAGI workspace: {name}
+
+Scope: {scope}
+
+Run `magi next` first — it reads the notes and says what to do, and never acts.
+`magi --help` is the command surface; `magi guide --search "<error>"` is the manual.
+
+## Where things live
+- `raw/` — sources. Immutable: re-ingest, never edit.
+- `wiki/references/` — compiled from `raw/`. Rebuild, never hand-edit.
+- `wiki/concepts/`, `wiki/topics/` — shared knowledge. Edit freely.
+- `drafts/` — the working out. `threads/` — propositions, questions, lines.
+- `inbox/notes.md` — anything, unsorted. `decisions.md` — what a person decided.
+- `output/` — derived. Safe to delete and rebuild; never the source of anything.
+
+## Invariants
+1. Evidence points at `raw/`, never at a card compiled from it.
+2. One file, one temperature — a conjecture inside a concept card is a
+   proposition; open one and leave a wikilink.
+3. A status flip carries a post: `magi thread status`, never an editor.
+4. A sub-agent never asks the human. Return one line instead:
+   `NEEDS-DECISION: <question> | options: <a> / <b> | default if unanswered: <x>`
+   Whoever spawned it asks once, for all of them. In a scheduled run or a
+   piped run there is nobody: do not guess and do not wait — stop and say
+   what you would have asked.
+5. Before a fan-out, say what it costs: "34 pages, so about 34 sub-agent calls".
+
+## Before you stop
+`magi sync --close` — it refuses while something happened that nobody wrote down.
+{coaching_section}
+Never answer a research question from memory: retrieve, then cite `[[wikilinks]]`.
+"""
+
+
+def body(name: str, scope: str, coaching: str = "light") -> str:
+    """The managed block's contents. Nothing in here explains itself.
+
+    Every line is read at the start of every session on every host, so the
+    reasons live in `docs/design-v2.md` and the guide, and this says only what
+    to do. Forty lines is the budget (`tests/test_v2_ratchets.py`); the way to
+    add something is to take something out.
+    """
+    prompt = _COACHING.get(coaching, _COACHING["light"])
+    section = f"\n## When the human is here\n{prompt}\n" if prompt else ""
+    return _BODY.format(name=name, scope=scope, coaching_section=section)

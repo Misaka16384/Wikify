@@ -1,4 +1,0 @@
-# Topics
-
-| Article | Summary | Tags |
-|---------|---------|------|

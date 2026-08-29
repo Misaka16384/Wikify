@@ -280,7 +280,11 @@ def _research_status(topic: Path | None):
 
     notes = len(projection.notes)
     if not notes:
-        return {"lines": 0, "open_propositions": 0, "waiting": 0, "debt": 0, "score": 0.0}
+        # A scaffolded but empty `threads/` has nothing to be legible about.
+        # Scoring it zero would call a fresh workspace unhealthy for having
+        # asked no questions yet; the beads-derived score is the honest
+        # fallback until there is research state to measure.
+        return None
 
     debt = len(projection.debt)
     return {
@@ -338,7 +342,7 @@ def build_report(cwd: Path | None = None) -> dict:
             # it is bookkeeping, and it comes second.
             _hint("compile-pending",
                   f"{m['backlog']} source(s) in raw/ are not compiled yet — run the "
-                  "wiki_compile skill to turn them into reference cards",
+                  "compile skill to turn them into reference cards",
                   backlog=m["backlog"])
             # Only worth saying when the task store is something this machine
             # actually uses. With tasks switched off this told people to run
@@ -350,7 +354,7 @@ def build_report(cwd: Path | None = None) -> dict:
                       backlog=m["backlog"])
         if m["concepts"] == 0 and m["references"] == 0 and m["backlog"] == 0:
             _hint("ingest-start",
-                  "drop sources in inbox/ and run the wiki_ingest skill to start building the library")
+                  "drop sources in inbox/ and run the ingest skill to start building the library")
         if m.get("claims") and m["claims_verified"] < m["claims"]:
             n_unv = m["claims"] - m["claims_verified"]
             _hint("claims-unverified",
@@ -529,13 +533,19 @@ def _close(args) -> int:
     if root is None:
         message = "no workspace found (run inside a topic)"
         if args.hook:
+            # Nothing to gate, so nothing to say: a stop hook that reports an
+            # error for being run outside a workspace blocks every session
+            # started anywhere else.
             print(json.dumps({}, ensure_ascii=False))
             return 0
+        if args.json:
+            print(json.dumps({"ok": False, "error": message}, ensure_ascii=False))
+            return 1
         print(message, file=sys.stderr)
         return 1
 
-    report = state_mod.close(
-        root, window_hours=args.window or state_mod.CLOSE_WINDOW_HOURS)
+    window = args.window if args.window is not None else state_mod.CLOSE_WINDOW_HOURS
+    report = state_mod.close(root, window_hours=window)
 
     if args.hook:
         print(json.dumps(state_mod.hook_payload(report), ensure_ascii=False))

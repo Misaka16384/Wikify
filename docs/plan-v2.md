@@ -81,17 +81,19 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 
 **目标**：人上手 = 2 条命令；AI 入口 = 托管块 + `next`。
 
-- [ ] porcelain / plumbing 分离（`--help` / `--help --all`）；`--help` 文案按 AI 读者写
+- [x] porcelain / plumbing 分离：`magi --help` 只列 7 条（next / init / install / ui / search / feed / guide），**13 行**；`--help --all` 仍列全部 71 条。隐藏不是删除，有测试守着
 - [ ] 合并落地：`sync --fix` 吸收 graph build / index / wiki reindex / lint --fix / ingest finalize / pm backlog-sync；`ingest` → auto / review / url（rung 变 `--via`）；`lint` 吸收 verify / claims verify / validate / math check；`install` 吸收 setup / skills *；`radar` → radar / radar schedule
-- [ ] 20 → 8 skills，每个 ≤ 40 行；样板移入托管块；删除纯包装 skill
-- [ ] `research` 吸收 `audit`；产物统一（threads 命题 + `wiki/topics` synthesis）；`validate` 单 schema
-- [ ] 托管块内容与幂等重写（`<!-- magi:begin/end -->`）；`CLAUDE.md = @AGENTS.md`
-- [ ] `magi install --host claude|codex|gemini|qwen`：skills + hooks（Stop / PreToolUse 计数 / SessionStart）+ 托管块；宿主配置解析-合并-写回并备份
+- [x] 20 → 8 skills（`magi` / `ingest` / `compile` / `tidy` / `ask` / `research` / `draft` / `radar_review`），每个 ≤ 40 行；样板（工具能力、谁能问人、无人值守）移入托管块；纯包装的七个删掉（建库、修复、建图、连边、查手册本来就是一条确定性命令）。顺带删掉 `wiki_lint` 带的 700 个 fixture 文件——没有任何测试在跑它们
+- [x] `research` 吸收 `audit`：找茬只是换一套子 agent 提示词，产物统一为 threads 命题 + 至多一篇 `wiki/topics` synthesis
+- [ ] `validate` 收成单 schema（跟命令面合并一起做）
+- [x] 托管块内容（`core/managed.py` 的 `body()`，33 行 / 预算 40）：入口一行、目录含义各一行、五条不变量、收工一行、强制输出按档位、手册指针。理由一律不进块——块每个会话都在付费。幂等重写与 `CLAUDE.md = @AGENTS.md` 在 M1 已落地
+- [x] `magi install [--host …]`：skills + 托管块 + Claude Code 的 Stop hook（跑 `magi sync --close --hook`）。settings.json 解析-合并-写回并备份，认自己的那条 hook 靠命令字符串所以重装是更新不是追加；别人写的 Stop hook 原样保留。**宿主强制力不对称照实说**：只有 Claude Code 有文档化的 Stop hook，其余宿主同一条规则只以托管块指令存在
+- [ ] PreToolUse 计数 / SessionStart hook（成本治理那半在 M6 一起做）
 - [ ] **hub 退场**（从 M1 挪来）：删 `hub *` / `each`；`hub/init_workspace.py` 移出 `hub/` 包；sync / ui / llmwiki 的 hub 分支清掉；`find_hub_root` 只留给 migrate 认旧库
 - [ ] **migrate 第二半**（从 M1 挪来）：`hub/topics/*` → 多个 project（就地迁 + 注册进 registry，不搬目录）；`log.md` 停写保留
 - [ ] `pm status` 并入 `sync`（从 M1 挪来）
 - [ ] README「先跑起来」改为 2 条命令；guide 对应章节更新；WebUI Operations 面板对齐新 plumbing——hub 那两章要一起重写，这是把 hub 退场挪到本里程碑的原因
-- [ ] 三条棘轮测试达标
+- [x] 三条棘轮测试达标：`--help` 13 行（≤20）、8 个 skill 全部 ≤40 行、托管块 33 行（≤40）。xfail 标记全部摘掉——从现在起超标就是真失败，修法是拿掉东西不是抬高数字
 
 **验收**：棘轮全绿；`magi --help` 一屏；三宿主各跑一次冒烟（install → next → compile 一篇 → --close）；现有 README/guide 与 `--help` 一致性测试通过。
 **待定**：`each` 去留；plumbing 是否再压缩。

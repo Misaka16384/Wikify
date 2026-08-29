@@ -36,6 +36,7 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("pm", "status"): "查看 beads 是否可用及各类议题数量",
     ("pm", "backlog-sync"): "把尚未编译的原始文献转成 bd 议题",
     # 研究状态（命题 / 问题 / 研究线）
+    ("install",): "把这个工作区装进你的 agent CLI：skills + AGENTS.md 协议块 + 收工闸门",
     ("next",): "下一步做什么——从 note 派生的候选清单，只提议不执行",
     ("feed",): "所有跟帖按时间倒序——记录本身，按时间读一遍",
     ("thread", "new"): "开一个命题、问题或研究线（文件名即 ID，建好不改）",

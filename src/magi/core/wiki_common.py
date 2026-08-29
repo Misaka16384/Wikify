@@ -166,13 +166,13 @@ def atomic_write(filepath: str | Path, content: str, encoding: str = "utf-8", ne
 # orchestrators ran them in three different orders, so the same file came out
 # differently depending on whether you had just ingested, just compiled or
 # just initialised the workspace — `magi ingest finalize` ends on reindex,
-# `wiki_compile` ends on lint, and each one's output was the other's diff.
+# `compile` ends on lint, and each one's output was the other's diff.
 # They disagreed about the byline, the table separator, whether the first
 # column held the filename or the title, whether `## Categories` existed,
 # whether a summary with a pipe in it broke the table, and which frontmatter
 # key dated a row.
 #
-# The shape below is the one `wiki_compile/templates/index_template.md` has
+# The shape below is the one `compile/templates/index_template.md` has
 # documented all along: a Contents table keyed by filename, then Categories
 # when the frontmatter actually distinguishes any. Everything that writes an
 # index goes through here so there is nothing left to disagree about.

@@ -595,10 +595,18 @@ def _line_focus(args):
 
 
 def _apply_focus(conns, merged, focus, weights) -> None:
-    """Multiply in the focus boost for chunks whose file the line points at."""
+    """Multiply in the focus boost for chunks whose file the line points at.
+
+    Local knowledge base only. The focus set is a list of paths relative to
+    *this* workspace's root, and another registered library will happily have
+    its own `wiki/concepts/toric-code.md` — matching by path across libraries
+    would boost a file the line has never heard of because its name collided.
+    """
     wanted = {str(path).replace("\\", "/") for path in focus}
     by_kb: dict = {}
     for name, cid in merged:
+        if name != "local":
+            continue
         by_kb.setdefault(name, []).append(cid)
 
     for name, ids in by_kb.items():

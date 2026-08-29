@@ -177,7 +177,7 @@ uv tool install --force magi-research
 
 ### 2.4 Skills 安装（教 agent 用 MAGI）
 
-20 个 skill 随 CLI 一起分发（`magi/skills/*/SKILL.md`，在 wheel 里），**在工作区里一条命令**装进你机器上所有 agent CLI，不需要 clone 仓库：
+8 个 skill 随 CLI 一起分发（`magi/skills/*/SKILL.md`，在 wheel 里），**在工作区里一条命令**装进你机器上所有 agent CLI，不需要 clone 仓库：
 
 ```powershell
 cd <你的主题工作区>
@@ -227,12 +227,12 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 |- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 0
 |- BALTHASAR (intent)     0 ready · 0 in progress · 0 blocked
 `- CASPER    (retrieval)  index fresh · 0 chunks · vectors 0/0
-  -> drop sources in inbox/ and run the wiki_ingest skill to start building the library
+  -> drop sources in inbox/ and run the ingest skill to start building the library
 ```
 
 > 同步率随三核就绪程度浮动：上例是 beads 已初始化、索引已建的空库（90%）；如果还没跑 `magi pm init` 或 `magi index`，数字会更低——照着 hints 的提示逐条执行即可，不是配置错了。
 
-然后把 PDF / LaTeX / 笔记丢进 `inbox/`，在你的 agent 里说一句"摄入 inbox 里的论文"（或直接 `/magi:wiki_ingest`），流水线就开始了。
+然后把 PDF / LaTeX / 笔记丢进 `inbox/`，在你的 agent 里说一句"摄入 inbox 里的论文"（或直接 `/magi:ingest`），流水线就开始了。
 
 > 📖 **完整使用指南随 CLI 分发**，三个入口读同一份内容：
 >
@@ -243,7 +243,7 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 > magi guide --symptoms                     # 全书「症状 → 原因 → 修法」索引
 > ```
 >
-> 或 `magi ui` → **文档与指引** → **使用指南**（带章节导航），也可直接读 [`guide.zh.md`](./src/magi/docs/guide.zh.md)。按使用场景分十二章（先跑通 / 安装 / 迁移 / 建库 / 摄入 / 编译 / 图谱调优 / 检索 / 写作 / 雷达 / 看板 / 疑难速查），每一步都写清了**预期效果**和**不达预期怎么办**。卡住时也可以直接让 agent 用 `magi_guide` 技能替你查。
+> 或 `magi ui` → **文档与指引** → **使用指南**（带章节导航），也可直接读 [`guide.zh.md`](./src/magi/docs/guide.zh.md)。按使用场景分十二章（先跑通 / 安装 / 迁移 / 建库 / 摄入 / 编译 / 图谱调优 / 检索 / 写作 / 雷达 / 看板 / 疑难速查），每一步都写清了**预期效果**和**不达预期怎么办**。卡住时让 agent 跑 `magi guide --search "<报错>"`——手册随 CLI 一起装，不用联网。
 
 ---
 
@@ -253,24 +253,18 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 
 | 阶段 | Skill | 作用 |
 |---|---|---|
-| 基建 | `wiki_hub_init` / `wiki_init` | 建 hub / 建主题工作区 |
-| 摄入 | `wiki_ingest` | PDF/LaTeX/URL → Markdown。按阶梯自动选路：arXiv HTML → LaTeX 源码 → PDF 自己的文本层 → MinerU 云端 → 本地 OCR。**原生视觉转录不在阶梯上**——它按页计费、烧过用户一整周额度，只在你看过页数并明确要求后才走。MinerU Token 填入工作区 `config.yaml` 的 `ocr.mineru_api_token` |
-| 摄入 | `wiki_ingest_ocr` | 完全本地离线 OCR 路线（Ollama `glm-ocr:q8_0`） |
-| 摄入 | `wiki_inbox` | 链接 / DOI / 引文 / 截图 → 排队走确定性管线，产物待你审批（`magi ingest url` + `batch-*`） |
-| 编译 | `wiki_compile` | raw 文献 → 文献卡片 + 概念卡片（与 bd 任务闭环：`magi pm backlog-sync` 的 `magi-compile` 标签） |
-| 编译 | `wiki_enrich` | 深扫已编译文献，补挖遗漏的定理/概念 |
-| 关联 | `wiki_semantic_link` | Ollama 向量语义双链 + 高相似度自动去重合并（`magi link`） |
-| 规范 | `wiki_tag_sync` / `wiki_concept_sync` | 标签本体论清洗 / 同义概念物理归并 |
-| 质量 | `wiki_lint` | 死链自愈、frontmatter 修复、LaTeX 校验（`magi lint --fix`） |
-| 质量 | `wiki_math_fix` | 把摄入弄坏的公式全抓出来，一条一条修（`magi math check --json`） |
-| 图谱 | `wiki_graph_index` | 重建 SQLite 图谱（`magi graph build` / `magi graph query`） |
-| 问答 | `wiki_ask` | 混合检索 + 图遍历 + 严格引用的零幻觉问答 |
-| 审查 | `wiki_audit` | 跨论文矛盾审计（claim/证据验证 + 溯源落库） |
-| 综述 | `wiki_research` | 多 subagent 并行调研 → 带 provenance 的综述报告 |
-| 雷达 | `radar_review` | 对 radar 摘要做 triage：评分 → bd survey issues → 标记已审 |
-| 写作 | `wiki_draft` | 在 `drafts/` 里写论文草稿：检索取证 → `magi bib` 导出引用 → pandoc 导出 LaTeX |
-| 维护 | `wiki_hub_manager` | 主题归档 / 恢复（`magi hub archive/restore`） |
-| 排查 | `magi_guide` | 按症状检索内置手册、读相关章节、给出手册里的确切命令（`magi guide`） |
+| 入口 | `magi` | 跑 `magi next`，照它说的做；见到 skill 名就调。不知道该干什么时先调它 |
+| 摄入 | `ingest` | PDF/LaTeX/链接/DOI/引文 → `raw/`。按阶梯自动选路：arXiv HTML → LaTeX 源码 → PDF 文本层 → MinerU 云端 → 本地 OCR。**原生视觉转录不在阶梯上**——按页计费、烧过用户一整周额度，只在你看过页数并明确同意后才走 |
+| 编译 | `compile` | raw 文献 → 文献卡 + 概念卡；顺带把太稀的卡片补挖成该有的密度 |
+| 整理 | `tidy` | 修机械流程修不了的：转换弄坏的公式、长歪的标签体系、其实是同一个的两张概念卡 |
+| 问答 | `ask` | 混合检索 + 图遍历 + 严格引用；检索不到就说检索不到，不从记忆里编 |
+| 调研 | `research` | 多角度并行调研并核验，产物是 `threads/` 里的命题 +（至多）一篇综述。找茬式审计是同一个 skill 换一套提示词，不是另一个 skill |
+| 写作 | `draft` | 在 `drafts/` 里写：检索取证 → `magi bib` 导出引用 → 校验 claim / 公式 / 链接 |
+| 雷达 | `radar_review` | 对 radar 摘要做 triage：分数只是排序不是判据，判断在你 |
+
+单命令的包装不再是 skill：建库是 `magi init`，修复是 `magi lint --fix`，建图是
+`magi graph build`，语义连边是 `magi link`，查手册是 `magi guide`。样板（工具能力、
+谁能问人、无人值守怎么办）只在 `AGENTS.md` 的托管块里写一次。
 
 ### 全局知识库注册表（跨库检索）
 
@@ -297,7 +291,7 @@ magi bib --all -o drafts/refs.bib
 magi bib pretko-2020 --fetch    # 有 arxiv_id 时拉取 arXiv 官方 BibTeX
 ```
 
-`magi ingest tex` 会把源码包里的 `.bib`/`.bbl` 原样保留在 markdown 旁边（`raw/papers/<slug>.bib`），文件名里的 arXiv ID 也会写入 frontmatter `arxiv_id:` 供雷达识别。完整写作流程见 `wiki_draft` skill。
+`magi ingest tex` 会把源码包里的 `.bib`/`.bbl` 原样保留在 markdown 旁边（`raw/papers/<slug>.bib`），文件名里的 arXiv ID 也会写入 frontmatter `arxiv_id:` 供雷达识别。完整写作流程见 `draft` skill。
 
 > 关于 claims 的边界：`magi verify` 的 `verified` 意为**引文存在性验证**（引文确实逐字出现在来源里，含空白/连字/全角标点鲁棒匹配）——它不判断命题与引文在语义上是否一致，那一层由 LLM/人工审查负责（`magi claims verify` 是同一命令的别名）。
 

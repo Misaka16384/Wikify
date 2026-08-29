@@ -136,3 +136,33 @@ def test_a_file_written_with_unix_endings_keeps_them(tmp_path):
 
     assert b"\r\n" not in path.read_bytes()
 
+# --------------------------------------------------------------------------
+# what goes in the block
+# --------------------------------------------------------------------------
+
+def test_the_block_says_what_to_do_and_not_why():
+    """Every line is read at the start of every session on every host. The
+    reasons live in the guide, which is read once."""
+    text = managed.body("QEC", "Codes under disorder.")
+    assert "magi next" in text
+    assert "because" not in text.lower()
+
+
+def test_the_block_fits_its_budget():
+    lines = managed.block(managed.body("QEC", "Codes under disorder.", "strict")).splitlines()
+    assert len(lines) <= 40, f"{len(lines)} lines"
+
+
+def test_coaching_off_asks_for_nothing():
+    assert "prediction" not in managed.body("Q", "S", "off")
+
+
+def test_coaching_strict_refuses_to_start_without_one():
+    text = managed.body("Q", "S", "strict")
+    assert "do not start" in text
+    assert "answer" in text, "'don't know' has to stay a valid answer"
+
+
+def test_an_unknown_level_falls_back_rather_than_going_silent():
+    """A typo in config must not quietly turn the protocol off."""
+    assert managed.body("Q", "S", "nonsense") == managed.body("Q", "S", "light")

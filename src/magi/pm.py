@@ -391,7 +391,7 @@ def cmd_backlog_sync(args: argparse.Namespace) -> int:
         proc = _run_bd(
             ["create", "-t", "task", title,
              "--label", "magi-compile", "--label", f"topic:{topic.name}",
-             "-d", f"Run the wiki_compile skill for {rel} in {topic}"],
+             "-d", f"Run the compile skill for {rel} in {topic}"],
             cwd=beads_root,
         )
         if proc.returncode == 0:

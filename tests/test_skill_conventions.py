@@ -35,7 +35,9 @@ HOST_TOOL_NAMES = [
 
 SKILL_FILES = sorted(
     p for p in SKILLS.glob("*/SKILL.md")
-    # wiki_lint ships a fixture tree of deliberately broken sample files.
+    # A skill may ship a fixture tree of deliberately broken sample files; the
+    # SKILL.md inside one is a fixture, not a skill. (v1's `wiki_lint` had one;
+    # nothing does today, and the guard costs nothing.)
     if "tests" not in p.parts
 )
 
@@ -45,7 +47,9 @@ def _body(path: Path) -> str:
 
 
 def test_there_are_skills_to_check():
-    assert len(SKILL_FILES) >= 15
+    """v2 ships eight. The floor guards against a glob that silently matches
+    nothing, which would make every check below vacuously true."""
+    assert len(SKILL_FILES) >= 8
 
 
 @pytest.mark.parametrize("path", SKILL_FILES, ids=lambda p: p.parent.name)
@@ -73,16 +77,19 @@ def test_a_skill_with_a_tooling_note_also_says_who_asks(path):
     assert "NEEDS-DECISION" in text
 
 
-@pytest.mark.parametrize(
-    "path",
-    [p for p in SKILL_FILES if "NEEDS-DECISION" in _body(p)],
-    ids=lambda p: p.parent.name,
-)
-def test_the_headless_case_is_covered(path):
+def test_the_headless_case_is_covered():
     """A scheduled or piped run has nobody to answer. Guessing and waiting are
-    both wrong there, and every host fails at it differently."""
-    text = _body(path).lower()
-    assert "scheduled run" in text or "piped run" in text
+    both wrong there, and every host fails at it differently.
+
+    Checked against the managed block rather than each skill: v2 states this
+    once, in the file every host reads at the start of every session, because
+    a rule repeated in eight skills is a rule that gets edited in one.
+    """
+    from magi.core import managed
+
+    text = managed.body("T", "A topic.").lower()
+    assert "scheduled run" in text and "piped run" in text
+    assert "do not guess" in text
 
 
 #: The canonical notes list "spawn a sub-agent" as a capability, so scanning the
@@ -121,15 +128,20 @@ def test_a_fanning_out_skill_says_to_collect_the_questions(path):
 
 
 def test_the_workspace_protocol_carries_the_same_rule():
-    """The one place a change reaches every host and every skill at once."""
-    from magi.hub import init_workspace
+    """The one place a change reaches every host and every skill at once.
 
-    source = Path(init_workspace.__file__).read_text(encoding="utf-8")
-    assert "NEEDS-DECISION" in source
-    assert "Only the agent talking to the human asks the human" in source
+    Asserted against the rendered managed block rather than against whichever
+    module currently holds the string: what matters is that a workspace's
+    `AGENTS.md` states the rule, not where in the package the text lives.
+    """
+    from magi.core import managed
+
+    block = managed.body("T", "A topic.")
+    assert "NEEDS-DECISION" in block
+    assert "sub-agent never asks the human" in block
     # Cost stated in the same breath as the question — "proceed?" is not a
     # question anyone can answer.
-    assert "34 sub-agent calls" in source
+    assert "34 sub-agent calls" in block
 
 
 # --------------------------------------------------------------------------
@@ -137,7 +149,7 @@ def test_the_workspace_protocol_carries_the_same_rule():
 #
 # The checks above are about form — which tool names may appear, and who is
 # allowed to ask a question. They could not have caught the incident that
-# started this: `wiki_ingest/SKILL.md` listed MinerU first, native vision as
+# started this: `ingest/SKILL.md` listed MinerU first, native vision as
 # its fallback, and local OCR "only if the user explicitly requests it". An
 # unattended agent has no user to request anything, so it could never reach the
 # cheap route, and one 99-page paper cost a weekly token quota.
@@ -152,7 +164,11 @@ FANS_OUT = [p for p in SKILL_FILES
 
 
 def test_some_skills_fan_out():
-    assert len(FANS_OUT) >= 10
+    """Was ten, when there were twenty skills. The checks below only mean
+    something if some skill actually orchestrates, so this guards the same
+    thing at the new size: the fan-out rules are not being enforced against an
+    empty list."""
+    assert len(FANS_OUT) >= 3
 
 
 @pytest.mark.parametrize("path", FANS_OUT, ids=lambda p: p.parent.name)
@@ -179,7 +195,7 @@ def test_a_skill_that_fans_out_bounds_the_fan_out(path):
     """A number before the first agent starts, and a ceiling on concurrency.
     The quota incident was a fan-out nobody had counted.
 
-    Forbidding the fan-out outright counts. `wiki_inbox` mentions sub-agents
+    Forbidding the fan-out outright counts. `ingest` mentions sub-agents
     only to say it must never start any, and "never" is a bound — this asks
     that the ceiling be stated, not that it be greater than zero.
     """
@@ -216,7 +232,7 @@ def test_the_expensive_route_is_never_offered_as_an_automatic_fallback():
             continue
         priced = re.search(r"(?i)one sub-?agent call per page", body)
         # An outright prohibition is a stronger answer than a gate, and one
-        # skill gives it: `wiki_inbox` says never to transcribe pages at all.
+        # skill gives it: `ingest` says never to transcribe pages at all.
         gated = re.search(r"(?i)explicit(?:ly)? (?:asked|requested|said)|"
                           r"after being told the page count|has said yes|"
                           r"do not transcribe pages", body)
@@ -236,11 +252,11 @@ def test_the_expensive_route_is_never_offered_as_an_automatic_fallback():
 #
 # Skills are prose that gets executed, and nothing type-checks prose. Every
 # instance found so far was the same shape: a command that used to take a flag,
-# or never took it. `wiki_inbox` told an agent to queue with `--library` and
+# or never took it. `ingest` told an agent to queue with `--library` and
 # then to run `batch-run`, `batch-list`, `batch-decide` and `batch-commit`
 # bare — none of which has ever accepted `--library` — so the queue it had just
 # filled sat untouched while a different library's queue was processed.
-# `wiki_enrich` called `magi wiki reindex` "the concept builder" and said it
+# `compile` called `magi wiki reindex` "the concept builder" and said it
 # generates missing concept files, which it has never done.
 
 import functools
@@ -268,10 +284,9 @@ def _accepted_flags(key: tuple) -> frozenset:
     return frozenset(_FLAG_RE.findall(res.stdout or ""))
 
 
-#: A line that exists to say a flag is *not* real. `magi_guide` carries one on
-#: purpose — "there is no `magi migrate --dry-run`, no `magi index --force`" —
-#: and reading it as usage would make the manual's own warning the thing that
-#: fails this test.
+#: A line that exists to say a flag is *not* real — "there is no `magi migrate
+#: --dry-run`". Reading one as usage would make a warning against inventing
+#: flags the thing that fails this test.
 _NEGATION_RE = re.compile(
     "there is no|no such|does not exist|never invent|not a real",
     re.IGNORECASE)
@@ -280,10 +295,10 @@ _NEGATION_RE = re.compile(
 def _code_spans(text: str):
     """Every `backticked` span and fenced code line, with its line intact.
 
-    A command reference is written as code. Prose is not: magi_guide's own
-    description sentence contains the words "magi command errors", which is
-    English, and reading it as an invocation is how this test would spend its
-    credibility on noise instead of on the four real ones it found.
+    A command reference is written as code. Prose is not: a description
+    sentence containing the words "magi command errors" is English, and
+    reading it as an invocation is how this test would spend its credibility
+    on noise instead of on the real findings.
     """
     fenced = False
     for line in text.splitlines():

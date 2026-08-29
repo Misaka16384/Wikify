@@ -177,7 +177,7 @@ Run `magi setup` and it asks about each one, with the official download link. Sa
 
 ### 2.4 Installing the skills (teaching your agent)
 
-All 20 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command inside your workspace** installs them into every agent CLI on your machine — no repo clone needed:
+All 8 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command inside your workspace** installs them into every agent CLI on your machine — no repo clone needed:
 
 ```powershell
 cd <your topic workspace>
@@ -228,12 +228,12 @@ MAGI SYSTEM ONLINE — sync ratio 90.0%
 |- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 0
 |- BALTHASAR (intent)     0 ready · 0 in progress · 0 blocked
 `- CASPER    (retrieval)  index fresh · 0 chunks · vectors 0/0
-  -> drop sources in inbox/ and run the wiki_ingest skill to start building the library
+  -> drop sources in inbox/ and run the ingest skill to start building the library
 ```
 
 > The sync ratio depends on how many cores are ready: the example shows an empty library with beads initialized and an index built (90%). Without `magi pm init` or `magi index` yet, the number is lower — just follow the hints; nothing is misconfigured.
 
-Then drop PDFs / LaTeX / notes into `inbox/` and tell your agent to ingest them (or invoke `/magi:wiki_ingest`).
+Then drop PDFs / LaTeX / notes into `inbox/` and tell your agent to ingest them (or invoke `/magi:ingest`).
 
 > 📖 **The full user guide ships with the CLI** — three entrances, one text:
 >
@@ -244,7 +244,7 @@ Then drop PDFs / LaTeX / notes into `inbox/` and tell your agent to ingest them 
 > magi guide --symptoms                     # the symptom -> cause -> fix index
 > ```
 >
-> Or `magi ui` → **Docs & Help** → **User Guide** (with chapter navigation), or read [`guide.en.md`](./src/magi/docs/guide.en.md) directly. Twelve scenario chapters (get it running / install / migrate / build a library / ingest / compile / graph tuning / search / writing / radar / dashboard / troubleshooting), each stating what you should see and what to do when you don't. Stuck? Ask your agent to use the `magi_guide` skill and it will look it up for you.
+> Or `magi ui` → **Docs & Help** → **User Guide** (with chapter navigation), or read [`guide.en.md`](./src/magi/docs/guide.en.md) directly. Twelve scenario chapters (get it running / install / migrate / build a library / ingest / compile / graph tuning / search / writing / radar / dashboard / troubleshooting), each stating what you should see and what to do when you don't. Stuck? Have your agent run `magi guide --search "<the error>"` — the manual ships with the CLI, no network needed.
 
 ---
 
@@ -254,24 +254,20 @@ Trigger via slash commands in your agent (namespaced `magi:` under the Claude Co
 
 | Phase | Skill | What it does |
 |---|---|---|
-| Setup | `wiki_hub_init` / `wiki_init` | scaffold the hub / a topic workspace |
-| Ingest | `wiki_ingest` | PDF/LaTeX/URL → Markdown, routed down a ladder: arXiv HTML → LaTeX source → the PDF's own text layer → MinerU cloud → local OCR. **Native vision is not on the ladder** — it bills per page and has burned a user's entire weekly quota, so it runs only after you have seen the page count and asked for it. Put your MinerU token in the workspace `config.yaml` under `ocr.mineru_api_token` |
-| Ingest | `wiki_ingest_ocr` | fully local OCR route (Ollama `glm-ocr:q8_0`) |
-| Ingest | `wiki_inbox` | links / DOIs / citations / screenshots -> queued through the deterministic pipeline, output waits for your approval (`magi ingest url` + `batch-*`) |
-| Compile | `wiki_compile` | raw sources → reference + concept cards (closes the bd loop: `magi pm backlog-sync`'s `magi-compile` label) |
-| Compile | `wiki_enrich` | deep-scan compiled sources for missed theorems/concepts |
-| Link | `wiki_semantic_link` | Ollama-embedding semantic wikilinks + auto-merge of near-duplicates (`magi link`) |
-| Normalize | `wiki_tag_sync` / `wiki_concept_sync` | tag ontology cleanup / physical merge of synonym concepts |
-| Quality | `wiki_lint` | dead-link healing, frontmatter repair, LaTeX validation (`magi lint --fix`) |
-| Quality | `wiki_math_fix` | harvests every formula ingestion broke and repairs them one at a time (`magi math check --json`) |
-| Graph | `wiki_graph_index` | rebuild the SQLite graph (`magi graph build` / `magi graph query`) |
-| Q&A | `wiki_ask` | hybrid retrieval + graph traversal + strictly cited, zero-hallucination answers |
-| Audit | `wiki_audit` | cross-paper contradiction audit (claim/evidence verification + provenance) |
-| Survey | `wiki_research` | parallel subagent research → a provenance-backed survey report |
-| Radar | `radar_review` | triage radar digests: score → bd survey issues → mark reviewed |
-| Write | `wiki_draft` | paper drafts in `drafts/`: evidence-backed writing → `magi bib` citation export → pandoc LaTeX export |
-| Maintain | `wiki_hub_manager` | archive / restore topics (`magi hub archive/restore`) |
-| Troubleshooting | `magi_guide` | search the built-in manual by symptom, read the chapter, hand back the exact command (`magi guide`) |
+| Entry | `magi` | Run `magi next`, do what it says, call the skill it names. Start here when you do not already know what you are doing |
+| Ingest | `ingest` | PDF/LaTeX/link/DOI/citation → `raw/`, routed down a ladder: arXiv HTML → LaTeX source → the PDF's own text layer → MinerU cloud → local OCR. **Native vision is not on the ladder** — it bills per page and has burned a user's entire weekly quota, so it runs only after you have seen the page count and said yes |
+| Compile | `compile` | raw sources → reference and concept cards, and mines the concepts a thin card left implicit |
+| Tidy | `tidy` | Repairs what the mechanical passes cannot: LaTeX broken by conversion, sprawling tags, two concept cards that are one concept |
+| Ask | `ask` | Hybrid retrieval + graph traversal + strict citation. When retrieval finds nothing it says so instead of filling the gap |
+| Research | `research` | Several angles at once, verified, landing as propositions in `threads/` plus at most one synthesis. Contradiction-hunting is the same skill with an adversarial brief, not a separate one |
+| Draft | `draft` | Write in `drafts/`: ground in the library, export citations with `magi bib`, check claims, formulas and links |
+| Radar | `radar_review` | Triage a radar digest — the score is a rank, not a verdict; the judgement is yours |
+
+A single-command wrapper is not a skill any more: `magi init` scaffolds,
+`magi lint --fix` repairs, `magi graph build` builds the graph, `magi link`
+links, `magi guide` reads the manual. The boilerplate — tool capabilities, who
+may ask a human, what to do with nobody there — is stated once, in the
+`AGENTS.md` managed block.
 
 ### The global KB registry (cross-workspace search)
 
@@ -298,7 +294,7 @@ magi bib --all -o drafts/refs.bib
 magi bib pretko-2020 --fetch    # pull arXiv's official BibTeX when the card has an arxiv_id
 ```
 
-`magi ingest tex` preserves the source package's `.bib`/`.bbl` next to the raw markdown (`raw/papers/<slug>.bib`), and writes any arXiv ID found in the filename into frontmatter `arxiv_id:` for the radar. See the `wiki_draft` skill for the full workflow.
+`magi ingest tex` preserves the source package's `.bib`/`.bbl` next to the raw markdown (`raw/papers/<slug>.bib`), and writes any arXiv ID found in the filename into frontmatter `arxiv_id:` for the radar. See the `draft` skill for the full workflow.
 
 > Claims boundary: `magi verify`'s `verified` means **quote-existence verification** (the quote really appears verbatim in the source, with whitespace/ligature/full-width-punctuation-robust matching) — it does not judge whether the claim and the quote agree semantically; that layer belongs to LLM/human review (`magi claims verify` is an alias of the same command).
 

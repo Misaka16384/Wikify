@@ -84,10 +84,17 @@ class QueueItem:
 
 @dataclass
 class DebtItem:
-    """Work that happened and was not written down."""
+    """Work that happened and was not written down.
+
+    `when` is the time of the event where one is known — the post that made
+    the flip. Dating debt by the file's mtime instead makes a `git clone` or a
+    `magi migrate` look like a session's worth of work, and a gate that fires
+    on every checkout is a gate somebody turns off.
+    """
     slug: str
     why: str
     path: Path | None = None
+    when: str | None = None
 
 
 @dataclass
@@ -233,8 +240,9 @@ def _debt(root: Path, notes, links=None) -> list:
             if severity in ("critical", "warning") and _is_bookkeeping(message):
                 items.append(DebtItem(slug=note.slug, why=message, path=note.path))
 
-        for message in _unrecorded_decisions(root, note):
-            items.append(DebtItem(slug=note.slug, why=message, path=note.path))
+        for message, when in _unrecorded_decisions(root, note):
+            items.append(DebtItem(slug=note.slug, why=message, path=note.path,
+                                  when=when))
 
         stale = _stale_derivation(root, note, links)
         if stale is not None:
@@ -288,18 +296,27 @@ def _unrecorded_decisions(root: Path, note) -> list:
             continue
         if _decisions_mention(root, note.slug):
             continue
-        out.append(f"{post.src} → {post.dst} is a person's call and nothing "
-                   f"records that they made it — sign the post `--host human` "
-                   f"or write it into {DECISIONS}")
+        out.append((f"{post.src} → {post.dst} is a person's call and nothing "
+                    f"records that they made it — sign the post `--host human` "
+                    f"or write it into {DECISIONS}", post.at))
     return out
 
 
 def _decisions_mention(root: Path, slug: str) -> bool:
+    """Whether `decisions.md` names this note, as a whole word.
+
+    Substring matching is wrong here in the ordinary case, not an exotic one:
+    slugs run `p-1`, `p-2`, … `p-10`, and a line about `p-10` contains `p-1`.
+    That silently clears a real unrecorded decision on a different note.
+    """
+    import re
+
     path = Path(root) / DECISIONS
     try:
-        return slug in path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8")
     except OSError:
         return False
+    return re.search(rf"(?<![\w-]){re.escape(slug)}(?![\w-])", text) is not None
 
 
 def _stale_derivation(root: Path, note, links):
@@ -342,7 +359,10 @@ def _link_index(root: Path) -> dict:
         directory = Path(root) / base
         if not directory.is_dir():
             continue
-        for found in directory.rglob("*.md"):
+        # Sorted: `rglob`'s order is arbitrary, so two files sharing a stem
+        # would otherwise resolve differently on Windows and macOS for the
+        # same repository.
+        for found in sorted(directory.rglob("*.md")):
             index.setdefault(found.stem, found)
     return index
 
@@ -350,7 +370,9 @@ def _link_index(root: Path) -> dict:
 def _resolve(root: Path, link: str, links: dict | None = None):
     """A `[[wikilink]]` or path from a note's field to a real file."""
     name = link.strip().strip("[]").split("|")[0].strip()
-    if not name:
+    if not name or ".." in Path(name.replace("\\", "/")).parts:
+        # A link is a name inside this workspace. `../../etc/passwd` is not a
+        # broken link, it is a different question, and the answer is no.
         return None
     candidate = Path(root) / name
     if candidate.is_file():
@@ -407,8 +429,14 @@ def candidates(state: State) -> list:
             run=run.format(slug=item.slug, status=status)))
 
     # A line already on the queue is not idle — it is waiting on the person,
-    # and asking them for a new proposition on top of that is noise.
-    spoken_for = {item.line for item in state.queue}
+    # and asking them for a new proposition on top of that is noise. A note can
+    # name several lines, so every line it names is spoken for, not just the
+    # first: a line whose only open work is shared would otherwise be invisible.
+    by_slug = {note.slug: note for note in state.notes}
+    spoken_for: set = set()
+    for item in state.queue:
+        note = by_slug.get(item.slug)
+        spoken_for.update(note.lines if note and note.lines else [item.line])
 
     for view in state.lines:
         if view.status in ("closed", "dormant") or view.over_wip or view.stalled:
@@ -448,7 +476,7 @@ def _oldest_open(notes, line: str):
     owned = [note for note in notes
              if note.kind == vocab.PROPOSITION
              and note.status in _OPEN_STATUSES
-             and (note.lines or [UNLINED])[0] == line]
+             and line in (note.lines or [UNLINED])]
     if not owned:
         return None
     floor = dt.datetime.min.replace(tzinfo=dt.timezone.utc)
@@ -662,10 +690,14 @@ def render_map(state: State, now=None) -> str:
                        f"| {moved} | {flags} |")
 
     out.extend(["", "## Decisions waiting on you", ""])
-    if not state.queue:
+    # WIP is a limit `next` enforces, not a decision anybody is waiting on
+    # (design-v2 §6). Listing it here would make the queue a chore list, which
+    # is the one thing this section is not.
+    decisions = [item for item in state.queue if item.kind != "wip"]
+    if not decisions:
         out.append("Nothing. Every open question is somebody else's turn.")
     else:
-        for item in state.queue:
+        for item in decisions:
             out.append(f"- **{item.kind}** [[{item.slug}]] — {item.why}")
     out.append("")
     return "\n".join(out)
@@ -705,7 +737,13 @@ class CloseReport:
 
     @property
     def ok(self) -> bool:
-        return not self.blocking
+        """Whether the session may end.
+
+        A conflict counts. The agent cannot resolve one — that is a person's
+        call — but it just caused one, and stopping without saying so leaves
+        the human to find it in a file. Blocking once is how they hear about it.
+        """
+        return not self.blocking and not self.conflicts
 
 
 def detect_conflicts(notes, window=CONFLICT_WINDOW) -> list:
@@ -723,6 +761,17 @@ def detect_conflicts(notes, window=CONFLICT_WINDOW) -> list:
             continue
         moves = [(parse_at(post.at), post) for post in note.posts if post.is_transition]
         moves = [(when, post) for when, post in moves if when is not None]
+
+        # Only look after the last time somebody walked this note *out* of
+        # `conflict`. Without that cut the original colliding pair sits in the
+        # file forever, so every later run re-detects it and flips the note
+        # straight back — silently undoing a decision a person made, which is
+        # the one thing this status exists to protect.
+        resolved = max((when for when, post in moves if post.src == vocab.CONFLICT),
+                       default=None)
+        if resolved is not None:
+            moves = [(when, post) for when, post in moves if when > resolved]
+
         for (first_at, first), (second_at, second) in zip(moves, moves[1:]):
             if first.host != second.host and abs(second_at - first_at) <= window:
                 found.append((note, first, second))
@@ -747,8 +796,10 @@ def close(root, window_hours: int = CLOSE_WINDOW_HOURS, write: bool = True,
     report = CloseReport()
 
     for note, first, second in detect_conflicts(state.notes):
-        report.conflicts.append(note.slug)
-        if write:
+        if not write:
+            report.conflicts.append(note.slug)
+            continue
+        try:
             threads.set_status(
                 note.path, vocab.CONFLICT,
                 f"{first.host} and {second.host} both set this within "
@@ -756,12 +807,22 @@ def close(root, window_hours: int = CLOSE_WINDOW_HOURS, write: bool = True,
                 f"({first.src} → {first.dst}, then {second.src} → {second.dst}). "
                 "Neither had read the other; which reading is right?",
                 host=host)
+        except Exception as exc:  # noqa: BLE001
+            # A note with a status no table knows, a file that vanished, a lock
+            # somebody else is holding. Any of them is one note's problem; the
+            # gate covers the whole workspace and must still answer for the rest.
+            report.blocking.append(DebtItem(
+                slug=note.slug, path=note.path,
+                why=f"two writers collided here and the conflict could not be "
+                    f"recorded ({exc.__class__.__name__}: {exc}) — settle it by hand"))
+            continue
+        report.conflicts.append(note.slug)
     if report.conflicts:
         state = _reload(root)
 
     cutoff = now - dt.timedelta(hours=window_hours)
     for item in state.debt:
-        if _touched_since(item.path, cutoff):
+        if _recent(item, cutoff):
             report.blocking.append(item)
         else:
             report.older.append(item)
@@ -775,11 +836,20 @@ def _reload(root):
     return load(root)
 
 
-def _touched_since(path, cutoff) -> bool:
-    if path is None:
+def _recent(item: DebtItem, cutoff) -> bool:
+    """Whether this debt is this session's, and so allowed to block.
+
+    The event's own timestamp wins when there is one: a flip posted six months
+    ago is six months old however recently the file was checked out. Only debt
+    with no event to date it falls back to the file's mtime.
+    """
+    when = parse_at(item.when) if item.when else None
+    if when is not None:
+        return when >= cutoff
+    if item.path is None:
         return True
     try:
-        moved = dt.datetime.fromtimestamp(Path(path).stat().st_mtime, dt.timezone.utc)
+        moved = dt.datetime.fromtimestamp(Path(item.path).stat().st_mtime, dt.timezone.utc)
     except OSError:
         return True
     return moved >= cutoff

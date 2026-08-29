@@ -641,7 +641,7 @@ def cmd_commit(args) -> int:
         print(f"\n{committed} document(s) committed to raw/. Wiki tables and "
               "the concept graph are refreshed.")
         print("Next: 'magi index' to make them searchable, and the "
-              "magi:wiki_compile skill to turn them into reference cards.")
+              "magi:compile skill to turn them into reference cards.")
     else:
         print("nothing to commit.")
     for batch_id, n in skipped_batches:

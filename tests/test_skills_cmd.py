@@ -26,9 +26,9 @@ from magi.skills_cmd import (
 
 def test_skills_are_packaged_and_well_formed():
     skills = load_skills()
-    assert len(skills) >= 17, "the whole skill set must ship inside the package"
+    assert len(skills) >= 8, "the whole skill set must ship inside the package"
     names = {s.name for s in skills}
-    assert {"magi_guide", "wiki_ingest", "wiki_compile", "radar_review"} <= names
+    assert {"magi", "ingest", "compile", "radar_review"} <= names
 
     for s in skills:
         text = s.text
@@ -75,37 +75,37 @@ def test_project_scope_is_under_the_given_root(tmp_path):
 
 
 def test_layouts_render_what_each_host_expects(tmp_path):
-    skill = next(s for s in load_skills() if s.name == "magi_guide")
+    skill = next(s for s in load_skills() if s.name == "radar_review")
 
     dir_target = HOSTS["claude"].targets[0]
     (path, text), = files_for(skill, dir_target, tmp_path)
-    assert path.name == "SKILL.md" and path.parent.name == "magi_guide"
+    assert path.name == "SKILL.md" and path.parent.name == "radar_review"
     assert text == skill.text
 
     cmd_target = next(t for t in HOSTS["opencode"].targets if t.kind == "command")
     (cpath, ctext), = files_for(skill, cmd_target, tmp_path)
-    assert cpath.name == "magi_guide.md"
+    assert cpath.name == "radar_review.md"
     assert ctext.startswith("---\ndescription: ")
     assert "$ARGUMENTS" in ctext, "an opencode command must accept the user's arguments"
-    assert "name: magi_guide" not in ctext, "command files take no name key"
+    assert "name: radar_review" not in ctext, "command files take no name key"
 
 
 def test_render_command_keeps_the_body_but_not_the_old_frontmatter():
-    skill = next(s for s in load_skills() if s.name == "wiki_ingest")
+    skill = next(s for s in load_skills() if s.name == "ingest")
     out = render_command(skill)
     body = out.split("---\n", 2)[2]
     assert len(body) > 800, "the whole skill body must be inlined into the command"
-    assert "name: wiki_ingest" not in out, "old frontmatter must not leak through"
+    assert "name: ingest" not in out, "old frontmatter must not leak through"
     assert out.rstrip().endswith("$ARGUMENTS")
 
 
 def test_install_is_idempotent_and_reversible(tmp_path):
-    skills = [s for s in load_skills() if s.name in {"magi_guide", "wiki_ask"}]
+    skills = [s for s in load_skills() if s.name in {"radar_review", "ask"}]
     host = HOSTS["claude"]
 
     first = install_host(host, skills, "global", force=False, dry_run=False, override_dir=tmp_path)
     assert first["counts"]["created"] == 2
-    assert (tmp_path / "magi_guide" / "SKILL.md").is_file()
+    assert (tmp_path / "radar_review" / "SKILL.md").is_file()
 
     second = install_host(host, skills, "global", force=False, dry_run=False, override_dir=tmp_path)
     assert second["counts"]["unchanged"] == 2
@@ -113,7 +113,7 @@ def test_install_is_idempotent_and_reversible(tmp_path):
 
     removed = uninstall_host(host, skills, "global", dry_run=False, override_dir=tmp_path)
     assert len(removed["removed"]) == 2
-    assert not (tmp_path / "magi_guide").exists()
+    assert not (tmp_path / "radar_review").exists()
 
 
 def test_dry_run_writes_nothing(tmp_path):
@@ -125,8 +125,8 @@ def test_dry_run_writes_nothing(tmp_path):
 
 
 def test_a_foreign_file_is_not_clobbered(tmp_path):
-    skills = [s for s in load_skills() if s.name == "magi_guide"]
-    victim = tmp_path / "magi_guide" / "SKILL.md"
+    skills = [s for s in load_skills() if s.name == "radar_review"]
+    victim = tmp_path / "radar_review" / "SKILL.md"
     victim.parent.mkdir(parents=True)
     victim.write_text("someone else's skill, unrelated content\n", encoding="utf-8")
 
@@ -143,7 +143,7 @@ def test_a_foreign_file_is_not_clobbered(tmp_path):
 def test_cli_surface(capsys, tmp_path):
     assert main(["list", "--json"]) == 0
     listing = json.loads(capsys.readouterr().out)
-    assert listing["count"] >= 17
+    assert listing["count"] >= 8
     assert all(s["description"] for s in listing["skills"])
 
     assert main(["where", "--json"]) == 0
@@ -152,7 +152,7 @@ def test_cli_surface(capsys, tmp_path):
     assert all({"scope", "kind", "dir", "invoke", "total"} <= set(r) for r in where["hosts"])
 
     assert main(["install", "--host", "claude", "--dir", str(tmp_path),
-                 "--only", "magi_guide", "--dry-run", "--json"]) == 0
+                 "--only", "radar_review", "--dry-run", "--json"]) == 0
     plan = json.loads(capsys.readouterr().out)
     assert plan["dry_run"] is True
     assert plan["results"][0]["counts"]["created"] == 1

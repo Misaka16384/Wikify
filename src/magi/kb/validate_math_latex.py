@@ -582,7 +582,7 @@ def _summarize(entries, root):
         print(f"  {len(macros)} may be package macros rather than typos; check the source PDF")
     print("\nDeterministic pass first:  magi math format")
     print("Then work the list:        magi math check --json")
-    print("                           (the wiki_math_fix skill drives that list, one at a time)")
+    print("                           (the tidy skill drives that list, one at a time)")
 
 
 def main(argv=None):

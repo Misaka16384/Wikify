@@ -69,6 +69,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("wiki", "uncompiled"): ("magi.kb.detect_uncompiled", [], "List raw sources without compiled references"),
     ("wiki", "reindex"): ("magi.kb.index_builder", [], "Regenerate _index.md tables"),
     # research state
+    ("install",): ("magi.install_cmd", [], "Install this workspace into your agent CLIs (skills + protocol + stop gate)"),
     ("next",): ("magi.state", ["next"], "What to do next, derived from the notes"),
     ("feed",): ("magi.state", ["feed"], "Every post, newest first"),
     ("thread", "new"): ("magi.kb.thread_cmd", ["new"],
@@ -128,15 +129,36 @@ _GROUP_HELP = {
 }
 
 
-def _print_help() -> None:
+#: The commands a person is expected to know. Everything else still ships, is
+#: still supported, and still appears under `--help --all` — it is just not on
+#: the page somebody reads to find out what this tool is. The v1 surface was
+#: seventy leaf commands listed at once, which is a reference manual printed
+#: where a menu belongs: it made a first-time reader's job harder and told an
+#: agent nothing it could not get from `magi next`.
+PORCELAIN = ("next", "init", "install", "ui", "search", "feed", "guide")
+
+
+def _print_help(everything: bool = False) -> None:
     print(f"magi {__version__} — agent-native research workspace")
     print("\nUsage: magi <command> [subcommand] [args...]")
     print("       magi <command> --help          for syntax of any command\n")
+
     singles = {k[0]: v for k, v in _COMMANDS.items() if len(k) == 1}
     groups: dict[str, list[tuple[str, str]]] = {}
     for key, (_, _, help_text) in _COMMANDS.items():
         if len(key) == 2:
             groups.setdefault(key[0], []).append((key[1], help_text))
+
+    if not everything:
+        for name in PORCELAIN:
+            entry = singles.get(name)
+            if entry is not None:
+                print(f"  {name:<22} {entry[2]}")
+        print("\n  magi --help --all      every other command "
+              f"({len(_COMMANDS) - len(PORCELAIN)} more: ingest, compile, graph, "
+              "threads, radar, …)")
+        return
+
     for name, (_, _, help_text) in sorted(singles.items()):
         print(f"  {name:<22} {help_text}")
     for group in sorted(groups):
@@ -160,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         argv = ["next"]
     if argv[0] in ("-h", "--help", "help"):
-        _print_help()
+        _print_help(everything=any(a in ("--all", "-a") for a in argv[1:]))
         return 0
     if argv[0] in ("-V", "--version", "version"):
         print(f"magi {__version__}")

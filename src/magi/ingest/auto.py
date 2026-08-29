@@ -215,7 +215,7 @@ def main(argv: Optional[List[str]] = None) -> int:
           + (f", {skipped} skipped" if skipped else "")
           + (f", {failed} failed" if failed else ""))
     if done and not args.dry_run:
-        print("compile them into cards next: ask your agent for the wiki_compile skill")
+        print("compile them into cards next: ask your agent for the compile skill")
     return 1 if failed else 0
 
 

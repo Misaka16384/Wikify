@@ -607,3 +607,136 @@ def test_a_library_with_no_research_state_is_pointed_somewhere(ws, capsys):
     out = capsys.readouterr().out
     assert "No propositions yet" in out
     assert "magi thread new" in out and "magi sync" in out
+
+
+# --------------------------------------------------------------------------
+# things the first version of this module got wrong
+# --------------------------------------------------------------------------
+
+def collided(ws, slug="p-a"):
+    path = proposition(ws, slug)
+    threads.set_status(path, "testing", "mine", host="claude", at=at(minutes_ago=32))
+    threads.set_status(path, "supported", "theirs", host="codex", at=at(minutes_ago=30))
+    return path
+
+
+def test_a_conflict_a_person_resolved_stays_resolved(ws):
+    """The colliding pair sits in the file forever. Without a cut at the
+    resolution, every later run re-detects it and flips the note straight back,
+    silently undoing the one decision this status exists to protect."""
+    path = collided(ws)
+    state.close(ws, now=NOW)
+    threads.set_status(path, "supported", "I read both; the second is right",
+                       host=vocab.HUMAN, at=at(minutes_ago=5))
+
+    report = state.close(ws, now=NOW)
+
+    assert report.conflicts == []
+    assert threads.read_note(path).status == "supported"
+
+
+def test_a_new_collision_after_a_resolution_is_still_caught(ws):
+    path = collided(ws)
+    state.close(ws, now=NOW)
+    threads.set_status(path, "testing", "reopening", host=vocab.HUMAN, at=at(minutes_ago=20))
+    threads.set_status(path, "supported", "mine", host="claude", at=at(minutes_ago=4))
+    threads.set_status(path, "refuted", "theirs", host="codex", at=at(minutes_ago=3))
+
+    assert state.close(ws, now=NOW).conflicts == ["p-a"]
+
+
+def test_a_recorded_conflict_stops_the_session_once(ws):
+    """The agent cannot resolve a conflict — that is a person's call — but it
+    just caused one, and stopping without saying so leaves the human to find it
+    in a file."""
+    collided(ws)
+    report = state.close(ws, now=NOW)
+    assert report.ok is False
+    assert state.hook_payload(report)["decision"] == "block"
+
+
+def test_one_unwritable_note_does_not_take_the_gate_down(ws):
+    """A status no table knows, a file that vanished, a lock somebody holds:
+    each is one note's problem. The gate answers for the whole workspace."""
+    path = collided(ws, "p-bad")
+    path.write_text(path.read_text(encoding="utf-8")
+                    .replace("status: supported", "status: nonsense", 1), encoding="utf-8")
+
+    report = state.close(ws, now=NOW)
+
+    assert any("could not be recorded" in item.why for item in report.blocking)
+
+
+def test_a_decision_about_another_note_does_not_clear_this_one(ws):
+    """Slugs run `p-1`, `p-2`, … `p-10`, and a line about `p-10` contains the
+    substring `p-1`."""
+    path = proposition(ws, "p-1", status="testing")
+    threads.set_status(path, "supported", "done", host="claude", at=at(minutes_ago=20))
+    threads.set_status(path, "disputed", "no", host="reviewer", at=at(minutes_ago=15))
+    threads.set_status(path, "supported", "yes", host="claude", at=at(minutes_ago=10))
+    (ws / "decisions.md").write_text("2026-08-29 p-10: unrelated.\n", encoding="utf-8")
+
+    assert any("person's call" in item.why for item in load(ws).debt)
+
+
+def test_old_unrecorded_decisions_do_not_block_after_a_checkout(ws):
+    """A clone resets every mtime. Dating debt by the file would make a fresh
+    checkout look like a session's work and the gate would never pass."""
+    import os
+
+    path = proposition(ws, "p-a", status="testing")
+    threads.set_status(path, "supported", "done", host="claude", at=at(days_ago=190))
+    threads.set_status(path, "disputed", "no", host="reviewer", at=at(days_ago=189))
+    threads.set_status(path, "supported", "yes", host="claude", at=at(days_ago=188))
+    os.utime(path, (NOW.timestamp(), NOW.timestamp()))
+
+    report = state.close(ws, now=NOW)
+
+    assert report.ok is True
+    assert any("person's call" in item.why for item in report.older)
+
+
+def test_a_proposition_on_two_lines_belongs_to_both(ws):
+    """`line:` is multi-valued by design. Reading only the first makes a line
+    whose open work is shared invisible to the router."""
+    line(ws, "qec")
+    line(ws, "transport")
+    proposition(ws, "p-a", lines=("qec", "transport"), bet="supported",
+                status="testing", when=at(days_ago=1))
+
+    actions = state.candidates(load(ws))
+    lines_with_work = {action.line for action in actions if action.key == "work"}
+
+    assert lines_with_work == {"qec", "transport"}
+
+
+def test_the_map_leaves_wip_out_of_the_decision_queue(ws):
+    """WIP is a limit `next` enforces, not something anybody is waiting on.
+    Listing it here turns the queue into a chore list."""
+    line(ws)
+    for n in range(9):
+        proposition(ws, f"p-{n}")
+
+    text = state.render_map(load(ws, wip_limit=7), now=NOW)
+    section = text.split("## Decisions waiting on you", 1)[1]
+
+    assert "wip" not in section
+
+
+def test_a_link_that_climbs_out_of_the_workspace_resolves_to_nothing(ws):
+    assert state._resolve(ws, "[[../../etc/passwd]]") is None
+    assert state._resolve(ws, "..\\..\\secrets.md") is None
+
+
+def test_the_queue_outranks_the_work(ws):
+    """The three interrupting events must not sit behind machine work."""
+    line(ws)
+    disputed_path = proposition(ws, "p-a", status="testing")
+    threads.set_status(disputed_path, "supported", "done", host="claude", at=at(minutes_ago=20))
+    threads.set_status(disputed_path, "disputed", "no", host="reviewer", at=at(minutes_ago=10))
+    line(ws, "transport")
+    proposition(ws, "p-b", lines=("transport",), bet="supported", status="testing")
+
+    keys = [action.key for action in state.candidates(load(ws))]
+
+    assert keys.index("disputed") < keys.index("work")

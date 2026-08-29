@@ -81,12 +81,19 @@ def test_the_skill_count_in_prose_matches_what_ships(doc):
         f"Search the file for the number and fix it.")
 
 
+#: Skill names are ordinary words now (`ask`, `compile`, `draft`), so a
+#: name-*shape* pattern would match half the prose in the guide. Build the
+#: alternation from what actually ships instead — which also means this file
+#: needs no edit the next time a skill is added or retired.
+_SKILL_NAME_RE = r"\b(" + "|".join(sorted(_skill_names(), key=len, reverse=True)) + r")\b"
+
+
 def test_a_skill_documented_but_not_shipped_is_also_drift():
     """The other direction: a skill removed from the package but left in the
     docs sends the reader after something that is not there."""
     shipped = set(_skill_names())
     for doc, path in ALL_DOCS.items():
-        named = set(re.findall(r"`?(wiki_[a-z_]+|magi_guide|radar_review)`?", _text(path)))
+        named = set(re.findall(_SKILL_NAME_RE, _text(path)))
         ghosts = {n for n in named if n not in shipped}
         assert not ghosts, f"{doc} documents {sorted(ghosts)}, which no longer ship"
 
@@ -129,7 +136,7 @@ def test_the_guides_describe_the_same_commands():
 def test_the_readmes_describe_the_same_skills():
     named = {}
     for name, path in READMES.items():
-        named[name] = set(re.findall(r"`(wiki_[a-z_]+|magi_guide|radar_review)`", _text(path)))
+        named[name] = set(re.findall(rf"`{_SKILL_NAME_RE}`", _text(path)))
     assert named["README.md"] == named["README_en.md"], (
         f"only in zh: {sorted(named['README.md'] - named['README_en.md'])}\n"
         f"only in en: {sorted(named['README_en.md'] - named['README.md'])}")

@@ -32,7 +32,7 @@ MAGI has three layers, and their jobs don't overlap:
 An agent's context is disposable — **state always lives on disk**. So any step you interrupt can pick up right where it left off.
 
 > [!WARN]
-> **The agent isn't optional.** Going from raw sources in `raw/` to concept cards in `wiki/` is a step of understanding and synthesis — there's no CLI command for it. Only the `wiki_compile` skill, driving an LLM, can do it. Install just the CLI without connecting an agent host, and you can ingest papers and run keyword searches, but you'll never get concept cards, a knowledge graph, or cited Q&A. Section 2.4 covers how to connect one.
+> **The agent isn't optional.** Going from raw sources in `raw/` to concept cards in `wiki/` is a step of understanding and synthesis — there's no CLI command for it. Only the `compile` skill, driving an LLM, can do it. Install just the CLI without connecting an agent host, and you can ingest papers and run keyword searches, but you'll never get concept cards, a knowledge graph, or cited Q&A. Section 2.4 covers how to connect one.
 
 ### Three ways to get started
 
@@ -45,7 +45,7 @@ magi pm init                 # task system (git-inits this directory)
 
 mkdir -p topics/quantum-toys && cd topics/quantum-toys
 magi init --name "Quantum Toys" --scope "Quantum phenomena in toy models"
-magi skills install          # give this workspace's skills to your agent CLI (it asks which)
+magi install                 # skills + the AGENTS.md protocol block + the end-of-session gate
 
 magi sync --fix                    # sanity check: sync ratio + three-core status + next-step hint
 ```
@@ -75,7 +75,7 @@ magi guide --symptoms               # The whole symptom -> cause -> fix index
 
 `--json` is the machine format for agents; `--lang en` switches language.
 
-**Let the agent do the diagnosing**: the repo ships a `magi_guide` skill, installed with the plugin. Paste the error as-is, or just say "use magi_guide," and it will search the manual by symptom, read the relevant chapter, confirm the current state with `magi sync` / `magi setup --check`, and hand you the exact command the manual prescribes — instead of inventing a flag from memory.
+**Let the agent do the diagnosing**: the manual ships with the CLI, so it works offline and nobody has to remember it. Paste the error as-is and the agent will run `magi guide --search`, reading the manual by symptom, read the relevant chapter, confirm the current state with `magi sync` / `magi setup --check`, and hand you the exact command the manual prescribes — instead of inventing a flag from memory.
 
 > [!NOTE]
 > Every command in this manual is checked against the real CLI, and a test keeps it from drifting. That makes an agent quoting the manual considerably more reliable than an agent recalling one — for anything MAGI-related, it's worth telling it to look it up first.
@@ -89,7 +89,7 @@ MAGI SYSTEM ONLINE — sync ratio 33.3%
 |- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 0
 |- BALTHASAR (intent)     beads offline
 `- CASPER    (retrieval)  index missing · 0 chunks · vectors 0/0
-  -> drop sources in inbox/ and run the wiki_ingest skill to start building the library
+  -> drop sources in inbox/ and run the ingest skill to start building the library
   -> magi pm init   # initialize beads at the hub root
   -> magi index   # build the retrieval index
 ```
@@ -106,7 +106,7 @@ magi sync --fix --dry-run   # see which of them first
 Sync ratio is a weighted average of the three cores' readiness (only cores that currently apply are counted):
 
 - **MELCHIOR** = 0.55 graph freshness + 0.25 compile backlog + 0.20 claim health
-- **BALTHASAR** = 0.6 task-store reachability + 0.4 state readability (excluded entirely in `--kb-only` mode)
+- **BALTHASAR** = how legible the research state is: `1 − debt/notes`, where debt is something that happened in `threads/` and was not written down. It is cleanliness, not progress — six open propositions and no debt is perfectly healthy. A workspace with no `threads/` yet keeps the old measure (0.6 task-store reachability + 0.4 state readability); `--kb-only` mode excludes the core entirely.
 - **CASPER** = 0.7 index freshness + 0.3 vector coverage
 
 > [!NOTE]
@@ -280,7 +280,9 @@ This is the one people most often get backwards. **You only need one global CLI 
 | workspace | Your topic directory | One per topic |
 | Global config & registry | `~/.config/magi/` (on Windows: `C:\Users\<you>\.config\magi\`, **not** AppData) | One per machine |
 
-Install the CLI once; after that, starting a new topic only takes `magi init` + `magi skills install`.
+Install the CLI once; after that, starting a new topic only takes `magi init` + `magi install`.
+
+`magi install` does three things, and an agent runs badly without any one of them: it puts the eight skills where the host looks for them; it writes the current protocol into the `AGENTS.md` managed block (leaving everything you wrote around it untouched); and it installs Claude Code's Stop hook so a session cannot end without passing `magi sync --close`. **Host enforcement is not symmetric**: only Claude Code has a documented Stop hook, so on the other hosts the same rule exists as an instruction in the block — which an agent can ignore, and sometimes will. The command says so rather than reporting four identical installs.
 
 > [!WARN]
 > A true in-project install (`uv venv && uv pip install -e .`) is only for people modifying MAGI's source. A `magi` installed that way **is not on PATH** — you can only invoke it as `.venv\Scripts\python.exe -m magi.cli ...`. Skills, Claude Code's SessionStart hook, and the radar's scheduled job all look for the bare command name `magi` on PATH, and won't find it there. For everyday use, install with `pipx` (or `uv tool install`).
@@ -302,7 +304,7 @@ magi skills uninstall            # take them back out
 The skill files ship with the CLI — **no repo clone, no network**.
 
 > [!WARN]
-> **The default is this workspace, not your whole machine.** All 20 skills revolve around one research workspace — ingest into its `raw/`, compile into its `wiki/`, query its graph — so a machine-wide install makes every unrelated project carry them for nothing. If you really want that: `magi skills install --scope global` (it warns once).
+> **The default is this workspace, not your whole machine.** All 8 skills revolve around one research workspace — ingest into its `raw/`, compile into its `wiki/`, query its graph — so a machine-wide install makes every unrelated project carry them for nothing. If you really want that: `magi skills install --scope global` (it warns once).
 > Installing into the workspace has a second benefit: the files travel with the repo, so a collaborator who clones it gets them.
 
 | Host | Global | Project | How it fires |
@@ -329,7 +331,7 @@ The plugin and `magi skills install` coexist — one gives you `/magi:skill-name
 **Any other agent** — the workspace's `CLAUDE.md` and `AGENTS.md` (identical content, two copies) are the onboarding protocol: run `magi sync` on entry, which commands map to which core, use `magi guide --search` when stuck, and never answer research questions from memory. Any host that reads either file can work here; if it reads neither, pasting `magi --help` is enough.
 
 > [!EXPECT]
-> `magi skills where` shows 20/20 on the project rows. Start a fresh agent session **from that workspace directory** and the skills appear under `/` (Claude Code, opencode), or just say "ingest the papers in inbox" and watch it act. `magi setup --check` also shows the per-CLI count for the workspace you are in.
+> `magi skills where` shows 8/8 on the project rows. Start a fresh agent session **from that workspace directory** and the skills appear under `/` (Claude Code, opencode), or just say "ingest the papers in inbox" and watch it act. `magi setup --check` also shows the per-CLI count for the workspace you are in.
 
 > [!FIX]
 > - **Installed but not showing**: skills are scanned at startup — **start a new session from the workspace directory** (project skills are only visible when the CLI is launched there).
@@ -606,7 +608,7 @@ is still undecided. Rejecting an item isn't discarding it — it comes back on t
 next route down, in the next batch, so "this conversion is bad, try another way"
 costs one command.
 
-Your agent can drive all of this for you: the **wiki_inbox** skill takes links,
+Your agent can drive all of this for you: the **ingest** skill takes links,
 citations, or even a screenshot, works out what each one is, and runs the
 commands above.
 
@@ -721,7 +723,7 @@ OpenAI-shaped, so each would need a client of its own.
 
 ### Running it {#ingest-run}
 
-The easiest approach: drop the PDF into `inbox/` and tell the agent "ingest the papers in inbox" (or run `/magi:wiki_ingest`). It picks the route, converts the format, and wraps up. To run it by hand:
+The easiest approach: drop the PDF into `inbox/` and tell the agent "ingest the papers in inbox" (or run `/magi:ingest`). It picks the route, converts the format, and wraps up. To run it by hand:
 
 ```powershell
 # arXiv source package (most recommended)
@@ -797,7 +799,7 @@ Compiling is the one step with no command — you ask your agent:
 
 > "compile the backlog"
 
-It runs the `wiki_compile` skill: reads each ingested paper, extracts its concepts, decides what belongs in your wiki, and writes structured, interlinked cards. `magi compile` does not exist and will not; this is understanding work, and the CLI's job at this layer is only to check and repair what the agent produced.
+It runs the `compile` skill: reads each ingested paper, extracts its concepts, decides what belongs in your wiki, and writes structured, interlinked cards. `magi compile` does not exist and will not; this is understanding work, and the CLI's job at this layer is only to check and repair what the agent produced.
 
 Afterwards, three commands tidy up:
 
@@ -819,12 +821,12 @@ Tell your agent these, in order (or use the slash commands):
 
 | What to say | Skill | What it does |
 |---|---|---|
-| "Compile the new papers in raw" | `wiki_compile` | Turns each raw source into a `wiki/references/` reference card, and extracts concept cards along the way |
-| "Dig deeper into this paper's concepts" | `wiki_enrich` | Re-scans already-compiled cards to catch theorems/lemmas the first pass missed |
-| "Merge duplicate concepts" | `wiki_concept_sync` | Physically merges synonymous concepts, splits overly broad ones, and rewrites multi-source definitions |
-| "Clean up tags" | `wiki_tag_sync` | Normalizes the tag/alias ontology (see Chapter 7) |
-| "Run a checkup and fix" | `wiki_lint` | Auto-repairs broken links, frontmatter, and formulas |
-| "Ingestion mangled the formulas" | `wiki_math_fix` | Harvests every broken formula in the library, then reads and repairs them one at a time |
+| "Compile the new papers in raw" | `compile` | Turns each raw source into a `wiki/references/` reference card, and extracts concept cards along the way |
+| "Dig deeper into this paper's concepts" | `compile` | Re-scans already-compiled cards to catch theorems/lemmas the first pass missed |
+| "Merge duplicate concepts" | `tidy` | Physically merges synonymous concepts, splits overly broad ones, and rewrites multi-source definitions |
+| "Clean up tags" | `tidy` | Normalizes the tag/alias ontology (see Chapter 7) |
+| "Run a checkup and fix" | `magi lint --fix` | Auto-repairs broken links, frontmatter and formulas — a deterministic command, no skill needed |
+| "Ingestion mangled the formulas" | `tidy` | Harvests every broken formula in the library, then reads and repairs them one at a time |
 
 The corresponding deterministic commands:
 
@@ -897,7 +899,7 @@ them off), the line range, the offending TeX verbatim, and a `confidence`:
 > hundred entries often collapse to a dozen real edits. Never work such a file
 > bottom-up.
 
-**You don't have to work the list by hand**: the `wiki_math_fix` skill exists for
+**You don't have to work the list by hand**: the `tidy` skill exists for
 exactly this — deterministic pass first, then `wiki/` before `raw/`, reading the
 source and cropping the PDF when the intent is unclear. Just ask your agent to
 fix the formulas.
@@ -950,8 +952,8 @@ Schema: `nodes(id, path, title, type, category, summary, created, updated)`, `ed
 
 | What you're seeing | The real cause | The fix |
 |---|---|---|
-| **Too few nodes** | Papers haven't been compiled into cards yet; or the graph is stale | Check the backlog with `magi wiki uncompiled` → compile with `wiki_compile` → `magi graph build` |
-| **A bunch of isolated points** | Cards' bodies have no wikilinks, and semantic linking hasn't run | `magi link .` (below); for systematic linking use `wiki_enrich` |
+| **Too few nodes** | Papers haven't been compiled into cards yet; or the graph is stale | Check the backlog with `magi wiki uncompiled` → compile with `compile` → `magi graph build` |
+| **A bunch of isolated points** | Cards' bodies have no wikilinks, and semantic linking hasn't run | `magi link .` (below); for systematic linking use `compile` |
 | **A hairball — everything connected to everything** | The linking threshold is too low; or some tag is too broad and every card hangs off it | Raise `magi link --threshold`; normalize tags first, then rerun linking |
 | **Duplicate concepts** | Nothing merges concepts automatically | `magi link . --dedup-only` lists candidates — merge after a manual check |
 | **Tags are a mess** | Every paper writes its own | `magi tags extract` → write a mapping by hand/LLM → `magi tags apply` |
@@ -1185,7 +1187,7 @@ The pattern for writing a paper is simple: **open one issue per subsection**, cl
 
 Drafts live in `drafts/<slug>.md`. `magi init` doesn't create this directory — it appears naturally the first time you write a file there. It **is searchable** (in a collection called `drafts`), **doesn't enter the knowledge graph**, and **doesn't count toward the sync ratio** — it's something you're still writing, not established knowledge.
 
-The drafting loop (the `wiki_draft` skill walks you through this, but it's the same by hand):
+The drafting loop (the `draft` skill walks you through this, but it's the same by hand):
 
 ```powershell
 magi search "what this paragraph argues" -k 5   # 1. gather your evidence first
@@ -1224,7 +1226,7 @@ magi validate wiki/theses/x.md --schema thesis         # structural validation o
 ```
 
 > [!NOTE]
-> `verified` means **the evidence quote exists** — that exact sentence really appears in the source file, verbatim (differences in whitespace, full-width punctuation, and hyphenation are tolerated). It does **not** judge whether your claim actually follows from that quote semantically — that layer is for humans and LLM review (the `wiki_audit` skill). `magi claims verify` is an alias for the same command.
+> `verified` means **the evidence quote exists** — that exact sentence really appears in the source file, verbatim (differences in whitespace, full-width punctuation, and hyphenation are tolerated). It does **not** judge whether your claim actually follows from that quote semantically — that layer is for humans and LLM review (the `research` skill). `magi claims verify` is an alias for the same command.
 > The evidence quote must be single-line quoted content; multi-line quotes aren't supported.
 
 > [!WARN]
@@ -1401,7 +1403,7 @@ magi guide --symptoms                       # The whole index (~84 entries)
 magi guide --symptoms --search "ollama"     # Filtered by keyword
 ```
 
-Or paste the error to your agent and let the `magi_guide` skill look it up (see [1.2](#howto-read)).
+Or paste the error to your agent and have it run `magi guide --search` (see [1.2](#howto-read)).
 
 | Symptom | Run this first |
 |---|---|
@@ -1419,7 +1421,7 @@ Or paste the error to your agent and let the `magi_guide` skill look it up (see 
 | Wikilinks won't open / lots of broken links | `magi graph browse broken` |
 | Duplicate concepts, sprawling tags | `magi link . --dedup-only`; `magi tags extract` |
 | Card format errors | `magi lint --fix` |
-| Formulas render incorrectly | `magi math format` → `magi math check` (whole library; `--json` hands the list to the `wiki_math_fix` skill) |
+| Formulas render incorrectly | `magi math format` → `magi math check` (whole library; `--json` hands the list to the `tidy` skill) |
 | Citations won't export | Check the reference card's `title/authors/year/arxiv_id` frontmatter |
 | A claim is marked unverified | The evidence quote must match the source verbatim, and it must be a single line |
 | The radar has nothing new | Check `arxiv_categories` / `seed_arxiv_ids`; widen `--days` |

@@ -37,7 +37,6 @@ BEGIN = "<!-- magi:begin -->"
 END = "<!-- magi:end -->"
 
 
-@pytest.mark.xfail(reason="M3 collapses the command surface", strict=False)
 def test_the_porcelain_fits_on_one_screen():
     result = subprocess.run([sys.executable, "-m", "magi", "--help"],
                             capture_output=True, text=True, encoding="utf-8",
@@ -46,14 +45,28 @@ def test_the_porcelain_fits_on_one_screen():
     assert len(lines) <= 20, f"`magi --help` is {len(lines)} lines:\n" + "\n".join(lines)
 
 
-@pytest.mark.xfail(reason="M3 rewrites 20 skills into 8", strict=False)
+def test_hiding_a_command_is_presentation_not_removal():
+    """The short help is a menu, not a smaller product. Everything v1 shipped
+    still runs and still documents itself — `--help --all` is where a person
+    who wants the reference manual finds it."""
+    short = subprocess.run([sys.executable, "-m", "magi", "--help"],
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace").stdout
+    every = subprocess.run([sys.executable, "-m", "magi", "--help", "--all"],
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace").stdout
+
+    assert len(every.splitlines()) > 3 * len(short.splitlines())
+    for command in ("ingest", "graph", "thread", "radar", "lint"):
+        assert command in every, f"--help --all does not list {command}"
+
+
 @pytest.mark.parametrize("skill", SKILLS, ids=lambda p: p.parent.name)
 def test_a_skill_costs_at_most_forty_lines(skill):
     lines = skill.read_text(encoding="utf-8").splitlines()
     assert len(lines) <= 40, f"{skill.parent.name}/SKILL.md is {len(lines)} lines"
 
 
-@pytest.mark.xfail(reason="M3 introduces the managed block", strict=False)
 def test_the_managed_block_exists_and_stays_short(tmp_path):
     """The block a fresh workspace writes into AGENTS.md, measured end to end
     rather than from the template — the test should fail if the writer starts

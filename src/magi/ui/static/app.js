@@ -509,7 +509,7 @@
       hint_claims_unverified: "有学术命题尚未验证（到 Melchior 面板查看）",
       hint_bd_ready: "有可直接开工的任务（到 Balthasar 面板查看）",
       hint_install_beads: "任务引擎 (beads) 未安装——见安装指引",
-      hint_ingest_start: "把论文 PDF / 源文件放进 inbox/，用 wiki_ingest 技能开始建库",
+      hint_ingest_start: "把论文 PDF / 源文件放进 inbox/，用 ingest 技能开始建库",
       btn_hint_run: "执行",
       btn_hint_goto: "前往",
 
@@ -531,8 +531,8 @@
       bib_no_entry: "缺少可引用的 frontmatter（title/authors/year）",
       toast_bib_copied: "BibTeX 已复制到剪贴板（{n} 条）",
       mel_drafts_title: "论文草稿",
-      mel_drafts_subtitle: "drafts/ 下的草稿——进检索、不进图谱（wiki_draft skill）",
-      drafts_none: "还没有草稿——用 wiki_draft skill 开始写作流程。",
+      mel_drafts_subtitle: "drafts/ 下的草稿——进检索、不进图谱（draft skill）",
+      drafts_none: "还没有草稿——用 draft skill 开始写作流程。",
 
       // Workspace config
       cfg_title: "工作区配置",
@@ -1198,7 +1198,7 @@
       hint_claims_unverified: "Some claims are still unverified (see Melchior)",
       hint_bd_ready: "There is actionable work ready (see Balthasar)",
       hint_install_beads: "Task engine (beads) is not installed — see install guide",
-      hint_ingest_start: "Drop paper PDFs / sources into inbox/ and run the wiki_ingest skill",
+      hint_ingest_start: "Drop paper PDFs / sources into inbox/ and run the ingest skill",
       btn_hint_run: "Run",
       btn_hint_goto: "Open",
 
@@ -1220,8 +1220,8 @@
       bib_no_entry: "missing citable frontmatter (title/authors/year)",
       toast_bib_copied: "BibTeX copied to clipboard ({n} entrie(s))",
       mel_drafts_title: "Drafts",
-      mel_drafts_subtitle: "Paper drafts under drafts/ — indexed for search, outside the graph (wiki_draft skill)",
-      drafts_none: "No drafts yet — the wiki_draft skill sets up the writing workflow.",
+      mel_drafts_subtitle: "Paper drafts under drafts/ — indexed for search, outside the graph (draft skill)",
+      drafts_none: "No drafts yet — the draft skill sets up the writing workflow.",
 
       // Workspace config
       cfg_title: "Workspace Config",

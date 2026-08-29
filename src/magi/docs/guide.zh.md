@@ -32,7 +32,7 @@ MAGI 由三层组成，分工不重叠：
 agent 的上下文是一次性的，**状态永远在磁盘上**。所以任何一步中断都能原地续跑。
 
 > [!WARN]
-> **agent 不是可选项。** 从 `raw/` 原始文献到 `wiki/` 概念卡这一步是理解与综合，没有对应的 CLI 命令——它只能由 `wiki_compile` 技能驱动 LLM 完成。只装 CLI 不接 agent 宿主，你可以摄入文献、做关键词检索，但永远得不到概念卡、知识图谱和带引用的问答。第 2.4 节讲怎么接。
+> **agent 不是可选项。** 从 `raw/` 原始文献到 `wiki/` 概念卡这一步是理解与综合，没有对应的 CLI 命令——它只能由 `compile` 技能驱动 LLM 完成。只装 CLI 不接 agent 宿主，你可以摄入文献、做关键词检索，但永远得不到概念卡、知识图谱和带引用的问答。第 2.4 节讲怎么接。
 
 ### 三条起步路线
 
@@ -45,7 +45,7 @@ magi pm init                 # 任务系统（会 git-init 本目录）
 
 mkdir -p topics/quantum-toys && cd topics/quantum-toys
 magi init --name "Quantum Toys" --scope "玩具模型中的量子现象"
-magi skills install          # 把技能装进这个工作区（会问你装给哪个 CLI）
+magi install                 # 把这个工作区装进你的 agent CLI：技能 + AGENTS.md 协议块 + 收工闸门
 
 magi sync --fix              # 验收，并把能自动修的都修掉
 ```
@@ -75,7 +75,7 @@ magi guide --symptoms               # 全书的「症状 → 原因 → 怎么�
 
 `--json` 是给 agent 用的机器格式，`--lang en` 切英文。
 
-**让 agent 直接排查**：仓库自带 `magi_guide` 技能，随插件一起装好。你只要把报错原样贴进对话，或者说一句「用 magi_guide 查一下」，它会先在手册里检索症状、读相关章节、再跑 `magi sync` / `magi setup --check` 确认现状，最后给你手册里那条确切的命令——而不是凭记忆编一个参数。
+**让 agent 直接排查**：手册随 CLI 一起装，不用联网也不用记。把报错原样贴进对话即可——agent 会跑 `magi guide --search "<报错>"` 检索症状、读相关章节、再用 `magi sync` / `magi setup --check` 确认现状，最后给你手册里那条确切的命令，而不是凭记忆编一个参数。
 
 > [!NOTE]
 > 手册里的每条命令都对着真实 CLI 校验过，测试会保证它不漂移。所以 agent 引用手册比它凭印象作答可靠得多——遇到 MAGI 相关的问题，值得明确要求它「查手册再回答」。
@@ -89,7 +89,7 @@ MAGI SYSTEM ONLINE — sync ratio 33.3%
 |- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 0
 |- BALTHASAR (intent)     beads offline
 `- CASPER    (retrieval)  index missing · 0 chunks · vectors 0/0
-  -> drop sources in inbox/ and run the wiki_ingest skill to start building the library
+  -> drop sources in inbox/ and run the ingest skill to start building the library
   -> magi pm init   # initialize beads at the hub root
   -> magi index   # build the retrieval index
 ```
@@ -106,7 +106,7 @@ magi sync --fix --dry-run   # 先看会跑哪几条
 同步率是三核就绪度的加权平均（只计算「当前适用」的核）：
 
 - **MELCHIOR** = 0.55 图谱新鲜度 + 0.25 待编译积压 + 0.20 命题健康度
-- **BALTHASAR** = 0.6 任务库可达 + 0.4 状态可读（`--kb-only` 模式下整核不计入）
+- **BALTHASAR** = 研究状态有多可读：`1 − 欠账/note 数`，欠账指 `threads/` 里「发生了但没写下来」的事。它量的是记账干净度不是进度——六个开放命题零欠账完全健康。还没有 `threads/` 的库沿用旧口径（0.6 任务库可达 + 0.4 状态可读）；`--kb-only` 模式下整核不计入。
 - **CASPER** = 0.7 索引新鲜度 + 0.3 向量覆盖率
 
 > [!NOTE]
@@ -269,7 +269,9 @@ WebUI 里版本号旁边会出现一个徽章，点开有 **立即升级**。
 | 工作区 | 你的课题目录 | 每个课题一个 |
 | 全局配置与注册表 | `~/.config/magi/`（Windows 是 `C:\Users\<你>\.config\magi\`，**不是** AppData） | 全机一份 |
 
-装一次 CLI，之后每开一个新课题只需要 `magi init` + `magi skills install`。
+装一次 CLI，之后每开一个新课题只需要 `magi init` + `magi install`。
+
+`magi install` 做三件事，缺一件 agent 都跑不顺：把 8 个技能放到宿主找得到的地方；把当前协议写进 `AGENTS.md` 的托管块（块外你写的东西一个字不动）；给 Claude Code 装上 Stop hook，让会话结束前必须过 `magi sync --close`。**宿主强制力不对称**：只有 Claude Code 有文档化的 Stop hook，其余宿主同一条规则只以托管块里的指令形式存在——agent 可以不听，而且有时真不听。命令会把这件事直说，而不是装成四个宿主都装好了。
 
 > [!WARN]
 > 真·项目内安装（`uv venv && uv pip install -e .`）只推荐给要改 MAGI 源码的人。这样装出来的 `magi` **不在 PATH 上**，只能用 `.venv\Scripts\python.exe -m magi.cli ...` 调用；而 skills、Claude Code 的 SessionStart 钩子、雷达定时任务全都是按裸命令名 `magi` 去 PATH 里找的，它们会找不到。日常使用请用 `pipx`（或 `uv tool install`）。
@@ -291,7 +293,7 @@ magi skills uninstall            # 撤掉
 技能文件随 CLI 一起分发，**不需要 clone 仓库、不需要联网**。
 
 > [!WARN]
-> **默认只装进当前工作区，不装全局。** 这 20 个技能都是围着某个研究工作区转的（往 `raw/` 摄入、编译进 `wiki/`、查这个库的图谱），装到全局意味着你打开任何一个无关项目，agent 都要背着它们。真想全机可用：`magi skills install --scope global`（命令会提醒你一次）。
+> **默认只装进当前工作区，不装全局。** 这 8 个技能都是围着某个研究工作区转的（往 `raw/` 摄入、编译进 `wiki/`、查这个库的图谱），装到全局意味着你打开任何一个无关项目，agent 都要背着它们。真想全机可用：`magi skills install --scope global`（命令会提醒你一次）。
 > 装在工作区里还有个好处：这些文件跟着仓库走，同事 clone 下来就有。
 
 | 宿主 | 全局位置 | 项目位置 | 怎么触发 |
@@ -318,7 +320,7 @@ claude plugin install <本地仓库目录>      # 本地开发模式
 **任何其他 agent**——工作区里的 `CLAUDE.md` 和 `AGENTS.md`（两份内容完全一致）就是入场协议：它告诉 agent 进场先跑 `magi sync`、三核对应哪些命令、卡住时用 `magi guide --search` 查手册，以及「不许凭记忆回答研究问题」。只要宿主会读其中之一就能开工；实在不认，把 `magi --help` 贴给它也行。
 
 > [!EXPECT]
-> `magi skills where` 里 project 那几行显示 20/20；在**这个工作区目录里**重开一个 agent 会话，输入 `/` 能看到技能（Claude Code / opencode），或者直接说「摄入 inbox 里的论文」它就动手。`magi setup --check` 的体检表也会显示当前工作区各 CLI 的技能数。
+> `magi skills where` 里 project 那几行显示 8/8；在**这个工作区目录里**重开一个 agent 会话，输入 `/` 能看到技能（Claude Code / opencode），或者直接说「摄入 inbox 里的论文」它就动手。`magi setup --check` 的体检表也会显示当前工作区各 CLI 的技能数。
 
 > [!FIX]
 > - **装完看不到**：技能是启动时扫描的——**在工作区目录里重开一个会话**（项目级技能只在从该目录启动时可见）。
@@ -587,7 +589,7 @@ MAGI 先问这份文档是不是真需要：**没有数学的原生电子版 PDF
 一条没决定，`batch-commit` 就**直接拒绝**。而「拒绝」不等于丢弃——它会自动落到
 **下一档路线**、出现在下一批里，所以「这份转得不行，换个法子」只要一条命令。
 
-这一整套你的 agent 可以替你跑：**wiki_inbox** 技能接受链接、引文、甚至一张截图，
+这一整套你的 agent 可以替你跑：**ingest** 技能接受链接、引文、甚至一张截图，
 自己判断每个是什么，然后执行上面这些命令。
 
 ### 路线，怎么选 {#ingest-routes}
@@ -697,12 +699,12 @@ tools:                      # 只有在这些程序不在 PATH 上时才需要�
 > ```
 
 > [!NOTE]
-> `ocr.use_mineru` 这个键**只对 agent 有效**——是给 `wiki_ingest` 技能读的路由提示。你在终端直接敲 `magi ingest mineru` 时它不看这个键，只看 token 有没有配。同理 `pdf.quality` 和 `output.encoding` 目前是空转的，改了没有任何效果。
+> `ocr.use_mineru` 这个键**只对 agent 有效**——是给 `ingest` 技能读的路由提示。你在终端直接敲 `magi ingest mineru` 时它不看这个键，只看 token 有没有配。同理 `pdf.quality` 和 `output.encoding` 目前是空转的，改了没有任何效果。
 > 还有一批键 `magi init` 生成的模板里没有、但代码确实会读：整个 `tools:`、`pdf:`、`output:` 段，以及 `radar.min_relevance` / `radar.own_arxiv_ids` / `radar.citation_gap.*`。需要时自己加进去就行。
 
 ### 跑一遍 {#ingest-run}
 
-最省事的方式：把 PDF 丢进 `inbox/`，然后对 agent 说「摄入 inbox 里的论文」（或 `/magi:wiki_ingest`）。它会选路线、转格式、收尾。想手工跑：
+最省事的方式：把 PDF 丢进 `inbox/`，然后对 agent 说「摄入 inbox 里的论文」（或 `/magi:ingest`）。它会选路线、转格式、收尾。想手工跑：
 
 ```powershell
 # arXiv 源码包（最推荐）
@@ -773,7 +775,7 @@ magi ingest finalize inbox/paper.pdf --topic-dir . --md-file raw/papers/2026-08-
 
 > 「把待编译的都编译了」
 
-它会执行 `wiki_compile` 技能：读懂每篇摄入进来的论文、拆出概念、判断哪些属于本库范围、写成结构化的互链卡片。`magi compile` 不存在、以后也不会有——这是理解工作，CLI 在这一层只负责检查和修补 agent 写出来的东西。
+它会执行 `compile` 技能：读懂每篇摄入进来的论文、拆出概念、判断哪些属于本库范围、写成结构化的互链卡片。`magi compile` 不存在、以后也不会有——这是理解工作，CLI 在这一层只负责检查和修补 agent 写出来的东西。
 
 编译完，三条命令收尾：
 
@@ -795,12 +797,12 @@ magi graph build        # 把新卡片刷进图谱
 
 | 说什么 | 技能 | 做什么 |
 |---|---|---|
-| 「编译 raw 里的新文献」 | `wiki_compile` | 每篇 raw 源 → 一张 `wiki/references/` 文献卡，顺手抽出概念卡 |
-| 「深挖这篇的概念」 | `wiki_enrich` | 对已编译的卡片二次扫描，补挖第一遍漏掉的定理/引理 |
-| 「合并重复概念」 | `wiki_concept_sync` | 同义概念物理归并、过宽概念拆分、多源定义重写 |
-| 「清理标签」 | `wiki_tag_sync` | 标签/别名本体论归一（见第 7 章） |
-| 「体检并修复」 | `wiki_lint` | 死链、frontmatter、公式的自动修补 |
-| 「公式被摄入弄坏了」 | `wiki_math_fix` | 全库把坏公式抓成一张清单，逐条读懂再改 |
+| 「编译 raw 里的新文献」 | `compile` | 每篇 raw 源 → 一张 `wiki/references/` 文献卡，顺手抽出概念卡 |
+| 「深挖这篇的概念」 | `compile` | 对已编译的卡片二次扫描，补挖第一遍漏掉的定理/引理 |
+| 「合并重复概念」 | `tidy` | 同义概念物理归并、过宽概念拆分、多源定义重写 |
+| 「清理标签」 | `tidy` | 标签/别名本体论归一（见第 7 章） |
+| 「体检并修复」 | `magi lint --fix` | 死链、frontmatter、公式的自动修补——确定性命令，不需要 skill |
+| 「公式被摄入弄坏了」 | `tidy` | 全库把坏公式抓成一张清单，逐条读懂再改 |
 
 对应的确定性命令：
 
@@ -866,7 +868,7 @@ magi math check --json              # 同上，但输出一张可逐条处理的
 > **同一文件里连续好几条，通常是同一个缺陷。** `$$` 是顺序配对的，少一个闭合符会让后面每一对
 > 都错位、各报一条。**改第一条再复验那个文件**，一百多条常常塌成十几处真实改动——千万别自底向上改。
 
-**逐条修不用自己扛**：`wiki_math_fix` 技能就是干这个的——先跑 format，再按 `wiki/` 优先的顺序
+**逐条修不用自己扛**：`tidy` 技能就是干这个的——先跑 format，再按 `wiki/` 优先的顺序
 读原文、必要时对着源 PDF 核对、改完单文件复验。在 agent 里说「把公式修一下」即可。
 
 > [!NOTE]
@@ -917,8 +919,8 @@ magi graph query "SELECT type, COUNT(*) FROM nodes GROUP BY type"
 
 | 你看到的 | 真正的原因 | 怎么修 |
 |---|---|---|
-| **节点太少** | 文献还没编译成卡片；或者图是旧的 | `magi wiki uncompiled` 看积压 → 用 `wiki_compile` 编译 → `magi graph build` |
-| **一堆孤立点** | 卡片正文里没写双链，也没跑过语义连边 | `magi link .`（见下）；系统性补链用 `wiki_enrich` |
+| **节点太少** | 文献还没编译成卡片；或者图是旧的 | `magi wiki uncompiled` 看积压 → 用 `compile` 编译 → `magi graph build` |
+| **一堆孤立点** | 卡片正文里没写双链，也没跑过语义连边 | `magi link .`（见下）；系统性补链用 `compile` |
 | **毛球，全连在一起** | 连边阈值太低；或某个标签太宽泛，所有卡片都挂在它下面 | 提高 `magi link --threshold`；先做标签归一，再重跑连边 |
 | **概念重复** | 没有任何东西会自动合并概念 | `magi link . --dedup-only` 列出候选，人工确认后合并 |
 | **标签一地鸡毛** | 每篇各写各的 | `magi tags extract` → 人工/LLM 写映射 → `magi tags apply` |
@@ -1139,7 +1141,7 @@ bd list --label magi-compile --all         # 看编译积压
 
 草稿放在 `drafts/<slug>.md`。这个目录 `magi init` 不会建，第一次写文件时自然出现。它**进检索**（collection 叫 `drafts`）、**不进图谱**、**不计同步率**——它是在写的东西，不是已经确立的知识。
 
-写作循环（技能 `wiki_draft` 会带着你走，手工也一样）：
+写作循环（技能 `draft` 会带着你走，手工也一样）：
 
 ```powershell
 magi search "这一段要讲的东西" -k 5           # 1. 先取证
@@ -1178,7 +1180,7 @@ magi validate wiki/theses/x.md --schema thesis       # 论断报告的结构校�
 ```
 
 > [!NOTE]
-> `verified` 的含义是**引文存在性**——那句话确实逐字出现在来源文件里（空白、全角标点、连字符差异都能容忍）。它**不判断**你的论断和这句引文在语义上是否成立，那一层归人和 LLM 审查（`wiki_audit` 技能）。`magi claims verify` 是同一条命令的别名。
+> `verified` 的含义是**引文存在性**——那句话确实逐字出现在来源文件里（空白、全角标点、连字符差异都能容忍）。它**不判断**你的论断和这句引文在语义上是否成立，那一层归人和 LLM 审查（`research` 技能）。`magi claims verify` 是同一条命令的别名。
 > 引文必须是单行引号内容；多行引文不被支持。
 
 > [!WARN]
@@ -1354,7 +1356,7 @@ magi guide --symptoms                       # 全书症状索引（84 条左右�
 magi guide --symptoms --search "ollama"     # 按关键词过滤
 ```
 
-或者把报错贴给 agent，让 `magi_guide` 技能替你查（见 [1.2](#howto-read)）。
+或者把报错贴给 agent，让它跑 `magi guide --search`（见 [1.2](#howto-read)）。
 
 | 症状 | 先跑这个 |
 |---|---|
@@ -1371,7 +1373,7 @@ magi guide --symptoms --search "ollama"     # 按关键词过滤
 | 双链点不开 / 断链多 | `magi graph browse broken` |
 | 概念重复、标签发散 | `magi link . --dedup-only`；`magi tags extract` |
 | 卡片格式报错 | `magi lint --fix` |
-| 公式渲染不对 | `magi math format` → `magi math check`（整库；`--json` 出清单交给 `wiki_math_fix` 技能逐条修）|
+| 公式渲染不对 | `magi math format` → `magi math check`（整库；`--json` 出清单交给 `tidy` 技能逐条修）|
 | 引用导不出来 | 检查文献卡 frontmatter 的 `title/authors/year/arxiv_id` |
 | 论断被标 unverified | 引文要与来源逐字一致，且必须单行 |
 | 雷达没有新东西 | 检查 `arxiv_categories` / `seed_arxiv_ids`；`--days` 放宽 |

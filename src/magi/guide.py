@@ -1,7 +1,7 @@
 """magi guide — the built-in operating manual, readable by humans and agents.
 
 One markdown source (``magi/docs/guide.{zh,en}.md``) serves three surfaces:
-the WebUI's Docs tab, this command, and the ``magi_guide`` skill. The parser
+the WebUI's Docs tab and this command. The parser
 here is the single implementation — ``magi.ui.api`` imports it instead of
 re-reading the files, so chapter/anchor semantics can never diverge between
 what a person reads and what an agent queries.

@@ -201,7 +201,7 @@ def test_lint_points_at_the_repair_route_it_cannot_take_itself(library):
 def test_the_skill_ships_and_names_the_commands_it_drives():
     from magi.skills_cmd import load_skills
 
-    skill = next((s for s in load_skills() if s.name == "wiki_math_fix"), None)
+    skill = next((s for s in load_skills() if s.name == "tidy"), None)
     assert skill is not None, "the skill is not in the package"
     body = skill.path.read_text(encoding="utf-8")
     for cmd in ("magi math format", "magi math check --json", "magi ingest crop"):

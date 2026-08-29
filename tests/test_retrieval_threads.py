@@ -105,37 +105,53 @@ def test_a_line_boosts_what_it_is_looking_at_without_hiding_the_rest():
     """A boost and not a filter: the answer to a question asked from inside a
     line is often in a paper the line has never cited, and filtering to the
     focus set would hide exactly that."""
-    conns = {"kb": _conn_paths([(1, "wiki/concepts/toric-code.md"),
-                                (2, "raw/papers/unrelated.md")])}
-    merged = {("kb", 1): {"bm25": 0}, ("kb", 2): {"bm25": 0}}
+    conns = {"local": _conn_paths([(1, "wiki/concepts/toric-code.md"),
+                                   (2, "raw/papers/unrelated.md")])}
+    merged = {("local", 1): {"bm25": 0}, ("local", 2): {"bm25": 0}}
     weights = {}
 
     retrieval._apply_focus(conns, merged, {"wiki/concepts/toric-code.md"}, weights)
 
-    assert weights[("kb", 1)] == retrieval.FOCUS_BOOST
-    assert ("kb", 2) not in weights, "everything else still competes"
+    assert weights[("local", 1)] == retrieval.FOCUS_BOOST
+    assert ("local", 2) not in weights, "everything else still competes"
+
+
+def test_another_library_is_not_boosted_by_this_workspaces_focus():
+    """The focus set is paths relative to *this* workspace. Another registered
+    library will have its own `wiki/concepts/…`, and matching by path across
+    libraries boosts a file the line has never heard of."""
+    conns = {"local": _conn_paths([(1, "wiki/concepts/toric-code.md")]),
+             "other": _conn_paths([(1, "wiki/concepts/toric-code.md")])}
+    merged = {("local", 1): {"bm25": 0}, ("other", 1): {"bm25": 0}}
+    weights = {}
+
+    retrieval._apply_focus(conns, merged, {"wiki/concepts/toric-code.md"}, weights)
+
+    assert ("local", 1) in weights
+    assert ("other", 1) not in weights
 
 
 def test_the_focus_boost_stacks_with_the_collection_weight():
     """A proposition the line points at should not lose its down-weight; the
     two are answering different questions."""
-    conns = {"kb": _conn_paths([(1, "threads/p-gap.md")])}
-    merged = {("kb", 1): {"bm25": 0}}
-    weights = {("kb", 1): retrieval._COLLECTION_WEIGHT["threads"]}
+    conns = {"local": _conn_paths([(1, "threads/p-gap.md")])}
+    merged = {("local", 1): {"bm25": 0}}
+    weights = {("local", 1): retrieval._COLLECTION_WEIGHT["threads"]}
 
     retrieval._apply_focus(conns, merged, {"threads/p-gap.md"}, weights)
 
-    assert weights[("kb", 1)] == retrieval._COLLECTION_WEIGHT["threads"] * retrieval.FOCUS_BOOST
+    assert weights[("local", 1)] == (retrieval._COLLECTION_WEIGHT["threads"]
+                                     * retrieval.FOCUS_BOOST)
 
 
 def test_windows_separators_match_the_same_file():
-    conns = {"kb": _conn_paths([(1, "wiki\\concepts\\toric-code.md")])}
-    merged = {("kb", 1): {"bm25": 0}}
+    conns = {"local": _conn_paths([(1, "wiki\\concepts\\toric-code.md")])}
+    merged = {("local", 1): {"bm25": 0}}
     weights = {}
 
     retrieval._apply_focus(conns, merged, {"wiki/concepts/toric-code.md"}, weights)
 
-    assert ("kb", 1) in weights
+    assert ("local", 1) in weights
 
 
 def _conn_paths(rows):

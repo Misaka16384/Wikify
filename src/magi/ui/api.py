@@ -2015,7 +2015,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         """Scenario-based operating manual shipped inside the package.
 
         Content and parsing both come from ``magi.guide`` — the same single
-        implementation behind the ``magi guide`` command and the magi_guide
+        implementation behind the ``magi guide`` command and the docs
         skill, so the manual reads identically to a person here and to an
         agent in a terminal.
         """

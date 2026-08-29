@@ -1,6 +1,6 @@
 """`magi guide` — the manual as a queryable surface for humans and agents.
 
-These lock the contract the magi_guide skill depends on: stable chapter
+These lock the contract every reader of the manual depends on: stable chapter
 anchors, a search that finds pasted error strings, and a symptom index whose
 prescribed commands actually exist in the CLI.
 """

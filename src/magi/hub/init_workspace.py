@@ -80,6 +80,10 @@ def main(argv=None):
     parser.add_argument("--topic-dir", default=".", help="Topic directory path (default: current directory)")
     parser.add_argument("--name", default="My Topic", help="Topic name/title")
     parser.add_argument("--scope", default="A topic wiki.", help="Topic scope description")
+    parser.add_argument("--coaching", default="light",
+                        choices=["off", "light", "strict"],
+                        help="How hard the workspace asks its human for a prediction. "
+                             "strict refuses to start a derivation without one.")
     parser.add_argument("--force", action="store_true", help="Overwrite existing config/log/index files")
     args = parser.parse_args(argv)
 
@@ -192,76 +196,10 @@ created: {today}
 
     # 6. Agent entry protocol: CLAUDE.md (Claude Code) + AGENTS.md (Codex
     # et al.) share one body so every host gets the same onboarding.
-    protocol = f"""# MAGI Research Workspace: {args.name}
-
-This directory is a MAGI topic workspace — an agent-native research
-environment. Scope: {args.scope}
-
-## On entering (do this first)
-
-1. `magi sync` — sync ratio, three-core status, and concrete restore hints.
-   Add `--fix` to run the deterministic ones (graph build, index, backlog
-   sync, task store) instead of typing them out; it reports what still
-   needs a person. `--dry-run` shows the plan first.
-2. `bd prime` — inject current work state (ready/blocked/in-progress tasks).
-
-## The three cores
-
-- **Knowledge** (`wiki/`): concept cards, reference cards, theses.
-  Produced by the ingest/compile skills; queried via `magi graph query`,
-  `magi wiki context`, `magi grep`.
-- **Work state** (beads): `bd ready` lists actionable tasks. Track research
-  work with typed issues: question / survey / derivation / computation /
-  experiment / review (`bd create -t <type> "..."`). These six research types
-  are CUSTOM types configured by `magi pm init`; the generic type list from
-  `bd prime` (task/bug/feature) does not supersede them.
-- **Retrieval**: `magi search "..."` (hybrid BM25+vector; build/refresh with
-  `magi index`); `magi grep` for exact regex. After a search, always read the
-  underlying file before citing it.
-
-## Shortcuts worth preferring
-
-- `magi sync --fix` instead of running graph/index/backlog commands by hand.
-- `magi ingest auto <path>` (or bare, for all of `inbox/`) instead of choosing
-  between ingest mineru/ocr/tex/add and remembering `ingest finalize`.
-- `magi each <command>` to run one command across every topic of a hub.
-- `magi math check --json` after a batch of ingests, instead of checking each
-  file. Ingestion's signature failure is a `$$` that lost its closing pair and
-  swallowed the paragraph after it — that parses as valid LaTeX, so nothing
-  else catches it. Work the list with the `wiki_math_fix` skill.
-
-## Asking, and who does it
-
-Only the agent talking to the human asks the human. If you are a sub-agent, the
-question will not reach them on most hosts and hangs on some — put it in the
-report you return instead, on its own line:
-
-    NEEDS-DECISION: <the question> | options: <a> / <b> | default if unanswered: <x>
-
-Whoever spawned you collects these and asks once, together. Ten sub-agents must
-not become ten interruptions.
-
-If you are the main agent and nobody is there (a scheduled run, a piped run, CI),
-do not guess and do not wait: stop and state what you would have asked.
-
-Ask before anything expensive or irreversible, and say what it costs in the same
-breath — "this is 34 pages, so roughly 34 sub-agent calls" is a question someone
-can answer; "proceed?" is not.
-
-## Ground rules
-
-- Durable state lives in files and databases here — not in your context.
-  Record work in bd issues; record knowledge as wiki cards.
-- Do NOT answer research questions from parametric memory. Retrieve from
-  `wiki/` and cite `[[wikilinks]]`; verify claims with `magi verify`.
-- Syntax for any command: `magi <command> --help`. Overview: `magi --help`.
-- Stuck, or asked how something works? The manual ships with the CLI —
-  `magi guide --search "<the error>"` finds the section, `magi guide
-  --symptoms` is the symptom→fix index, `magi guide <chapter>` reads one.
-  Prefer it over recalling flags from memory; add `--json` for parsing.
-- The wiki_* skills teach when/why to run each pipeline (ingest, compile,
-  enrich, link, lint, ask, audit, research).
-"""
+    # The protocol is one text, in `core/managed.py`, because it is read at
+    # the start of every session on every host — and because `magi install`
+    # has to be able to rewrite it in place when it changes.
+    protocol = managed.body(args.name, args.scope, args.coaching)
     # The protocol goes in a marked block so upgrades can rewrite it without
     # touching what a person added around it. CLAUDE.md holds one line so
     # there is a single text to keep current, not two that drift.

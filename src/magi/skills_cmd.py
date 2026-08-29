@@ -622,7 +622,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                     print(f"      - {pl['error']}")
                     continue
                 print(f"      {pl['kind']:<8} {pl['dir']}")
-                trigger = pl["invoke"].replace("<skill>", "magi_guide")
+                trigger = pl["invoke"].replace("<skill>", "ask")
                 print(f"               -> {trigger}")
             if r["note"]:
                 print(f"      note: {r['note']}")

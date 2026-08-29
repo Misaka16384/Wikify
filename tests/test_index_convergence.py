@@ -4,7 +4,7 @@ Four functions rendered these files in three different formats, and three
 orchestrators ran them in three different orders:
 
     magi ingest finalize   lint --fix -> graph build -> wiki reindex
-    wiki_compile skill     wiki reindex -> lint --fix
+    compile skill          wiki reindex -> lint --fix
     magi init              its own hand-rolled shell
 
 So ingesting a paper, compiling it, and ingesting another rewrote
@@ -70,7 +70,7 @@ def _index(ws):
 # --------------------------------------------------------------------------
 
 def test_the_two_orchestrator_orders_agree(workspace):
-    """`ingest finalize` ends on reindex, `wiki_compile` ends on lint. Whoever
+    """`ingest finalize` ends on reindex, `compile` ends on lint. Whoever
     went last used to decide the format."""
     _magi(workspace, "wiki", "reindex", ".")
     _magi(workspace, "lint", "--fix", ".")

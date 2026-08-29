@@ -1,4 +1,0 @@
-#!/bin/sh
-# Compatibility shim for the wiki_lint fixture tests: forwards to the
-# packaged module (same subcommands: lint/archive/stats/graph/map).
-python -m magi.kb.llmwiki "$@"

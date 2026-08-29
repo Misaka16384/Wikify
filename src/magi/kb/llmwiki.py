@@ -2178,7 +2178,7 @@ def print_text_report(ctx: LintContext) -> None:
         print("\nBroken formulas need reading, not a --fix flag:")
         print("  magi math format                # the mechanical half, whole workspace")
         print("  magi math check --json          # the rest, as a worklist")
-        print("  (the wiki_math_fix skill works that list one formula at a time)")
+        print("  (the tidy skill works that list one formula at a time)")
 
 
 def append_log(path: Path, operation: str, message: str) -> None:
@@ -2755,7 +2755,7 @@ def run_graph(args: argparse.Namespace) -> int:
             category = str(fm.get("category") or "")
             if not category:
                 # Fall back to the containing wiki subdir so `category`
-                # filters documented for wiki_ask keep working when the
+                # filters documented for ask keep working when the
                 # frontmatter omits the field.
                 category = {
                     "concepts": "concept",
