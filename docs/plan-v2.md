@@ -165,6 +165,8 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [ ] 事实类提案路由到 wiki
 - [ ] 托管块 = 模板 + 规则区：`managed.body()` 从 `output/reflect/ledger.jsonl` 渲染 ACCEPT 且未 promoted / 未退出的规则各一行；hash 守护模板与渲染函数，不守护渲染结果；规则区 > `rule_budget` 时由 `reflect accept` 拒绝并说先退哪条，渲染从不截断；`reflect accept | promote`、退出、`sync` 都重渲染，`install --dry-run` 走同一渲染函数；棘轮测试仍只量模板的 40 行
 - [ ] durability：`output/reflect/patterns/` = ORIGINAL（原地改、唯一副本、原子写 + 锁），`output/reflect/ledger.jsonl` 与 `output/llm-ledger.jsonl` = TRANSACTIONAL（后者现在是 unknown）；`.gitignore` 模板不改——它本来就不整体忽略 `output/`——只把这三样加进「刻意不忽略」的注释
+- [ ] skill 方法类提案：目标官方 skill → 队列里标「包级」，ACCEPT 只把 diff 写进账本并在 MAP 列为开发待办，不写包；目标自有 skill → ACCEPT 打补丁到 `~/.config/magi/skills/<name>/` 并提示重装；提案必须含加 / 删两行
+- [ ] 官方标记与不覆盖：8 个官方 skill frontmatter 加 `origin: magi`；`skills_cmd._write` 只覆盖带标记的已有文件，替换「正文含 magi 就覆盖」；`magi install` 增 `~/.config/magi/skills/` 为第二来源，同名用户优先；测试：一个无标记的同名 fork 装两次都原样。同一处统一宿主词表：`antigravity` 降为 `gemini` 的别名，三张宿主表（`skills_cmd` / `review` / `transcripts`）文件头各写明答哪个问题并互指；qwen 的 install 目标不猜
 - [ ] 隔离测试：托管块、8 个 skill、`state.candidates()` 产出的 Action.run 里 grep 不到 `output/reflect`——最后那处是唯一会把路径塞进工作 agent 眼睛的地方。派生扫描（`_LINK_DIRS`、`_iter_corpus`、`graph build`）本来就不走 `output/`，不用再加排除。夹具注意 `is_topic_root` 认的是 wiki/ raw/ threads/，只有 `output/reflect` 的目录不是工作区
 
 **验收**：用真实 transcript 跑一轮产出 ≤ 5 条带引用的提案；模式页跨两次运行存活，第二次才过 ≥ 2 门；被拒的提案第三次运行不再出现且下一条提案能引用它；超预算时拒绝启动；托管块 hash 不变；PROMOTE→CODE 产出的测试可运行。
@@ -180,6 +182,7 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 - [ ] 骨架钉住（`skeleton: true`）与 MAP 静态渲染对齐
 - [ ] guide 全书按 v2 重写；`docs/degradation.md` 增审核 / 无头调用 / transcript 适配行
 - [ ] 三宿主 + 双平台冒烟；`RELEASING.md` 流程
+- [ ] [可选] opencode 完整宿主：无头复核适配器（按其文档化非交互模式）+ 一次冒烟；install 侧已有。做不成就留着 install 那半，不阻塞发布
 
 **验收**：全测试绿；smoke 三宿主；README / guide 与 `--help` 无冲突。
 **→ 发 `v2.0.0`。**
