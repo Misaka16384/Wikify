@@ -408,6 +408,15 @@ def _migrate_topic(root: Path, hub: Path | None = None) -> int:
         print(f"           Rename it: mv {stale.parent} {stale.parent}.wikify-backup",
               file=sys.stderr)
 
+    if not scaffolded:
+        # Stop here. Everything below writes: `retire_theses` moves every file
+        # out of `wiki/theses/` and `point_claude_at_agents` rewrites
+        # `CLAUDE.md`. Running them into a workspace this has just told the
+        # reader is *not* migrated leaves half a migration behind a message
+        # saying none happened — and the half that ran is the destructive one.
+        # The warnings above are read-only and worth having either way.
+        return 1
+
     moved, skipped = retire_theses(root)
     if moved:
         print(f"  wiki/theses/ -> drafts/: {moved} file(s) moved")

@@ -105,3 +105,43 @@ def test_a_secret_is_deliberately_absent_from_the_workspace_template():
         assert not _has(template, key), (
             f"{key} is set in the workspace template; an explicit value there "
             f"shadows the one in ~/.config/magi/config.yaml")
+
+
+# --------------------------------------------------------------------------
+# and the values in it are the values the code uses
+# --------------------------------------------------------------------------
+
+def test_the_shipped_numbers_are_the_ones_the_constants_argue_for():
+    """The template shipped `wip_limit: 3` and `stall_days: 14` while
+    `state.WIP_LIMIT` was 7 and `state.STALL_DAYS` 21 — so a new workspace
+    nagged at a different point from a pre-v2 one with no `research:` block,
+    and a reader could see the docstring arguing for seven next to a file
+    saying three."""
+    from magi import state
+    from magi.init_workspace import main  # noqa: F401 — imported for the module
+
+    import magi.init_workspace as init
+
+    source = Path(init.__file__).read_text(encoding="utf-8")
+    assert f"wip_limit: {state.WIP_LIMIT}" in source
+    assert f"stall_days: {state.STALL_DAYS}" in source
+
+
+def test_every_whitelisted_field_type_has_a_validator():
+    """`research.rules` and `research.hosts` were declared `list_of_maps` and
+    the validation chain had no branch for it, so any shape was accepted and
+    written. The UI reported success for a setting that never took effect."""
+    import re
+
+    block = _config_fields_block()
+    declared = set(re.findall(r'"type":\s*"(\w+)"', block))
+
+    api = Path(ROOT / "src" / "magi" / "ui" / "api.py").read_text(encoding="utf-8")
+    body = api.split("def post_workspace_config", 1)[1].split("def ", 1)[0]
+    handled = set(re.findall(r'ftype == "(\w+)"', body))
+
+    # `choices` and `nullable` are checked ahead of the chain, and a bare
+    # `str` field with choices is still a `str`.
+    missing = declared - handled
+    assert not missing, (
+        f"CONFIG_FIELDS declares {sorted(missing)} with nothing that validates it")

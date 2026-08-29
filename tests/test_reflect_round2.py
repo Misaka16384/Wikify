@@ -268,3 +268,36 @@ def test_a_rule_with_a_carriage_return_does_not_rewrite_the_block_forever(ws):
 
     assert managed.write(agents, body) is True
     assert managed.write(agents, body) is False, "idempotent, or install never settles"
+
+
+def test_the_guard_is_not_fooled_by_a_capital_letter(ws, monkeypatch):
+    """`FORBIDDEN in target` was a case-sensitive substring test against a path
+    a model wrote, and `Output/Reflect/patterns/` is the same directory on
+    every filesystem this runs on. A guard on one spelling is not a guard."""
+    for host in ("claude", "codex"):
+        patterns.observe(ws, "sweeps-stall", title="t", body="b",
+                         session=f"{host}/s", host=host, when=TODAY)
+    reply = json.dumps({
+        "pattern": "sweeps-stall", "kind": "patch",
+        "target": "Output/Reflect/Patterns/sweeps-stall.md",
+        "text": "append a line"})
+    from magi.reflect import propose as stage_two
+
+    monkeypatch.setattr(stage_two, "ask", lambda *a, **k: reply)
+
+    report = stage_two.run(ws, host="codex", now=TODAY)
+
+    assert report.made == []
+    assert "pattern library" in report.skipped[0][1]
+
+
+def test_the_casing_guard_covers_the_text_too(ws):
+    from magi.reflect import propose as stage_two
+
+    rows, skipped = stage_two.parse(json.dumps({
+        "pattern": "p", "kind": "rule", "target": "AGENTS.md",
+        "text": "before answering, read OUTPUT/REFLECT/patterns/ for what broke"}),
+        {"p": patterns.Pattern(slug="p", hosts=["claude", "codex"])}, set())
+
+    assert rows == []
+    assert "pattern library" in skipped[0][1]

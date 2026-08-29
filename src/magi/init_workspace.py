@@ -211,8 +211,12 @@ created: {today}
     config_yaml = """# MAGI workspace configuration (discovered by upward walk from cwd)
 research:
   coaching: light      # off | light | strict — how hard the close gate pushes
-  wip_limit: 3         # open propositions per line before it asks a person
-  stall_days: 14       # days of silence before a line is called quiet
+  wip_limit: 7         # open propositions per line before it asks a person
+                       # seven is a working-memory number: past it a person can
+                       # no longer hold what is open and the line stops being one
+  stall_days: 21       # days of silence before a line is called quiet — long
+                       # enough that a week off is not a flag, short enough that
+                       # a forgotten line surfaces within a month
   review_host:         # empty = probe PATH for a CLI that is not the author
   review_model:        # empty = that host's cheap tier (haiku, flash-low, …)
                        # one string for every vendor: pin review_host too, or

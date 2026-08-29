@@ -421,3 +421,32 @@ def test_the_rule_budget_refuses_in_the_browser_too(client):
     assert res.status_code == 400
     assert "full" in res.json()["detail"]
     assert proposals.get(client.ws, second.id).open
+
+
+def test_capturing_a_clis_output_is_serialised(client, monkeypatch):
+    """`redirect_stdout` swaps the process-global `sys.stdout`, and Starlette
+    runs a sync route on a shared threadpool. Two tabs deciding at once
+    interleaved their contexts: one request got the other's output, and the
+    block exiting second restored `sys.stdout` to a buffer the first had
+    already discarded — after which every uvicorn log line went somewhere
+    nobody reads, for the life of the process."""
+    from magi.reflect import proposals
+    from magi.ui import v2
+
+    made = proposals.propose(client.ws, kind=proposals.RULE, target="AGENTS.md",
+                             text="Check the boundary first.", pattern="p-lock")
+    from magi.reflect import cmd as reflect_cmd
+
+    held = []
+    real = reflect_cmd._decide
+
+    def watching(*args, **kwargs):
+        held.append(v2._CAPTURE_LOCK.locked())
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(reflect_cmd, "_decide", watching)
+
+    post(client, "/api/workspace/proposal", id=made.id, verb="accept")
+
+    assert held == [True], "the capture ran without holding the lock"
+    assert not v2._CAPTURE_LOCK.locked(), "and it is released afterwards"

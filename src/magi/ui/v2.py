@@ -21,8 +21,17 @@ which from the outside.
 from __future__ import annotations
 
 import datetime as dt
+import threading
 from pathlib import Path
 from typing import Optional
+
+#: Serialises the one route that captures a CLI's stdout. `redirect_stdout`
+#: mutates `sys.stdout` for the whole process, so two concurrent requests on
+#: Starlette's threadpool do not each get their own — they get each other's,
+#: and the second one to exit restores a buffer the first had already
+#: discarded. One route, one at a time, is cheaper than teaching `_decide` to
+#: return its output instead of printing it.
+_CAPTURE_LOCK = threading.Lock()
 
 from fastapi import Body, HTTPException, Query
 
@@ -277,12 +286,21 @@ def register(app, resolve_workspace) -> None:
         ident = str(payload.get("id") or "").strip()
         note = str(payload.get("note") or "")
 
-        import contextlib
+        # Captured under a lock, because `redirect_stdout` swaps the
+        # process-global `sys.stdout` and Starlette runs a sync route on a
+        # shared threadpool. Two tabs deciding at once interleaved their
+        # contexts: one request got the other's output, and the `with` block
+        # exiting second restored `sys.stdout` to a StringIO that was already
+        # dead — after which every uvicorn log line went into a buffer nobody
+        # reads, for the life of the process.
         import io
 
         errors, said = io.StringIO(), io.StringIO()
-        with contextlib.redirect_stderr(errors), contextlib.redirect_stdout(said):
-            code = reflect_cmd._decide(ws, verb, ident, note, as_json=False)
+        with _CAPTURE_LOCK:
+            import contextlib
+
+            with contextlib.redirect_stderr(errors), contextlib.redirect_stdout(said):
+                code = reflect_cmd._decide(ws, verb, ident, note, as_json=False)
         if code != 0:
             raise HTTPException(status_code=400,
                                 detail=errors.getvalue().strip() or "refused")

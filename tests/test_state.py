@@ -181,9 +181,14 @@ def test_a_derivation_that_moved_after_the_proposition_is_debt(ws):
     path = proposition(ws, "p-a", derivation=["[[gap-argument]]"])
     threads.set_status(path, "testing", "started", host="claude", at=at(minutes_ago=60))
     draft.write_text("# Argument\n\nRewritten.\n", encoding="utf-8")
-    # The post carries a timestamp and the draft carries an mtime; pin the
-    # mtime so the test compares the two things the code compares.
+    # Both files are pinned, because the code compares three things and the
+    # fixture used to supply two. A post an hour old on a note file written
+    # this second is not a state a workspace can be in: the note was last
+    # written when that post was appended. Leaving it inconsistent is what
+    # made the checkout guard read this as a checkout.
     import os
+    an_hour_ago = NOW.timestamp() - 3600
+    os.utime(path, (an_hour_ago, an_hour_ago))
     os.utime(draft, (NOW.timestamp(), NOW.timestamp()))
 
     debt = load(ws).debt
@@ -1258,3 +1263,46 @@ def test_debt_on_the_lines_own_note_is_not_dropped(ws, capsys):
     payload = json.loads(capsys.readouterr().out)
 
     assert [item["slug"] for item in payload["debt"]] == ["qec"]
+
+
+def test_a_fresh_checkout_does_not_look_like_a_session_of_work(ws):
+    """`git clone` stamps every file with the time it was written, so the
+    draft's mtime becomes now while the post timestamps inside the note stay
+    old — and every proposition with a `derivation:` became debt. `DebtItem`
+    warns about exactly this: a gate that fires on every checkout is a gate
+    somebody turns off."""
+    import os
+
+    (ws / "drafts").mkdir()
+    draft = ws / "drafts" / "gap-argument.md"
+    draft.write_text("# Argument\n", encoding="utf-8")
+    path = proposition(ws, "p-a", derivation=["[[gap-argument]]"])
+    threads.set_status(path, "testing", "started", host="claude", at=at(minutes_ago=60))
+
+    # What a checkout leaves behind: both files written seconds apart, now.
+    now = NOW.timestamp()
+    os.utime(path, (now, now))
+    os.utime(draft, (now + 1, now + 1))
+
+    assert [item for item in load(ws).debt if "gap-argument" in item.why] == []
+
+
+def test_debt_dated_only_by_an_mtime_never_holds_a_session_closed(ws):
+    """It is shown, and it does not gate. An mtime is rewritten by a clone, a
+    checkout, a restored backup, an editor's "save all" and a stray `touch`,
+    none of which changed a word — so it is worth telling somebody about and
+    not worth stopping them with."""
+    import os
+
+    (ws / "drafts").mkdir()
+    draft = ws / "drafts" / "gap-argument.md"
+    draft.write_text("# Argument\n", encoding="utf-8")
+    path = proposition(ws, "p-a", derivation=["[[gap-argument]]"])
+    threads.set_status(path, "testing", "started", host="claude", at=at(minutes_ago=60))
+    an_hour_ago = NOW.timestamp() - 3600
+    os.utime(path, (an_hour_ago, an_hour_ago))
+    os.utime(draft, (NOW.timestamp(), NOW.timestamp()))
+
+    found = [item for item in load(ws).debt if "gap-argument" in item.why]
+    assert found, "it is still reported"
+    assert found[0].blocks is False, "and it is still not a gate"

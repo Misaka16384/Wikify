@@ -179,3 +179,23 @@ def test_migrating_twice_changes_nothing_the_second_time(old_workspace):
     assert set(after) == set(before)
     changed = [str(k) for k in before if before[k] != after[k]]
     assert changed == [], changed
+
+
+def test_a_workspace_that_could_not_be_scaffolded_is_not_half_migrated(
+        old_workspace, monkeypatch, capsys):
+    """It printed "this workspace is not migrated" and then moved every file
+    out of `wiki/theses/` and rewrote `CLAUDE.md`. The half that ran anyway
+    was the destructive half, under a message saying nothing had happened."""
+    from magi import init_workspace
+
+    monkeypatch.setattr(init_workspace, "main", lambda *a, **k: 1)
+    theses_before = sorted(p.name for p in (old_workspace / "wiki" / "theses").iterdir())
+    claude_before = (old_workspace / "CLAUDE.md").read_text(encoding="utf-8")
+
+    code = migrate._migrate_topic(old_workspace)
+
+    assert code == 1
+    assert "not migrated" in capsys.readouterr().err
+    assert sorted(p.name for p in (old_workspace / "wiki" / "theses").iterdir()) == \
+        theses_before, "theses were moved into a workspace that has no drafts/"
+    assert (old_workspace / "CLAUDE.md").read_text(encoding="utf-8") == claude_before

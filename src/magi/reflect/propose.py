@@ -138,6 +138,11 @@ def build_prompt(ready, turned_down, limit: int = MAX_PROPOSALS) -> str:
                          observations="\n\n".join(blocks))
 
 
+def _names_the_library(value: str) -> bool:
+    """Does this mention the pattern library, however it is spelled?"""
+    return FORBIDDEN in str(value).replace("\\", "/").lower()
+
+
 def parse(reply: str, ready_by_slug: dict, seen: set,
           limit: int = MAX_PROPOSALS) -> tuple:
     """`(rows, skipped)` — everything checked against the files, not trusted."""
@@ -168,7 +173,11 @@ def parse(reply: str, ready_by_slug: dict, seen: set,
         if not target or not text:
             skipped.append((slug, "a proposal needs a target and a change"))
             continue
-        if FORBIDDEN in target.replace("\\", "/") or FORBIDDEN in text.replace("\\", "/"):
+        # Lowercased first. The guard is a substring test against a path the
+        # model wrote, and `Output/Reflect/patterns/x.md` is the same directory
+        # on every filesystem this runs on — Windows and macOS both match it
+        # case-insensitively. A guard on the one spelling is not a guard.
+        if _names_the_library(target) or _names_the_library(text):
             # The pattern library is not for the working agent (design-v2 §12).
             # A proposal naming it would put the path in the decision queue and,
             # if accepted as a rule, into the block every session reads.

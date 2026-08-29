@@ -95,6 +95,13 @@ class DebtItem:
     why: str
     path: Path | None = None
     when: str | None = None
+    #: Whether this may hold a session closed. False for anything whose only
+    #: evidence is a file mtime: `git clone`, `git checkout`, a restored
+    #: backup, an editor's "save all" and a stray `touch` all rewrite mtimes
+    #: without a word changing, so a finding derived from one is worth showing
+    #: a person and not worth stopping them with. It still appears in
+    #: `magi next` and in the closing report's `older` list.
+    blocks: bool = True
 
 
 @dataclass
@@ -393,9 +400,10 @@ def _debt(root: Path, notes, links=None) -> list:
 
         stale = _stale_derivation(root, note, links)
         if stale is not None:
+            where, when = stale
             items.append(DebtItem(
-                slug=note.slug, path=note.path,
-                why=f"{stale} changed after the last post here — the argument moved "
+                slug=note.slug, path=note.path, when=when, blocks=False,
+                why=f"{where} changed after the last post here — the argument moved "
                     f"and the proposition did not"))
     return items
 
@@ -469,11 +477,37 @@ def _decisions_mention(root: Path, slug: str) -> bool:
     return re.search(rf"(?<![\w-]){re.escape(slug)}(?![\w-])", text) is not None
 
 
+#: How far apart two files written by the same `git clone` may land. The
+#: comparison below is between file mtimes, and git does not preserve them: a
+#: fresh checkout stamps every file with the time it was written, seconds
+#: apart. Anything inside this window is a checkout, not an edit.
+CLONE_SKEW = dt.timedelta(minutes=5)
+
+
 def _stale_derivation(root: Path, note, links):
-    """The derivation file that moved after this note last did, if any."""
+    """The derivation that moved after this note did — `(path, when)` or None.
+
+    Two comparisons, not one. The draft has to have moved after the note was
+    last *discussed* (that is the finding: the argument moved on and the
+    proposition did not) **and** after the note file itself was last written.
+
+    The second is what survives a checkout. `git clone` gives every file the
+    same mtime, so the first test alone fired on every note with a
+    `derivation:` — post timestamps come from the file's contents and stay
+    old, while the draft's mtime becomes now. `DebtItem` warns about exactly
+    this: a gate that fires on every checkout is a gate somebody turns off.
+
+    The timestamp comes back with the finding so the debt can be dated by the
+    edit that caused it. Without it `_recent` falls back to the note's mtime,
+    which is the one file this finding says did *not* change.
+    """
     last = _last_post_time(note)
     if last is None:
         return None
+    try:
+        note_moved = dt.datetime.fromtimestamp(note.path.stat().st_mtime, dt.timezone.utc)
+    except (OSError, AttributeError):
+        note_moved = None
     for link in threads.as_list(note.frontmatter.get("derivation")):
         target = _resolve(root, str(link), links)
         if target is None:
@@ -482,11 +516,15 @@ def _stale_derivation(root: Path, note, links):
             moved = dt.datetime.fromtimestamp(target.stat().st_mtime, dt.timezone.utc)
         except OSError:
             continue
-        if moved > last:
-            try:
-                return target.relative_to(root).as_posix()
-            except ValueError:
-                return target.name
+        if moved <= last:
+            continue
+        if note_moved is not None and moved <= note_moved + CLONE_SKEW:
+            continue
+        try:
+            where = target.relative_to(root).as_posix()
+        except ValueError:
+            where = target.name
+        return where, moved.strftime("%Y-%m-%dT%H:%M:%SZ")
     return None
 
 
@@ -1276,7 +1314,7 @@ def close(root, window_hours: int = CLOSE_WINDOW_HOURS, write: bool = True,
 
     cutoff = now - dt.timedelta(hours=window_hours)
     for item in state.debt:
-        if _recent(item, cutoff):
+        if item.blocks and _recent(item, cutoff):
             report.blocking.append(item)
         else:
             report.older.append(item)

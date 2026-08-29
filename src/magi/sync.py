@@ -257,7 +257,11 @@ def _research_status(topic: Path | None):
     try:
         from magi import state as state_mod
 
-        projection = state_mod.load(topic)
+        # `loaded`, not `load`: `load`'s defaults are the library's, and the
+        # workspace's own `wip_limit` / `stall_days` / `coaching` live in
+        # config.yaml. Reading them here is what stops `magi sync` reporting a
+        # smaller `waiting` count than `magi next` for the same line.
+        projection = state_mod.loaded(topic)
     except Exception:  # noqa: BLE001 — a broken note must not take sync down
         return None
 

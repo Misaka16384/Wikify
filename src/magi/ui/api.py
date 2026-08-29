@@ -1859,6 +1859,36 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         elif ftype == "list":
             if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
                 raise HTTPException(status_code=400, detail=f"{key} expects a list of strings")
+        elif ftype == "list_of_maps":
+            # There was no branch here at all, so any shape was written and
+            # reported as saved. A string under `research.hosts` was then
+            # silently dropped by `hosts._configured`, and a malformed rule
+            # under `research.rules` came back as a violation of itself that
+            # blocked every session close — in both cases long after the UI
+            # said it had worked.
+            if not isinstance(value, list) or not all(isinstance(x, dict) for x in value):
+                raise HTTPException(status_code=400,
+                                    detail=f"{key} expects a list of records")
+            if key == "research.rules":
+                from magi.core import rules as rules_mod
+
+                # Refused where it is written, which is what `rules.parse`
+                # exists for: the alternative is discovering it at the gate,
+                # at the worst moment, in a workspace that will not close.
+                try:
+                    rules_mod.parse(value)
+                except rules_mod.RuleError as exc:
+                    raise HTTPException(status_code=400, detail=f"{key}: {exc}")
+            if key == "research.hosts":
+                from magi.core import hosts as hosts_mod
+
+                bad = [record for record in value if hosts_mod.host_from(record) is None]
+                if bad:
+                    named = ", ".join(str(r.get("key") or "?") for r in bad)
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"{key}: unusable record(s): {named}. A host needs "
+                               f"at least a `key`.")
 
         # Writing `research.*` now changes what the close gate enforces, so
         # "any path somebody typed" is not a workspace this may write to.
