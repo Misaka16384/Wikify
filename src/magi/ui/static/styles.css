@@ -1721,6 +1721,12 @@ textarea.text-input {
 /* A registered workspace whose directory is gone. Dimmed rather than hidden
    outright, because the row is still the only place its name and path can be
    read before unregistering it. */
+.core-sync-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  opacity: 0.72;
+}
+
 .kb-row-gone { opacity: 0.55; }
 .kb-row-gone code { text-decoration: line-through; }
 

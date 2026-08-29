@@ -141,6 +141,11 @@
       <div class="core-sync-rail"><i id="core-sync-fill"></i></div>
       <span class="core-sync-val" id="dash-sync-ratio">--%</span>
     </div>
+    <!-- On the page, not in a tooltip. The comment above calls this the
+         most-asked-about number here, and it was answered only on hover —
+         which somebody who came to the browser to avoid a terminal will not
+         necessarily do, and a phone never can. -->
+    <p class="core-sync-note" data-i18n="core_sync_note"></p>
   </section>
 
   <!-- Navigation Tabs -->
@@ -465,6 +470,7 @@
           <button class="btn btn-primary btn-sm" id="thread-post-btn" data-i18n="btn_post">Post</button>
         </div>
         <div class="form-row" id="thread-moves"></div>
+        <p class="card-subtitle" id="thread-move-hint"></p>
         <div class="form-row" id="thread-review-row" hidden>
           <button class="btn btn-secondary btn-sm" id="thread-review-btn"></button>
           <span class="card-subtitle" id="thread-review-note"></span>

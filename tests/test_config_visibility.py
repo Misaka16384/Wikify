@@ -292,3 +292,54 @@ def test_handing_the_directory_to_bd_is_announced_first():
     called = pm.index('_agreed_to_hand_over(root, getattr')
     ran = pm.index('_run_bd(["init"')
     assert called < ran, "asked after handing it over"
+
+
+def test_the_webui_does_not_press_a_button_that_asks_a_question():
+    """I broke this in the same session I fixed it in. `magi pm init` grew a
+    confirmation guarded on `sys.stdin.isatty()`, so agents and pipes would not
+    hang — but a server started from a terminal hands its own tty to every
+    child it spawns. `isatty()` came back True, the job prompted, nothing
+    answered, and every press of "Initialize Task Tracking" failed with
+    "nothing was handed over" in a log on a tab the button does not link to.
+
+    `isatty` is not "is there somebody who can answer". The caller that knows
+    says so."""
+    from magi.ui import jobs
+
+    assert jobs.OPS["pm-init"]["argv"] == ["pm", "init", "--yes"]
+
+
+def test_a_plain_text_field_is_not_markdown():
+    """`t()` output goes into `textContent`. Asterisks meant for emphasis
+    render as asterisks, which is how `Counted in **calls**, not money` reached
+    the config panel."""
+    js = APP_JS.read_text(encoding="utf-8", errors="replace")
+    for key in _label_keys().values():
+        for line in js.splitlines():
+            if line.strip().startswith(key + ":"):
+                assert "**" not in line, f"{key} carries markdown into plain text"
+
+
+def test_the_status_buttons_say_they_are_not_ready():
+    """Clicking a transition with the reason box empty fired no request and
+    showed a toast that had faded by the time anyone looked — indistinguishable
+    from a broken button. The flip and the sentence saying why are one action,
+    so the control is not available until there is a sentence."""
+    js = APP_JS.read_text(encoding="utf-8", errors="replace")
+
+    assert "function wireMoveGate(" in js
+    assert "wireMoveGate();" in js, "defined and never called"
+    assert "moves_need_reason_first" in js, "it disables with no explanation"
+
+
+def test_the_most_asked_about_number_is_explained_on_the_page():
+    """It was answered only in a `title` tooltip — on the element whose own
+    comment calls it "the most-asked-about number on the page". Somebody who
+    opened a browser to avoid a terminal does not necessarily hover, and a
+    phone cannot."""
+    html = (ROOT / "src" / "magi" / "ui" / "static" / "index.html").read_text(
+        encoding="utf-8")
+    js = APP_JS.read_text(encoding="utf-8", errors="replace")
+
+    assert 'data-i18n="core_sync_note"' in html
+    assert "core_sync_note:" in js

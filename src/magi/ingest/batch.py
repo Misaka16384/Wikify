@@ -240,6 +240,21 @@ def _run_route(route: str, entry, staging: Path, topic: Path | None = None) -> C
 
     if route == "mineru":
         from magi.ingest import mineru
+
+        # Checked here, before the file is opened and long before anything is
+        # uploaded. `ocr.use_mineru` was in `CONFIG_FIELDS`, in both shipped
+        # config files and rendered as a checkbox in the WebUI, and nothing in
+        # `ingest/` read it — so turning it off changed no behaviour and the
+        # document went to a paid cloud service anyway. A knob wired to
+        # nothing is worse than a missing one: the person believes they have
+        # decided.
+        from magi.core.config_loader import get as _cfg_get
+        from magi.core.config_loader import load_config as _load_config
+
+        if not _cfg_get(_load_config(start=topic), "ocr.use_mineru", True):
+            return ConversionResult.failed(
+                "the MinerU rung is switched off (`ocr.use_mineru: false`) — "
+                "nothing was uploaded; the ladder continues below it")
         source = _local_pdf(entry, staging)
         if source is None:
             return ConversionResult.failed(NO_PDF)

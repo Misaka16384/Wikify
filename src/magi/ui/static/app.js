@@ -20,6 +20,7 @@
       term_retention_note: "任务历史跨重启保留（最近 40 条，magi 配置目录下 ui-jobs.jsonl）。",
       sync_label: "三核同步:",
       running_jobs_label: "运行中任务:",
+      core_sync_note: "这是就绪度,不是「你有多少知识」的分数。新库起步就低,把上面三核里标红标黄的项清掉它就涨。",
       sync_ratio_tooltip: "工作区就绪度：知识（图谱是否最新、待编译源、断言覆盖）、任务追踪、检索索引三块的加权平均。把上方三核里标红/标黄的项处理掉，这个数就会涨。",
       doctor_btn: "环境体检",
       doctor_btn_title: "环境依赖与规范体检",
@@ -82,6 +83,7 @@
       btn_close: "收起",
       need_words: "先写点什么——空帖子记不下任何事",
       need_reason: "改状态要写理由：翻状态和说明为什么是一件事，不是两件",
+      moves_need_reason_first: "先在上面写一句为什么,这些才能按——翻状态和说明理由是一件事。",
       need_workspace: "先在顶栏选一个工作空间——不然这行字会写进服务器启动的那个目录",
       badge_kb_gone: "目录不在了",
       btn_review: "找人复核这条",
@@ -101,7 +103,7 @@
       cfg_f_coaching: "结束会话时这道门推得多紧。off = 不拦；light = 缺记账就提醒；strict = 没写下预测就不许开始推导。",
       cfg_f_wip_limit: "一条线上同时开着几个命题算多。七是工作记忆的数字,不是测量值:再多人就抓不住这条线上到底有什么没结。",
       cfg_f_stall_days: "多少天没动静就把一条线标成安静。久到休一周不算,短到被忘掉的线一个月内会浮上来。",
-      cfg_f_weekly_calls: "MAGI 自己每周能发起多少次模型调用(复核、慢环、堆放区分类)。数的是**次数**不是钱——无头 CLI 不告诉我们一次要多少。失败的也算:超时同样花了墙钟时间。用完就拒绝启动,不会偷偷少做。",
+      cfg_f_weekly_calls: "MAGI 自己每周能发起多少次模型调用(复核、慢环、堆放区分类)。数的是次数不是钱——无头 CLI 不告诉我们一次要多少。失败的也算:超时同样花了墙钟时间。用完就拒绝启动,不会偷偷少做。",
       cfg_f_llm_calls: "MAGI 自己那些调用的总开关。关掉之后它一次也不发起,而不是安静地少做几次。你自己让 agent 干的活不受这个影响。",
       cfg_f_rule_budget: "AGENTS.md 里规则那一节最多几行。每次会话、每个宿主都要读这一段,所以一条规则进去,后面每一次会话都在为读它付钱。",
       cfg_f_rules: "这个库自己挣来的规则,用一套封闭词汇写成,每次运行都真的被检查。`magi reflect promote` 往里加,这里可以退役。",
@@ -814,6 +816,7 @@
       term_retention_note: "Job history persists across restarts (last 40 records, ui-jobs.jsonl in the magi config directory).",
       sync_label: "Sync:",
       running_jobs_label: "Running Jobs:",
+      core_sync_note: "Readiness, not a score for how much you know. A new library starts low; it rises as you clear what the three cores flag.",
       sync_ratio_tooltip: "How ready this workspace is: a weighted average over knowledge (graph freshness, uncompiled backlog, claim coverage), task tracking, and the retrieval index. Clear whatever the three cores above flag and this goes up.",
       doctor_btn: "Doctor",
       doctor_btn_title: "Environment Doctor Check",
@@ -876,6 +879,7 @@
       btn_close: "Close",
       need_words: "Write something first — an empty post records nothing",
       need_reason: "A status change needs a reason: the flip and the sentence saying why are one action, not two",
+      moves_need_reason_first: "Write a sentence above first — the flip and the reason are one action.",
       need_workspace: "Pick a workspace in the top bar first — otherwise this lands in whichever directory the server was started in",
       badge_kb_gone: "directory gone",
       btn_review: "Have this reviewed",
@@ -895,7 +899,7 @@
       cfg_f_coaching: "How hard the end-of-session gate pushes. off = never blocks; light = asks for missing bookkeeping; strict = no derivation starts without a written prediction.",
       cfg_f_wip_limit: "How many propositions may be open on one line at once. Seven is a working-memory number, not a measurement: past it nobody can hold what is still unsettled on that line.",
       cfg_f_stall_days: "Days of silence before a line is called quiet. Long enough that a week off is not a flag, short enough that a forgotten line surfaces within a month.",
-      cfg_f_weekly_calls: "How many model calls MAGI may make on its own initiative each week (review, the slow loop, sorting the pile). Counted in **calls**, not money — a headless CLI does not say what a request cost. Failed ones count: a timeout spent the wall clock too. Once spent it refuses to start rather than quietly doing less.",
+      cfg_f_weekly_calls: "How many model calls MAGI may make on its own initiative each week (review, the slow loop, sorting the pile). Counted in calls, not money — a headless CLI does not say what a request cost. Failed ones count: a timeout spent the wall clock too. Once spent it refuses to start rather than quietly doing less.",
       cfg_f_llm_calls: "The master switch for MAGI's own calls. Off means it makes none at all, rather than silently making fewer. Work you ask your agent to do is unaffected.",
       cfg_f_rule_budget: "How many lines the rules section in AGENTS.md may hold. Every session on every host reads that block, so a rule that goes in is paid for by every session afterwards.",
       cfg_f_rules: "The rules this library has earned, written in a closed vocabulary so that each one is actually checked on every run. `magi reflect promote` adds them; this is where one is retired.",
@@ -3553,6 +3557,13 @@
     moves.querySelectorAll(".move-btn").forEach((btn) => {
       btn.addEventListener("click", () => moveThread(data.slug, btn.dataset.dst));
     });
+    // Visibly not ready, rather than pressable and inert. `moveThread`
+    // refuses an empty reason and says so in a toast, but the click looks
+    // dead: nothing moves, no request goes out, and a toast that has already
+    // faded is indistinguishable from a broken button. The flip and the
+    // sentence saying why are one action, so the control for it is not
+    // available until there is a sentence.
+    wireMoveGate();
     renderReviewRow(data);
     view.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -3655,6 +3666,23 @@
         <p>${escapeHtml(res.reason || "").replace(/\n/g, "<br>")}</p>
         <p class="card-subtitle">${escapeHtml(t("review_budget_left", { left: b.left, limit: b.limit }))}</p>
       </div></div>`;
+  }
+
+  function wireMoveGate() {
+    const box = document.getElementById("thread-say");
+    const moves = document.getElementById("thread-moves");
+    if (!box || !moves) return;
+    const sync = () => {
+      const ready = !!box.value.trim();
+      moves.querySelectorAll(".move-btn").forEach((b) => { b.disabled = !ready; });
+      const hint = document.getElementById("thread-move-hint");
+      if (hint) hint.textContent = ready ? "" : t("moves_need_reason_first");
+    };
+    if (!box.dataset.gateWired) {
+      box.dataset.gateWired = "1";
+      box.addEventListener("input", sync);
+    }
+    sync();
   }
 
   function saidText() {

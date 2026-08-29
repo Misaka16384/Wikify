@@ -1165,3 +1165,52 @@ def test_a_rejected_mineru_key_is_explained_in_our_words():
     assert "the ladder falls" in src, "it does not say the rung is optional"
     assert 'print("Error getting upload URL:", res.text)' not in src, (
         "the vendor's raw JSON is going to the CLI again")
+
+
+def test_a_switched_off_mineru_rung_uploads_nothing(tmp_path, monkeypatch):
+    """`ocr.use_mineru` was in `CONFIG_FIELDS`, in both shipped config files
+    and rendered as a checkbox — and `grep use_mineru src/magi/ingest/` matched
+    nothing. Turning it off changed no behaviour: the document still went to a
+    paid cloud OCR service. The retest escaped a charge only because the key on
+    that machine was invalid.
+
+    A knob wired to nothing is worse than a missing one — the person believes
+    they have decided.
+    """
+    from magi.ingest import mineru
+
+    (tmp_path / "config.yaml").write_text("ocr:\n  use_mineru: false\n",
+                                          encoding="utf-8")
+    (tmp_path / "wiki").mkdir()
+    pdf = tmp_path / "paper.pdf"
+    pdf.write_bytes(b"%PDF-1.7\n")
+    monkeypatch.setattr(mineru, "convert",
+                        lambda *a, **k: pytest.fail("MinerU was contacted"))
+    entry = types.SimpleNamespace(value=str(pdf), title=None, route="mineru",
+                                  source_type="file", retry_of=None, req_id="r")
+
+    result = batch._run_route("mineru", entry, tmp_path / "staging",
+                              topic=tmp_path)
+
+    assert not result.success
+    assert "switched off" in " ".join(result.errors)
+
+
+def test_it_is_on_unless_the_workspace_says_otherwise(tmp_path, monkeypatch):
+    """Absent means on: the shipped root config sets `use_mineru: true`, and a
+    guard that defaulted to off would silently remove a rung from every
+    workspace that never mentioned it."""
+    from magi.ingest import mineru
+
+    (tmp_path / "wiki").mkdir()
+    pdf = tmp_path / "paper.pdf"
+    pdf.write_bytes(b"%PDF-1.7\n")
+    seen = []
+    monkeypatch.setattr(mineru, "convert",
+                        lambda *a, **k: seen.append(1) or ConversionResult.failed("x"))
+    entry = types.SimpleNamespace(value=str(pdf), title=None, route="mineru",
+                                  source_type="file", retry_of=None, req_id="r")
+
+    batch._run_route("mineru", entry, tmp_path / "staging", topic=tmp_path)
+
+    assert seen, "the rung was skipped in a workspace that never switched it off"

@@ -91,7 +91,14 @@ OPS: dict[str, dict] = {
     # other one. It is not the sentence to show a reader: `magi pm init`
     # writes at the hub root, which is wider than the workspace in the picker
     # but narrower than the machine. `badge_i18n` names the real reach.
-    "pm-init": {"home": None, "argv": ["pm", "init"], "scope": "global", "danger": False,
+    # `--yes` because a job has no one to answer a prompt. The confirmation
+    # `magi pm init` asks for on a terminal is carried here by the button
+    # press itself, and the panel around that button states what it agrees to.
+    # Without this the command inherits the *server's* terminal — so
+    # `isatty()` is true, it prompts, nothing answers, and every press failed
+    # with "nothing was handed over" in a log on another tab.
+    "pm-init": {"home": None, "argv": ["pm", "init", "--yes"], "scope": "global",
+                "danger": False,
                 "badge_i18n": "scope_badge_hub",
                 "label_i18n": "btn_danger_pm_init", "desc_i18n": "danger_pm_init_desc"},
     "radar-harvest": {"home": None, "argv": ["radar", "harvest"], "scope": "kb", "danger": False,

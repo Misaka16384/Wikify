@@ -297,6 +297,11 @@ def _agreed_to_hand_over(root: Path, assumed_yes: bool) -> bool:
     print("  - commit the files it created, authored by your own git identity")
     print("  - install its own agent hook files (.claude/, AGENTS.md)")
     print("Task tracking is optional in MAGI — nothing else needs it.")
+    # `isatty` is not "is there a person who can answer": a server started
+    # from a terminal hands its own tty to every child it spawns, so a WebUI
+    # job answered True here and then hung on `input()`. It is still the right
+    # question for a bare pipe; the caller that knows better says so with
+    # `--yes`, which is what the WebUI button does.
     if assumed_yes or not sys.stdin.isatty():
         return True
     try:
