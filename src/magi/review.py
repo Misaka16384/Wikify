@@ -183,6 +183,44 @@ def build_prompt(root, slug: str) -> str:
     return PROMPT.format(root=Path(root).resolve(), slug=slug)
 
 
+def unreviewable(root, slugs) -> list:
+    """`[(slug, why, suggestions)]` for every named slug that cannot be read.
+
+    Called before the subprocess, for the same reason the host check is: a
+    reviewer that cannot be run and a claim that does not exist are the same
+    refusal, and both have to happen before the money. A typo used to reach
+    `apply_verdict`, which is after the call, so `magi review p-gapp` spent a
+    real fifteen-second call asking a model about a file that was not there
+    and then said `verdict not written`.
+    """
+    import difflib
+
+    known = [path.stem for path in threads.note_paths(root)]
+    out = []
+    for slug in slugs:
+        try:
+            path = _note_path(root, slug)
+        except ValueError:
+            out.append((slug, "not a slug", []))
+            continue
+        if not path.is_file():
+            out.append((slug, f"no note at {threads.DIRNAME}/{slug}.md",
+                        difflib.get_close_matches(slug, known, n=3, cutoff=0.6)))
+            continue
+        try:
+            kind = threads.read_note(path).kind
+        except (OSError, ValueError) as exc:
+            out.append((slug, f"cannot be read ({exc.__class__.__name__})", []))
+            continue
+        if kind != vocab.PROPOSITION:
+            # `pending()` only ever offers propositions and the prompt asks
+            # whether a claim holds. `magi review qah` is one keystroke from a
+            # real slug and would otherwise spend a call on a line note.
+            out.append((slug, f"is a {kind}, and a review answers a proposition",
+                        []))
+    return out
+
+
 #: The last line of the prompt a host might echo. Everything up to and
 #: including it is our own text coming back, not an answer.
 _ECHO_MARKS = ("REASON: <two or three sentences",
@@ -592,6 +630,24 @@ def main(argv=None) -> int:
         print("nothing to review — no proposition is claiming to be solved unanswered.")
         return 0
 
+    # Before the subprocess, like the host check above. A named slug that
+    # cannot be reviewed is dropped here rather than paid for and discarded in
+    # `apply_verdict`, which is where a typo used to land — after the call.
+    refused = unreviewable(root, args.slug or [])
+    for slug, why, near in refused:
+        hint = f" Did you mean: {', '.join(near)}?" if near else ""
+        print(f"{slug}: {why}.{hint}", file=sys.stderr)
+    if refused:
+        # Dropped, not fatal: naming ten slugs and getting nothing because one
+        # had a typo is a worse command than one that does the nine. The exit
+        # code still says the command did not do what it was asked.
+        bad = {slug for slug, _why, _near in refused}
+        slugs = [slug for slug in slugs if slug not in bad]
+        if not slugs:
+            print("Nothing was asked, and nothing counts as reviewed.",
+                  file=sys.stderr)
+            return 1
+
     # `--host` names a preference, not a fact. Sending it through `pick_host`
     # is what makes "you asked for codex and there is no codex" say so instead
     # of failing once per claim and calling each one reviewed.
@@ -657,7 +713,12 @@ def main(argv=None) -> int:
         return 1
     # A run where nothing could be asked is a failure, not a quiet success.
     # Exiting 0 there is how a broken install looks like a reviewed library.
-    return 1 if any(r.rejected or not r.ran for r in results) else 0
+    # `error` is in the condition because a verdict that came back and could
+    # not be written is the same thing from the caller's side: the call was
+    # spent and the claim is no better off than before. `refused` is in it
+    # because a name that was dropped is a claim nobody looked at.
+    return 1 if refused or any(r.rejected or not r.ran or r.error
+                               for r in results) else 0
 
 
 if __name__ == "__main__":

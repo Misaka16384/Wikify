@@ -634,3 +634,100 @@ def test_the_close_gate_does_not_re_read_the_tree_for_it(ws, monkeypatch):
     assert seen.count("p-gap.md") == 1, (
         f"the gate parsed p-gap.md {seen.count('p-gap.md')} times; the "
         f"projection reads it once and `pending` should reuse that")
+
+
+# --------------------------------------------------------------------------
+# a typo must not cost anything
+# --------------------------------------------------------------------------
+
+def test_a_slug_that_does_not_exist_costs_nothing(ws, monkeypatch, capsys):
+    """Found by making the typo with a real CLI on the other end: `magi review
+    p-gapp` spent a real fifteen-second call asking Antigravity about a file
+    that was not there, threw the answer away with `verdict not written`, and
+    exited 0. `--host` was checked before the subprocess and the slug was not.
+
+    No dry run could have found it — `--dry-run` returns before the slug is
+    resolved and prints `would ask claude (haiku) about: p-gapp` quite happily.
+    """
+    from magi.core import ledger
+
+    solved(ws, "p-gap")
+    called = []
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
+    monkeypatch.setattr(review, "ask", lambda *a, **k: called.append(1) or "")
+
+    code = review.main(["--topic-dir", str(ws), "--host", "codex", "p-gapp"])
+
+    assert code == 1
+    assert not called, "it asked a model about a note that does not exist"
+    assert ledger.entries(ws) == [], "and it charged for it"
+
+
+def test_and_it_says_which_one_they_probably_meant(ws, monkeypatch, capsys):
+    """The persona typed one extra letter. Telling them the note is missing
+    without telling them what is there sends them to `ls`."""
+    solved(ws, "p-gap")
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
+
+    review.main(["--topic-dir", str(ws), "--host", "codex", "p-gapp"])
+
+    err = capsys.readouterr().err
+    assert "no note at threads/p-gapp.md" in err
+    assert "Did you mean: p-gap?" in err
+    assert "nothing counts as reviewed" in err
+
+
+def test_a_line_is_not_a_claim_and_is_not_asked_about(ws, monkeypatch):
+    """`magi review qah` is one keystroke from a real slug. The prompt asks
+    whether a claim holds, and `pending()` only ever offers propositions."""
+    from magi.core import vocab as vocab_mod
+    from magi.kb import threads as threads_mod
+
+    threads_mod.create(ws / "threads" / "qah.md", vocab_mod.LINE, "QAH", "Whether.")
+    called = []
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
+    monkeypatch.setattr(review, "ask", lambda *a, **k: called.append(1) or "")
+
+    code = review.main(["--topic-dir", str(ws), "--host", "codex", "qah"])
+
+    assert code == 1 and not called
+
+
+def test_one_typo_is_dropped_and_the_rest_still_run(ws, monkeypatch):
+    """Not all-or-nothing. `test_one_bad_slug_does_not_discard_the_others`
+    settled that: naming ten slugs and getting nothing back because one had a
+    typo is a worse command than one that does the nine. What changed is only
+    where the bad name is caught — before the money instead of after."""
+    solved(ws, "p-a")
+    solved(ws, "p-b")
+    called = []
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
+    monkeypatch.setattr(review, "ask",
+                        lambda *a, **k: called.append(1) or "VERDICT: stands\nREASON: ok.")
+
+    code = review.main(["--topic-dir", str(ws), "--host", "codex",
+                        "p-a", "p-typo", "p-b"])
+
+    assert len(called) == 2, "it paid for the typo as well"
+    assert code == 1, "and it did not say the run was clean"
+
+
+def test_a_real_slug_still_goes_through(ws, monkeypatch):
+    """The guard has to let the ordinary case past, or it is just an outage."""
+    solved(ws, "p-gap")
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
+    monkeypatch.setattr(review, "ask", lambda *a, **k: "VERDICT: stands\nREASON: it holds.")
+
+    assert review.main(["--topic-dir", str(ws), "--host", "codex", "p-gap"]) == 0
+
+
+def test_a_verdict_that_could_not_be_written_is_a_failure(ws, monkeypatch):
+    """From the caller's side it is the same as no review: the call was spent
+    and the claim is no better off. Exiting 0 says the opposite."""
+    solved(ws, "p-gap")
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
+    monkeypatch.setattr(review, "ask", lambda *a, **k: "VERDICT: stands\nREASON: fine.")
+    monkeypatch.setattr(review, "apply_verdict",
+                        lambda *a, **k: (_ for _ in ()).throw(OSError("disk full")))
+
+    assert review.main(["--topic-dir", str(ws), "--host", "codex", "p-gap"]) == 1
