@@ -126,7 +126,8 @@ OPS: dict[str, dict] = {
         "desc_i18n": "op_desc_ingest_batch_run",
     },
     "ingest-batch-commit": {"home": None, 
-        "argv": ["ingest", "batch-commit"],
+        # `batch-commit` was retired: `review --commit` is the one spelling.
+        "argv": ["ingest", "review", "--commit"],
         "scope": "kb",
         "danger": False,
         "label_i18n": "op_ingest_batch_commit",

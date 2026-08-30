@@ -15,7 +15,7 @@
 | **BALTHASAR** | 意图状态（研究） | `threads/` 里的命题、问题、研究线 + `decisions.md`（机械任务另有 [Beads](https://github.com/gastownhall/beads)） | 我们在做什么？下一步是什么？ |
 | **CASPER** | 检索状态 | 本地混合检索（FTS5 BM25 + sqlite-vec 向量 + RRF） | 此刻该读什么？ |
 
-进入任意工作区先跑 **`magi sync`**——它输出**同步率**、三核状态和逐条可执行的修复提示。`magi radar` 是文献雷达：定时发现相关新论文，并侦察"知识上应引用我方论文却未引用"的候选。同一份 skills 通吃 Claude Code / Codex / Antigravity / opencode 等 CLI agent 宿主——`magi skills install` 会把它们放到各家各自找的地方。
+进入任意项目先跑 **`magi sync`**——它输出**同步率**、三核状态和逐条可执行的修复提示。`magi radar` 是文献雷达：定时发现相关新论文，并侦察"知识上应引用我方论文却未引用"的候选。同一份 skills 通吃 Claude Code / Codex / Antigravity / opencode 等 CLI agent 宿主——`magi install` 会把它们放到各家各自找的地方。
 
 任何命令的完整语法：`magi <command> --help`；全景：`magi --help`。
 
@@ -28,11 +28,41 @@ pipx upgrade --install magi-research           # 装或升级，重复跑没副�
 mkdir my-topic ; cd my-topic ; magi init ; magi install
 ```
 
-装完了，就这两条。`magi init` 建工作区；`magi install` 把技能、协议和会话钩子装进你机器上**每一个**它探测到的 agent CLI（不问你，因为它们互不冲突）。
+装完了，就这两条。`magi init` 建项目；`magi install` 把技能、协议和会话钩子装进你机器上**每一个**它探测到的 agent CLI（不问你，因为它们互不冲突）。
 
 然后在那个目录里打开你的 agent，**把你想做的事说出来**——「摄入 inbox 里的论文」「把待编译的都编译了」「我接下来该做什么」。技能会按描述自己加载，你不用记住任何一个。
 
 在终端里，**`magi next`** 问的是同一个问题，但它从 note 里派生答案而不是问模型。**`magi guide`** 是完整手册。其余的——摄入、检索、图谱、WebUI——都在下面第 3 节，而 `magi --help` 一屏放得下。
+
+---
+
+## 每天就这几件事
+
+整套系统是一个环。终端和浏览器都能走完，**任何一步都不必换到另一边**。
+
+| 你要做的 | 终端 | 浏览器（`magi ui`） |
+|---|---|---|
+| 我现在该干嘛 | `magi next` | 首页顶部 |
+| 开一条命题 / 问题 / 研究线 | `magi thread new <slug> --kind proposition --title … --purpose …` | 笔记页「开一条新的」 |
+| 有进展了 | `magi thread post <slug> --text …` | 笔记面板的输入框 |
+| 结论变了 | `magi thread status <slug> supported --text …` | 面板上的状态按钮 |
+| 这是我拍的板 | `magi decide --about <slug> --text …` | 「记下这是我的决定」 |
+| 让别人复核 | `magi review <slug>` | 「找人复核这条」 |
+| 收一篇论文 | 丢进 `inbox/`，再 `magi ingest auto` | 摄入页「收下这些」 |
+| 找东西 | `magi search "…"` | 检索页 |
+| 这条线做完了 | `magi close <line> --text …` | 「结束这条线」 |
+| 写完了，发表 | `magi publish <稿子> --line <line>` | 「发表并归档」 |
+| 收工 | `magi sync --close` | 面板底部「收工检查」 |
+
+**只有两条是必须记住的**：`magi next` 问下一步，`magi sync --close` 收工。
+其余的它会在你需要的时候告诉你——包括完整的命令行。
+
+装了 skills 之后更省事：在 agent 里直接说「我接下来该做什么」「把这篇收进来」
+「这条我觉得站不住」，它会自己去调上面这些。
+
+> 复核会花钱（一次外部模型调用）。`magi review` 事前会说要问谁、用哪个模型，
+> 事后报本周用量；浏览器里按之前也会弹出同样的信息。周预算在
+> `research.weekly_calls`，用完了它拒绝启动而不是安静地少做。
 
 ---
 
@@ -120,7 +150,7 @@ magi setup --check
 
 `magi setup` 的可选开关：`--no-beads` / `--no-models` / `--no-plugin` / `--no-skills`（不报告 agent CLI）/ `--remove-legacy`（删除检测到的旧版拷贝）。
 
-体检表最后四行是你机器上的 agent CLI（claude / codex / agy / opencode）：装没装、当前工作区各装了几个技能。**`magi setup` 不会替你安装技能**——技能是按工作区装的，见 §2.4。
+体检表最后四行是你机器上的 agent CLI（claude / codex / agy / opencode）：装没装、当前项目各装了几个技能。**`magi setup` 不会替你安装技能**——技能是按项目装的，见 §2.4。
 
 **只想要经典 Wikify 体验（纯知识库，不要任务管理）？** 用 `magi setup --kb-only`：跳过 Beads 安装，`magi sync` 不再提示任务相关内容（BALTHASAR 核显示 disabled 且不计入同步率）。随时 `magi setup --full` 恢复完整体验。雷达等其余功能均为按需调用，不用即无感。
 
@@ -165,24 +195,24 @@ uv tool install --force magi-research
 | **pdflatex** | 公式深度校验（真去编译一遍）；缺失时回退 `pylatexenc` 轻量校验 | https://www.tug.org/texlive/ |
 | **MinerU**（云服务，非本地程序） | 云端 PDF 转换，版面与公式识别强 | https://mineru.net/ |
 
-`pandoc-crossref` 是可选的（缺了只是交叉引用降级，不影响转换）。从源码仓库装的话，Windows 版已放在 `vendor/windows/`——加入 PATH，或在 config.yaml 的 `tools.pandoc_crossref_path` 指定。用 pipx / uv 装的话它不在包里（一个 19MB 的 Windows 二进制不该发给所有平台），需要时从 https://github.com/lierdakil/pandoc-crossref/releases 自取。MinerU 的 token 填在工作区 config.yaml 的 `ocr.mineru_api_token`。
+`pandoc-crossref` 是可选的（缺了只是交叉引用降级，不影响转换）。从源码仓库装的话，Windows 版已放在 `vendor/windows/`——加入 PATH，或在 config.yaml 的 `tools.pandoc_crossref_path` 指定。用 pipx / uv 装的话它不在包里（一个 19MB 的 Windows 二进制不该发给所有平台），需要时从 https://github.com/lierdakil/pandoc-crossref/releases 自取。MinerU 的 token 填在项目 config.yaml 的 `ocr.mineru_api_token`。
 
 （历史依赖 ripgrep 已不再需要。）
 
 ### 2.4 Skills 安装（教 agent 用 MAGI）
 
-8 个 skill 随 CLI 一起分发（`magi/skills/*/SKILL.md`，在 wheel 里），**在工作区里一条命令**装进你机器上所有 agent CLI，不需要 clone 仓库：
+8 个 skill 随 CLI 一起分发（`magi/skills/*/SKILL.md`，在 wheel 里），**在项目里一条命令**装进你机器上所有 agent CLI，不需要 clone 仓库：
 
 ```powershell
-cd <你的主题工作区>
-magi skills install                   # 默认装进当前工作区（推荐），会列出检测到的 CLI 让你选
+cd <你的项目>
+magi skills install                   # 默认装进当前项目（推荐），会列出检测到的 CLI 让你选
 magi skills install --host codex      # 指定一个，跳过询问
 magi skills install --host auto       # 检测到的全装
 magi skills where                     # 每个 CLI 从哪读、装了几个、怎么触发
-magi skills install --scope global    # 全机可用（技能只在工作区里有意义，慎用）
+magi skills install --scope global    # 全机可用（技能只在项目里有意义，慎用）
 ```
 
-**默认不装全局**：这些技能是围着某个研究工作区转的，装进工作区还能随仓库分发给同事。
+**默认不装全局**：这些技能是围着某个研究项目转的，装进项目还能随仓库分发给同事。
 
 | 宿主 | 全局位置 | 项目位置 | 怎么触发 |
 |---|---|---|---|
@@ -207,8 +237,9 @@ claude plugin marketplace add Misaka16384/magi && claude plugin install magi
 mkdir quantum-toys ; cd quantum-toys
 magi init --name "Quantum Toys" --scope "玩具模型中的量子现象"
 # ↑ 生成 raw/ wiki/ threads/ drafts/ decisions.md、AGENTS.md（托管块）、config.yaml
-magi install                 # 技能 + 协议块 + 收工闸门（会问装给哪个 CLI）
-magi pm init                 # 可选：机械任务的任务库（会 git-init 本目录）
+magi install                 # 技能 + 协议块 + 收工闸门（装进它探测到的每个 CLI，不问）
+magi pm init                 # 可选：任务追踪。它把这个目录交给 bd —— 会 git-init、
+                             # 并用你自己的 git 身份提交。跑之前它会说清楚并问你
 
 magi sync --fix              # 同步率 + 三核状态，并把能自动修的都跑掉
 ```
@@ -233,7 +264,7 @@ MAGI SYSTEM ONLINE — sync ratio 59.2%
 > ```powershell
 > magi guide                                # 列出十二章
 > magi guide ingest                         # 读某一章
-> magi guide --search "no workspace found"  # 把报错原文贴进去
+> magi guide --search "no project found"    # 把报错原文贴进去
 > magi guide --symptoms                     # 全书「症状 → 原因 → 修法」索引
 > ```
 >
@@ -260,18 +291,30 @@ MAGI SYSTEM ONLINE — sync ratio 59.2%
 `magi graph build`，语义连边是 `magi link`，查手册是 `magi guide`。样板（工具能力、
 谁能问人、无人值守怎么办）只在 `AGENTS.md` 的托管块里写一次。
 
-### 全局知识库注册表（跨库检索）
+### 跨项目检索
 
-每个工作区在 `magi index` 时自动注册进用户级注册表（`~/.config/magi/registry.json`）。**`magi search` 默认联邦检索：当前工作区 + 所有启用的已注册知识库**，结果带 `[kb:名称]` 来源标记：
+**`magi search` 默认只搜你现在这个项目。** 想读别的，得说一声。
+
+早先它默认就跨项目去搜，结果是:人搜自己十分钟前写的笔记,拿回一整页别人项目的
+研究——因为每次 `magi init` 都会把自己注册进去，而注册表里那个「可搜索」开关是
+全机一份的，于是这份跨项目清单自己长大，没有人选过它。
+
+现在拆成两个问题、两个家：
 
 ```powershell
-magi kb list                    # 查看全部已注册知识库及其可检索状态
-magi kb disable <name>          # 把某个库排除出全局检索（enable 恢复）
-magi search "..." --scope local # 只搜当前工作区（经典行为）
-magi search "..." --kb <name>   # 定向搜某一个注册库
+magi kb list                     # 这台机器上都注册了哪些项目
+magi kb disable <name>           # 这个项目不允许被别处读到（enable 恢复）
+magi search "..."                # 默认：只搜本项目
+magi search "..." --scope all    # 加上本项目 research.search_projects 点名的那些
+                                 # （一个都没点名时 = 所有 enable 的）
+magi search "..." --kb <name>    # 定向搜某一个
 ```
 
-当前工作区永远默认可检索；其他库通过 `enable/disable` 控制。`magi kb register <path>` 可手动注册任意工作区，`unregister` 只移除注册项、不动文件。WebUI 里点开带 `[kb:名称]` 标记的命中，卡片照样就地展开、公式插图照样渲染——预览请求带着来源库名走，不用先切过去。
+- **`enable` / `disable`（注册表，全机）**——这个项目**允不允许**被别处读到。
+- **`research.search_projects`（项目自己的 config.yaml）**——本项目**读**哪几个。
+
+默认只搜本项目，但结果末尾会点名还有哪些可读，所以别的项目不会因此消失。
+`magi kb register <path>` 手动注册任意项目，`unregister` 只移除注册项、不动文件。WebUI 里点开带 `[kb:名称]` 标记的命中，卡片照样就地展开、公式插图照样渲染——预览请求带着来源库名走，不用先切过去。
 
 > 检索小抄：`--path 'raw/papers/2026-*<slug>*'` 可把语义检索限定在某一篇论文里；中英文问题都支持（中文经 CJK 二元组分词进 BM25，向量侧由嵌入模型天然跨语言）。
 

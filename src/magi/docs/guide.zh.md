@@ -76,7 +76,7 @@ No propositions yet — this library has knowledge but nothing it is currently t
 ```powershell
 magi guide                          # 列出全部章节（编号 + 锚点 + 一句话简介）
 magi guide graph                    # 按编号 7、锚点 graph 或标题片段读某一章
-magi guide --search "no workspace found"   # 全文检索：把报错原文贴进去
+magi guide --search "no project found"     # 全文检索：把报错原文贴进去
 magi guide --symptoms               # 全书的「症状 → 原因 → 怎么修」索引
 ```
 
@@ -513,7 +513,7 @@ magi install
 magi pm init           # 可选：机械任务的任务库（会 git-init 本目录）
 ```
 
-`magi search` 默认联邦检索所有启用的库，`magi kb list` 列出它们。v1 的 hub（父目录 +
+`magi search` 默认只搜你现在这个项目，`--scope all` 才去读别的；`magi kb list` 列出这台机器上都有哪些。v1 的 hub（父目录 +
 `wikis.json` + `topics/`）退场了：它存在的理由是那份注册表，而注册表现在是每台机器一份，
 库住在哪里都能被找到。
 
@@ -613,9 +613,9 @@ magi ingest auto paper.pdf    # 或者指定一个文件
 ```powershell
 magi ingest url "https://arxiv.org/abs/2608.16520"   # 也可以是 DOI，可以一次给多个
 magi ingest batch-run                                 # 抓取 + 转换，无人值守
-magi ingest batch-list                                # 看看转出来什么样
-magi ingest batch-decide --item <ID> --decision approve
-magi ingest batch-commit                              # 到这一步才真的进 raw/
+magi ingest review                                    # 看看转出来什么样
+magi ingest review --item <ID> --decision approve      # 逐条过
+magi ingest review --commit                           # 到这一步才真的进 raw/
 ```
 
 `--library <名字>` 可以按名字排进某个已注册的知识库，不用非得站在那个目录里
@@ -1028,7 +1028,7 @@ magi index                       # 加了或改了卡片之后
 magi search "kramers-wannier"    # 找东西
 ```
 
-`index` 是增量的，重跑很便宜；`search` 会把关键词匹配和语义匹配融合，范围是本库加上你启用的其它库。下面是各种模式、范围，以及结果上那些徽章是什么意思。
+`index` 是增量的，重跑很便宜；`search` 会把关键词匹配和语义匹配融合，**范围默认就是你现在这个项目**——想读别的项目，`--scope all`。下面是各种模式、范围，以及结果上那些徽章是什么意思。
 
 ### 建索引 {#search-index}
 
@@ -1057,13 +1057,13 @@ magi index --quiet        # 不打进度行（末尾汇总照常输出）
 ### 搜索 {#search-query}
 
 ```powershell
-magi search "任意子统计"                     # 默认：本库 + 所有启用的注册库
+magi search "任意子统计"                     # 默认：只搜当前项目
 magi search "anyon" -k 20 --mode vector      # 只走语义
 magi search "BM25 关键词" --mode bm25        # 只走关键词
 magi search "..." --collection concepts      # 只搜概念卡
 magi search "..." --path 'raw/papers/2026-*fracton*'   # 锁定到某一篇论文里搜
-magi search "..." --scope local              # 只搜当前工作区
-magi search "..." --kb <名字>                # 只搜某个注册库
+magi search "..." --scope all                # 加上 research.search_projects 点名的项目
+magi search "..." --kb <名字>                # 只搜某一个
 magi search "..." --json                     # 机器可读
 ```
 
@@ -1482,7 +1482,7 @@ magi radar install-schedule --uninstall      # 卸载
 magi ui                 # 打开 http://127.0.0.1:8737
 ```
 
-在课题目录里跑。顶栏的选择器里是所有已注册的库，一个服务进程就够看全部。它读写的是 CLI 用的同一批文件——没有任何东西只存在于浏览器里；看板和 `magi next` 一样，每次打开都从 `threads/` 重新算出来。
+在项目目录里跑。顶栏的选择器里是所有已注册的项目，一个服务进程就够看全部。它读写的是 CLI 用的同一批文件——没有任何东西只存在于浏览器里；看板和 `magi next` 一样，每次打开都从 `threads/` 重新算出来。
 
 ```powershell
 magi ui                          # 默认 http://127.0.0.1:8737，自动开浏览器
@@ -1513,12 +1513,25 @@ magi ui --reload                 # 改代码自动重载（开发用）
 > 大纲。检索命中会停在匹配的那一段而不是文件开头；命中落在哪个已注册的库里，
 > 预览就去那个库里读。
 
-**看板能触发的后台任务有 20 个**：建索引、建图谱、重建目录表、语义连边、lint 修复、统计、收工检查（`magi sync --close`）、装进 agent CLI、积压同步、雷达收割、引用缺口、摄入的两步、拉模型与装任务引擎，以及需要二次确认的 setup / migrate / pm init / 删除旧版拷贝 / 雷达定时任务。
+**日常那一环，浏览器里能走完整条。** 开命题、跟帖、翻状态、记决定、找人复核、
+收 `inbox/` 里的文件、检索、结束一条线、发表、收工——每一步都有入口。判据是
+作者定的：**某一步不做整个流程就卡住、必须切到终端才能继续，那它就该在浏览器里**。
 
-`magi review` **刻意不在其中**：它要花一次模型调用，而一个安静地花钱的按钮是一个会被点两次的按钮。等预算闸门到位之前，它只是一条命令。
+花钱的那一步做了特别处理。**「找人复核这条」按之前先问一次**：要问哪个宿主、
+用哪个模型、本周还剩几次；按下去按钮变成「正在问…」并禁用（无头调用十几二十
+秒，一个静默的按钮人会再点一次）；回来把裁决和复核方的原话显示在面板里，
+`unclear` 额外写清楚它既不是通过也不是否决。本周用量画在总览页上。
+
+**后台任务有 21 个**：建索引、建图谱、重建目录表、语义连边、lint 修复、统计、
+收工检查（`magi sync --close`）、装进 agent CLI、积压同步、雷达收割、引用缺口、
+摄入的三步（收下 inbox/、跑队列、提交）、拉模型与装任务引擎，以及需要二次确认的
+setup / migrate / pm init / 删除旧版拷贝 / 雷达定时任务。
 
 > [!NOTE]
-> **摄入不在其中**——`magi ingest *` 全系列只能在终端或经由 agent 调用。同理 `magi init`、`sync`、`close`、`publish`、`validate`、`verify`、`tags *`、`math *` 也没有按钮。
+> **仍然只在终端的**：`magi init`（还没有项目的时候，也就没有面板）、
+> `validate` / `verify` / `tags *` / `math *` 这些维护命令，以及**编译**——
+> 编译需要一个 LLM，所以它是 skill 不是命令，`magi compile` 不存在也不会有
+> （见「编译成知识库」一章）。这一条对终端用户同样成立，不是浏览器的短板。
 
 顶栏的 **⚡ MAGI 模式** 切换战术主题：红色为战斗态（深色），蓝色为静默值守（浅色），☀︎/☽ 在两者间切换。
 
@@ -1528,7 +1541,7 @@ magi ui --reload                 # 改代码自动重载（开发用）
 > - **端口被占**：换 `--port`，或先关掉上一个实例。
 > - **改了代码/升级后界面没变**：静态文件是即时生效的，但**后端改动需要重启 `magi ui`**。样式不更新则是浏览器缓存，硬刷新一次。
 > - **图谱是空的**：先 `magi graph build`。
-> - **看板打不开或显示无工作区**：顶栏切换工作区；看板只监听 `127.0.0.1` 并带 Host 白名单，**默认不能从别的机器访问**（远程用 SSH 端口转发）。
+> - **看板打不开或显示没有项目**：顶栏切换项目；看板只监听 `127.0.0.1` 并带 Host 白名单，**默认不能从别的机器访问**（远程用 SSH 端口转发）。
 
 ---
 

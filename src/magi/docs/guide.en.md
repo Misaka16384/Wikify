@@ -637,9 +637,9 @@ don't download anything. Hand it over and let MAGI pick the route:
 ```powershell
 magi ingest url "https://arxiv.org/abs/2608.16520"   # or a DOI, or several at once
 magi ingest batch-run                                 # fetch + convert, unattended
-magi ingest batch-list                                # see what came out
-magi ingest batch-decide --item <ID> --decision approve
-magi ingest batch-commit                              # only now does anything enter raw/
+magi ingest review                                    # see what came out
+magi ingest review --item <ID> --decision approve      # one at a time
+magi ingest review --commit                           # only now does anything enter raw/
 ```
 
 `--library <NAME>` queues into a registered knowledge base by name, so you don't
@@ -1072,7 +1072,7 @@ magi index                       # after you add or change cards
 magi search "kramers-wannier"    # find things
 ```
 
-`index` is incremental and cheap to rerun; `search` blends keyword and meaning matching across this library and any others you have enabled. Below: the modes, the scopes, and what the score badges mean.
+`index` is incremental and cheap to rerun; `search` blends keyword and meaning matching, and **its default scope is the project you are standing in** — `--scope all` reaches the others. Below: the modes, the scopes, and what the score badges mean.
 
 ### Building the index {#search-index}
 
@@ -1101,12 +1101,12 @@ Chunks go to Ollama 16 at a time. Set `ollama.embed_batch` in `config.yaml` to c
 ### Searching {#search-query}
 
 ```powershell
-magi search "anyon statistics"                # Default: this wiki + every enabled registered KB
+magi search "anyon statistics"                # Default: this project only
 magi search "anyon" -k 20 --mode vector      # Semantic search only
 magi search "exact phrase" --mode bm25        # Keyword search only
 magi search "..." --collection concepts      # Search only concept cards
 magi search "..." --path 'raw/papers/2026-*fracton*'   # Restrict the search to one paper
-magi search "..." --scope local              # Search only the current workspace
+magi search "..." --scope all                # Plus the projects research.search_projects names
 magi search "..." --kb <name>                # Search only one registered KB
 magi search "..." --json                     # Machine-readable output
 ```
@@ -1613,14 +1613,34 @@ Seven panels:
 > search hit scrolls to the passage that matched rather than the top of the file,
 > and preview follows a hit into whichever registered library it actually lives in.
 
-**The dashboard can trigger 20 background tasks**: build index, build graph, rebuild the directory table, semantic linking, lint fix, stats, close the session (`magi sync --close`), install into your agent CLIs, backlog sync, radar harvest, citation gap, the two ingest batch steps, model pulls and task-engine install, plus the ones that need a second confirmation: setup / migrate / pm init / delete legacy copies / radar scheduling.
+**The whole daily loop runs in the browser.** Open a claim, argue it, move its
+status, record a decision, have it reviewed, take in what is sitting in
+`inbox/`, search, end a research line, publish, close the session — every step
+has a control. The criterion is the author's: **a step whose absence blocks the
+flow, forcing somebody to a terminal to carry on, belongs in the browser**.
 
-`magi review` is deliberately **not** one of them: it spends a model call, and a
-button that quietly costs money is a button somebody clicks twice. It stays a
-command until there is a budget behind it.
+The step that costs money is handled differently. **"Have this reviewed" asks
+first**: which host, which model, and what is left of the week. Pressing it
+disables the button and says "asking…" — a headless call takes fifteen seconds
+or so, and a silent button is one somebody presses again. The verdict and the
+reviewer's own sentence come back into the panel, with `unclear` spelled out as
+neither a pass nor a rejection. The week's usage is on the dashboard.
+
+**There are 21 background tasks**: build index, build graph, rebuild the
+directory table, semantic linking, lint fix, stats, close the session
+(`magi sync --close`), install into your agent CLIs, backlog sync, radar
+harvest, citation gap, the three ingest steps (pick up `inbox/`, run the queue,
+commit), model pulls and task-engine install, plus the ones that need a second
+confirmation: setup / migrate / pm init / delete legacy copies / radar
+scheduling.
 
 > [!NOTE]
-> **Ingestion isn't among them** — the entire `magi ingest *` family can only be run from the terminal or through an agent. Likewise, `magi init`, `sync`, `close`, `publish`, `validate`, `verify`, `tags *`, and `math *` have no buttons either.
+> **Still terminal-only**: `magi init` (there is no dashboard before there is a
+> project), the maintenance commands `validate` / `verify` / `tags *` /
+> `math *`, and **compiling** — compiling needs an LLM, so it is a skill rather
+> than a command, and `magi compile` does not exist and will not (see the
+> compile chapter). That last one is equally true at the terminal; it is not a
+> gap in the browser.
 
 The **⚡ MAGI MODE** toggle in the top bar switches the tactical theme: red is combat state (dark), blue is silent watch (light), and ☀︎/☽ switches between the two.
 

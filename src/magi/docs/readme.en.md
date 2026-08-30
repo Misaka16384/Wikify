@@ -15,7 +15,7 @@
 | **BALTHASAR** | Intent (research) | propositions, questions and lines in `threads/` + `decisions.md` (mechanical chores go to [Beads](https://github.com/gastownhall/beads)) | What are we doing, and what's next? |
 | **CASPER** | Retrieval | local hybrid search (FTS5 BM25 + sqlite-vec vectors + RRF) | What should I read right now? |
 
-Enter any workspace and run **`magi sync`** — it reports the **sync ratio**, three-core status, and concrete restore hints. `magi radar` is the literature radar: scheduled discovery of relevant new papers, plus scouting for recent papers that arguably should cite yours but don't. One shared skills tree serves Claude Code / Codex / Antigravity / opencode and other CLI agent hosts — `magi skills install` puts it where each of them looks.
+Enter any project and run **`magi sync`** — it reports the **sync ratio**, three-core status, and concrete restore hints. `magi radar` is the literature radar: scheduled discovery of relevant new papers, plus scouting for recent papers that arguably should cite yours but don't. One shared skills tree serves Claude Code / Codex / Antigravity / opencode and other CLI agent hosts — `magi install` puts it where each of them looks.
 
 Full syntax for any command: `magi <command> --help`; overview: `magi --help`.
 
@@ -33,6 +33,41 @@ That is the whole setup. `magi init` scaffolds the workspace; `magi install` put
 Now open your agent there and **say what you want** — "ingest the papers in inbox", "compile the backlog", "what should I work on?". The skills load themselves by description; you do not have to remember any of them.
 
 From the terminal, **`magi next`** is the same question and answers it from the notes rather than from a model. **`magi guide`** is the full manual. Everything else — ingest, search, the graph, the WebUI — is in §3 below, and `magi --help` fits on one screen.
+
+---
+
+## What a day looks like
+
+The whole system is one loop. Both the terminal and the browser walk all of
+it — **no step needs the other one**.
+
+| What you want | Terminal | Browser (`magi ui`) |
+|---|---|---|
+| What now? | `magi next` | top of the dashboard |
+| Open a proposition / question / line | `magi thread new <slug> --kind proposition --title … --purpose …` | "Open a new one" |
+| Something happened | `magi thread post <slug> --text …` | the box on the note |
+| The conclusion moved | `magi thread status <slug> supported --text …` | the status buttons |
+| I decided this | `magi decide --about <slug> --text …` | "Record this as my decision" |
+| Have it checked | `magi review <slug>` | "Have this reviewed" |
+| Take in a paper | drop it in `inbox/`, then `magi ingest auto` | "Pick these up" |
+| Find something | `magi search "…"` | the search tab |
+| This line is finished | `magi close <line> --text …` | "End this line" |
+| Written up — publish | `magi publish <draft> --line <line>` | "Publish and file" |
+| Done for now | `magi sync --close` | "End of session" on the dashboard |
+
+**Only two are worth memorising**: `magi next` asks what is next, and
+`magi sync --close` ends the session. The rest it tells you when you need
+them, command line and all.
+
+With the skills installed it is shorter still: say "what should I do next",
+"take this paper in", "I don't buy this one" to your agent and it reaches for
+these itself.
+
+> A review costs one external model call. `magi review` says who it will ask
+> and which model before it spends, and reports the week's usage after; the
+> browser shows the same before you press. The weekly budget is
+> `research.weekly_calls` — spent, it refuses to start rather than quietly
+> doing less.
 
 ---
 
@@ -182,7 +217,7 @@ magi skills where                     # per CLI: where it reads, what is install
 magi skills install --scope global    # machine-wide (rarely useful — these are workspace skills)
 ```
 
-**Not global by default**: these skills revolve around one research workspace, and installing into the workspace also lets them travel with the repo to collaborators.
+**Not global by default**: these skills revolve around one research project, and installing into the workspace also lets them travel with the repo to collaborators.
 
 | Host | Global | Project | How it fires |
 |---|---|---|---|
@@ -207,8 +242,10 @@ claude plugin marketplace add Misaka16384/magi && claude plugin install magi
 mkdir quantum-toys ; cd quantum-toys
 magi init --name "Quantum Toys" --scope "quantum phenomena in toy models"
 # ^ creates raw/ wiki/ threads/ drafts/ decisions.md, AGENTS.md (managed block), config.yaml
-magi install                 # skills + protocol block + stop gate (asks which CLI)
-magi pm init                 # optional: a task store for mechanical work (git-inits here)
+magi install                 # skills + protocol block + stop gate (every CLI it finds, no prompt)
+magi pm init                 # optional task tracking. It hands this directory to bd, which
+                             # git-inits and commits under your own identity — it says so
+                             # and asks before it does
 
 magi sync --fix              # sync ratio + three cores, and run the repairs it suggests
 ```
@@ -233,7 +270,7 @@ Then drop PDFs / LaTeX / notes into `inbox/` and tell your agent to ingest them 
 > ```powershell
 > magi guide                                # list the twelve chapters
 > magi guide ingest                         # read one
-> magi guide --search "no workspace found"  # paste an error verbatim
+> magi guide --search "no project found"    # paste an error verbatim
 > magi guide --symptoms                     # the symptom -> cause -> fix index
 > ```
 >
@@ -262,18 +299,36 @@ links, `magi guide` reads the manual. The boilerplate — tool capabilities, who
 may ask a human, what to do with nobody there — is stated once, in the
 `AGENTS.md` managed block.
 
-### The global KB registry (cross-workspace search)
+### Searching across projects
 
-Every workspace auto-registers in a user-global registry (`~/.config/magi/registry.json`) when you run `magi index`. **`magi search` federates by default: the current workspace + every enabled registered KB**, with results tagged `[kb:name]`:
+**`magi search` reads the project you are standing in, and nothing else** unless
+you say otherwise.
+
+It used to federate by default, and the result was somebody searching for a note
+they had written ten minutes earlier and getting a page of another project's
+research — because every `magi init` registers itself and the registry's
+searchable flag is machine-wide, so that cross-project set grew on its own and
+nobody ever chose it.
+
+Two questions, two homes:
 
 ```powershell
-magi kb list                    # all registered KBs and their searchable state
-magi kb disable <name>          # exclude a KB from global search (enable to restore)
-magi search "..." --scope local # current workspace only (classic behavior)
-magi search "..." --kb <name>   # target one registered KB
+magi kb list                     # every project registered on this machine
+magi kb disable <name>           # this project may not be read from elsewhere
+magi search "..."                # default: this project only
+magi search "..." --scope all    # plus the ones research.search_projects names
+                                 # (naming none means every enabled project)
+magi search "..." --kb <name>    # one, by name
 ```
 
-The current workspace is always searchable; other KBs are governed by enable/disable. `magi kb register <path>` registers any workspace manually; `unregister` removes only the registry entry, never files. In the WebUI, a hit tagged `[kb:name]` opens its card in place like any other — the preview request carries the source library along, so there is nothing to switch to first.
+- **`enable` / `disable`, in the registry, machine-wide** — whether a project
+  *may* be read from elsewhere at all.
+- **`research.search_projects`, in the project's own config.yaml** — which ones
+  *this* project reads.
+
+Searching stops at your own project, but the results name the others that are
+available, so nothing disappears. `magi kb register <path>` registers a project
+by hand; `unregister` removes the entry and never a file. In the WebUI, a hit tagged `[kb:name]` opens its card in place like any other — the preview request carries the source library along, so there is nothing to switch to first.
 
 > Search tips: `--path 'raw/papers/2026-*<slug>*'` narrows semantic search to one paper; Chinese and English queries both work (CJK bigram tokenization feeds BM25, and the embedding model handles cross-lingual matching on the vector side).
 

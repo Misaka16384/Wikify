@@ -46,9 +46,11 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("ingest", "batch-run"): ("magi.ingest.batch", ["run"], "Acquire, convert and gate-check the queue"),
     ("ingest", "review"): ("magi.ingest.batch", ["review"],
                            "The approval step: list, decide one item, or commit"),
-    ("ingest", "batch-list"): ("magi.ingest.batch", ["list"], "Review batches awaiting approval"),
-    ("ingest", "batch-decide"): ("magi.ingest.batch", ["decide"], "Approve/reject/reset one batch item"),
-    ("ingest", "batch-commit"): ("magi.ingest.batch", ["commit"], "Commit fully-decided batches into raw/"),
+    # `batch-list`, `batch-decide` and `batch-commit` were here. They are the
+    # three things `magi ingest review` already does — its own help says so —
+    # and having both spellings is most of why this group read as seventeen
+    # commands. `batch.py` keeps the internal subcommands; `review` is how you
+    # reach them.
     ("ingest", "arxiv-html"): ("magi.ingest.arxiv_html", [], "arXiv's LaTeXML HTML -> Markdown (best fidelity)"),
     ("ingest", "tex"): ("magi.ingest.tex2md", [], "LaTeX / arXiv source -> Markdown (pandoc)"),
     ("ingest", "ocr"): ("magi.ingest.ocr.agent", [], "PDF -> Markdown via local Ollama OCR"),
@@ -125,6 +127,20 @@ _GROUP_HELP = {
     "radar": "Literature radar (scheduled discovery)",
     "tags": "Tag ontology normalization",
     "skills": "Agent skills, installed per CLI host",
+}
+
+#: Steps the conversion ladder walks by itself. Listed apart in `--help`
+#: because typing one is forcing a route, not using the feature — and six of
+#: them printed beside the five verbs is most of why this group looked like
+#: seventeen decisions.
+_RUNGS = {
+    "ingest": ("arxiv-html", "tex", "mineru", "ocr", "assemble", "crop",
+               "add", "finalize"),
+}
+
+_RUNG_NOTE = {
+    "ingest": ("The ladder tries these in order by itself — name one only to "
+               "force that route:"),
 }
 
 
@@ -208,8 +224,17 @@ def main(argv: list[str] | None = None) -> int:
         # `magi <group>` / `magi <group> --help` is a help request, not an error
         if len(argv) == 1 or argv[1] in ("-h", "--help", "help"):
             print(f"magi {group} — {_GROUP_HELP.get(group, '')}\n")
-            for sub_name, help_text in entries:
+            # The ladder's own steps are not choices a person makes. Printed
+            # in one flat list with the verbs, six rungs read as six more
+            # decisions standing between somebody and a filed paper.
+            rungs = [row for row in entries if row[0] in _RUNGS.get(group, ())]
+            verbs = [row for row in entries if row not in rungs]
+            for sub_name, help_text in verbs:
                 print(f"  magi {group} {sub_name:<18} {help_text}")
+            if rungs:
+                print(f"\n  {_RUNG_NOTE.get(group, 'Used automatically:')}")
+                for sub_name, help_text in rungs:
+                    print(f"  magi {group} {sub_name:<18} {help_text}")
             print(f"\nSyntax: magi {group} <subcommand> --help")
             return 0
         subs = ", ".join(s for s, _ in entries)
