@@ -76,13 +76,13 @@ def create_minimal_index(path: Path, title: str, today: str, force: bool = False
     safe_write(path, render_index(path.parent, today=today), force)
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="magi init", description="Initialize topic workspace")
-    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", default=".", help="Topic directory path (default: current directory)")
-    parser.add_argument("--name", default="My Topic", help="Topic name/title")
-    parser.add_argument("--scope", default="A topic wiki.", help="Topic scope description")
+    parser = argparse.ArgumentParser(prog="magi init", description="Initialize project")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", default=".", help="Project directory path (default: current directory)")
+    parser.add_argument("--name", default="My Project", help="Project name/title")
+    parser.add_argument("--scope", default="A research project.", help="Project scope description")
     parser.add_argument("--coaching", default="light",
                         choices=["off", "light", "strict"],
-                        help="How hard the workspace asks its human for a prediction. "
+                        help="How hard the project asks its human for a prediction. "
                              "strict refuses to start a derivation without one.")
     parser.add_argument("--force", action="store_true", help="Overwrite existing config/log/index files")
     args = parser.parse_args(argv)
@@ -328,7 +328,7 @@ Thumbs.db
 """
     safe_write(topic_path / ".gitignore", gitignore, args.force)
 
-    print(f"Workspace initialized successfully at: {topic_path}")
+    print(f"Project initialized at: {topic_path}")
 
     # Put it in the global registry now rather than as a side effect of the
     # first `magi index`. Until that ran, a freshly created workspace was
@@ -341,10 +341,10 @@ Thumbs.db
         from magi.kb_registry import register_kb
 
         register_kb(topic_path, quiet=True)
-        print(f"Registered as a knowledge base — it will show up in 'magi kb list' "
-              f"and the WebUI workspace picker.")
+        print("Registered — it will show up in 'magi kb list' and in the "
+              "WebUI project picker.")
     except Exception as exc:  # non-fatal: the workspace itself is scaffolded
-        print(f"Warning: could not register this workspace: {exc}")
+        print(f"Warning: could not register this project: {exc}")
 
     # There is no step 8. A topic under `<hub>/topics/` used to be registered
     # in that hub as well, by shelling out to `magi hub register` — a command

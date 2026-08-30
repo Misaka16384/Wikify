@@ -499,11 +499,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                             f"research.hosts). Repeatable. Omit and you are asked; "
                             f"'auto' = every detected CLI, 'all' = every known one.")
         p.add_argument("--scope", choices=["project", "global"], default="project",
-                       help="project (default): into the MAGI workspace you are in. "
+                       help="project (default): into the MAGI project you are in. "
                             "global: every project on this machine — rarely what you want, "
-                            "since these skills only do anything inside a workspace.")
+                            "since these skills only do anything inside a project.")
         p.add_argument("--project-root", default=None,
-                       help="Workspace a project-scope install belongs to "
+                       help="Project a project-scope install belongs to "
                             "(default: discovered from cwd)")
         p.add_argument("--dir", default=None,
                        help="Write to this directory instead of the host's standard location.")
@@ -582,7 +582,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"  [{mark}] {r['label']:<22} {kind:<17} {r['installed']}/{r['total']}{stale}")
             print(f"      {r['dir']}")
             print(f"      {r['invoke']}")
-        print("\n  magi skills install                 # into this workspace (recommended)")
+        print("\n  magi skills install                 # into this project (recommended)")
         print("  magi skills install --scope global  # every project on this machine")
         return 0
 
@@ -602,13 +602,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not args.json and override is None:
         if args.scope == "global":
             print("note: installing globally — these skills only do anything inside a MAGI\n"
-                  "      workspace, so every unrelated project will carry them for nothing.\n"
+                  "      project, so every unrelated project will carry them for nothing.\n"
                   "      'magi skills install' (project scope) is usually what you want.\n")
         else:
             anchor = workspace_anchor()
             if not _is_workspace(anchor):
-                print(f"note: {anchor} is not a MAGI workspace — installing here anyway.\n"
-                      f"      Run this inside a topic workspace (magi init) or its hub for\n"
+                print(f"note: {anchor} is not a MAGI project — installing here anyway.\n"
+                      f"      Run this inside a project (magi init) or its hub for\n"
                       f"      the skills to have something to work on.\n")
 
     # Which workspace this install belongs to. `--project-root` so a caller

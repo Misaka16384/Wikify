@@ -176,10 +176,10 @@ def main(argv=None):
     subparsers = parser.add_subparsers(dest="command", required=True)
     
     parser_ext = subparsers.add_parser("extract")
-    parser_ext.add_argument("topic_dir", help="Path to topic root")
+    parser_ext.add_argument("topic_dir", help="Path to project root")
     
     parser_app = subparsers.add_parser("apply")
-    parser_app.add_argument("topic_dir", help="Path to topic root")
+    parser_app.add_argument("topic_dir", help="Path to project root")
     parser_app.add_argument("tag_map", help="Path to tag_mapping.json")
     parser_app.add_argument("alias_map", help="Path to alias_mapping.json")
     parser_app.add_argument("--no-rebuild", action="store_true", help="Bypass automatic database/index rebuild")

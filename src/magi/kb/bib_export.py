@@ -99,7 +99,7 @@ def fetch_arxiv_bibtex(arxiv_id: str, timeout: int = 20) -> str | None:
 
         req = urllib.request.Request(
             f"https://arxiv.org/bibtex/{arxiv_id}",
-            headers={"User-Agent": "magi-bib/1.0 (research workspace tool)"})
+            headers={"User-Agent": "magi-bib/1.0 (research project tool)"})
         with urllib.request.urlopen(req, timeout=timeout) as r:
             text = r.read().decode("utf-8", errors="replace").strip()
         return text if text.startswith("@") else None

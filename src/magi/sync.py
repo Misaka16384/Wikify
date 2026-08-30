@@ -340,7 +340,7 @@ def build_report(cwd: Path | None = None) -> dict:
                       backlog=m["backlog"])
         if m["concepts"] == 0 and m["references"] == 0 and m["backlog"] == 0:
             _hint("ingest-start",
-                  "drop sources in inbox/ and run the ingest skill to start building the library")
+                  "drop sources in inbox/ and run the ingest skill to start filling this project")
         if m.get("claims") and m["claims_verified"] < m["claims"]:
             n_unv = m["claims"] - m["claims_verified"]
             _hint("claims-unverified",
@@ -416,7 +416,7 @@ def build_report(cwd: Path | None = None) -> dict:
                       f"radar: {gap_pending} citation-gap report(s) pending — run the radar_review skill",
                       pending=gap_pending)
     else:
-        cores["casper"] = {"state": "offline", "note": "no workspace", "score": None}
+        cores["casper"] = {"state": "offline", "note": "no project", "score": None}
     # No workspace -> no ratio: reporting "100% in sync" from a random
     # directory would invert the metric's meaning.
     if topic:
@@ -578,7 +578,7 @@ def _close(args) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="magi sync", description="Workspace onboarding: sync ratio + three-core status")
+    parser = argparse.ArgumentParser(prog="magi sync", description="Project onboarding: sync ratio + three-core status")
     parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir",
                         help="Project directory (default: discovered from cwd)")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")

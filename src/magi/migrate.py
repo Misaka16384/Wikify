@@ -58,22 +58,22 @@ def _migrate_hub(hub: Path, follow_up: bool = True) -> int:
     """
     topics = _hub_topics(hub)
     if not topics:
-        print(f"Hub detected at {hub} but no topics found under topics/.")
+        print(f"Hub detected at {hub} but no projects found under topics/.")
         return 0
-    print(f"Hub detected at {hub} — migrating {len(topics)} topic(s):\n")
+    print(f"Hub detected at {hub} — migrating {len(topics)} project(s):\n")
     failures = 0
     for t in topics:
         rc = _migrate_topic(t, hub=hub)
         failures += 1 if rc else 0
         print()
-    print(f"Hub migration complete: {len(topics) - failures}/{len(topics)} topics migrated.")
+    print(f"Hub migration complete: {len(topics) - failures}/{len(topics)} projects migrated.")
 
     if follow_up:
         _finish(hub, topics)
     else:
-        print("Next: 'magi sync --fix' in each topic")
+        print("Next: 'magi sync --fix' in each project")
 
-    print("\nEach topic is now a library in its own right, registered in "
+    print("\nEach one is now a project in its own right, registered in "
           "`magi kb list`;")
     print("`magi search` federates over all of them from anywhere.")
     inert = [name for name in ("wikis.json", "topics/_index.md", "log.md")
@@ -83,8 +83,8 @@ def _migrate_hub(hub: Path, follow_up: bool = True) -> int:
               "nothing reads or writes them.")
         print("Delete them when you are ready; MAGI will not, because they are "
               "yours and this command has no way to know what else is in here.")
-    print("\nGive your agent CLI each topic's skills when you are ready:")
-    print("  cd <topic> && magi install        # skills, protocol, stop gate")
+    print("\nGive your agent CLI each project's skills when you are ready:")
+    print("  cd <project> && magi install        # skills, protocol, stop gate")
     return 1 if failures else 0
 
 
@@ -109,14 +109,14 @@ def _finish(hub: Path, topics: list[Path]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="magi migrate", description=__doc__)
-    parser.add_argument("path", nargs="?", help="Workspace or hub to migrate (default: discovered from cwd)")
+    parser.add_argument("path", nargs="?", help="Project or hub to migrate (default: discovered from cwd)")
     parser.add_argument("--dry-run", action="store_true",
                         help="Say what would change and write nothing. Worth doing first: "
                              "migration moves wiki/theses/*.md into drafts/, and those "
                              "files are the only copy you have.")
     parser.add_argument("--minimal", action="store_true",
                         help="Migrate only. Without this, migration also provisions the task "
-                             "store and brings each topic to a working state (magi sync --fix).")
+                             "store and brings each project to a working state (magi sync --fix).")
     args = parser.parse_args(argv)
     follow_up = not args.minimal
 
@@ -136,7 +136,7 @@ def main(argv: list[str] | None = None) -> int:
         if (base / "wiki").is_dir() or (base / "raw").is_dir():
             root = base
         else:
-            print("No workspace found here. Run inside a topic directory "
+            print("No project found here. Run inside a project directory "
                   "(a folder containing wiki/ or raw/), at a hub root, or pass a path.",
                   file=sys.stderr)
             return 1
@@ -441,7 +441,7 @@ def preview(root: Path, hub: Path | None = None) -> int:
     run, so this names the file it would read rather than guessing which keys
     would move.
     """
-    name, scope = root.name, "A topic wiki."
+    name, scope = root.name, "A research project."
     config_md = root / "config.md"
     if config_md.is_file():
         fm = parse_frontmatter(config_md.read_text(encoding="utf-8", errors="replace"))
@@ -490,7 +490,7 @@ def preview(root: Path, hub: Path | None = None) -> int:
 
 def _migrate_topic(root: Path, hub: Path | None = None) -> int:
     # Carry the legacy identity into the new scaffolding.
-    name, scope = root.name, "A topic wiki."
+    name, scope = root.name, "A research project."
     config_md = root / "config.md"
     if config_md.is_file():
         fm = parse_frontmatter(config_md.read_text(encoding="utf-8", errors="replace"))
@@ -498,7 +498,7 @@ def _migrate_topic(root: Path, hub: Path | None = None) -> int:
         scope = str(fm.get("scope") or scope)
 
     missing = [f for f in ("CLAUDE.md", "AGENTS.md", "config.yaml") if not (root / f).is_file()]
-    print(f"Migrating workspace: {root}")
+    print(f"Migrating project: {root}")
     print(f"  identity: {name!r} — {scope!r}")
     if missing:
         print(f"  adding: {', '.join(missing)} (+ scratch/, missing _index.md files)")
@@ -515,7 +515,7 @@ def _migrate_topic(root: Path, hub: Path | None = None) -> int:
         # to exist by now. Say so once here, and again in the return code —
         # which used to be 0 no matter what happened, so a hub whose six topics
         # all failed still printed "6/6 topics migrated".
-        print("ERROR: scaffolding failed; this workspace is not migrated",
+        print("ERROR: scaffolding failed; this project is not migrated",
               file=sys.stderr)
 
     for stale in _stale_skill_dirs(root, hub):

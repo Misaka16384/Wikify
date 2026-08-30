@@ -1013,7 +1013,7 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
     if kb:
         if kb == "local":
             if root is None:
-                raise SearchError("no local workspace found", "run from a topic directory")
+                raise SearchError("no local project found", "run from a project directory")
             targets = [("local", root / "output" / "index.db")]
         else:
             entry = load_registry()["kbs"].get(kb)
@@ -1033,8 +1033,8 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
         if not targets:
             if scope == "local":
                 raise SearchError("no project found", "run from inside one, or pass --project-dir")
-            raise SearchError("no workspace here and no searchable registered KBs",
-                              "run inside a topic dir, or 'magi kb register' + 'magi kb enable'")
+            raise SearchError("no project here and no searchable registered projects",
+                              "run inside a project directory, or 'magi kb register' + 'magi kb enable'")
 
     opened_targets = []
     kbs_skipped: list[str] = []
@@ -1056,7 +1056,7 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
             opened_targets.append((name, *o))
         if not opened_targets:
             raise SearchError("no searchable index found in any target KB",
-                              "run 'magi index' in the workspace(s)")
+                              "run 'magi index' in the project(s)")
 
         # Said before the results as well as after them. Putting it last fixed
         # one half — above a page of output it was scrolled past — and the
@@ -1064,8 +1064,8 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
         # convincing, and somebody who reads the top one first has already
         # acted on a stranger's note by the time the caveat arrives.
         if "local" in kbs_skipped:
-            print("This workspace has no index — everything below is from "
-                  "other libraries, not from here.", file=sys.stderr)
+            print("This project has no index — everything below is from "
+                  "other projects, not from here.", file=sys.stderr)
 
         n = max(k * 3, 20)
         qvec = None
@@ -1193,7 +1193,7 @@ def cmd_search(args: argparse.Namespace) -> int:
                     else find_workspace_root())
             elsewhere = [name for name, _p in _others(exclude=here)]
             if elsewhere:
-                print(f"(searched this library only. {len(elsewhere)} other(s) "
+                print(f"(searched this project only. {len(elsewhere)} other(s) "
                       f"registered and indexed: {', '.join(elsewhere[:5])}"
                       f"{' …' if len(elsewhere) > 5 else ''} — `--scope all` "
                       f"reads them, or name the ones this project wants in "
@@ -1209,7 +1209,7 @@ def cmd_search(args: argparse.Namespace) -> int:
             # warning about everything above it arrives before it.
             sys.stdout.flush()
             where = "Nothing above is from it" if results else "It was not searched"
-            print(f"\nThis workspace is not searchable yet — it has no index. "
+            print(f"\nThis project is not searchable yet — it has no index. "
                   f"{where}.\nRun 'magi index' here, then search again.",
                   file=sys.stderr)
         if not payload["vector_available"] and args.mode == "hybrid":
@@ -1264,13 +1264,13 @@ def build_parser() -> argparse.ArgumentParser:
     # you ask for.
     p_search.add_argument("--scope", choices=["local", "all", "global", "auto"],
                           default="local",
-                          help="local = this library only (default); "
-                               "all = this library plus the ones "
+                          help="local = this project only (default); "
+                               "all = this project plus the ones "
                                "`research.search_projects` names, or every enabled "
                                "one when it names none; global = those others "
-                               "without this library. ('auto' is an old "
+                               "without this project. ('auto' is an old "
                                "spelling of 'all'.)")
-    p_search.add_argument("--kb", help="Search a single registered KB by name ('local' = current workspace)")
+    p_search.add_argument("--kb", help="Search a single registered KB by name ('local' = current project)")
     p_search.add_argument("--json", action="store_true")
     p_search.set_defaults(func=cmd_search)
     return parser

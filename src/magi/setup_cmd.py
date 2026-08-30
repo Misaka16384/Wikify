@@ -393,7 +393,7 @@ def choose_optionals(interactive: bool) -> dict:
     # good PDF conversion when you do not want a local model.
     print("  MinerU — cloud PDF conversion, strong on formulas and layout.")
     print(f"    sign up: {MINERU_URL}")
-    print("    then put the token in your workspace's config.yaml under "
+    print("    then put the token in your project's config.yaml under "
           "ocr.mineru_api_token")
     chosen["mineru"] = _ask_yes_no("Do you plan to use MinerU?",
                                    default=bool(chosen.get("mineru", False)))
@@ -614,7 +614,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-skills", action="store_true",
                         help="Skip the agent-CLI skills report")
     parser.add_argument("--kb-only", action="store_true",
-                        help="Knowledge-base-only profile (the classic Wikify experience): "
+                        help="The --kb-only profile (the classic Wikify experience): "
                              "skip Beads, and magi sync stops suggesting task tracking. "
                              "Revert with --full.")
     parser.add_argument("--full", action="store_true", help="Restore the full profile (undo --kb-only)")
@@ -701,12 +701,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  {name:<14} {outcome}")
 
     print("\nQuick start:")
-    print("  mkdir my-topic && cd my-topic && magi init && magi install")
-    print("  mkdir -p topics/my-topic && cd topics/my-topic")
-    print('  magi init --name "My Topic" --scope "..." && magi sync')
-    print("Migrating from Wikify? Run 'magi migrate' at your hub root (migrates every topic).")
+    print("  mkdir my-project && cd my-project && magi init && magi install")
+    print("  mkdir -p topics/my-project && cd topics/my-project")
+    print('  magi init --name "My Project" --scope "..." && magi sync')
+    print("Migrating from Wikify? Run 'magi migrate' at your hub root (migrates every project).")
     print("Stuck at any point?  magi guide --search \"<the error>\"   (manual: magi guide)")
-    print("Agent skills:         cd <your topic workspace> && magi skills install")
+    print("Agent skills:         cd <your project> && magi skills install")
     return 0
 
 

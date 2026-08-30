@@ -589,9 +589,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         prog="magi math check",
         description="Detect LaTeX syntax errors in markdown math blocks. "
-                    "Defaults to the surrounding workspace, like `magi lint`.")
+                    "Defaults to the surrounding project, like `magi lint`.")
     parser.add_argument("target", nargs="?", default=None,
-                        help="Topic directory or markdown file (default: the workspace you are in)")
+                        help="Project directory or markdown file (default: the project you are in)")
     parser.add_argument("--json", action="store_true",
                         help="Emit the worklist as JSON: one entry per broken formula")
     parser.add_argument("--fast", action="store_true",

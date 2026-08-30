@@ -225,7 +225,7 @@ def session_start(payload: dict, root=None) -> dict:
         said += f"\n({more} more: magi next)"
     return {"hookSpecificOutput": {"hookEventName": "SessionStart",
                                    "additionalContext":
-                                   "MAGI — what this workspace needs:\n" + said}}
+                                   "MAGI — what this project needs:\n" + said}}
 
 
 EVENTS = {"fanout": fanout, "session-start": session_start}
@@ -236,7 +236,7 @@ def main(argv=None) -> int:
         prog="magi hook",
         description="Called by an agent CLI's hooks. Not for typing by hand.")
     parser.add_argument("event", choices=sorted(EVENTS))
-    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Workspace (default: discovered)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project (default: discovered)")
     args = parser.parse_args(argv)
 
     try:

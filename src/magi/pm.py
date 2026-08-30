@@ -445,7 +445,7 @@ def main(argv: list[str] | None = None) -> int:
     p_backlog = sub.add_parser("backlog-sync",
                                help="Create bd issues for uncompiled raw sources")
     p_backlog.add_argument("--project-dir", "--topic-dir", dest="topic_dir",
-                           help="Topic workspace (default: discovered from cwd)")
+                           help="Project (default: discovered from cwd)")
     p_backlog.set_defaults(func=cmd_backlog_sync)
 
     args = parser.parse_args(argv)

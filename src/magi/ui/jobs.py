@@ -450,7 +450,7 @@ class TaskManager:
             if scope == "global" and active:
                 raise JobConflict("global operations require no other running jobs")
             if scope == "kb" and any(j.workspace == target_ws for j in active):
-                raise JobConflict("this workspace already has an active job")
+                raise JobConflict("this project already has an active job")
 
             self._jobs[job_id] = job
             # Prune old completed jobs if needed

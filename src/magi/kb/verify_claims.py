@@ -175,7 +175,7 @@ def verify_web(evidence: str, source: str, fetch: bool) -> tuple[str, str]:
         import urllib.request
 
         req = urllib.request.Request(
-            source, headers={"User-Agent": "magi-verify/0.1 (research workspace tool)"})
+            source, headers={"User-Agent": "magi-verify/0.1 (research project tool)"})
         with urllib.request.urlopen(req, timeout=30) as r:
             html = r.read(2_000_000).decode("utf-8", errors="replace")
     except Exception as exc:
@@ -223,7 +223,7 @@ def main(argv=None):
             "  2  claims file not found\n"
         ))
     parser.add_argument("claims_file", help="Path to text file containing claims")
-    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", required=True, help="Topic workspace directory")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", required=True, help="Project directory")
     parser.add_argument("--fetch-web", action="store_true",
                         help="Actually fetch web sources and check the quote in page text")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")

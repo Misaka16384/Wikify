@@ -807,7 +807,7 @@ def cmd_harvest(args: argparse.Namespace) -> int:
     seeds = seed_ids(topic, cfg)
     lib_ids = library_arxiv_ids(topic)
     from_library = sum(1 for s in seeds if s in lib_ids)
-    print(f"fingerprint: {len(seeds)} seeds ({from_library} of them from the library's "
+    print(f"fingerprint: {len(seeds)} seeds ({from_library} of them from the project's "
           f"{len(lib_ids)} arXiv references)")
 
     bulk_queries = [str(q) for q in (cfg_get(cfg, "radar.bulk_queries", None) or [])]
@@ -850,7 +850,7 @@ def cmd_harvest(args: argparse.Namespace) -> int:
 
     # Score against the library fingerprint BEFORE the cap so the budget is
     # spent on the most relevant candidates, not on listing order.
-    print("[radar] scoring candidates against library embedding centroid...", file=sys.stderr)
+    print("[radar] scoring candidates against project embedding centroid...", file=sys.stderr)
     scored = _score_candidates(topic, fresh)
     if scored:
         min_rel = cfg_get(cfg, "radar.min_relevance", None)

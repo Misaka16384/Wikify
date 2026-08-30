@@ -81,10 +81,10 @@ GUIDE_ALLOWED = re.compile(
 #: a standing pass for a false quote. `test_no_exemption_excuses_text_the_cli_
 #: never_prints` walks this tuple against the source.
 QUOTED_OUTPUT = (
-    "no workspace here and no searchable",
-    "Migrating workspace",
-    "what the library itself needs",
-    "start building the library",
+    # Emptied when the CLI's own prose was swept: every string that used to
+    # need excusing here now says `project`, so the guides quoting them need
+    # no exemption. Kept as a tuple rather than deleted — the mechanism is
+    # what stops the next quote from outliving the code that prints it.
 )
 
 #: Entries whose "library" is not this system's. Named, so that adding one is
@@ -245,3 +245,105 @@ def test_the_guides_use_one_word(lang):
 
     assert not offenders, (
         f"guide.{lang}.md still calls a project something else: {offenders}")
+
+
+# --------------------------------------------------------------------------
+# what the CLI itself says
+# --------------------------------------------------------------------------
+
+#: Strings that contain a retired word but are not prose about our own
+#: concept. Scoped by what they are, not by the word in them.
+CLI_ALLOWED = re.compile(
+    # Zotero's own term for Zotero's own thing, in either language. Matched
+    # together with the proper noun: bare "library" stays banned, which is the
+    # difference between excusing a form and excusing a word.
+    r"Zotero\s*(?:librar|库)"
+    r"|--topic-dir|--library|--kb-only|topic_dir"   # real flags and their dests
+    r"|magi kb|kb list|kb register"                # the command is called kb
+    # Real paths. A directory name followed by a separator is a shape, not a
+    # noun — `GUIDE_ALLOWED` carries the same rule for the same reason.
+    r"|topics[/\\]"
+)
+
+
+def _user_facing_strings():
+    """Every string this program shows a person, and no more than that.
+
+    Docstrings are excluded deliberately. They are prose for whoever opens the
+    file, and 276 of them mention a retired word — mostly as the historical
+    name of the thing being described. Demanding they all change is churn, and
+    a check nobody can satisfy gets switched off. What is left is the text a
+    user reads: the help tables, argparse's own strings, and anything printed
+    or raised.
+    """
+    import ast
+
+    root = ROOT / "src" / "magi"
+    for path in sorted(root.rglob("*.py")):
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):        # pragma: no cover
+            continue
+
+        docstrings = set()
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                                 ast.AsyncFunctionDef)):
+                body = getattr(node, "body", None)
+                if (body and isinstance(body[0], ast.Expr)
+                        and isinstance(body[0].value, ast.Constant)
+                        and isinstance(body[0].value.value, str)):
+                    docstrings.add(id(body[0].value))
+
+        # The help tables are dicts of command -> sentence; argparse strings
+        # arrive as keywords; the rest reach a screen through print or raise.
+        wanted = set()
+        for node in ast.walk(tree):
+            # `default=` earns its place here: it is not text shown to the
+            # user but text written into their `config.yaml`, which is a
+            # stronger reason to get it right, not a weaker one.
+            if isinstance(node, ast.keyword) and node.arg in ("help", "description",
+                                                              "title", "default"):
+                wanted.update(id(n) for n in ast.walk(node.value)
+                              if isinstance(n, ast.Constant))
+            elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name) \
+                    and node.func.id == "print":
+                wanted.update(id(n) for n in ast.walk(node) if isinstance(n, ast.Constant))
+            elif isinstance(node, ast.Raise):
+                wanted.update(id(n) for n in ast.walk(node) if isinstance(n, ast.Constant))
+            elif isinstance(node, ast.Dict):
+                # `_COMMANDS` / `command_help_zh`: the `magi --help` tables.
+                # Walked rather than read directly, so a value built by
+                # concatenation counts too — the session hook's
+                # `additionalContext` is one, and it is the first thing an
+                # agent is told every session.
+                for value in node.values:
+                    wanted.update(id(n) for n in ast.walk(value)
+                                  if isinstance(n, ast.Constant))
+
+        for node in ast.walk(tree):
+            if (isinstance(node, ast.Constant) and isinstance(node.value, str)
+                    and id(node) in wanted and id(node) not in docstrings
+                    and " " in node.value.strip()):
+                yield path, node.lineno, node.value
+
+
+def test_what_the_cli_prints_uses_one_word():
+    """The first line `magi init` printed was "Registered as a knowledge base
+    — it will show up in 'magi kb list' and the WebUI workspace picker": two
+    retired words in the first sentence a new user reads, after three separate
+    passes had each declared the vocabulary merged.
+
+    Every earlier guard looks at `app.js`, `index.html`, the two guides or the
+    skills. None of them looks at what the program says out loud.
+    """
+    offenders = []
+    for path, line, text in _user_facing_strings():
+        rest = CLI_ALLOWED.sub(" ", text)
+        for phrase in QUOTED_OUTPUT:
+            rest = rest.replace(phrase, " ")
+        if GUIDE_RETIRED.search(rest):
+            offenders.append(f"{path.name}:{line}  {text.strip()[:80]}")
+    assert not offenders, (
+        "the CLI still says a retired word out loud:\n  "
+        + "\n  ".join(sorted(set(offenders))[:25]))

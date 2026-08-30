@@ -114,7 +114,7 @@ def test_an_empty_body_is_refused(client, ws):
 def test_a_directory_that_is_not_a_workspace_is_refused(client, tmp_path):
     res = _put(client, tmp_path / "nowhere", "paper.pdf")
     assert res.status_code == 400
-    assert "workspace" in res.json()["detail"]
+    assert "project" in res.json()["detail"]
 
 
 def test_an_unusable_name_is_refused(client, ws):

@@ -191,7 +191,7 @@ def install_protocol(root: Path, coaching: str | None = None,
     front = parse_frontmatter(config.read_text(encoding="utf-8", errors="replace")) \
         if config.is_file() else {}
     name = str(front.get("title") or root.name)
-    scope = str(front.get("scope") or "A topic wiki.")
+    scope = str(front.get("scope") or "A research project.")
 
     # Template plus the rules a person accepted: the block's truth is those
     # two things, and whoever changes the ledger re-renders rather than waiting

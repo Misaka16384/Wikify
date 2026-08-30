@@ -30,7 +30,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi ingest add", description="Ingest source files into raw/ folder.")
     parser.add_argument("--file", required=True, help="Path to the source file to ingest")
     parser.add_argument("--type", required=True, help="Target raw subdirectory/type (e.g. papers, articles, notes)")
-    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", default=".", help="Topic directory path (default: current directory)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", default=".", help="Project directory path (default: current directory)")
     parser.add_argument("--move", action="store_true", help="Move the file instead of copying")
     args = parser.parse_args(argv)
 

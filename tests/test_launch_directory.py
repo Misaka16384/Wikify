@@ -95,7 +95,7 @@ def test_enqueue_refuses_to_guess_when_there_is_no_default(client):
     """
     res = client.post("/api/ingest/enqueue", json={"value": "https://arxiv.org/abs/2401.00506"})
     assert res.status_code == 400
-    assert "name the library" in res.json()["detail"]
+    assert "name the project" in res.json()["detail"]
 
 
 def test_enqueue_still_refuses_an_unknown_library(client):

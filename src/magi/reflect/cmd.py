@@ -442,7 +442,7 @@ def _apply_to_skill(root, proposal) -> str:
     if not mine.is_file():
         raise _PackageLevel(
             f"{name} is a skill MAGI ships — the change is recorded in the "
-            "ledger and belongs upstream, not in this workspace")
+            "ledger and belongs upstream, not in this project")
 
     patch = proposal.patch or {}
     if not patch.get("text") or not patch.get("target"):

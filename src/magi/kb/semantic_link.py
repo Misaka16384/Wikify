@@ -21,8 +21,8 @@ from magi.core.workspace import find_workspace_root
 def setup_argparse(argv=None):
     parser = argparse.ArgumentParser(prog="magi link", description="Wiki Semantic Linker using Ollama")
     parser.add_argument("topic_dir", nargs="?", default=None,
-                        help="Path to the root of the topic wiki (containing wiki/concepts/); "
-                             "defaults to the workspace you are in")
+                        help="Path to the root of the project wiki (containing wiki/concepts/); "
+                             "defaults to the project you are in")
     parser.add_argument("--threshold", type=float, default=None, help="Cosine similarity threshold for linking (default: from config.yaml)")
     parser.add_argument("--merge-threshold", type=float, default=None, help="Cosine similarity threshold for merge suggestions (default: from config.yaml)")
     parser.add_argument("--auto-merge", action="store_true", help="Automatically merge concepts with score >= auto-merge-threshold")

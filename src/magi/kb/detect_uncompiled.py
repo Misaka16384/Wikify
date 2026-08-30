@@ -92,7 +92,7 @@ def find_uncompiled(topic_dir) -> list[str]:
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi wiki uncompiled", description="Detect uncompiled source files.")
-    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", default=".", help="Topic directory path (default: current directory)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", default=".", help="Project directory path (default: current directory)")
     args = parser.parse_args(argv)
 
     for path in find_uncompiled(args.topic_dir):

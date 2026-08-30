@@ -22,7 +22,7 @@ from magi import __version__
 _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     # workspace / hub
     ("init",): ("magi.init_workspace", [], "Scaffold a project (raw/ wiki/ inbox/ output/)"),
-    ("sync",): ("magi.sync", [], "Where the workspace stands; --close to end a session"),
+    ("sync",): ("magi.sync", [], "Where the project stands; --close to end a session"),
     ("ui",): ("magi.ui.server", [], "Launch the local MAGI WebUI dashboard"),
     ("guide",): ("magi.guide", [], "Read the built-in manual (chapters, --search, --symptoms)"),
     ("skills", "list"): ("magi.skills_cmd", ["list"], "List the agent skills bundled with magi"),
@@ -31,7 +31,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("skills", "uninstall"): ("magi.skills_cmd", ["uninstall"], "Remove magi's skills from an agent CLI"),
     ("setup",): ("magi.setup_cmd", [], "Provision the environment (beads, models, plugin) + doctor"),
     ("update",): ("magi.update", [], "Check for a newer release and install it"),
-    ("migrate",): ("magi.migrate", [], "Migrate a pre-magi (Wikify) workspace (hub or topic)"),
+    ("migrate",): ("magi.migrate", [], "Upgrade a pre-magi (Wikify) directory — one project, or a hub of them"),
     # work state (Beads bridge)
     ("pm", "init"): ("magi.pm", ["init"], "Initialize beads with research issue types"),
     ("pm", "backlog-sync"): ("magi.pm", ["backlog-sync"], "Uncompiled raw sources -> bd issues"),
@@ -88,7 +88,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("lint",): ("magi.kb.llmwiki", ["lint"], "Structural checks and self-healing fixes"),
     ("stats",): ("magi.kb.llmwiki", ["stats"], "Deterministic wiki statistics"),
     ("map",): ("magi.kb.llmwiki", ["map"], "Structural map of headings and math blocks"),
-    ("math", "format"): ("magi.kb.format_math", [], "Auto-fix LaTeX delimiter/escaping issues workspace-wide"),
+    ("math", "format"): ("magi.kb.format_math", [], "Auto-fix LaTeX delimiter/escaping issues project-wide"),
     ("math", "check"): ("magi.kb.validate_math_latex", [], "Find broken formulas; --json for a worklist"),
     ("validate",): ("magi.kb.validate_output", [], "Schema-validate generated thesis/research docs"),
     ("verify",): ("magi.kb.verify_claims", [], "Verify CLAIM/FINDING evidence blocks"),
@@ -96,9 +96,9 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("bib",): ("magi.kb.bib_export", [], "Export BibTeX from reference cards (--fetch pulls arXiv's official entry)"),
     # retrieval
     ("index",): ("magi.retrieval", ["index"], "Build/refresh the hybrid retrieval index"),
-    ("search",): ("magi.retrieval", ["search"], "Hybrid search: local workspace + enabled global KBs"),
-    ("kb", "register"): ("magi.kb_registry", ["register"], "Register a workspace in the global KB registry"),
-    ("kb", "list"): ("magi.kb_registry", ["list"], "List registered knowledge bases"),
+    ("search",): ("magi.retrieval", ["search"], "Hybrid search: local project + enabled global KBs"),
+    ("kb", "register"): ("magi.kb_registry", ["register"], "Register a project in the global KB registry"),
+    ("kb", "list"): ("magi.kb_registry", ["list"], "List registered projects"),
     ("kb", "enable"): ("magi.kb_registry", ["enable"], "Include a KB in global search"),
     ("kb", "disable"): ("magi.kb_registry", ["disable"], "Exclude a KB from global search"),
     ("kb", "unregister"): ("magi.kb_registry", ["unregister"], "Remove a KB from the registry"),
@@ -116,7 +116,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
 }
 
 _GROUP_HELP = {
-    "kb": "Global knowledge-base registry (cross-workspace search)",
+    "kb": "Global project registry (cross-project search)",
     "ingest": "Document ingestion (PDF/LaTeX -> Markdown)",
     "wiki": "Concept and reference card operations",
     "thread": "Propositions, questions and research lines",
@@ -160,7 +160,7 @@ PORCELAIN = ("next", "sync", "close", "publish", "init", "install", "ui",
 
 
 def _print_help(everything: bool = False) -> None:
-    print(f"magi {__version__} — agent-native research workspace")
+    print(f"magi {__version__} — agent-native research project")
     print("\nUsage: magi <command> [subcommand] [args...]")
     print("       magi <command> --help          for syntax of any command\n")
 

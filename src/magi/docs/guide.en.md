@@ -56,7 +56,7 @@ and `magi pm init`, at the moment each is actually worth running.
 ```text
 No propositions yet — nothing here is being tested yet.
   magi thread new <slug> --kind proposition --title '<claim>' --purpose '<why now>'
-  magi sync    # what the library itself needs
+  magi sync    # what the project itself needs
 ```
 
 **② Existing Wikify user** — leave your data as-is; jump straight to Chapter 3, three commands to migrate.
@@ -98,7 +98,7 @@ MAGI SYSTEM ONLINE — sync ratio 33.3%
 |- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 0
 |- BALTHASAR (intent)     beads offline
 `- CASPER    (retrieval)  index missing · 0 chunks · vectors 0/0
-  -> drop sources in inbox/ and run the ingest skill to start building the library
+  -> drop sources in inbox/ and run the ingest skill to start filling this project
   -> magi pm init   # initialize beads in this project
   -> magi index   # build the retrieval index
 ```
@@ -475,7 +475,7 @@ It installs into every agent CLI it detects on the machine — it does not ask.
 and you did not name one.
 
 > [!EXPECT]
-> Each project prints `Migrating workspace: <path>`, then `config carried from ...` when there were old settings to bring across, then `magi graph build: ok` / `magi wiki reindex: ok`. At the end, "Finishing up" runs `magi sync --fix` per project and reports the new sync ratio.
+> Each project prints `Migrating project: <path>`, then `config carried from ...` when there were old settings to bring across, then `magi graph build: ok` / `magi wiki reindex: ok`. At the end, "Finishing up" runs `magi sync --fix` per project and reports the new sync ratio.
 
 > [!FIX]
 > - **A project that reports `FAILED` in the middle**: scaffolding failure now counts — the summary line and the exit code both reflect it. A `FAILED` on `graph build` or `wiki reindex` deliberately does not: those are derived from files that are already in place, and `magi sync --fix` in that project rebuilds them.
@@ -1126,7 +1126,7 @@ magi kb unregister <name>      # Remove only the registry entry, files untouched
 
 > [!FIX]
 > - `no index at output/index.db` → Run `magi index` first.
-> - `no workspace here and no searchable registered KBs` → You're not inside a project, and there's no searchable registered project. `cd` into one, or `magi kb register` + `enable`.
+> - `no project here and no searchable registered projects` → You're not inside a project, and there's no searchable registered project. `cd` into one, or `magi kb register` + `enable`.
 > - **Can't find something you just wrote** → The index updates incrementally by hash, but it **doesn't trigger automatically**. Rerun `magi index` after editing.
 > - **Results are all keyword hits, no semantic ones** → It ends with a `BM25-only` notice. MAGI already tried to wake a local Ollama; if it's still BM25-only, Ollama isn't installed or the embedding model isn't pulled. Check with `magi setup --check`, then rerun `magi index` to fill in the vectors.
 > - **Search says it fell back to keywords while an index job runs** → Ollama answers one request at a time, so an indexing run holds it. The search gives up on vectors after 8 seconds and returns its keyword half rather than hanging; search again once the job finishes.

@@ -34,7 +34,7 @@ def build_index_for_dir(dir_path, title=None):
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi wiki reindex", description="Build index files for wiki directories")
     parser.add_argument("topic_dir", nargs="?", default=None,
-                        help="Topic directory path (default: the workspace you are in)")
+                        help="Project directory path (default: the project you are in)")
     args = parser.parse_args(argv)
 
     topic_dir = args.topic_dir

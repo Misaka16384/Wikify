@@ -161,8 +161,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         prog="magi ingest auto",
         description="Route each file to the right ingestion command and finalize it.")
     parser.add_argument("paths", nargs="*",
-                        help="Files or directories (default: the workspace's inbox/).")
-    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", default=None, help="Workspace root (default: discovered).")
+                        help="Files or directories (default: the project's inbox/).")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", default=None, help="Project root (default: discovered).")
     parser.add_argument("--type", dest="raw_type", default=None,
                         help="raw/ subdirectory to file into (default: papers, or notes for text).")
     parser.add_argument("--dry-run", action="store_true", help="Show the routing, convert nothing.")

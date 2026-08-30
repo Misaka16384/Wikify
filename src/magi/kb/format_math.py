@@ -373,7 +373,7 @@ def process_directory(directory):
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi math format", description="Auto-fix LaTeX delimiter/escaping issues in markdown files.")
     parser.add_argument("target", nargs="?", default=None,
-                        help="Topic directory or markdown file (default: the workspace you are in)")
+                        help="Project directory or markdown file (default: the project you are in)")
     args = parser.parse_args(argv)
     target = args.target
     if target is None:

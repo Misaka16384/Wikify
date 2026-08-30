@@ -109,7 +109,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi wiki context", description="Extract surrounding context for a concept from all papers")
     parser.add_argument("--name", required=True, help="Concept Name")
     parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir",
-                        help="Topic directory (default: workspace root discovered from cwd)")
+                        help="Project directory (default: project root discovered from cwd)")
     args = parser.parse_args(argv)
 
     topic_dir = args.topic_dir
@@ -118,8 +118,8 @@ def main(argv=None):
         from magi.core.workspace import find_workspace_root
         root = find_workspace_root()
         if root is None:
-            print(json.dumps({"error": "No topic workspace found from cwd. "
-                                       "Run inside a topic directory or pass --topic-dir <path>."}))
+            print(json.dumps({"error": "No project found from cwd. "
+                                       "Run inside a project directory or pass --topic-dir <path>."}))
             return 2
         topic_dir = str(root)
 

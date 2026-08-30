@@ -1754,9 +1754,9 @@ def resolve_wiki_root(args: argparse.Namespace) -> Path:
         return Path.cwd() / ".wiki"
     if getattr(args, "wiki", None):
         raise SystemExit(
-            f"--wiki {args.wiki} names a topic inside a hub, and hubs are gone in v2. "
-            "Pass --path <dir>, or run this from inside the workspace. "
-            "`magi kb list` shows the libraries this machine knows about.")
+            f"--wiki {args.wiki} names a project inside a hub, and hubs are gone in v2. "
+            "Pass --path <dir>, or run this from inside the project. "
+            "`magi kb list` shows the projects this machine knows about.")
 
     cwd = Path.cwd()
     if (cwd / "wiki").is_dir() or is_initialized_topic(cwd):
@@ -1971,7 +1971,7 @@ def print_text_report(ctx: LintContext) -> None:
     if any("[Block Math]" in i.message or "[Inline Math]" in i.message
            for i in ctx.active_issues()):
         print("\nBroken formulas need reading, not a --fix flag:")
-        print("  magi math format                # the mechanical half, whole workspace")
+        print("  magi math format                # the mechanical half, whole project")
         print("  magi math check --json          # the rest, as a worklist")
         print("  (the tidy skill works that list one formula at a time)")
 
@@ -2558,7 +2558,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run local structural checks on a wiki root.",
         description=(
             "Run deterministic checks that do not require an LLM. Pass a wiki root "
-            "path, or run the command from inside the workspace."
+            "path, or run the command from inside the project."
         ),
     )
     lint.add_argument("path", nargs="?", help="Wiki root path to lint.")

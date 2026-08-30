@@ -55,7 +55,7 @@ magi install                 # 技能 + AGENTS.md 协议块 + 会话钩子
 ```text
 No propositions yet — nothing here is being tested yet.
   magi thread new <slug> --kind proposition --title '<claim>' --purpose '<why now>'
-  magi sync    # what the library itself needs
+  magi sync    # what the project itself needs
 ```
 
 **② Wikify 老用户**——数据不用动，直接看第 3 章，三条命令迁移。
@@ -97,7 +97,7 @@ MAGI SYSTEM ONLINE — sync ratio 33.3%
 |- MELCHIOR  (knowledge)  0 concepts · 0 refs · graph empty-wiki · backlog 0
 |- BALTHASAR (intent)     beads offline
 `- CASPER    (retrieval)  index missing · 0 chunks · vectors 0/0
-  -> drop sources in inbox/ and run the ingest skill to start building the library
+  -> drop sources in inbox/ and run the ingest skill to start filling this project
   -> magi pm init   # initialize beads in this project
   -> magi index   # build the retrieval index
 ```
@@ -461,7 +461,7 @@ cd <你的项目> && magi install
 `magi skills install`，那条只装技能、不装协议块和会话钩子。
 
 > [!EXPECT]
-> 每个项目先打印 `Migrating workspace: <path>`，有旧配置可搬时打印 `config carried from ...`，然后 `magi graph build: ok` / `magi wiki reindex: ok`。最后「Finishing up」对每个项目跑 `magi sync --fix`，并报出新的同步率。
+> 每个项目先打印 `Migrating project: <path>`，有旧配置可搬时打印 `config carried from ...`，然后 `magi graph build: ok` / `magi wiki reindex: ok`。最后「Finishing up」对每个项目跑 `magi sync --fix`，并报出新的同步率。
 
 > [!FIX]
 > - **某个项目中途报 `FAILED`**：脚手架失败现在算数了——汇总行和退出码都会反映。`graph build` / `wiki reindex` 的 `FAILED` **故意**不算：那两样是从已经就位的文件派生出来的，在那个项目里跑 `magi sync --fix` 就会重建。
@@ -1084,7 +1084,7 @@ magi kb unregister <名字>      # 只删注册项，不动文件
 
 > [!FIX]
 > - `no index at output/index.db` → 先 `magi index`。
-> - `no workspace here and no searchable registered KBs` → 你不在项目里，且没有可搜的注册项目。`cd` 进去，或 `magi kb register` + `enable`。
+> - `no project here and no searchable registered projects` → 你不在项目里，且没有可搜的注册项目。`cd` 进去，或 `magi kb register` + `enable`。
 > - **搜不到刚写的内容** → 索引是按哈希增量的，但**不会自动触发**。编辑后重跑 `magi index`。
 > - **结果全是关键词命中，没有语义** → 结尾会提示 `BM25-only`。MAGI 已经试过拉起本机 Ollama 了；还是 BM25-only 就说明它没装、或者嵌入模型没拉。用 `magi setup --check` 看一眼，再重跑 `magi index` 补向量。
 > - **索引任务在跑的时候，搜索提示降级成了关键词** → Ollama 一次只处理一个请求，索引任务会一直占着它。搜索等 8 秒还拿不到向量就先把关键词那一半结果返回来，而不是干等着；等任务跑完再搜一次即可。

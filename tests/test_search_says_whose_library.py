@@ -166,7 +166,7 @@ def test_the_others_are_named_even_though_they_are_not_read(tmp_path, capsys):
     retrieval.cmd_search(_search(mine, "impurity", scope="local"))
 
     said = capsys.readouterr().out
-    assert "searched this library only" in said
+    assert "searched this project only" in said
     assert "--scope all" in said
     assert "research.search_projects" in said
 

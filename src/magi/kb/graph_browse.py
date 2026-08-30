@@ -387,8 +387,8 @@ def main(argv=None):
     parser.add_argument("--limit", type=int, default=None, help="Max rows to return.")
     parser.add_argument("--json", action="store_true", help="Machine-readable output.")
     parser.add_argument("--db", default=None,
-                        help="Path to the SQLite database (default: <workspace>/output/graph.db, "
-                             "workspace discovered by walking up from cwd).")
+                        help="Path to the SQLite database (default: <project>/output/graph.db, "
+                             "project discovered by walking up from cwd).")
     args = parser.parse_args(argv)
 
     if args.db:
@@ -401,7 +401,7 @@ def main(argv=None):
 
         root = find_workspace_root()
         if root is None:
-            print(json.dumps({"error": "No workspace found from cwd. Run inside a topic "
+            print(json.dumps({"error": "No project found from cwd. Run inside a project "
                                        "directory or pass --db <path>."}, ensure_ascii=False))
             return 1
         db_path = root / "output" / "graph.db"

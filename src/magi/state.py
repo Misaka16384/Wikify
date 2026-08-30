@@ -757,7 +757,7 @@ def render(state: State, actions: list) -> str:
         return ("No propositions yet — nothing here is being tested yet.\n"
                 "  magi thread new <slug> --kind proposition --title '<claim>' "
                 "--purpose '<why now>'\n"
-                "  magi sync    # what the library itself needs")
+                "  magi sync    # what the project itself needs")
 
     if not actions:
         questions = state.open_questions

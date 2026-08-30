@@ -179,7 +179,17 @@ def test_no_exemption_excuses_text_the_cli_never_prints():
     # Walked from the tuple itself, not from a copy kept here by hand. The
     # first version listed the phrases in this file, so adding a stale one
     # over there changed nothing on this side.
-    assert vocab.QUOTED_OUTPUT, "the exemption list vanished"
+    # Not "the tuple is non-empty" — sweeping the CLI's own prose emptied it
+    # honestly, and a guard that reads that as sabotage cries wolf at the fix.
+    # What must not disappear is the wiring: both scans have to keep
+    # subtracting these spans, or adding a phrase back would excuse nothing
+    # and the next stale quote would sail through unnoticed.
+    import inspect
+
+    for scan in (vocab.test_the_guides_use_one_word, vocab.test_the_skills_use_one_word):
+        assert "QUOTED_OUTPUT" in inspect.getsource(scan), (
+            f"{scan.__name__} stopped consulting QUOTED_OUTPUT, so the "
+            "exemptions below are checked against nothing")
     for phrase in vocab.QUOTED_OUTPUT:
         assert phrase in haystack, (
             f"the guides are excused for quoting {phrase!r} as CLI output, and "

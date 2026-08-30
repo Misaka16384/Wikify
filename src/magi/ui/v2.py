@@ -67,7 +67,7 @@ def register(app, resolve_workspace) -> None:
             target.relative_to(ws.resolve())
         except ValueError:
             raise HTTPException(status_code=400,
-                                detail="that path is outside this workspace")
+                                detail="that path is outside this project")
         if not target.is_file():
             raise HTTPException(status_code=404, detail=f"no file at {rel}")
         return target

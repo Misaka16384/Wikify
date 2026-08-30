@@ -242,11 +242,11 @@ def _safe_workspace_file(ws: Path, rel: str, suffixes: set[str] | None = None) -
     # plainly meant an absolute path, and either way the answer is no.
     if (candidate.is_absolute() or candidate.drive or rel[0] in "/\\"
             or re.match(r"^[A-Za-z]:[\\/]", rel)):
-        raise HTTPException(status_code=400, detail="path must be workspace-relative")
+        raise HTTPException(status_code=400, detail="path must be project-relative")
     target = (ws / candidate).resolve()
     root = ws.resolve()
     if root != target and root not in target.parents:
-        raise HTTPException(status_code=403, detail="path escapes the workspace")
+        raise HTTPException(status_code=403, detail="path escapes the project")
     allowed = DOC_PREVIEW_SUFFIXES if suffixes is None else suffixes
     if target.suffix.lower() not in allowed:
         raise HTTPException(
@@ -275,7 +275,7 @@ def _reading_root(workspace: Optional[str], kb: Optional[str]) -> Path:
         return root
     raise HTTPException(
         status_code=400,
-        detail=f"{root} is not a MAGI workspace — pass a topic directory or kb=<name>")
+        detail=f"{root} is not a MAGI project — pass a project directory or kb=<name>")
 
 
 def _kb_root(name: str) -> Path:
@@ -373,9 +373,9 @@ def _review_host_names() -> list:
 
 def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     app = FastAPI(
-        title="MAGI Research Workspace WebUI",
+        title="MAGI Research Project WebUI",
         version=magi.__version__,
-        description="Local inspection, triage, and ops dashboard for the MAGI research workspace CLI.",
+        description="Local inspection, triage, and ops dashboard for the MAGI research project CLI.",
         lifespan=lifespan,
     )
 
@@ -1013,12 +1013,12 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                 known = sorted(load_registry().get("kbs", {}))
                 raise HTTPException(
                     status_code=400,
-                    detail="this server was not started inside a workspace, so "
-                           "there is no default — name the library to queue "
+                    detail="this server was not started inside a project, so "
+                           "there is no default — name the project to queue "
                            "into: " + (", ".join(known) if known
                                        else "none are registered"))
         if target is None:
-            raise HTTPException(status_code=400, detail="no workspace to queue into")
+            raise HTTPException(status_code=400, detail="no project to queue into")
 
         source_type, value = classify(req.value)
         # The browser sends the tab's title verbatim — the extension parses
@@ -1064,7 +1064,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         if not (ws / "inbox").is_dir():
             raise HTTPException(
                 status_code=400,
-                detail=f"{ws} is not a MAGI workspace (no inbox/) — pick one first")
+                detail=f"{ws} is not a MAGI project (no inbox/) — pick one first")
 
         filename = safe_upload_name(name)
         suffix = upload_suffix(filename)
@@ -1176,12 +1176,12 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         ws = _resolve_workspace(req.workspace)
         if not (ws / "output").is_dir() and not (ws / "wiki").is_dir():
             raise HTTPException(status_code=400,
-                                detail=f"{ws} is not a MAGI workspace")
+                                detail=f"{ws} is not a MAGI project")
         if req.collection_id is None and not req.tag and not req.keys and not req.all:
             raise HTTPException(
                 status_code=400,
                 detail="name what to import: a collection, a tag, some item keys, "
-                       "or all=true for the whole library")
+                       "or all=true for the whole Zotero library")
 
         data_dir = _zotero_data_dir()
         try:
@@ -1288,7 +1288,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
                 raise HTTPException(status_code=503, detail="bd (Beads) is not installed")
             beads_root = find_beads_root(ws)
             if beads_root is None:
-                raise HTTPException(status_code=409, detail="No beads workspace found — run 'magi pm init' first")
+                raise HTTPException(status_code=409, detail="No beads project found — run 'magi pm init' first")
             title = f"[{ws.name}] Survey: {cand['title']}"[:200]
             url = (f"https://arxiv.org/abs/{cand['arxiv_id']}"
                    if cand["arxiv_id"] else (cand["url"] or ""))

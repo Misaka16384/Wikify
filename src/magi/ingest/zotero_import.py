@@ -90,8 +90,8 @@ def cmd_import(args) -> int:
     else:
         topic = _resolve_topic(args.topic_dir)
     if topic is None:
-        print("no project found — pass --library <NAME> (see 'magi kb list') "
-              "or run this from inside a topic directory", file=sys.stderr)
+        print("no project found — pass --project <NAME> (see 'magi kb list') "
+              "or run this from inside a project directory", file=sys.stderr)
         return 1
 
     if args.list_collections:
@@ -102,7 +102,7 @@ def cmd_import(args) -> int:
     selectors = (args.collection, args.collection_id, args.tag, args.keys)
     if not any(v for v in selectors) and not args.all:
         print("name what to import: --collection NAME, --collection-id N, --tag NAME,\n"
-              "--key KEY (repeatable), or --all for the whole library.\n"
+              "--key KEY (repeatable), or --all for the whole Zotero library.\n"
               "Collections available:", file=sys.stderr)
         for col in zotero.list_collections(data_dir):
             print(f"  {col['n']:>5}  {col['collectionName']}", file=sys.stderr)
@@ -119,7 +119,7 @@ def cmd_import(args) -> int:
             f"tag {args.tag!r}" if args.tag else None,
             f"{len(args.keys)} key(s)" if args.keys else None,
         ) if w]
-        print(f"nothing matched {' + '.join(named) if named else 'this library'}.")
+        print(f"nothing matched {' + '.join(named) if named else 'this project'}.")
         return 0
 
     cov = zotero.coverage(items)
@@ -198,13 +198,14 @@ def main(argv=None) -> int:
     parser.add_argument("--tag", help="Only items carrying this Zotero tag")
     parser.add_argument("--key", action="append", dest="keys", metavar="KEY",
                         help="A single item by its Zotero key; repeatable")
-    parser.add_argument("--all", action="store_true", help="The whole library")
+    parser.add_argument("--all", action="store_true", help="The whole Zotero library")
     parser.add_argument("--list-collections", action="store_true",
                         help="Show collections and their item counts, then stop")
     parser.add_argument("--data-dir", help="Zotero data directory (default: the "
                                            "one chosen with 'magi ingest zotero-dirs')")
-    parser.add_argument("--library", help="Target knowledge base by name (see 'magi kb list')")
-    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Target workspace root")
+    parser.add_argument("--project", "--library", dest="library",
+                        help="Target project by name (see 'magi kb list')")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Target project root")
     parser.add_argument("--no-lookup", action="store_true",
                         help="Skip the Semantic Scholar DOI lookup (offline)")
     parser.add_argument("--dry-run", action="store_true",

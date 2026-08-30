@@ -1766,7 +1766,7 @@ def test_preview_refuses_a_directory_that_is_not_a_workspace(client, tmp_path):
     res = client.get("/api/workspace/doc",
                      params={"path": "secrets.md", "workspace": str(outside)})
     assert res.status_code == 400
-    assert "not a MAGI workspace" in res.json()["detail"]
+    assert "not a MAGI project" in res.json()["detail"]
 
     # ...but a registered KB is fair game, even without the marker files.
     assert client.post("/api/kb/register",

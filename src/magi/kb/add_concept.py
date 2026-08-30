@@ -66,7 +66,7 @@ def main(argv=None):
     parser.add_argument("--name", required=True, help="Name of the concept")
     parser.add_argument("--source", required=True, help="Source paper/document")
     parser.add_argument("--content", required=True, help="Content/Perspective to append")
-    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", default=".", help="Topic directory")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", default=".", help="Project directory")
     parser.add_argument("--no-rebuild", action="store_true", help="Bypass automatic database/index rebuild")
     args = parser.parse_args(argv)
 

@@ -173,7 +173,7 @@ def test_publishing_cannot_reach_outside_the_workspace(client, tmp_path):
     res = _get(client, "/api/workspace/publish", paper=escape, line="qah")
 
     assert res.status_code == 400
-    assert "outside this workspace" in res.json()["detail"]
+    assert "outside this project" in res.json()["detail"]
 
 
 def test_a_note_id_is_canonical_or_refused(client):

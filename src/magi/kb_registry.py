@@ -265,7 +265,7 @@ def cmd_unregister(args: argparse.Namespace) -> int:
             print(f"unknown KB '{args.name}'", file=sys.stderr)
             return 1
         del data["kbs"][args.name]
-    print(f"unregistered '{args.name}' (workspace files untouched)")
+    print(f"unregistered '{args.name}' (project files untouched)")
     return 0
 
 
@@ -274,8 +274,8 @@ def main(argv: list[str] | None = None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="kb_command", required=True)
 
-    p_reg = sub.add_parser("register", help="Register a workspace in the global registry")
-    p_reg.add_argument("path", nargs="?", help="Workspace path (default: discovered from cwd)")
+    p_reg = sub.add_parser("register", help="Register a project in the global registry")
+    p_reg.add_argument("path", nargs="?", help="Project path (default: discovered from cwd)")
     p_reg.add_argument("--name", help="Registry name (default: directory name)")
     p_reg.add_argument("--disabled", action="store_true", help="Register but keep out of global search")
     p_reg.set_defaults(func=cmd_register)
