@@ -49,3 +49,33 @@ def test_cjk_content_untouched(tmp_path):
     text = p.read_text(encoding="utf-8")
     assert "量子拓扑" in text
     assert yaml.safe_load(text)["models"]["embedding"] == "qwen3-embedding:0.6b"
+
+
+def test_two_writers_at_once_both_land(tmp_path):
+    """Read-modify-write of one text file, which is the shape that drops an
+    update. `magi reflect promote` and `magi reflect retire` both go through
+    here, and a dropped retire is the silent one: nothing reconciles
+    `research.rules` against the ledger, so a rule the person removed keeps
+    failing `lint` while the ledger records it as gone."""
+    import threading
+
+    config = tmp_path / "config.yaml"
+    config.write_text("research:\n  weekly_calls: 10\n", encoding="utf-8")
+
+    start = threading.Barrier(2)
+
+    def write(key, value):
+        start.wait()
+        set_config_value(config, f"research.{key}", value)
+
+    workers = [threading.Thread(target=write, args=("rule_budget", 7)),
+               threading.Thread(target=write, args=("weekly_calls", 42))]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
+
+    import yaml as _yaml
+    parsed = _yaml.safe_load(config.read_text(encoding="utf-8"))
+    assert parsed["research"]["rule_budget"] == 7, "one writer's edit was lost"
+    assert parsed["research"]["weekly_calls"] == 42, "the other writer's edit was lost"

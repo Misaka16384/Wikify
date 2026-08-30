@@ -186,11 +186,13 @@ def run(root, *, host=None, model=None, timeout: int = TIMEOUT, dry_run: bool = 
     root = Path(root)
     report = Report()
 
+    settings = review._config(root)
+
     state = loaded(root)
     found = signals.collect(state)
     report.signals = len(found)
 
-    swept = transcripts.sweep(root, home=home)
+    swept = transcripts.sweep(root, home=home, config=settings.config)
     report.unreadable = swept.unreadable
     samples = signals.sample(swept.sessions, found)
     report.sampled = [label(item.session) for item in samples]
@@ -200,12 +202,12 @@ def run(root, *, host=None, model=None, timeout: int = TIMEOUT, dry_run: bool = 
                        "in this workspace")
         return report
 
-    settings = review._config(root)
-    chosen = review.pick_host(None, configured=host or settings.host)
+    chosen = review.pick_host(None, configured=host or settings.host,
+                              config=settings.config)
     report.host = chosen or ""
     if chosen is None:
         report.note = ("no CLI on PATH to read with "
-                       f"(looked for {', '.join(review.host_names())})")
+                       f"(looked for {', '.join(review.host_names(settings.config))})")
         report.failed = True
         return report
 
@@ -287,6 +289,20 @@ def render(report: Report) -> str:
 VERBS = ("read", "propose", "list", "accept", "reject", "promote", "retire")
 
 
+def _fail(message: str, as_json: bool) -> int:
+    """One refusal, in the shape the caller asked for.
+
+    The success path of `_decide` has always emitted JSON under `--json` and
+    every error path printed prose, so the WebUI — the caller that passes the
+    flag — could parse everything except what went wrong.
+    """
+    if as_json:
+        print(json.dumps({"error": message}, ensure_ascii=False))
+    else:
+        print(message, file=sys.stderr)
+    return 1
+
+
 def _decide(root, verb: str, ident: str, note: str, as_json: bool) -> int:
     """One of the three buttons. The CLI is the only thing that writes a verdict."""
     from . import proposals
@@ -299,9 +315,8 @@ def _decide(root, verb: str, ident: str, note: str, as_json: bool) -> int:
                 "promote": proposals.PROMOTED, "retire": proposals.RETIRED}
     proposal = proposals.get(root, ident)
     if proposal is None:
-        print(f"no proposal with id {ident!r} — `magi reflect list` shows them",
-              file=sys.stderr)
-        return 1
+        return _fail(f"no proposal with id {ident!r} — "
+                     "`magi reflect list` shows them", as_json)
 
     if verb == "accept" and proposal.kind == proposals.RULE:
         # The block is read at the start of every session on every host, so a
@@ -317,23 +332,20 @@ def _decide(root, verb: str, ident: str, note: str, as_json: bool) -> int:
         try:
             budget = int(raw)
         except (TypeError, ValueError):
-            print(f"research.rule_budget is {raw!r}, which is not a number of "
-                  "lines — fix config.yaml", file=sys.stderr)
-            return 1
+            return _fail(f"research.rule_budget is {raw!r}, which is not a "
+                         "number of lines — fix config.yaml", as_json)
         live = [p for p in proposals.live_rules(root) if p.id != ident]
         if len(live) >= budget:
             if not live:
                 # A budget of zero. Not a mistake to route around: somebody set
                 # it, and it means this workspace does not want earned rules.
-                print(f"research.rule_budget is {budget} — this workspace takes "
-                      "no earned rules. Raise it, or leave this as prose.",
-                      file=sys.stderr)
-                return 1
+                return _fail(f"research.rule_budget is {budget} — this project "
+                             "takes no earned rules. Raise it, or leave this "
+                             "as prose.", as_json)
             oldest = live[0]
-            print(f"the rule section is full ({len(live)}/{budget}). Retire one "
-                  f"first — the oldest is {oldest.id}: {oldest.text}",
-                  file=sys.stderr)
-            return 1
+            return _fail(f"the rule section is full ({len(live)}/{budget}). "
+                         f"Retire one first — the oldest is {oldest.id}: "
+                         f"{oldest.text}", as_json)
 
     made = ""
     if verb in ("reject", "retire") and proposal.verdict == proposals.PROMOTED:
@@ -342,8 +354,7 @@ def _decide(root, verb: str, ident: str, note: str, as_json: bool) -> int:
         try:
             _retire_rule(root, ident)
         except OSError as exc:
-            print(f"the rule could not be removed ({exc})", file=sys.stderr)
-            return 1
+            return _fail(f"the rule could not be removed ({exc})", as_json)
 
     if verb == "accept" and proposal.kind == proposals.SKILL:
         try:
@@ -354,8 +365,7 @@ def _decide(root, verb: str, ident: str, note: str, as_json: bool) -> int:
             # on this machine shares, on one library's evidence.
             made = str(exc)
         except (ValueError, OSError) as exc:
-            print(f"the skill could not be patched ({exc})", file=sys.stderr)
-            return 1
+            return _fail(f"the skill could not be patched ({exc})", as_json)
 
     if verb == "accept" and proposal.kind == proposals.FACT:
         # A fact goes where a person's own unfiled thought goes. `magi next`
@@ -376,15 +386,13 @@ def _decide(root, verb: str, ident: str, note: str, as_json: bool) -> int:
 
         rule = rules_mod.from_proposal(proposal)
         if rule is None:
-            print(f"{ident} cannot be promoted: it does not name one of "
-                  f"{', '.join(rules_mod.VOCABULARY)}. Leave it as a rule, or "
-                  "propose adding a predicate for it.", file=sys.stderr)
-            return 1
+            return _fail(f"{ident} cannot be promoted: it does not name one "
+                         f"of {', '.join(rules_mod.VOCABULARY)}. Leave it as a "
+                         "rule, or propose adding a predicate for it.", as_json)
         try:
             made = _add_rule(root, rule)
         except OSError as exc:
-            print(f"the rule could not be written ({exc})", file=sys.stderr)
-            return 1
+            return _fail(f"the rule could not be written ({exc})", as_json)
 
     proposals.decide(root, ident, verdicts[verb], note=note)
     # Whoever changed the ledger re-renders, rather than waiting for the next

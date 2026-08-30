@@ -25,6 +25,10 @@ from magi.core import ledger
 from magi.reflect import patterns, proposals, propose
 
 
+#: Captured at import, before the autouse fixture below swaps it out.
+from magi import review as _review
+_REAL_INSTALLED = _review.installed_hosts
+
 TODAY = dt.date(2026, 8, 29)
 
 
@@ -280,3 +284,37 @@ def test_ctrl_c_during_the_proposal_call_is_not_swallowed(ws, monkeypatch):
         propose.run(ws, host="codex", now=TODAY)
 
     assert ledger.entries(ws)[-1]["ok"] is False, "and the spend is still recorded"
+
+
+def test_a_host_the_workspace_declares_reaches_the_thinking_stage(ws, monkeypatch):
+    """`research.hosts` names a CLI the shipped table does not carry. The
+    proposing stage looked up who was installed without saying which workspace
+    was asking, so a declared CLI was invisible and `--host` naming it was
+    rejected before it was looked up.
+
+    Runs the real host table: the stub the rest of this file uses takes
+    `*_a, **_k` and so cannot tell a caller that passes the config from one
+    that does not.
+    """
+    import shutil
+
+    recurring(ws)
+    (ws / "config.yaml").write_text(
+        "research:\n"
+        "  weekly_calls: 10\n"
+        "  hosts:\n"
+        "    - key: mycli\n"
+        "      bin: mycli-wrapper\n"
+        "      argv: ['-p']\n"
+        "      reader: true\n", encoding="utf-8")
+
+    monkeypatch.setattr(_review, "installed_hosts", _REAL_INSTALLED)
+    monkeypatch.setattr(shutil, "which",
+                        lambda name, *a, **k: ("/fake/mycli-wrapper"
+                                               if name == "mycli-wrapper" else None))
+
+    report = propose.run(ws, dry_run=True, now=TODAY)
+
+    assert report.host == "mycli", (
+        "a CLI the workspace declares is a host like any other; the stage "
+        f"chose {report.host!r} instead. note: {report.note!r}")

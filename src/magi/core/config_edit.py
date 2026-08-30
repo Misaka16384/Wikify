@@ -34,7 +34,30 @@ def _fmt_value(value) -> str:
     return json.dumps(value, ensure_ascii=False)
 
 
+def _lock_for(config_path: Path):
+    """Serialise the read-modify-write below.
+
+    The whole function is a read-modify-write of one text file, which is the
+    shape that loses an update when two writers overlap. Its siblings in
+    `reflect/` — the proposal ledger and the pattern pages — already take a
+    lock for the same reason; this one did not, and it is the path that
+    retires a rule. A dropped retire is silent for as long as the workspace
+    lives: nothing reconciles `research.rules` against the ledger, so the
+    rule the person removed keeps failing `lint` while the ledger records it
+    as gone.
+    """
+    from filelock import FileLock
+
+    return FileLock(str(config_path.with_name(config_path.name + ".lock")),
+                    timeout=30)
+
+
 def set_config_value(config_path: Path, dotted_key: str, value) -> None:
+    with _lock_for(config_path):
+        return _set_config_value(config_path, dotted_key, value)
+
+
+def _set_config_value(config_path: Path, dotted_key: str, value) -> None:
     if "." not in dotted_key:
         raise ConfigEditError(f"expected section.key, got '{dotted_key}'")
     section, key = dotted_key.split(".", 1)

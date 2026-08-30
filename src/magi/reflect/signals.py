@@ -50,7 +50,6 @@ class Signal:
     slug: str
     at: str
     why: str
-    path: str = ""
 
     @property
     def is_loss(self) -> bool:
@@ -94,12 +93,11 @@ def _reversals(state) -> list:
                 continue
             if post.dst == "refuted":
                 out.append(Signal(REVERSAL, note.slug, post.at,
-                                  "a claim that said it was solved turned out wrong",
-                                  str(note.path)))
+                                  "a claim that said it was solved turned out wrong"))
             elif post.dst == "disputed" and post.host != vocab.REVIEWER:
                 out.append(Signal(REVERSAL, note.slug, post.at,
                                   "a claim that said it was solved was put back in "
-                                  "dispute", str(note.path)))
+                                  "dispute"))
     return out
 
 
@@ -111,7 +109,7 @@ def _rejections(state) -> list:
                     and post.dst == "disputed"):
                 out.append(Signal(REJECTION, note.slug, post.at,
                                   "an independent reader did not accept the claim as "
-                                  "written", str(note.path)))
+                                  "written"))
     return out
 
 
@@ -122,8 +120,7 @@ def _debt(state) -> list:
     made the flip. Debt with no date is still a signal; it just cannot be
     matched to a session, and the sampler will not pretend otherwise.
     """
-    return [Signal(DEBT, item.slug, item.when or "", item.why,
-                   str(item.path) if item.path else "")
+    return [Signal(DEBT, item.slug, item.when or "", item.why)
             for item in state.debt]
 
 
@@ -142,8 +139,7 @@ def _clean(state) -> list:
         for post in note.posts:
             if post.host == vocab.REVIEWER and "VERDICT: stands" in (post.text or ""):
                 out.append(Signal(CLEAN, note.slug, post.at,
-                                  "a claim went out for review and stood, first time",
-                                  str(note.path)))
+                                  "a claim went out for review and stood, first time"))
                 break
     return out
 

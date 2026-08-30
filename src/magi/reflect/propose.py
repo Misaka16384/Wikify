@@ -224,11 +224,12 @@ def run(root, *, host=None, model=None, effort=None, timeout: int = TIMEOUT,
         return report
 
     settings = review._config(root)
-    chosen = review.pick_host(None, configured=host or settings.host)
+    chosen = review.pick_host(None, configured=host or settings.host,
+                              config=settings.config)
     report.host = chosen or ""
     if chosen is None:
         report.note = ("no CLI on PATH to think with "
-                       f"(looked for {', '.join(review.host_names())})")
+                       f"(looked for {', '.join(review.host_names(settings.config))})")
         report.failed = True
         return report
 
@@ -279,7 +280,17 @@ def run(root, *, host=None, model=None, effort=None, timeout: int = TIMEOUT,
     rows, skipped = parse(reply, {p.slug: p for p in ready},
                           proposals.already_proposed(root))
     report.skipped = skipped
+    # Re-read rather than reuse the set from before the call: the model can
+    # take a quarter of an hour, and a second run that started inside that
+    # window has had every chance to file the same proposal. This narrows the
+    # race to the loop below; closing it outright means checking inside the
+    # ledger's append lock, which `proposals._append` does not expose.
+    seen = proposals.already_proposed(root)
     for row in rows:
+        if proposals.fingerprint(row["kind"], row["target"], row["text"]) in seen:
+            skipped += 1
+            report.skipped = skipped
+            continue
         made = proposals.propose(root, kind=row["kind"], target=row["target"],
                                  text=row["text"], pattern=row["pattern"],
                                  hosts=row["hosts"], evidence=row["evidence"],

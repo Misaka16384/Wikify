@@ -30,6 +30,10 @@ from magi.reflect import cmd, patterns
 from magi.reflect.transcripts import Session, Turn
 
 
+#: Captured at import, before the autouse fixture below swaps it out.
+from magi import review as _review
+_REAL_INSTALLED = _review.installed_hosts
+
 TODAY = dt.date(2026, 8, 29)
 NOW = dt.datetime(2026, 8, 29, 12, 0, tzinfo=dt.timezone.utc)
 
@@ -313,3 +317,93 @@ def test_and_the_call_is_still_recorded_before_it_propagates(ws, sessions, monke
         cmd.run(ws, host="codex")
 
     assert ledger.entries(ws)[-1]["ok"] is False
+
+
+# --------------------------------------------------------------------------
+# the workspace's own CLI
+# --------------------------------------------------------------------------
+
+def test_a_host_the_workspace_declares_reaches_the_slow_loop(ws, sessions, monkeypatch):
+    """`research.hosts` is how a workspace names a CLI the table does not ship.
+
+    `magi review` honours it, the WebUI honours it, and the slow loop did not:
+    it asked which hosts were installed without saying which workspace was
+    asking, so a declared CLI was invisible and `--host` naming it was
+    rejected before it was ever looked up.
+
+    Runs the real host table on purpose — the stub every other test here uses
+    takes `*_a, **_k`, so it cannot tell a caller that passes the config from
+    one that does not.
+    """
+    import shutil
+
+    (ws / "config.yaml").write_text(
+        "research:\n"
+        "  weekly_calls: 10\n"
+        "  hosts:\n"
+        "    - key: mycli\n"
+        "      bin: mycli-wrapper\n"
+        "      argv: ['-p']\n"
+        "      reader: true\n", encoding="utf-8")
+
+    monkeypatch.setattr(_review, "installed_hosts", _REAL_INSTALLED)
+    monkeypatch.setattr(shutil, "which",
+                        lambda name, *a, **k: ("/fake/mycli-wrapper"
+                                               if name == "mycli-wrapper" else None))
+
+    report = cmd.run(ws, dry_run=True, now=TODAY)
+
+    assert report.host == "mycli", (
+        "a CLI the workspace declares is a host like any other; the loop "
+        f"chose {report.host!r} instead. note: {report.note!r}")
+
+
+def test_the_sweep_is_told_which_workspace_is_asking(ws, monkeypatch):
+    """Same omission, one line earlier: the adapters a workspace declares
+    decide which transcripts can be read at all, so a sweep that never sees
+    the config reads only the shipped hosts' sessions."""
+    seen = {}
+
+    class FakeSweep:
+        sessions = []
+        unreadable = {}
+
+    def record(*args, **kwargs):
+        seen.update(kwargs)
+        return FakeSweep()
+
+    monkeypatch.setattr(cmd.transcripts, "sweep", record)
+    cmd.run(ws, dry_run=True, now=TODAY)
+
+    assert "config" in seen and seen["config"] is not None, (
+        "sweep was called without the workspace's config, so a declared "
+        "adapter's transcripts are never swept")
+
+
+# --------------------------------------------------------------------------
+# `--json` means JSON, including when the answer is no
+# --------------------------------------------------------------------------
+
+def test_a_refusal_under_json_is_json(ws, capsys):
+    """The WebUI is the caller that passes `--json`. Every error branch in
+    `_decide` printed prose to stderr while the success path of the same
+    function emitted `json.dumps`, so the one shape the WebUI could not parse
+    was the one it got whenever something went wrong."""
+    assert cmd.main(["accept", "r-nope", "--project-dir", str(ws), "--json"]) == 1
+    out = capsys.readouterr().out
+    payload = json.loads(out)
+    assert "r-nope" in payload["error"]
+
+
+def test_no_refusal_in_decide_prints_prose():
+    """Structural, on purpose: the branch that broke this was one no test
+    reached, and a behavioural check only ever covers the branch somebody
+    remembered. What is being held is that refusals leave through `_fail`."""
+    import inspect
+
+    from magi.reflect import cmd as cmd_mod
+
+    body = inspect.getsource(cmd_mod._decide)
+    assert "sys.stderr" not in body, (
+        "a refusal in _decide writes prose to stderr instead of going through "
+        "_fail, so it ignores --json")
