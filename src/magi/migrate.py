@@ -128,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
         for line in (proc.stdout or "").strip().splitlines():
             if line.startswith(("ran ", "  magi", "still needs you")) or "sync ratio" in line:
                 print(f"      {line}")
-        print("\nGive your agent CLI this workspace's skills:")
+        print("\nGive your agent CLI this project's skills:")
         print("  magi skills install        # asks which CLI")
     elif rc == 0:
         print("\nRecommended next steps:")

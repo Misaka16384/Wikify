@@ -168,7 +168,7 @@ def test_the_others_are_named_even_though_they_are_not_read(tmp_path, capsys):
     said = capsys.readouterr().out
     assert "searched this library only" in said
     assert "--scope all" in said
-    assert "research.search_kbs" in said
+    assert "research.search_projects" in said
 
 
 def test_a_project_can_name_which_others_it_reads(tmp_path, capsys):
@@ -190,7 +190,7 @@ def test_a_project_can_name_which_others_it_reads(tmp_path, capsys):
     subprocess.run([sys.executable, "-m", "magi", "index", "--topic-dir",
                     str(mine), "--no-vectors", "--quiet"], capture_output=True)
     cfg = yaml.safe_load((mine / "config.yaml").read_text(encoding="utf-8")) or {}
-    cfg.setdefault("research", {})["search_kbs"] = ["alpha"]
+    cfg.setdefault("research", {})["search_projects"] = ["alpha"]
     (mine / "config.yaml").write_text(yaml.safe_dump(cfg, allow_unicode=True),
                                       encoding="utf-8")
 

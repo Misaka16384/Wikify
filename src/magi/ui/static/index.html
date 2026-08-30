@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MAGI — Research Workspace WebUI</title>
+  <title>MAGI — Research Project WebUI</title>
   <!-- SVG first so the shell can follow the browser theme; the PNG is
        there for anything that declines an SVG icon. -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
@@ -66,7 +66,7 @@
       <div class="workspace-select-group">
         <label for="workspace-select" class="control-label" data-i18n="workspace_label">Viewing:</label>
         <select id="workspace-select" class="select-input">
-          <option value="" data-i18n="loading_workspaces">Loading workspaces...</option>
+          <option value="" data-i18n="loading_workspaces">Loading projects...</option>
         </select>
         <span class="stat-pill warning" id="browsing-badge" style="display: none;"
               data-i18n="browsing_badge" title="" data-i18n-title="browsing_badge_title">Browsing</span>
@@ -102,7 +102,7 @@
   </header>
 
   <!-- Three-core status band.
-       The product is three cores over one workspace; this band says so on
+       The product is three cores over one project; this band says so on
        every tab instead of burying it in one dashboard tile. Values are filled
        by updateCoreBand() from the same /api/workspace/sync report that drives
        the EVA HUD, so it stays live regardless of which tab is open. -->
@@ -324,7 +324,7 @@
       <div class="card">
         <div class="card-header">
           <div>
-            <h3 class="card-title" data-i18n="dash_kb_table_title">Registered Knowledge Bases</h3>
+            <h3 class="card-title" data-i18n="dash_kb_table_title">Registered projects</h3>
             <p class="card-subtitle" data-i18n="dash_kb_table_subtitle">Global registry located at ~/.config/magi/registry.json</p>
           </div>
           <button class="btn btn-secondary btn-sm" id="refresh-kb-btn" data-i18n="btn_refresh">Refresh</button>
@@ -337,7 +337,7 @@
           <table class="data-table" id="kb-table">
             <thead>
               <tr>
-                <th data-i18n="th_kb_name">KB Name</th>
+                <th data-i18n="th_kb_name">Project</th>
                 <th data-i18n="th_path">Path</th>
                 <th data-i18n="th_searchable">Searchable</th>
                 <th data-i18n="th_indexed">Indexed</th>
@@ -347,7 +347,7 @@
               </tr>
             </thead>
             <tbody id="kb-table-body">
-              <tr><td colspan="7" class="empty-cell" data-i18n="loading_kbs">Loading knowledge bases...</td></tr>
+              <tr><td colspan="7" class="empty-cell" data-i18n="loading_kbs">Loading projects...</td></tr>
             </tbody>
           </table>
         </div>
@@ -355,7 +355,7 @@
 
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title" data-i18n="reg_kb_title">Register New Knowledge Base</h3>
+          <h3 class="card-title" data-i18n="reg_kb_title">Register a project</h3>
           <span class="card-subtitle" data-i18n="reg_kb_subtitle">Add a topic directory to the global registry</span>
         </div>
         <form id="register-kb-form" class="form-row">
@@ -368,11 +368,11 @@
         </form>
       </div>
 
-      <!-- Workspace config (whitelisted fields; writes are surgical) -->
+      <!-- Project settings (whitelisted fields; writes are surgical) -->
       <div class="card">
         <div class="card-header">
           <div>
-            <h3 class="card-title" data-i18n="cfg_title">Workspace Config</h3>
+            <h3 class="card-title" data-i18n="cfg_title">Project settings</h3>
             <p class="card-subtitle" data-i18n="cfg_subtitle">Research knobs from config.yaml — edits preserve the rest of the file</p>
           </div>
         </div>
@@ -382,8 +382,8 @@
       </div>
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title" data-i18n="ops_here_dashboard">Workspace maintenance</h3>
-          <span class="card-subtitle" data-i18n="ops_here_dashboard_sub">Reports about this workspace</span>
+          <h3 class="card-title" data-i18n="ops_here_dashboard">Project maintenance</h3>
+          <span class="card-subtitle" data-i18n="ops_here_dashboard_sub">Reports about this project</span>
         </div>
         <!-- Buttons come from GET /api/ops. The catalog's `home` field decides
              which panel each one lands on, so this file names no operation. -->
@@ -776,8 +776,8 @@
         </form>
         <div class="search-filters">
           <select id="search-scope-select" class="select-input">
-            <option value="local" data-i18n="opt_scope_local" selected>This library only</option>
-            <option value="auto" data-i18n="opt_scope_auto">Federated (this KB + enabled KBs)</option>
+            <option value="local" data-i18n="opt_scope_local" selected>This project only</option>
+            <option value="auto" data-i18n="opt_scope_auto">This project + the ones it names</option>
           </select>
           <select id="search-collection-select" class="select-input">
             <option value="" data-i18n="opt_coll_all">All collections</option>
@@ -995,7 +995,7 @@
       <div class="card">
         <div class="card-header">
           <div>
-            <h3 class="card-title" data-i18n="ops_setup_title">Workspace setup</h3>
+            <h3 class="card-title" data-i18n="ops_setup_title">Project setup</h3>
             <p class="card-subtitle" data-i18n="ops_setup_sub">Re-runnable, and none of it deletes anything</p>
           </div>
         </div>
@@ -1011,7 +1011,7 @@
         <div class="danger-card">
           <h3 class="danger-card-title" data-i18n="danger_title">Danger Zone</h3>
           <p class="danger-card-desc" data-i18n="danger_sub">
-            These operations alter workspace structure, reset state, or delete legacy files. Each action requires explicit confirmation.
+            These operations alter project structure, reset state, or delete legacy files. Each action requires explicit confirmation.
           </p>
           <div class="ops-grid" id="ops-danger-grid"></div>
         </div>

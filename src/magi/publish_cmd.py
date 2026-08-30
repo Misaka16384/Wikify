@@ -238,13 +238,13 @@ def main(argv=None) -> int:
                              "record names it")
     parser.add_argument("--dry-run", action="store_true",
                         help="Show what would be superseded, and stop")
-    parser.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
     args = parser.parse_args(argv)
 
     root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if root is None:
-        print("no workspace found (run inside a topic or pass --topic-dir)",
+        print("no project found (run inside one, or pass --project-dir)",
               file=sys.stderr)
         return 1
     if not args.line:

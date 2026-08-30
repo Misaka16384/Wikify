@@ -223,7 +223,7 @@ def main(argv=None):
             "  2  claims file not found\n"
         ))
     parser.add_argument("claims_file", help="Path to text file containing claims")
-    parser.add_argument("--topic-dir", required=True, help="Topic workspace directory")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", required=True, help="Topic workspace directory")
     parser.add_argument("--fetch-web", action="store_true",
                         help="Actually fetch web sources and check the quote in page text")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")

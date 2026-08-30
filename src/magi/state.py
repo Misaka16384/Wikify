@@ -1535,7 +1535,7 @@ def _root_of(topic_dir):
 
     root = Path(topic_dir).resolve() if topic_dir else find_workspace_root()
     if root is None:
-        raise SystemExit("no workspace found (run inside a topic or pass --topic-dir)")
+        raise SystemExit("no project found (run inside one, or pass --project-dir)")
     return Path(root)
 
 
@@ -1557,7 +1557,7 @@ def _next(argv) -> int:
     parser = argparse.ArgumentParser(
         prog="magi next",
         description="What to do next, derived from the notes. Proposes; never acts.")
-    parser.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     parser.add_argument("--line", help="Only this research line")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
     args = parser.parse_args(argv)
@@ -1598,7 +1598,7 @@ def _feed(argv) -> int:
     parser = argparse.ArgumentParser(
         prog="magi feed",
         description="Every post, newest first — the record, read in time order.")
-    parser.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     parser.add_argument("--since", help="ISO date or timestamp; only posts after it")
     parser.add_argument("--line", help="Only posts from this research line")
     parser.add_argument("--author", help="Only posts signed by this host")

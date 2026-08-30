@@ -1752,7 +1752,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         # library may be read at all; this says which ones this project reads,
         # and empty means none — searching stops at your own library unless
         # you ask for more.
-        "research.search_kbs": {"type": "list"},
+        "research.search_projects": {"type": "list"},
         "radar.min_relevance": {"type": "number", "nullable": True},
         "radar.days": {"type": "int"},
         "radar.max_candidates": {"type": "int"},

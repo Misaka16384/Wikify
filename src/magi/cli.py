@@ -21,7 +21,7 @@ from magi import __version__
 # value: (module, prepend_argv, help)
 _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     # workspace / hub
-    ("init",): ("magi.init_workspace", [], "Scaffold a topic workspace (raw/ wiki/ inbox/ output/)"),
+    ("init",): ("magi.init_workspace", [], "Scaffold a project (raw/ wiki/ inbox/ output/)"),
     ("sync",): ("magi.sync", [], "Where the workspace stands; --close to end a session"),
     ("ui",): ("magi.ui.server", [], "Launch the local MAGI WebUI dashboard"),
     ("guide",): ("magi.guide", [], "Read the built-in manual (chapters, --search, --symptoms)"),
@@ -63,7 +63,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("wiki", "uncompiled"): ("magi.kb.detect_uncompiled", [], "List raw sources without compiled references"),
     ("wiki", "reindex"): ("magi.kb.index_builder", [], "Regenerate _index.md tables"),
     # research state
-    ("install",): ("magi.install_cmd", [], "Install this workspace into your agent CLIs (skills + protocol + stop gate)"),
+    ("install",): ("magi.install_cmd", [], "Install this project into your agent CLIs (skills + protocol + stop gate)"),
     ("next",): ("magi.state", ["next"], "What to do next, derived from the notes"),
     ("decide",): ("magi.decide_cmd", [], "Write down what the person decided (verbatim, where it can be audited)"),
     ("review",): ("magi.review", [], "Have another agent CLI check a claim that says it is solved"),

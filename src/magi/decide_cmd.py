@@ -187,7 +187,7 @@ def main(argv=None) -> int:
     parser.add_argument("--kind", choices=list(KINDS),
                         help="Which of the three questions this answers")
     parser.add_argument("--line", help="Which research line it was said from")
-    parser.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
     args = parser.parse_args(argv)
 
@@ -200,7 +200,7 @@ def main(argv=None) -> int:
 
     root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if root is None:
-        print("no workspace found (run inside a topic or pass --topic-dir)",
+        print("no project found (run inside one, or pass --project-dir)",
               file=sys.stderr)
         return 1
 

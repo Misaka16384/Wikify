@@ -71,7 +71,7 @@ def chunk_markdown(filepath, topic_dir, max_lines=500):
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi wiki chunk", description="Chunk large markdown files")
     parser.add_argument("filepath", help="Path to raw markdown file")
-    parser.add_argument("--topic-dir", required=True, help="Topic directory")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", required=True, help="Topic directory")
     parser.add_argument("--max-lines", type=int, default=500, help="Max lines per chunk")
     args = parser.parse_args(argv)
 

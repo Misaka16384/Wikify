@@ -816,7 +816,7 @@ def main(argv=None) -> int:
 
     prog, description = _VERBS[verb]
     parser = argparse.ArgumentParser(prog=prog, description=description)
-    parser.add_argument("--topic-dir", help="Workspace root (default: discovered)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Workspace root (default: discovered)")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
     if verb == "run":
         parser.add_argument("--limit", type=int,

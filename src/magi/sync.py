@@ -529,7 +529,7 @@ def _close(args) -> int:
     root = Path(args.topic_dir).resolve() if getattr(args, "topic_dir", None) \
         else find_workspace_root()
     if root is None:
-        message = "no workspace found (run inside a topic or pass --topic-dir)"
+        message = "no project found (run inside one, or pass --project-dir)"
         if args.hook:
             # Nothing to gate, so nothing to say: a stop hook that reports an
             # error for being run outside a workspace blocks every session
@@ -567,8 +567,8 @@ def _close(args) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="magi sync", description="Workspace onboarding: sync ratio + three-core status")
-    parser.add_argument("--topic-dir",
-                        help="Workspace (default: discovered from cwd)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir",
+                        help="Project directory (default: discovered from cwd)")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
     parser.add_argument("--fix", action="store_true",
                         help="Run the repairs this report suggests (graph build, index, "
@@ -605,7 +605,7 @@ def main(argv: list[str] | None = None) -> int:
     if ratio is not None:
         header = f"MAGI SYSTEM ONLINE — sync ratio {ratio}%"
     else:
-        header = "MAGI SYSTEM — no workspace detected"
+        header = "MAGI SYSTEM — no project detected"
     print(header)
     if report["workspace"]:
         m = report["cores"]["melchior"]
@@ -613,7 +613,7 @@ def main(argv: list[str] | None = None) -> int:
                        if m.get("claims") else "")
         print(f"|- MELCHIOR  (knowledge)  {m['concepts']} concepts · {m['references']} refs · graph {m['graph']} · backlog {m['backlog']}{claims_part}")
     else:
-        print("|- MELCHIOR  (knowledge)  no topic workspace here — run 'magi init' in a topic directory")
+        print("|- MELCHIOR  (knowledge)  no project here — run 'magi init' in an empty directory")
     b = report["cores"]["balthasar"]
     if b.get("state") == "disabled":
         print("|- BALTHASAR (intent)     disabled (task tracking off — "

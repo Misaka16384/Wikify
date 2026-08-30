@@ -147,7 +147,7 @@ def main(argv=None) -> int:
     parser.add_argument("--fetch", action="store_true",
                         help="Prefer arXiv's official BibTeX when the card has an arxiv_id (network)")
     parser.add_argument("-o", "--output", help="Write entries to this .bib file instead of stdout")
-    parser.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     args = parser.parse_args(argv)
 
     if not args.all and not args.target:
@@ -155,7 +155,7 @@ def main(argv=None) -> int:
 
     root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if root is None:
-        print("error: no workspace found (run inside a topic or pass --topic-dir)", file=sys.stderr)
+        print("error: no project found (run inside one, or pass --project-dir)", file=sys.stderr)
         return 1
 
     cards = _find_cards(root, args.target, args.all)

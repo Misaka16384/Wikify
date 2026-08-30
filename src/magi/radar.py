@@ -627,7 +627,7 @@ def _resolve_topic(args: argparse.Namespace) -> Path | None:
     if not getattr(args, "topic_dir", None):
         topic = find_workspace_root()
         if topic is None:
-            print("no workspace found (run from a topic directory or pass --topic-dir)",
+            print("no workspace found (run from inside a project, or pass --project-dir)",
                   file=sys.stderr)
         return topic
     topic = Path(args.topic_dir).expanduser().resolve()
@@ -1377,23 +1377,23 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="radar_command", required=True)
 
     p_h = sub.add_parser("harvest", help="Fetch + dedupe new paper candidates (deterministic)")
-    p_h.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    p_h.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     p_h.add_argument("--days", type=int, help="arXiv recency window (default: config radar.days or 7)")
     p_h.set_defaults(func=cmd_harvest)
 
     p_cg = sub.add_parser("citation-gap",
                           help="Scout recent papers that arguably should cite ours but don't")
-    p_cg.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    p_cg.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     p_cg.add_argument("--paper", help="Single own arXiv id (default: config radar.own_arxiv_ids)")
     p_cg.set_defaults(func=cmd_citation_gap)
 
     p_s = sub.add_parser("status", help="Ledger size + pending digests")
-    p_s.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    p_s.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     p_s.add_argument("--json", action="store_true")
     p_s.set_defaults(func=cmd_status)
 
     p_t = sub.add_parser("triage", help="Record or list review decisions on a report's candidates")
-    p_t.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    p_t.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     p_t.add_argument("--report", help="Report file name under inbox/radar/ (default: newest pending)")
     p_t.add_argument("--id", dest="cand_id", help="Candidate id (see the report, or --json)")
     p_t.add_argument("--index", type=int, help="Candidate position instead of its id")
@@ -1406,7 +1406,7 @@ def main(argv: list[str] | None = None) -> int:
     p_t.set_defaults(func=cmd_triage)
 
     p_i = sub.add_parser("install-schedule", help="Register a daily harvest (Task Scheduler / launchd)")
-    p_i.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    p_i.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     p_i.add_argument("--time", default="03:00", help="Daily run time HH:MM (default 03:00)")
     p_i.add_argument("--uninstall", action="store_true",
                      help="Remove the scheduled task/agent instead of creating it")

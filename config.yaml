@@ -68,7 +68,7 @@ research:
   # Other registered libraries this project's searches reach. Empty = just
   # this one. The registry's `enabled` flag says a library *may* be read;
   # this says which ones this project actually reads.
-  search_kbs: []
+  search_projects: []
 
 # 向量化用哪个服务(magi index / magi search / magi link 共用)
 embedding:

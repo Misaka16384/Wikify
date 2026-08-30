@@ -51,7 +51,7 @@ class Refused(SystemExit):
 def _root(args) -> Path:
     root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if root is None:
-        raise Refused("no workspace found (run inside a topic or pass --topic-dir)")
+        raise Refused("no project found (run inside one, or pass --project-dir)")
     return Path(root)
 
 
@@ -188,7 +188,7 @@ def build_parser() -> argparse.ArgumentParser:
     # declared before the subparser can only be written in a position nobody
     # types.
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    common.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     common.add_argument("--json", action="store_true", help="Machine-readable output")
 
     new = sub.add_parser("new", parents=[common],

@@ -181,7 +181,9 @@ def test_outside_a_workspace_the_command_explains_itself(tmp_path, capsys, monke
     monkeypatch.chdir(tmp_path)
     assert thread_cmd.main(["new", "p-gap", "--kind", "proposition",
                             "--title", "T", "--purpose", "Why."]) == 1
-    assert "no workspace found" in capsys.readouterr().err
+    # "project", the one word this system now uses for the directory it once
+    # also called a workspace, a topic and a knowledge base.
+    assert "no project found" in capsys.readouterr().err
 
 
 def test_a_note_needs_a_purpose(ws, capsys):

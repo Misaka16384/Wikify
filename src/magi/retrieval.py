@@ -700,7 +700,7 @@ class _Progress:
 def cmd_index(args: argparse.Namespace) -> int:
     root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if root is None:
-        return _die("no workspace found (run from a topic directory or pass --topic-dir)")
+        return _die("no workspace found (run from inside a project, or pass --project-dir)")
     db_path = root / "output" / "index.db"
     # The one honest remedy for a changed embedding model: the vector table is
     # created with a fixed width and cannot be widened in place, so the file
@@ -992,7 +992,7 @@ def _project_kbs(root) -> set:
         from .core.config_loader import get as config_get
         from .core.config_loader import load_config
 
-        named = config_get(load_config(start=root), "research.search_kbs", []) or []
+        named = config_get(load_config(start=root), "research.search_projects", []) or []
     except Exception:  # noqa: BLE001 — a broken config costs the narrowing
         return set()
     return {str(name).strip() for name in named if str(name).strip()}
@@ -1032,7 +1032,7 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
                            if not wanted or name in wanted)
         if not targets:
             if scope == "local":
-                raise SearchError("no workspace found", "run from a topic directory or pass --topic-dir")
+                raise SearchError("no workspace found", "run from inside a project, or pass --project-dir")
             raise SearchError("no workspace here and no searchable registered KBs",
                               "run inside a topic dir, or 'magi kb register' + 'magi kb enable'")
 
@@ -1197,7 +1197,7 @@ def cmd_search(args: argparse.Namespace) -> int:
                       f"registered and indexed: {', '.join(elsewhere[:5])}"
                       f"{' …' if len(elsewhere) > 5 else ''} — `--scope all` "
                       f"reads them, or name the ones this project wants in "
-                      f"`research.search_kbs`)")
+                      f"`research.search_projects`)")
         if len(payload["kbs_searched"]) > 1:
             print(f"(searched: {', '.join(payload['kbs_searched'])} — narrow with --scope local or --kb <name>)")
         if "local" in payload["kbs_skipped"]:
@@ -1234,7 +1234,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_index = sub.add_parser("index", help="Build/refresh the hybrid retrieval index")
-    p_index.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    p_index.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     p_index.add_argument("--no-vectors", action="store_true", help="Skip embeddings (BM25 only)")
     p_index.add_argument("--rebuild", action="store_true",
                          help="Delete the index and build it again — needed after "
@@ -1246,7 +1246,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_search = sub.add_parser("search", help="Hybrid BM25+vector search with RRF fusion")
     p_search.add_argument("query")
-    p_search.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    p_search.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     p_search.add_argument("--collection", choices=["concepts", "references", "topics", "theses",
                                                    "raw", "drafts", "threads", "other"])
     p_search.add_argument("--path", help="Only search chunks whose file path matches this glob, "
@@ -1266,7 +1266,7 @@ def build_parser() -> argparse.ArgumentParser:
                           default="local",
                           help="local = this library only (default); "
                                "all = this library plus the ones "
-                               "`research.search_kbs` names, or every enabled "
+                               "`research.search_projects` names, or every enabled "
                                "one when it names none; global = those others "
                                "without this library. ('auto' is an old "
                                "spelling of 'all'.)")

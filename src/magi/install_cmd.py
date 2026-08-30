@@ -255,12 +255,12 @@ def install_protocol(root: Path, coaching: str | None = None,
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(
         prog="magi install",
-        description="Install this workspace into your agent CLIs: skills, the "
+        description="Install this project into your agent CLIs: skills, the "
                     "AGENTS.md protocol block, and the end-of-session gate.")
     parser.add_argument("--host", action="append", default=[],
                         help="Which agent CLI (claude, codex, gemini, opencode). "
                              "Repeatable. Default: every detected one.")
-    parser.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     # No default. `install_protocol` reads the workspace's own level when it
     # is not told one, and writes it only when it is — otherwise every install
     # (adding a host, refreshing skills) silently resets a library that chose
@@ -275,7 +275,7 @@ def main(argv=None) -> int:
 
     root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if root is None:
-        print("no workspace found (run inside a topic or pass --topic-dir)",
+        print("no project found (run inside one, or pass --project-dir)",
               file=sys.stderr)
         return 1
 

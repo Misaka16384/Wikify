@@ -589,7 +589,7 @@ def main(argv=None) -> int:
         description="Have another agent CLI check a claim that says it is solved.")
     parser.add_argument("slug", nargs="*",
                         help="Propositions to review (default: everything unreviewed)")
-    parser.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     # No `choices=` on purpose. The table depends on `research.hosts`, and the
     # workspace it comes from is not known until `--topic-dir` has been parsed
     # — so `choices=` could only ever list the built-in five, and rejected the
@@ -610,7 +610,7 @@ def main(argv=None) -> int:
 
     root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if root is None:
-        print("no workspace found (run inside a topic or pass --topic-dir)", file=sys.stderr)
+        print("no project found (run inside one, or pass --project-dir)", file=sys.stderr)
         return 1
 
     settings = _config(root)

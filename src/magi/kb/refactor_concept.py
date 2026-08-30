@@ -76,7 +76,7 @@ def merge_concept_files(old_path, new_path, old_name):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi wiki refactor-concept", description="Refactor and merge concept links across the wiki")
-    parser.add_argument("--topic-dir", required=True, help="Topic workspace directory")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", required=True, help="Topic workspace directory")
     parser.add_argument("--old", required=True, help="Old concept name")
     parser.add_argument("--new", required=True, help="New concept name")
     parser.add_argument("--no-rebuild", action="store_true", help="Bypass automatic database/index rebuild")

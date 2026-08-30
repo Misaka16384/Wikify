@@ -108,7 +108,7 @@ def extract_concept_context(concept_name, topic_dir):
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi wiki context", description="Extract surrounding context for a concept from all papers")
     parser.add_argument("--name", required=True, help="Concept Name")
-    parser.add_argument("--topic-dir",
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir",
                         help="Topic directory (default: workspace root discovered from cwd)")
     args = parser.parse_args(argv)
 

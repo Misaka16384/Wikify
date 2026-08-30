@@ -204,7 +204,7 @@ def main(argv=None) -> int:
     parser.add_argument("--data-dir", help="Zotero data directory (default: the "
                                            "one chosen with 'magi ingest zotero-dirs')")
     parser.add_argument("--library", help="Target knowledge base by name (see 'magi kb list')")
-    parser.add_argument("--topic-dir", help="Target workspace root")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Target workspace root")
     parser.add_argument("--no-lookup", action="store_true",
                         help="Skip the Semantic Scholar DOI lookup (offline)")
     parser.add_argument("--dry-run", action="store_true",

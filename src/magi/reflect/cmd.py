@@ -523,7 +523,7 @@ def main(argv=None) -> int:
     parser.add_argument("id", nargs="?",
                         help="Proposal id, for accept/reject/promote/retire")
     parser.add_argument("--note", default="", help="What you said when deciding")
-    parser.add_argument("--topic-dir", help="Workspace (default: discovered from cwd)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     parser.add_argument("--host", help="Which CLI reads (default: config, then PATH)")
     parser.add_argument("--model", help="Pin the reader's model (default: this "
                                         "host's cheap tier)")
@@ -537,7 +537,7 @@ def main(argv=None) -> int:
 
     root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if root is None:
-        print("no workspace found (run inside a topic or pass --topic-dir)",
+        print("no project found (run inside one, or pass --project-dir)",
               file=sys.stderr)
         return 1
 

@@ -27,7 +27,7 @@ def run_cmd(cmd_list):
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi ingest finalize", description="Wiki Ingest Post-Processing Pipeline")
     parser.add_argument("original_file", help="Path to the original file (e.g. PDF in inbox/). Pass 'none' if not applicable.")
-    parser.add_argument("--topic-dir", required=True, help="Topic workspace directory")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", required=True, help="Topic workspace directory")
     parser.add_argument("--log-msg", required=False, help="Message to append to log.md")
     parser.add_argument("--md-file", required=False, help="Path to the specific generated Markdown file")
     parser.add_argument("--skip-lint", action="store_true", help="Skip the global lint and index operations")

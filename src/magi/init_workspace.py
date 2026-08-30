@@ -77,7 +77,7 @@ def create_minimal_index(path: Path, title: str, today: str, force: bool = False
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="magi init", description="Initialize topic workspace")
-    parser.add_argument("--topic-dir", default=".", help="Topic directory path (default: current directory)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", default=".", help="Topic directory path (default: current directory)")
     parser.add_argument("--name", default="My Topic", help="Topic name/title")
     parser.add_argument("--scope", default="A topic wiki.", help="Topic scope description")
     parser.add_argument("--coaching", default="light",
@@ -227,7 +227,7 @@ research:
   rule_budget: 7       # lines the AGENTS.md rule section may hold
   rules: []            # rules this library earned; `magi reflect promote` adds them
   hosts: []            # agent CLIs beyond the built-in ones; `magi skills where` lists all
-  search_kbs: []       # other registered libraries this project's searches reach
+  search_projects: []       # other registered libraries this project's searches reach
                        # empty = just this one; `magi search --scope all` reads
                        # every enabled library, `magi kb list` names them
 ollama:
@@ -361,7 +361,7 @@ Thumbs.db
     # lists. Sending a first-timer to the sibling is how somebody ends up with
     # skills and no end-of-session gate.
     print("Next: cd into it, then 'magi install' to give your agent CLI "
-          "this workspace's skills, and 'magi sync' to see what to do first.")
+          "this project's skills, and 'magi sync' to see what to do first.")
 
 if __name__ == "__main__":
     sys.exit(main())

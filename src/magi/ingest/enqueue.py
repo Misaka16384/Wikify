@@ -184,7 +184,7 @@ def main(argv=None) -> int:
                     "Nothing is fetched or written until 'magi ingest batch-run'.")
     parser.add_argument("targets", nargs="+",
                         help="One or more URLs, DOIs, arXiv ids, or file paths")
-    parser.add_argument("--topic-dir", help="Workspace root (default: discovered)")
+    parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Workspace root (default: discovered)")
     parser.add_argument("--library",
                         help="A registered knowledge base by name (see 'magi kb list'). "
                              "Queues into that library instead of the current directory.")
