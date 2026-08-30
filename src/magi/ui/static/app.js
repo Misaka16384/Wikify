@@ -87,6 +87,17 @@
       need_workspace: "先在顶栏选一个工作空间——不然这行字会写进服务器启动的那个目录",
       badge_kb_gone: "目录不在了",
       btn_review: "找人复核这条",
+      btn_cancel: "算了",
+      btn_save_draft: "存成草稿",
+      draft_title_ph: "这篇写的是什么",
+      draft_body_ph: "把正文粘进来——存进 drafts/,然后就能发表了",
+      draft_needs_both: "标题和正文都要有",
+      draft_saved: "草稿存好了",
+      btn_publish_preview: "看看会埋掉什么",
+      close_why_ph: "为什么结束这条线（会记进结案帖）",
+      review_only_when_supported: "这条还没有声称被解决,所以还没到找人复核的时候。等它走到 supported 再说。",
+      line_set: "所属的线改好了",
+      line_needs_reason: "先在上面那栏写一句为什么它属于这条线",
       btn_thread_new: "开一条新的",
       btn_decide: "记下这是我的决定",
       decide_needs_words: "先在上面写下你的原话——decisions.md 记的是你说的,不是摘要",
@@ -915,6 +926,17 @@
       need_workspace: "Pick a workspace in the top bar first — otherwise this lands in whichever directory the server was started in",
       badge_kb_gone: "directory gone",
       btn_review: "Have this reviewed",
+      btn_cancel: "Never mind",
+      btn_save_draft: "Save as a draft",
+      draft_title_ph: "What this write-up is about",
+      draft_body_ph: "Paste the text — it lands in drafts/, and then it can be published",
+      draft_needs_both: "A title and some text are both needed",
+      draft_saved: "Draft saved",
+      btn_publish_preview: "Show me what it buries",
+      close_why_ph: "Why this line is ending (goes into the closing post)",
+      review_only_when_supported: "This does not claim to be solved yet, so there is nothing for a second reader to check. It becomes reviewable at `supported`.",
+      line_set: "Its lines are set",
+      line_needs_reason: "Write a sentence above saying why it belongs there",
       btn_thread_new: "Open a new one",
       btn_decide: "Record this as my decision",
       decide_needs_words: "Write it in your own words above — decisions.md keeps what you said, not a summary",
@@ -3649,8 +3671,19 @@
     const out = document.getElementById("thread-review-out");
     if (!row) return;
     if (out) out.innerHTML = "";
-    row.hidden = !reviewable(data);
+    // Shown with an explanation rather than hidden. A control that is simply
+    // absent reads as "this feature does not exist" — the retest concluded
+    // exactly that and reported there was no way to have a claim reviewed.
+    row.hidden = data.kind !== "proposition";
     if (row.hidden) return;
+    const why = document.getElementById("thread-review-note");
+    const button = document.getElementById("thread-review-btn");
+    if (!reviewable(data)) {
+      button.disabled = true;
+      button.textContent = t("btn_review");
+      why.textContent = t("review_only_when_supported");
+      return;
+    }
 
     const btn = document.getElementById("thread-review-btn");
     const note = document.getElementById("thread-review-note");
@@ -3690,12 +3723,17 @@
       return;
     }
     const b = plan.budget || {};
-    const ok = window.confirm(t("review_confirm", {
-      host: plan.host, model: plan.model || t("cfg_model_default"),
-      left: b.left, limit: b.limit,
-    }));
-    if (!ok) return;
+    inlineConfirm(out, {
+      body: `<p class="card-subtitle">${escapeHtml(t("review_confirm", {
+        host: plan.host, model: plan.model || t("cfg_model_default"),
+        left: b.left, limit: b.limit }))}</p>`,
+      askReason: false,
+      go: t("btn_review"),
+      onGo: () => runReview(slug, plan, btn, out),
+    });
+  }
 
+  async function runReview(slug, plan, btn, out) {
     btn.disabled = true;
     btn.textContent = t("btn_review_running");
     out.innerHTML = `<p class="card-subtitle">${escapeHtml(t("review_running", { host: plan.host }))}</p>`;
@@ -3714,6 +3752,35 @@
       btn.disabled = false;
       btn.textContent = t("btn_review");
     }
+  }
+
+  //: An in-page confirmation. `window.confirm`/`prompt` block the render
+  //: thread, are invisible to anything driving the page, and — the reason
+  //: that matters even when they work — cover the survey the person is
+  //: supposed to be reading while they answer.
+  //:
+  //: `body` is trusted HTML built by the caller; `onGo` receives the typed
+  //: reason, or "" when `askReason` is false.
+  function inlineConfirm(box, { body, askReason, placeholder, go, onGo }) {
+    box.innerHTML = body
+      + (askReason
+        ? `<div class="form-row"><input type="text" class="text-input grow-2"
+             id="inline-why" placeholder="${escapeHtml(placeholder || "")}"></div>`
+        : "")
+      + `<div class="form-row">
+           <button class="btn btn-primary btn-sm" id="inline-go">${escapeHtml(go)}</button>
+           <button class="btn btn-quiet btn-sm" id="inline-cancel">${escapeHtml(t("btn_cancel"))}</button>
+         </div>`;
+    const why = box.querySelector("#inline-why");
+    if (why) why.focus();
+    box.querySelector("#inline-cancel").addEventListener("click", () => {
+      box.innerHTML = "";
+    });
+    box.querySelector("#inline-go").addEventListener("click", () => {
+      const text = why ? why.value.trim() : "";
+      if (askReason && !text) { showToast(t("need_reason"), "error"); return; }
+      onGo(text);
+    });
   }
 
   function renderVerdict(res) {
@@ -3886,7 +3953,9 @@
 
   async function setThreadLines(raw) {
     const why = saidText();
-    if (!why) { showToast(t("need_reason"), "error"); return; }
+    // Its own message. It used to borrow the status one — "a status change
+    // needs a reason" — on a control that has nothing to do with status.
+    if (!why) { showToast(t("line_needs_reason"), "error"); return; }
     const lines = raw.split(",").map((s) => s.trim()).filter(Boolean);
     try {
       await apiFetch("/api/workspace/thread/line", {
@@ -3895,8 +3964,12 @@
                                slug: state.thread.slug, lines, text: why }),
       });
       document.getElementById("thread-say").value = "";
+      // It said nothing on success, so a field that had worked and one that
+      // had silently failed looked exactly the same.
+      showToast(t("line_set"), "success");
       openThread(state.thread.slug);
       loadMap();
+      loadThreads();
     } catch (err) { showToast(err.message, "error"); }
   }
 
@@ -3911,25 +3984,35 @@
     // The survey, shown before the flip. `close_cmd` exists for this: closing
     // a line with three open propositions is a decision about those three,
     // and somebody who has not been shown them has not made it.
+    // The survey and the field that acts on it, on screen together. It used
+    // to render this and then open a modal over it, so the list of what would
+    // go quiet was behind the dialog asking whether to silence it.
     const open = found.open || [];
-    out.innerHTML = open.length
-      ? `<p class="card-subtitle">${escapeHtml(t("close_would_silence", { n: open.length }))}</p>`
-        + `<ul>${open.map((i) => `<li><code>${escapeHtml(i.slug)}</code> — ${escapeHtml(i.status)}</li>`).join("")}</ul>`
-      : `<p class="card-subtitle">${escapeHtml(t("close_nothing_open"))}</p>`;
-
-    const why = window.prompt(t("close_why_prompt", { line }));
-    if (!why || !why.trim()) return;
-    try {
-      await apiFetch("/api/workspace/line/close", {
-        method: "POST",
-        body: JSON.stringify({ workspace: state.workspace, line,
-                               text: why.trim(), anyway: open.length > 0 }),
-      });
-      showToast(t("closed_line", { line }), "success");
-      openThread(line);
-      loadMap();
-      loadThreads();
-    } catch (err) { out.innerHTML = `<p class="card-subtitle">${escapeHtml(err.message)}</p>`; }
+    inlineConfirm(out, {
+      body: open.length
+        ? `<p class="card-subtitle">${escapeHtml(t("close_would_silence", { n: open.length }))}</p>`
+          + `<ul>${open.map((i) => `<li><code>${escapeHtml(i.slug)}</code> — ${escapeHtml(i.status)}</li>`).join("")}</ul>`
+        : `<p class="card-subtitle">${escapeHtml(t("close_nothing_open"))}</p>`,
+      askReason: true,
+      placeholder: t("close_why_ph"),
+      go: t("btn_close_line"),
+      onGo: async (why) => {
+        try {
+          await apiFetch("/api/workspace/line/close", {
+            method: "POST",
+            body: JSON.stringify({ workspace: state.workspace, line,
+                                   text: why, anyway: open.length > 0 }),
+          });
+          out.innerHTML = "";
+          showToast(t("closed_line", { line }), "success");
+          openThread(line);
+          loadMap();
+          loadThreads();
+        } catch (err) {
+          out.innerHTML = `<p class="card-subtitle">${escapeHtml(err.message)}</p>`;
+        }
+      },
+    });
   }
 
   async function publishFlow(line) {
@@ -3940,11 +4023,49 @@
         + encodeURIComponent(state.workspace));
     } catch (err) { showToast(err.message, "error"); return; }
     if (!(papers.papers || []).length) {
-      out.innerHTML = `<p class="card-subtitle">${escapeHtml(t("publish_no_papers"))}</p>`;
+      // Offering the way out here rather than naming a directory. Telling
+      // somebody to "put the write-up in drafts/ first" is a terminal
+      // instruction wearing a button.
+      out.innerHTML = `<p class="card-subtitle">${escapeHtml(t("publish_no_papers"))}</p>`
+        + `<div class="form-row"><input type="text" class="text-input grow-2"
+             id="draft-title" placeholder="${escapeHtml(t("draft_title_ph"))}"></div>`
+        + `<div class="form-row"><textarea class="text-input grow-2" rows="6"
+             id="draft-body" placeholder="${escapeHtml(t("draft_body_ph"))}"></textarea></div>`
+        + `<div class="form-row"><button class="btn btn-primary btn-sm"
+             id="draft-save">${escapeHtml(t("btn_save_draft"))}</button></div>`;
+      out.querySelector("#draft-save").addEventListener("click", async () => {
+        const title = out.querySelector("#draft-title").value.trim();
+        const body = out.querySelector("#draft-body").value;
+        if (!title || !body.trim()) { showToast(t("draft_needs_both"), "error"); return; }
+        try {
+          await apiFetch("/api/workspace/draft", {
+            method: "POST",
+            body: JSON.stringify({ workspace: state.workspace, title, body }),
+          });
+          showToast(t("draft_saved"), "success");
+          publishFlow(line);
+        } catch (err) { showToast(err.message, "error"); }
+      });
       return;
     }
-    const paper = window.prompt(t("publish_which"), papers.papers[0]);
-    if (!paper) return;
+    // A list, not a typed path. The browser already knows what is publishable
+    // and asking somebody to spell one back is a text box standing in for it.
+    inlineConfirm(out, {
+      body: `<p class="card-subtitle">${escapeHtml(t("publish_which"))}</p>`
+        + `<div class="form-row"><select id="publish-paper" class="text-input grow-2">`
+        + papers.papers.map((p) =>
+            `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join("")
+        + `</select></div>`,
+      askReason: false,
+      go: t("btn_publish_preview"),
+      onGo: () => {
+        const chosen = out.querySelector("#publish-paper").value;
+        publishPreview(line, chosen, out);
+      },
+    });
+  }
+
+  async function publishPreview(line, paper, out) {
     let found;
     try {
       found = await apiFetch(`/api/workspace/publish?workspace=`
@@ -3953,23 +4074,33 @@
     } catch (err) { showToast(err.message, "error"); return; }
 
     const burying = found.supersede || [];
-    out.innerHTML = `<p class="card-subtitle">${escapeHtml(t("publish_would_bury", { n: burying.length }))}</p>`
-      + `<ul>${burying.map((i) => `<li><code>${escapeHtml(i.slug)}</code> — ${escapeHtml(i.status)}</li>`).join("")}</ul>`;
     const loose = (found.disputed || []).concat(found.unfinished || []);
-    const why = window.prompt(loose.length
-      ? t("publish_loose_ends", { slugs: loose.join(", ") }) : t("publish_why"));
-    if (!why || !why.trim()) return;
-    try {
-      await apiFetch("/api/workspace/publish", {
-        method: "POST",
-        body: JSON.stringify({ workspace: state.workspace, paper, lines: [line],
-                               text: why.trim(), anyway: loose.length > 0 }),
-      });
-      showToast(t("published"), "success");
-      openThread(line);
-      loadMap();
-      loadThreads();
-    } catch (err) { out.innerHTML = `<p class="card-subtitle">${escapeHtml(err.message)}</p>`; }
+    inlineConfirm(out, {
+      body: `<p class="card-subtitle">${escapeHtml(t("publish_would_bury", { n: burying.length }))}</p>`
+        + `<ul>${burying.map((i) => `<li><code>${escapeHtml(i.slug)}</code> — ${escapeHtml(i.status)}</li>`).join("")}</ul>`
+        + (loose.length
+          ? `<p class="card-subtitle">${escapeHtml(t("publish_loose_ends", { slugs: loose.join(", ") }))}</p>`
+          : ""),
+      askReason: true,
+      placeholder: t("publish_why"),
+      go: t("btn_publish"),
+      onGo: async (why) => {
+        try {
+          await apiFetch("/api/workspace/publish", {
+            method: "POST",
+            body: JSON.stringify({ workspace: state.workspace, paper, lines: [line],
+                                   text: why, anyway: loose.length > 0 }),
+          });
+          out.innerHTML = "";
+          showToast(t("published"), "success");
+          openThread(line);
+          loadMap();
+          loadThreads();
+        } catch (err) {
+          out.innerHTML = `<p class="card-subtitle">${escapeHtml(err.message)}</p>`;
+        }
+      },
+    });
   }
 
   function saidText() {

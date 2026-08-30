@@ -238,7 +238,10 @@ def register(app, resolve_workspace) -> None:
             for path in sorted(inbox.iterdir()):
                 if path.is_dir() or path.name.startswith("."):
                     continue
-                if path.name == "notes.md":
+                # `notes.md` is the pile and has its own box. `.lock` files
+                # are this program's own bookkeeping and appeared in the list
+                # as if they were documents to ingest.
+                if path.name == "notes.md" or path.suffix == ".lock":
                     continue
                 try:
                     stat = path.stat()
@@ -475,6 +478,38 @@ def register(app, resolve_workspace) -> None:
         if not found.get("ok"):
             raise HTTPException(status_code=409, detail=found)
         return found
+
+    @app.post("/api/workspace/draft")
+    def post_workspace_draft(payload: dict = Body(...)) -> dict:
+        """Start or replace a draft in `drafts/`, from the browser.
+
+        `publish` names `drafts/` and the browser had no way to put anything
+        there, so the ceremony was reachable and its input was not: pressing
+        it answered "no .md in drafts/ or output/ — put the write-up there
+        first", which is a terminal instruction wearing a button.
+
+        Not an editor. A place to paste the write-up somebody has, which is
+        what makes the next step possible.
+        """
+        from magi.core.wiki_common import atomic_write, slugify
+
+        ws = resolve_workspace(payload.get("workspace"))
+        title = (payload.get("title") or "").strip()
+        body = payload.get("body") or ""
+        if not title or not body.strip():
+            raise HTTPException(status_code=400,
+                                detail="a draft needs a title and some text")
+        name = slugify(title)
+        if not name:
+            raise HTTPException(status_code=400,
+                                detail="that title produces no usable filename")
+        drafts = ws / "drafts"
+        drafts.mkdir(parents=True, exist_ok=True)
+        path = drafts / f"{name}.md"
+        text = body if body.lstrip().startswith("#") else (
+            f"# {title}\n\n{body}")
+        atomic_write(path, text.rstrip("\n") + "\n")
+        return {"path": path.relative_to(ws).as_posix(), "title": title}
 
     @app.get("/api/workspace/papers")
     def get_workspace_papers(workspace: Optional[str] = Query(None)) -> dict:

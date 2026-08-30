@@ -212,3 +212,64 @@ def test_the_browser_actually_calls_it(path, handler):
     js = APP_JS.read_text(encoding="utf-8", errors="replace")
     assert path in js, f"nothing in the browser calls {path}"
     assert f"function {handler}(" in js, f"{handler} is gone"
+
+
+# --------------------------------------------------------------------------
+# and the doors do not open onto a modal
+# --------------------------------------------------------------------------
+
+def test_no_ceremony_asks_through_a_native_dialog():
+    """Clicking "end this line" left the tab unresponsive for forty seconds
+    with no toast and no change — `window.prompt`. Native dialogs block the
+    render thread and are invisible to anything driving the page.
+
+    The design failure under the freeze is the worse half: `closeLineFlow`
+    rendered "closing this means these 3 are never mentioned again" into the
+    panel and then opened a modal *over it* to ask for the reason. `close_cmd`
+    exists so somebody sees what they are about to silence before deciding;
+    putting that list behind the dialog that asks for the decision undoes it,
+    on every browser, working or not.
+
+    `window.confirm` survives in exactly one place — applying a version
+    upgrade — where there is nothing behind the dialog to read and the
+    question really is yes or no.
+    """
+    js = APP_JS.read_text(encoding="utf-8", errors="replace")
+
+    # Calls, not mentions: the comment above `inlineConfirm` names both of
+    # these, and the first version of this test counted that comment.
+    assert "window.prompt(" not in js, (
+        "a ceremony is asking through a modal again")
+    assert js.count("window.confirm(") <= 1, (
+        "a second native confirm appeared; the ceremonies use inlineConfirm")
+    assert "function inlineConfirm(" in js
+
+
+def test_a_draft_can_be_written_in_the_browser(client):
+    """Publishing was reachable and its input was not: pressing it answered
+    "no .md in drafts/ or output/ — put the write-up there first", which is a
+    terminal instruction wearing a button."""
+    made = _post(client, "/api/workspace/draft", title="What we found",
+                 body="The gap stays open to 35K.")
+
+    assert made.status_code == 200, made.text
+    assert made.json()["path"] == "drafts/what-we-found.md"
+    assert (client.ws / "drafts" / "what-we-found.md").read_text(
+        encoding="utf-8").startswith("# What we found")
+    assert "drafts/what-we-found.md" in _get(client, "/api/workspace/papers").json()["papers"]
+
+
+def test_a_draft_needs_a_title_and_some_text(client):
+    assert _post(client, "/api/workspace/draft", title="", body="x").status_code == 400
+    assert _post(client, "/api/workspace/draft", title="T", body="  ").status_code == 400
+
+
+def test_the_inbox_listing_skips_this_programs_own_lock_files(client):
+    """`notes.md.lock` appeared in "3 files sitting in inbox/" as though it
+    were something to ingest."""
+    (client.ws / "inbox" / "notes.md.lock").write_text("", encoding="utf-8")
+    (client.ws / "inbox" / "real.md").write_text("x", encoding="utf-8")
+
+    payload = _get(client, "/api/workspace/inbox").json()
+
+    assert [f["name"] for f in payload["files"]] == ["real.md"]
