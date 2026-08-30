@@ -1747,6 +1747,12 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         # headless. The one thing a record cannot supply is a transcript
         # reader, and a host without one simply contributes no sessions.
         "research.hosts": {"type": "list_of_maps"},
+        # Which *other* registered libraries this project's searches reach.
+        # The registry's `enabled` flag is machine-wide and says whether a
+        # library may be read at all; this says which ones this project reads,
+        # and empty means none — searching stops at your own library unless
+        # you ask for more.
+        "research.search_kbs": {"type": "list"},
         "radar.min_relevance": {"type": "number", "nullable": True},
         "radar.days": {"type": "int"},
         "radar.max_candidates": {"type": "int"},

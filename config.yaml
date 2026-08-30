@@ -65,6 +65,10 @@ research:
   # 的宿主只是不给慢回路贡献会话，别的照常。key 撞上内置的就整条替换。
   # 字段和写法见 `magi guide` 里的宿主表一节。
   hosts: []
+  # Other registered libraries this project's searches reach. Empty = just
+  # this one. The registry's `enabled` flag says a library *may* be read;
+  # this says which ones this project actually reads.
+  search_kbs: []
 
 # 向量化用哪个服务(magi index / magi search / magi link 共用)
 embedding:

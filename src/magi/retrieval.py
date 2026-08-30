@@ -978,6 +978,26 @@ class SearchError(Exception):
         self.hint = hint
 
 
+def _project_kbs(root) -> set:
+    """Which other libraries *this* project reads, by name.
+
+    Empty means "whatever the registry has enabled", which is the old
+    behaviour and still the right answer for `--scope all` — the flag is the
+    asking. What it must not be is the default, because the registry is
+    machine-wide and every `magi init` adds to it.
+    """
+    if root is None:
+        return set()
+    try:
+        from .core.config_loader import get as config_get
+        from .core.config_loader import load_config
+
+        named = config_get(load_config(start=root), "research.search_kbs", []) or []
+    except Exception:  # noqa: BLE001 — a broken config costs the narrowing
+        return set()
+    return {str(name).strip() for name in named if str(name).strip()}
+
+
 def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto",
                kb: str | None = None, collection: str | None = None,
                path: str | None = None, topic_dir: str | None = None,
@@ -1001,11 +1021,15 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
                 raise SearchError(f"unknown KB '{kb}'", "see 'magi kb list'")
             targets = [(kb, Path(entry["path"]) / "output" / "index.db")]
     else:
-        if root is not None and scope in ("auto", "local"):
+        if scope == "auto":
+            scope = "all"
+        if root is not None and scope in ("all", "local"):
             targets.append(("local", root / "output" / "index.db"))
-        if scope in ("auto", "global"):
+        if scope in ("all", "global"):
+            wanted = _project_kbs(root)
             targets.extend((name, p / "output" / "index.db")
-                           for name, p in searchable_kbs(exclude=root))
+                           for name, p in searchable_kbs(exclude=root)
+                           if not wanted or name in wanted)
         if not targets:
             if scope == "local":
                 raise SearchError("no workspace found", "run from a topic directory or pass --topic-dir")
@@ -1158,6 +1182,22 @@ def cmd_search(args: argparse.Namespace) -> int:
             if r["heading"]:
                 print(f"   # {r['heading']}")
             print(f"   {r['snippet'][:200]}")
+        if len(payload["kbs_searched"]) == 1 and payload["kbs_searched"][0] == "local":
+            # Named, not reached into. The default stops at this library, so
+            # the others have to be discoverable some other way than by
+            # surprising somebody with their contents.
+            from magi.core.workspace import find_workspace_root
+            from magi.kb_registry import searchable_kbs as _others
+
+            here = (Path(args.topic_dir).resolve() if args.topic_dir
+                    else find_workspace_root())
+            elsewhere = [name for name, _p in _others(exclude=here)]
+            if elsewhere:
+                print(f"(searched this library only. {len(elsewhere)} other(s) "
+                      f"registered and indexed: {', '.join(elsewhere[:5])}"
+                      f"{' …' if len(elsewhere) > 5 else ''} — `--scope all` "
+                      f"reads them, or name the ones this project wants in "
+                      f"`research.search_kbs`)")
         if len(payload["kbs_searched"]) > 1:
             print(f"(searched: {', '.join(payload['kbs_searched'])} — narrow with --scope local or --kb <name>)")
         if "local" in payload["kbs_skipped"]:
@@ -1179,7 +1219,14 @@ def cmd_search(args: argparse.Namespace) -> int:
 
 # --------------------------------------------------------------------------
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """The parser, separately from running it.
+
+    Extracted so a default can be asserted on. `--scope` defaults to `local`
+    now, and a default nobody can read back is a default that drifts — the
+    test for it was passing `scope="local"` by hand, which exercises the
+    branch and says nothing about what happens when somebody types nothing.
+    """
     # `prog` is the command as typed. Naming two commands here produced
     # `usage: magi index|search search [-h] …` — a usage line that looks like
     # a bug in the first thing a person reads about the command.
@@ -1209,14 +1256,28 @@ def main(argv: list[str] | None = None) -> int:
                                          "the line has never cited.")
     p_search.add_argument("-k", type=int, default=8, help="Max results (default 8)")
     p_search.add_argument("--mode", choices=["hybrid", "bm25", "vector"], default="hybrid")
-    p_search.add_argument("--scope", choices=["auto", "local", "global"], default="auto",
-                          help="auto = current workspace + enabled registered KBs (default); "
-                               "local = current workspace only; global = registered KBs only")
+    # `local` by default. Three usability rounds found somebody searching for
+    # a note they had just written and getting a page of another project's
+    # research — because every `magi init` registers itself and the registry's
+    # `enabled` flag is machine-wide, so the cross-library set grew on its own
+    # and nobody ever chose it. Reaching past your own library is now something
+    # you ask for.
+    p_search.add_argument("--scope", choices=["local", "all", "global", "auto"],
+                          default="local",
+                          help="local = this library only (default); "
+                               "all = this library plus the ones "
+                               "`research.search_kbs` names, or every enabled "
+                               "one when it names none; global = those others "
+                               "without this library. ('auto' is an old "
+                               "spelling of 'all'.)")
     p_search.add_argument("--kb", help="Search a single registered KB by name ('local' = current workspace)")
     p_search.add_argument("--json", action="store_true")
     p_search.set_defaults(func=cmd_search)
+    return parser
 
-    args = parser.parse_args(argv)
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
     return args.func(args)
 
 

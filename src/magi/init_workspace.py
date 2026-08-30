@@ -227,6 +227,9 @@ research:
   rule_budget: 7       # lines the AGENTS.md rule section may hold
   rules: []            # rules this library earned; `magi reflect promote` adds them
   hosts: []            # agent CLIs beyond the built-in ones; `magi skills where` lists all
+  search_kbs: []       # other registered libraries this project's searches reach
+                       # empty = just this one; `magi search --scope all` reads
+                       # every enabled library, `magi kb list` names them
 ollama:
   base_url: "http://127.0.0.1:11434"
   autostart: true      # start a stopped local Ollama on demand
