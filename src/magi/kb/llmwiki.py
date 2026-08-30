@@ -296,6 +296,13 @@ def parse_scalar(value: str) -> Any:
         value.startswith("'") and value.endswith("'")
     ):
         return value[1:-1]
+    if value[:1] in ("\"", "'") and len(value) > 1:
+        # An opening quote with nothing closing it. This parser is
+        # deliberately tolerant and keeps the text; keeping the stray
+        # quote with it is the one part that helps nobody — it reached
+        # `output/graph.db` as `"Unclosed quote concept` and the browser
+        # showed it that way. A malformed file is `magi lint`'s to report.
+        return value[1:]
     return value
 
 

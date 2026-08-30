@@ -189,3 +189,66 @@ def test_the_two_ledgers_that_record_decisions_are_kept(git_workspace, rel):
                                  "wiki/concepts/_index.md"])
 def test_nothing_a_person_wrote_is_ignored(git_workspace, rel):
     assert not _ignored(git_workspace, rel), rel
+
+
+# --------------------------------------------------------------------------
+# a captured child must not be left believing someone can answer
+# --------------------------------------------------------------------------
+
+def test_a_child_spawned_by_run_fixes_sees_no_terminal():
+    """`magi pm init` confirms on a tty, and `run_fixes` captures its output —
+    so the question would be written to a pipe nobody reads and answered by
+    EOF. Spawned the way `run_fixes` spawns it, the child must see no
+    terminal at all.
+
+    `DEVNULL` is not enough and that is the whole point of this test: on
+    Windows it opens `NUL`, which is a character device, so `isatty()` still
+    answers True and the command still asks.
+    """
+    import subprocess
+    import sys
+
+    probe = "import sys; print(sys.stdin.isatty())"
+
+    empty_pipe = subprocess.run([sys.executable, "-c", probe],
+                                capture_output=True, text=True, input="")
+    assert empty_pipe.stdout.strip() == "False"
+
+    # Documented here rather than assumed: this is why the code does not use
+    # the obvious spelling.
+    devnull = subprocess.run([sys.executable, "-c", probe], capture_output=True,
+                             text=True, stdin=subprocess.DEVNULL)
+    if sys.platform == "win32":
+        assert devnull.stdout.strip() == "True", (
+            "DEVNULL stopped reporting a tty on Windows — the comment in "
+            "sync.run_fixes about NUL being a character device is now stale")
+
+
+def test_run_fixes_does_not_hand_its_child_a_terminal():
+    """The call site itself, so the fix cannot be undone by editing it back."""
+    import inspect
+
+    from magi import sync
+
+    source = inspect.getsource(sync.run_fixes)
+    assert 'input=""' in source, (
+        "run_fixes spawns magi children with capture_output; without an empty "
+        "pipe for stdin, a child that confirms on a tty asks a question "
+        "nobody can answer")
+
+
+def test_the_handover_gate_needs_both_ends_of_the_terminal(monkeypatch, capsys, tmp_path):
+    """A question whose answer nobody can read is not a question. The gate
+    checked stdin alone, so capturing a child's output left it asking."""
+    import sys as _sys
+
+    from magi import pm
+
+    monkeypatch.setattr(_sys.stdin, "isatty", lambda: True, raising=False)
+    monkeypatch.setattr(_sys.stdout, "isatty", lambda: False, raising=False)
+
+    def refuse(*_a, **_k):
+        raise AssertionError("asked a question into a pipe nobody reads")
+
+    monkeypatch.setattr("builtins.input", refuse)
+    assert pm._agreed_to_hand_over(tmp_path, False) is True

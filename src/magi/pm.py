@@ -302,7 +302,13 @@ def _agreed_to_hand_over(root: Path, assumed_yes: bool) -> bool:
     # job answered True here and then hung on `input()`. It is still the right
     # question for a bare pipe; the caller that knows better says so with
     # `--yes`, which is what the WebUI button does.
-    if assumed_yes or not sys.stdin.isatty():
+    # Both ends, not just stdin. A question whose answer nobody can read is
+    # not a question: `magi sync --fix` captures this command's output, and
+    # on Windows even `stdin=DEVNULL` reports a tty, because DEVNULL is `NUL`
+    # and `NUL` is a character device. Requiring stdout to be a terminal too
+    # is what the other confirmations here already do, and it makes the gate
+    # defend itself instead of relying on every caller to remember.
+    if assumed_yes or not (sys.stdin.isatty() and sys.stdout.isatty()):
         return True
     try:
         answer = input("Go ahead? [y/N] ").strip().lower()

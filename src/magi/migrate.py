@@ -1,10 +1,16 @@
 """magi migrate — upgrade a pre-magi (Wikify-era) workspace in place.
 
-Non-destructive: existing content (raw/, wiki/, config.md, log.md) is
-never touched. The command only ADDS what the magi era introduced —
-CLAUDE.md / AGENTS.md (agent entry protocol), config.yaml (workspace
-config), scratch/ — then rebuilds the graph and _index tables, and
-prints the remaining manual steps (pm init, index).
+Nothing is rewritten: the bytes of raw/, wiki/, config.md and log.md are
+left exactly as they are. The command ADDS what the magi era introduced —
+CLAUDE.md / AGENTS.md (agent entry protocol), config.yaml (project
+config), scratch/ — then rebuilds the graph and _index tables, and prints
+the remaining manual steps (pm init, index, lint).
+
+One thing does move. `wiki/theses/*.md` is relocated into `drafts/` and the
+empty directory removed, because v2 splits what a thesis was into a draft
+and the propositions it argues for. Files are moved, never merged or
+renamed: a name already taken in `drafts/` is left where it is and
+reported. Nothing is deleted.
 
 Old installations copied skills/ + bin/ into agent directories
 (~/.claude, .agents); those copies are obsolete and should be deleted —
@@ -14,6 +20,7 @@ see the README migration section.
 from __future__ import annotations
 
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -22,6 +29,18 @@ from pathlib import Path
 from magi.core.wiki_common import parse_frontmatter
 from magi.core.workspace import find_workspace_root, is_hub_root
 from magi.init_workspace import CLAUDE_POINTER as POINTER, keep_a_copy
+
+
+def _hub_topics(hub: Path) -> list:
+    """The projects under a hub, in a stable order."""
+    root = hub / "topics"
+    if not root.is_dir():
+        return []
+    return sorted(
+        d for d in root.iterdir()
+        if d.is_dir() and d.name != ".archive"
+        and ((d / "wiki").is_dir() or (d / "raw").is_dir())
+    )
 
 
 def _migrate_hub(hub: Path, follow_up: bool = True) -> int:
@@ -37,10 +56,7 @@ def _migrate_hub(hub: Path, follow_up: bool = True) -> int:
     useful half costs nothing, so this does not. The hub's own scaffolding
     stops being read; the command says so and leaves the deletion to a person.
     """
-    topics = sorted(
-        d for d in (hub / "topics").iterdir()
-        if d.is_dir() and d.name != ".archive" and ((d / "wiki").is_dir() or (d / "raw").is_dir())
-    )
+    topics = _hub_topics(hub)
     if not topics:
         print(f"Hub detected at {hub} but no topics found under topics/.")
         return 0
@@ -86,15 +102,18 @@ def _finish(hub: Path, topics: list[Path]) -> None:
     for topic in topics:
         print(f"  magi sync --fix   ({topic.name})")
         proc = subprocess.run([sys.executable, "-m", "magi", "sync", "--fix"], cwd=str(topic),
-                              capture_output=True, text=True, encoding="utf-8", errors="replace")
-        for line in (proc.stdout or "").strip().splitlines():
-            if line.startswith("ran "):
-                print(f"      {line}")
+                              capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", input="")
+        _echo_sync(proc)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="magi migrate", description=__doc__)
     parser.add_argument("path", nargs="?", help="Workspace or hub to migrate (default: discovered from cwd)")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Say what would change and write nothing. Worth doing first: "
+                             "migration moves wiki/theses/*.md into drafts/, and those "
+                             "files are the only copy you have.")
     parser.add_argument("--minimal", action="store_true",
                         help="Migrate only. Without this, migration also provisions the task "
                              "store and brings each topic to a working state (magi sync --fix).")
@@ -103,6 +122,11 @@ def main(argv: list[str] | None = None) -> int:
 
     base = Path(args.path).resolve() if args.path else Path.cwd()
     if is_hub_root(base):
+        if args.dry_run:
+            for topic in _hub_topics(base):
+                preview(topic, hub=base)
+                print()
+            return 0
         return _migrate_hub(base, follow_up=follow_up)
 
     root = find_workspace_root(args.path) if args.path else find_workspace_root()
@@ -119,19 +143,22 @@ def main(argv: list[str] | None = None) -> int:
 
     from magi.core.workspace import find_hub_root
 
+    if args.dry_run:
+        return preview(root, hub=find_hub_root(root))
+
     rc = _migrate_topic(root, hub=find_hub_root(root))
     if rc == 0 and follow_up:
         print("\nFinishing up (skip with --minimal):")
         print("  magi sync --fix")
         proc = subprocess.run([sys.executable, "-m", "magi", "sync", "--fix"], cwd=str(root),
-                              capture_output=True, text=True, encoding="utf-8", errors="replace")
-        for line in (proc.stdout or "").strip().splitlines():
-            if line.startswith(("ran ", "  magi", "still needs you")) or "sync ratio" in line:
-                print(f"      {line}")
+                              capture_output=True, text=True, encoding="utf-8",
+                              errors="replace", input="")
+        _echo_sync(proc)
         print("\nGive your agent CLI this project's skills:")
         print("  magi skills install        # asks which CLI")
     elif rc == 0:
         print("\nRecommended next steps:")
+        print("  magi lint           # v1 never had to pass v2's rules; see what it says")
         print("  magi pm init        # provision beads in this project (work-state tracking)")
         print("  magi index          # build the hybrid retrieval index (needs Ollama for vectors)")
         print("  magi sync           # check the sync ratio")
@@ -263,7 +290,7 @@ def _is_ours(section: str, key: str, new: dict, defaults: dict) -> bool:
     return key in defaults.get(section, {})
 
 
-def retire_theses(root: Path) -> tuple[int, list[str]]:
+def retire_theses(root: Path, dry_run: bool = False) -> tuple[int, list[str]]:
     """Move `wiki/theses/*` into `drafts/`. Returns (moved, names left behind).
 
     v2 splits what a thesis was into two things that behave differently: the
@@ -290,7 +317,8 @@ def retire_theses(root: Path) -> tuple[int, list[str]]:
         return 0, []
 
     drafts = root / "drafts"
-    drafts.mkdir(parents=True, exist_ok=True)
+    if not dry_run:
+        drafts.mkdir(parents=True, exist_ok=True)
 
     moved, skipped = 0, []
     for note in sorted(theses.glob("*.md")):
@@ -300,21 +328,54 @@ def retire_theses(root: Path) -> tuple[int, list[str]]:
         if target.exists():
             skipped.append(note.name)
             continue
-        shutil.move(str(note), str(target))
+        if not dry_run:
+            shutil.move(str(note), str(target))
         moved += 1
 
     if not skipped:
         index = theses / "_index.md"
         if _index_is_all_generated(index):
-            if index.is_file():
-                index.unlink()
-            try:
-                theses.rmdir()
-            except OSError:
-                pass
+            if not dry_run:
+                if index.is_file():
+                    index.unlink()
+                try:
+                    theses.rmdir()
+                except OSError:
+                    pass
         else:
             skipped.append("_index.md")
     return moved, skipped
+
+
+#: The one line v1 put under `## Recent Changes` itself, on the day it created
+#: the index — `bin/init_workspace.py:create_minimal_index` and the identical
+#: block in `bin/llm-wiki.py:ensure_dir_index`, both at the last v1 commit.
+#: v1's `index_builder` rebuilt only `wiki/references` and `wiki/concepts`, so
+#: in `wiki/theses/_index.md` it was never cleared and is still sitting in
+#: every workspace v1 ever made. Matched exactly, date apart: a person writing
+#: their own dated bullet under this heading is precisely the case the check
+#: around it exists for, and a looser pattern would retire their directory.
+_V1_BOOTSTRAP_LINE = re.compile(
+    r"^[ \t]*-[ \t]*\d{4}-\d{2}-\d{2}:[ \t]*Created missing index\.?[ \t]*$",
+    re.MULTILINE)
+
+
+def _echo_sync(proc) -> None:
+    """Show what `magi sync --fix` did, and all of it when something failed.
+
+    The two loops this replaced each kept an allow-list of line prefixes, and
+    a failure's reason starts with none of them: the user was told "2 failed"
+    and never told what or why, by the one command whose job is to leave a
+    working project behind. Brevity is worth having while everything works and
+    is the wrong instinct the moment it does not.
+    """
+    lines = (proc.stdout or "").strip().splitlines()
+    failed = proc.returncode != 0 or any(
+        re.search(r"ran \d+ step\(s\), [1-9]\d* failed", line) for line in lines)
+    for line in lines:
+        if failed or line.startswith(("ran ", "  magi", "still needs you")) \
+                or "sync ratio" in line:
+            print(f"      {line}")
 
 
 def _index_is_all_generated(index: Path) -> bool:
@@ -336,6 +397,7 @@ def _index_is_all_generated(index: Path) -> bool:
     if INDEX_KEPT_HEADING not in text:
         return True
     kept = text.split(INDEX_KEPT_HEADING, 1)[1]
+    kept = _V1_BOOTSTRAP_LINE.sub("", kept)
     return not kept.strip()
 
 
@@ -369,6 +431,61 @@ def point_claude_at_agents(root: Path) -> str | None:
 
     claude.write_text(POINTER, encoding="utf-8")
     return None
+
+
+def preview(root: Path, hub: Path | None = None) -> int:
+    """What migration would do here, having done none of it.
+
+    Honest about one limit: `carry_legacy_config` compares the old config
+    against the scaffolded `config.yaml`, which does not exist yet in a dry
+    run, so this names the file it would read rather than guessing which keys
+    would move.
+    """
+    name, scope = root.name, "A topic wiki."
+    config_md = root / "config.md"
+    if config_md.is_file():
+        fm = parse_frontmatter(config_md.read_text(encoding="utf-8", errors="replace"))
+        name = str(fm.get("title") or name)
+        scope = str(fm.get("scope") or scope)
+
+    print(f"Would migrate: {root}")
+    print(f"  identity: {name!r} — {scope!r}")
+
+    missing = [f for f in ("CLAUDE.md", "AGENTS.md", "config.yaml")
+               if not (root / f).is_file()]
+    if missing:
+        print(f"  would add: {', '.join(missing)} (+ scratch/, missing _index.md files)")
+    else:
+        print("  scaffolding already present — would refresh indexes only")
+
+    moved, skipped = retire_theses(root, dry_run=True)
+    if moved:
+        print(f"  would move {moved} file(s) from wiki/theses/ into drafts/ "
+              "and remove the empty directory")
+    for left in skipped:
+        if left == "_index.md":
+            print("  would leave wiki/theses/ in place: its _index.md has notes "
+                  "under '## Recent Changes'")
+        else:
+            print(f"  would leave wiki/theses/{left} in place: drafts/{left} exists")
+
+    claude = root / "CLAUDE.md"
+    if claude.is_file():
+        current = claude.read_text(encoding="utf-8", errors="replace")
+        if current.strip() and current.strip() != POINTER.strip():
+            print("  would replace CLAUDE.md with a pointer to AGENTS.md, "
+                  "keeping the old text in .backup/")
+
+    legacy_cfg = find_legacy_config(root, hub)
+    if legacy_cfg is not None:
+        print(f"  would carry still-default settings from {legacy_cfg}")
+
+    for stale in _stale_skill_dirs(root, hub):
+        print(f"  WARNING: legacy Wikify skills still at {stale}", file=sys.stderr)
+
+    print("  would rebuild: magi graph build, magi wiki reindex")
+    print("\nNothing was written. Re-run without --dry-run to do it.")
+    return 0
 
 
 def _migrate_topic(root: Path, hub: Path | None = None) -> int:

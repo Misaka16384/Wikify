@@ -503,10 +503,22 @@ def run_fixes(report: dict, dry_run: bool = False, cwd=None) -> tuple[int, int]:
             ran += 1
             continue
         print(f"  {pretty:<26} # {why}")
+        # An empty pipe for stdin, not DEVNULL: capturing a child's output
+        # takes away its ability to ask, so it must not be left believing
+        # someone can answer. `magi pm init` confirms on a tty and inherited
+        # ours, so its question went to a pipe nobody reads and its `input()`
+        # got EOF — it declined itself, and `pm backlog-sync` then failed for
+        # want of the store it would have made.
+        #
+        # DEVNULL does not fix that on Windows: it opens `NUL`, which is a
+        # character device, so `isatty()` still answers True. An empty pipe
+        # answers False on both platforms, which is the non-tty path
+        # `_agreed_to_hand_over` documents — print the notice and continue.
         proc = subprocess.run([sys.executable, "-m", "magi", *cmd],
                               cwd=str(cwd) if cwd else None,
                               capture_output=True, text=True,
-                              encoding="utf-8", errors="replace")
+                              encoding="utf-8", errors="replace",
+                              input="")
         ran += 1
         out = (proc.stdout or proc.stderr or "").strip().splitlines()
         for line in out[-2:]:
