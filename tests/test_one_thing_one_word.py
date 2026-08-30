@@ -196,6 +196,31 @@ def test_the_explainer_no_longer_disambiguates_one_word_from_itself():
     assert "registry.json" in zh, "what registering does is the part worth saying"
 
 
+SKILLS = sorted((ROOT / "src" / "magi" / "skills").glob("*/SKILL.md"))
+
+
+@pytest.mark.parametrize("skill", SKILLS, ids=lambda p: p.parent.name)
+def test_the_skills_use_one_word(skill):
+    """The surface written for the agent, and the last one the sweep reached.
+
+    A word retired from the dashboard and the manual survived here in every
+    file, which is the worst place for it: a skill is what an agent quotes
+    back to the human, so the retired noun comes out of the model's mouth
+    long after the UI stopped saying it.
+    """
+    offenders = []
+    for number, line in enumerate(
+            skill.read_text(encoding="utf-8").splitlines(), 1):
+        rest = GUIDE_ALLOWED.sub(" ", line)
+        for phrase in QUOTED_OUTPUT:
+            rest = rest.replace(phrase, " ")
+        if GUIDE_RETIRED.search(rest):
+            offenders.append((number, line.strip()[:100]))
+    assert not offenders, (
+        f"{skill.parent.name}/SKILL.md still uses a retired word:\n"
+        + "\n".join(f"  line {n}: {text}" for n, text in offenders))
+
+
 @pytest.mark.parametrize("lang", ["zh", "en"])
 def test_the_guides_use_one_word(lang):
     """The two long-form guides (`guide.zh.md`, `guide.en.md`) are prose, not

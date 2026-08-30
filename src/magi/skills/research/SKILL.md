@@ -1,6 +1,6 @@
 ---
 name: research
-description: "Investigate a question across the library from several angles at once, verify what comes back, and land it as propositions plus at most one synthesis."
+description: "Investigate a question across the project from several angles at once, verify what comes back, and land it as propositions plus at most one synthesis."
 commands:
   research: "Investigate a question from several angles and land the findings."
 origin: magi
@@ -16,10 +16,10 @@ what", which is this skill with an adversarial brief, not a separate one.
 1. Decompose the question into 3–6 angles that would disagree with each other.
    Say how many sub-agents that is before starting; 10 concurrent is the
    ceiling.
-2. Each sub-agent searches the library only and returns findings in the block
+2. Each sub-agent searches the project only and returns findings in the block
    form `CLAIM: / EVIDENCE: "<quote>" / SOURCE_TYPE: / SOURCE:`, one per
    finding, `SOURCE` pointing into `raw/`.
-3. Collect into `scratch/`, then `magi verify --json`. Unverified findings are
+3. Collect into `scratch/`, then `magi verify <the scratch/ file you just wrote> --project-dir . --json`. Unverified findings are
    reported as unverified, in their own section — never merged into the rest.
 4. Every finding that has a truth value becomes a proposition:
    `magi thread new <slug> --kind proposition --title "<claim>" --purpose "<why>"`.
@@ -33,8 +33,7 @@ what", which is this skill with an adversarial brief, not a separate one.
 - **Never** report a synthesis as complete when an angle returned nothing.
   Name the angle that came back empty; a **partial** sweep read as whole is
   the failure this whole pipeline is arranged against.
-- **Never** let a sub-agent answer from its own knowledge. The library is the
+- **Never** let a sub-agent answer from its own knowledge. The project is the
   only source; a finding with no `SOURCE:` in `raw/` is not a finding.
-- A sub-agent that needs a decision returns
-  `NEEDS-DECISION: <question> | options: <a> / <b> | default if unanswered: <x>`.
-  Gather every NEEDS-DECISION and ask the human once, at the end.
+- Gather the questions the angles could not ask (Invariant 4) and ask the
+  human once, at the end.

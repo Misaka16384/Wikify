@@ -1,6 +1,6 @@
 ---
 name: draft
-description: "Write in drafts/ against the library: grounded prose, exported citations, and the derivation a proposition points at."
+description: "Write in drafts/ against the project: grounded prose, exported citations, and the derivation a proposition points at."
 commands:
   draft: "Write or revise a draft in drafts/, grounded in the wiki."
 origin: magi
@@ -13,7 +13,8 @@ Writing anything longer than a note — a section, an argument, a paper — or
 working out the derivation a proposition depends on.
 
 ## Method
-1. Ground first: `magi search` and `magi wiki context` for what the library
+1. Ground first: `magi search "<what you need>"` and `magi wiki context --name
+   <concept>` for what the project
    already says. Write from what you read, not from what you remember.
 2. Write to `drafts/<slug>.md`. Drafts are yours to edit freely; they are not
    compiled and they never move into `wiki/`.
@@ -24,8 +25,9 @@ working out the derivation a proposition depends on.
    so a later reader can tell working-out from conclusion.
 5. Citations: `magi bib --all` for what the draft cites, `--fetch` to fill in
    what the cards lack.
-6. Before calling it done: `magi verify` for the claims, `magi math check` for
-   the formulas, `magi stats verify-refs` for the links.
+6. Before calling it done: `magi verify <claims.json> --project-dir .` for the
+   claims, `magi math check` for the formulas, `magi stats verify-refs
+   <draft.md>` for the links. verify and verify-refs each take their file.
 
 ## Rules
 - **Never** cite a reference card as a source. Cite the `raw/` file behind it;

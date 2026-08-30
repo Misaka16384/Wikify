@@ -98,20 +98,42 @@ def test_the_headless_case_is_covered():
 _NOTE_BLOCK = re.compile(r"^> \*\*(?:Tools —|Questions go to).*?(?:\n>.*)*",
                          re.MULTILINE)
 
-_FANOUT = re.compile(
-    r"(?:one|a)\s+[\"'\w -]{0,30}sub-?agent\s+per\b"     # one X sub-agent per Y
-    r"|per\s+sub-?agent\b"                                 # ... per sub-agent
-    r"|spawn(?:ing)?\s+(?:parallel|multiple|one or more)\b",
+#: A skill "fans out" if it talks about sub-agents at all. The narrower reading
+#: this replaced — the literal phrase "one <thing> sub-agent per <thing>" —
+#: matched exactly one skill, so the rule about collecting what sub-agents
+#: could not ask ran against `compile` while `research`, which opens by
+#: splitting a question into 3-6 parallel angles, was never checked.
+def _spawns_subagents(text: str) -> bool:
+    body = _NOTE_BLOCK.sub("", text).lower()
+    return "sub-agent" in body or "subagent" in body
+
+
+FANS_OUT = [p for p in SKILL_FILES if _spawns_subagents(_body(p))]
+
+#: The instruction itself, spelled any way: gather what the sub-agents
+#: could not ask, and ask once. Counting occurrences of "NEEDS-DECISION"
+#: was the first version, and it was dodgeable twice over — a skill that
+#: dropped the string entirely fell into a skip, and the only way to
+#: satisfy it was to restate the template design-v2 §8 puts in the managed
+#: block exactly once.
+_COLLECTS = re.compile(
+    r"(?:collect|gather|put)\b[^.\n]{0,80}questions?\b"
+    r"|(?:collect|gather)\b[^.\n]{0,40}NEEDS-DECISION",
     re.IGNORECASE)
 
+#: The copy §8 forbids — the format string, not the rule.
+_DECISION_TEMPLATE = "NEEDS-DECISION: <question> | options:"
 
-def _spawns_subagents(text: str) -> bool:
-    return bool(_FANOUT.search(_NOTE_BLOCK.sub("", text)))
+#: The instruction itself, spelled any way: gather what the sub-agents could
+#: not ask, and ask once. Counting occurrences of "NEEDS-DECISION" was the
+#: first version, and it was dodgeable twice over — a skill that dropped the
+#: string entirely fell into a skip, and the only way to satisfy it was to
+#: restate the template design-v2 §8 puts in the managed block exactly once.
 
 
 @pytest.mark.parametrize(
     "path",
-    [p for p in SKILL_FILES if _spawns_subagents(_body(p))],
+    FANS_OUT,
     ids=lambda p: p.parent.name,
 )
 def test_a_fanning_out_skill_says_to_collect_the_questions(path):
@@ -119,11 +141,19 @@ def test_a_fanning_out_skill_says_to_collect_the_questions(path):
     actually fans out — the step that waits for sub-agents has to say to gather
     what they could not ask, or ten sub-agents become ten interruptions."""
     text = _body(path)
-    if "NEEDS-DECISION" not in text:
-        pytest.skip("skill mentions sub-agents but does not orchestrate them")
-    assert text.count("NEEDS-DECISION") >= 2, (
-        f"{path.parent.name} spawns sub-agents but never says to collect their "
-        "NEEDS-DECISION lines when they report back."
+    # Counting occurrences of "NEEDS-DECISION" was the first version of this
+    # check, and it was dodgeable twice over: a skill that dropped the string
+    # entirely fell into a skip, and the only way to satisfy it was to restate
+    # the template that design-v2 §8 puts in the managed block exactly once.
+    # So look for the instruction, in whatever words, and ban the copy.
+    assert _COLLECTS.search(text), (
+        f"{path.parent.name} spawns sub-agents but never says to collect the "
+        "questions they could not ask when they report back."
+    )
+    assert _DECISION_TEMPLATE not in text, (
+        f"{path.parent.name} restates the NEEDS-DECISION template. It belongs "
+        "in the managed block (Invariant 4), which every agent reads once a "
+        "session; a skill refers to it rather than copying it."
     )
 
 
@@ -159,8 +189,6 @@ def test_the_workspace_protocol_carries_the_same_rule():
 # agent reads, which is the cheapest thing that would have helped.
 # --------------------------------------------------------------------------
 
-FANS_OUT = [p for p in SKILL_FILES
-            if "sub-agent" in _body(p).lower() or "subagent" in _body(p).lower()]
 
 
 def test_some_skills_fan_out():
@@ -356,3 +384,129 @@ def test_a_skill_only_passes_flags_the_command_accepts(path):
             bad.append(f"magi {' '.join(key)} {flag}")
     assert not bad, (
         f"{path.parent.name} passes flags the command does not accept: {bad}")
+
+
+@functools.lru_cache(maxsize=None)
+def _required_arguments(key: tuple) -> tuple:
+    """What `magi <key>` refuses to start without: (flags, count of bare args).
+
+    Read off the usage line rather than argparse internals: what argparse
+    prints outside `[...]` is exactly what it will not start without, which is
+    the question a skill's reader is about to get wrong.
+    """
+    res = subprocess.run([sys.executable, "-m", "magi", *key, "--help"],
+                         capture_output=True, text=True)
+    if res.returncode != 0 or not res.stdout.startswith("usage:"):
+        return frozenset(), 0
+    usage = []
+    for line in res.stdout.splitlines():
+        if not line.strip():
+            break
+        usage.append(line)
+    text = " ".join(usage)[len("usage:"):]
+
+    # Tokens at bracket depth 0 are the required ones.
+    tokens, depth, token = [], 0, ""
+    for ch in text:
+        if ch in "[(":
+            depth += 1
+        elif ch in "])":
+            depth -= 1
+        elif ch.isspace():
+            if depth == 0 and token:
+                tokens.append(token)
+            token = ""
+        elif depth == 0:
+            token += ch
+    if depth == 0 and token:
+        tokens.append(token)
+
+    flags, positionals, skip = set(), 0, 0
+    for i, tok in enumerate(tokens):
+        if skip:
+            skip = 0
+            continue
+        if tok.startswith("--"):
+            flags.add(tok.split("=")[0])
+            # A required flag's metavar sits at depth 0 beside it. Counting it
+            # as a positional is what the first version of this got wrong.
+            nxt = tokens[i + 1] if i + 1 < len(tokens) else ""
+            if nxt and not nxt.startswith("-") and nxt.upper() == nxt:
+                skip = 1
+            continue
+        if tok.startswith("-") or tok.startswith("{"):
+            continue
+        positionals += 1
+    # Drop the program name and the subcommand words themselves.
+    return frozenset(flags), max(0, positionals - (1 + len(key)))
+
+
+def _bare_arguments(rest: str) -> list:
+    """The tokens after the command that are neither a flag nor a flag's value.
+
+    A flag's value is skipped unconditionally rather than by consulting each
+    command's arity: over-skipping only makes this check quieter, and quiet is
+    the side to err on.
+    """
+    args, skip = [], False
+    for token in rest.replace("`", " ").split():
+        if skip:
+            skip = False
+            if not token.startswith("-"):
+                continue
+        if token.startswith("-"):
+            skip = "=" not in token
+            continue
+        if token in {"|", "#", "/", "&&", "<...>"} or token.startswith("#"):
+            break
+        args.append(token)
+    return args
+
+
+def _invocations_with_args(text: str):
+    """(command key, flags, bare arguments) for every `magi ...` usage."""
+    for line in _code_spans(text):
+        hits = list(_MAGI_CMD_RE.finditer(line))
+        for i, m in enumerate(hits):
+            words = m.group(1).split()
+            if not words or words[0] in _NOT_A_COMMAND:
+                continue
+            key = tuple(words[:2])
+            if key not in _commands():
+                key = (words[0],)
+            end = hits[i + 1].start() if i + 1 < len(hits) else len(line)
+            rest = line[m.start():end]
+            # Cut the command words themselves off the front.
+            rest = rest.split("magi", 1)[1]
+            for word in key:
+                rest = rest.replace(word, "", 1)
+            yield key, set(_FLAG_RE.findall(rest)), _bare_arguments(rest)
+
+
+@pytest.mark.parametrize("path", SKILL_FILES, ids=lambda p: p.parent.name)
+def test_a_skill_only_shows_invocations_that_can_start(path):
+    """A command written without what it requires is a dead step.
+
+    `magi verify` reached both `draft` and `research` this way: named
+    correctly, flagged correctly, and unable to run — because the two guards
+    above ask whether a command exists and whether the flags it was given are
+    real, and neither asks whether the ones it needs are there.
+    """
+    broken = []
+    for key, flags, args in _invocations_with_args(_body(path)):
+        if key not in _commands():
+            continue
+        needed_flags, needed_args = _required_arguments(key)
+        missing = sorted(needed_flags - flags)
+        if missing:
+            broken.append(f"magi {' '.join(key)} (needs {' '.join(missing)})")
+        elif len(args) < needed_args:
+            # Counted, not merely present: `magi tags apply .` supplies one of
+            # the three files it needs, and stops just as dead as with none.
+            broken.append(
+                f"magi {' '.join(key)} (needs {needed_args} argument"
+                f"{'s' if needed_args > 1 else ''}, shows {len(args)})")
+    assert not broken, (
+        f"{path.parent.name} shows commands that will not start: "
+        f"{sorted(set(broken))}. An agent following this file gets an argparse "
+        "error where the skill promised a step.")

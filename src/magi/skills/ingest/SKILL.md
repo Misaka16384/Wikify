@@ -1,6 +1,6 @@
 ---
 name: ingest
-description: "Turn whatever the human has — a PDF, a link, a DOI, a screenshot of a citation — into raw/ sources this workspace can compile."
+description: "Turn whatever the human has — a PDF, a link, a DOI, a screenshot of a citation — into raw/ sources this project can compile."
 commands:
   ingest: "Ingest papers, articles and notes into raw/."
 origin: magi
@@ -15,7 +15,7 @@ citation the human read out.
 ## Method
 1. Files already in `inbox/`, or a path you were given: `magi ingest auto` —
    it routes by type and finalizes. Stop here unless it refuses. (A run that
-   skipped cleanup: `magi ingest finalize`.)
+   skipped cleanup: `magi ingest finalize <the file> --project-dir .`.)
 2. A link, DOI, arXiv id or citation: identify it first — that is the step
    that needs you, not the pipeline. Then `magi ingest url "<id or url>"` and
    `magi ingest batch-run`.
@@ -35,6 +35,6 @@ citation the human read out.
 - **Never** commit a batch the human has not seen the findings for.
 - A converter that exits non-zero: report its stderr and stop. An unreadable
   file: name it and carry on. Report **partial** work as partial — "9 of 12".
-- When the workspace is ambiguous, say so and stop:
-  `NEEDS-DECISION: which library? | options: <a> / <b> | default if unanswered: stop`.
-  Collect any NEEDS-DECISION from work you delegate and ask once, together.
+- Which project a source belongs to is never your guess: when it is
+  ambiguous, stop and ask. Collect the questions the work you delegated
+  could not ask (Invariant 4) and put them all at once.
