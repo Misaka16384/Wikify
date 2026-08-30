@@ -209,7 +209,7 @@ def searchable_kbs(exclude: Path | None = None) -> list[tuple[str, Path]]:
 def cmd_register(args: argparse.Namespace) -> int:
     root = Path(args.path).resolve() if args.path else find_workspace_root()
     if root is None:
-        print("no workspace found (run inside a topic directory or pass a path)", file=sys.stderr)
+        print("no project found (run inside one, or pass a path)", file=sys.stderr)
         return 1
     register_kb(root, name=args.name, enabled=not args.disabled)
     return 0

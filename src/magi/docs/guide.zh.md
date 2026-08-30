@@ -1,6 +1,6 @@
 # MAGI 使用指南
 
-从零安装，到跑出一个能查、能引、能写的文献库。
+从零安装，到跑出一个能查、能引、能写的项目。
 
 每章按同一个节奏：**做什么 → 怎么做 → 应该看到什么 → 没看到该怎么办**。左侧目录可随时跳转；页面内 `Ctrl+F` 直接全文搜索；每段命令右上角可一键复制。
 
@@ -8,17 +8,18 @@
 
 ## 先跑通一遍 {#start}
 
-从零到一个能检索的库——三条命令，加对 agent 说的一句话：
+从零到一个能检索的项目——三条命令，加对 agent 说的一句话：
 
 ```powershell
 pipx upgrade --install magi-research # 1. 装或升级（幂等，重复跑没副作用）
-mkdir my-topic ; cd my-topic ; magi init   # 2. 建一个课题
+mkdir my-topic ; cd my-topic ; magi init   # 2. 建一个项目
 magi install                         # 3. 装进你的 agent CLI（技能 + 协议 + 收工闸门）
 magi ingest auto                     # 把 PDF 丢进 inbox/ 之后
 ```
 
-一个课题一个目录，没有更上面的一层。**跨库检索走用户级注册表**（`magi kb list`），
-`magi search` 默认就会联邦检索所有启用的库——不需要把它们收进同一个父目录。
+一个项目一个目录，没有更上面的一层。**跨项目检索走用户级注册表**（`magi kb list`），
+`magi search` 默认只搜你现在这个项目，`--scope all` 才去读别的——不需要把它们
+收进同一个父目录。
 
 然后在 Claude Code / Codex 里对 agent 说：**「把待编译的都编译了」**。这是唯一没有命令的一步——它要读论文、写卡片。跑完之后 `magi index`，就能检索了。
 
@@ -30,7 +31,7 @@ MAGI 由三层组成，分工不重叠：
 |---|---|---|
 | **magi CLI** | 所有确定性操作：摄入、建图、检索、校验、任务、雷达 | 终端里敲，或让 agent 替你敲 |
 | **skills** | 教 agent「何时、为何」调用哪条流水线 | 在 Claude Code / Codex 里说一句话触发 |
-| **工作区** | 落盘的知识：`raw/` `wiki/` `output/` `drafts/` | 用 Obsidian、编辑器、本看板直接看 |
+| **项目** | 落盘的知识：`raw/` `wiki/` `output/` `drafts/` | 用 Obsidian、编辑器、本看板直接看 |
 
 agent 的上下文是一次性的，**状态永远在磁盘上**。所以任何一步中断都能原地续跑。
 
@@ -47,19 +48,19 @@ magi init --name "Quantum Toys" --scope "玩具模型中的量子现象"
 magi install                 # 技能 + AGENTS.md 协议块 + 会话钩子
 ```
 
-之后只要一个词。裸 `magi` 就是 `magi next`：它从这个工作区自己的 note 里
+之后只要一个词。裸 `magi` 就是 `magi next`：它从这个项目自己的 note 里
 派生出该做什么并提议出来——包括 `magi sync --fix` 和 `magi pm init`，在它们
 真正值得跑的那一刻。
 
 ```text
-No propositions yet — this library has knowledge but nothing it is currently trying to find out.
+No propositions yet — nothing here is being tested yet.
   magi thread new <slug> --kind proposition --title '<claim>' --purpose '<why now>'
   magi sync    # what the library itself needs
 ```
 
 **② Wikify 老用户**——数据不用动，直接看第 3 章，三条命令迁移。
 
-**③ 只想先试试**——随便找个空目录 `magi init` 就能用。`magi init` 会把它注册进用户级注册表，所以以后在别的库里 `magi search` 也能搜到它。
+**③ 只想先试试**——随便找个空目录 `magi init` 就能用。`magi init` 会把它注册进用户级注册表，所以以后在别的项目里 `magi search` 也能搜到它。
 
 ### 这份手册怎么读 {#howto-read}
 
@@ -113,12 +114,12 @@ magi sync --fix --dry-run   # 先看会跑哪几条
 同步率是三核就绪度的加权平均（只计算「当前适用」的核）：
 
 - **MELCHIOR** = 0.55 图谱新鲜度 + 0.25 待编译积压 + 0.20 命题健康度
-- **BALTHASAR** = 研究状态有多可读：`1 − 欠账/note 数`，欠账指 `threads/` 里「发生了但没写下来」的事。它量的是记账干净度不是进度——六个开放命题零欠账完全健康。还没有 `threads/` 的库沿用旧口径（0.6 任务库可达 + 0.4 状态可读）；`--kb-only` 模式下整核不计入。
+- **BALTHASAR** = 研究状态有多可读：`1 − 欠账/note 数`，欠账指 `threads/` 里「发生了但没写下来」的事。它量的是记账干净度不是进度——六个开放命题零欠账完全健康。还没有 `threads/` 的项目沿用旧口径（0.6 任务库可达 + 0.4 状态可读）；`--kb-only` 模式下整核不计入。
 - **CASPER** = 0.7 索引新鲜度 + 0.3 向量覆盖率
 
 > [!NOTE]
-> 同步率不是「知识量」评分。空库照样能拿 MELCHIOR 满分——它只惩罚**过期、积压、未核验**，不惩罚「还没开始」。所以刚建的库显示 33.3% 很正常：那是「三核里只有知识核在线」。跑完 `magi pm init` 和 `magi index` 就会跳上去。
-> 不在任何工作区里跑时，同步率显示为空而不是 0——它不会编一个数字给你。
+> 同步率不是「知识量」评分。空项目照样能拿 MELCHIOR 满分——它只惩罚**过期、积压、未核验**，不惩罚「还没开始」。所以刚建的项目显示 33.3% 很正常：那是「三核里只有知识核在线」。跑完 `magi pm init` 和 `magi index` 就会跳上去。
+> 不在任何项目里跑时，同步率显示为空而不是 0——它不会编一个数字给你。
 
 ---
 
@@ -267,16 +268,16 @@ WebUI 里版本号旁边会出现一个徽章，点开有 **立即升级**。
 
 ### 全局装还是按项目装 {#install-scope}
 
-这是最常问反的一件事。**CLI 全局装一份就够，工作区才是「按项目」的。**
+这是最常问反的一件事。**CLI 只需要全局装一份，要按项目重复的是 `magi init` / `magi install` 这一步。**
 
 | 东西 | 装在哪 | 数量 |
 |---|---|---|
 | `magi` CLI | 用户级（`pipx install` / `uv tool install`），在 PATH 上 | 全机一份 |
-| skills | **每个工作区**里，按宿主分目录（`magi skills install`） | 每个课题一份 |
-| 工作区 | 你的课题目录 | 每个课题一个 |
+| skills | **每个项目**里，按宿主分目录（`magi skills install`） | 每个项目一份 |
+| 项目 | 你的项目目录 | 每个项目一个 |
 | 全局配置与注册表 | `~/.config/magi/`（Windows 是 `C:\Users\<你>\.config\magi\`，**不是** AppData） | 全机一份 |
 
-装一次 CLI，之后每开一个新课题只需要 `magi init` + `magi install`。
+装一次 CLI，之后每开一个新项目只需要 `magi init` + `magi install`。
 
 `magi install` 做三件事，缺一件 agent 都跑不顺：把 8 个技能放到宿主找得到的地方；把当前协议写进 `AGENTS.md` 的托管块（块外你写的东西一个字不动）；给 Claude Code 装上钩子。**宿主强制力不对称**：只有 Claude Code 有文档化的钩子接口，其余宿主同一批规则只以托管块里的指令形式存在——agent 可以不听，而且有时真不听。命令会把这件事直说，而不是装成四个宿主都装好了。
 
@@ -292,7 +293,7 @@ fan-out 那个只计数，一次都不拦。托管块的不变量 5 要求 agent
 
 是**每第 25 个**，不是「第 25 个之后每一个」：技能把 fan-out 的并发压在十个、并要求先把总数说出来，所以编译十来篇源文件是正常且正确的。在那里报警等于提醒那个唯一已经照做了的流程——而变成噪音的钩子会被人连同旁边那道闸门一起关掉。
 
-`magi hook` 是宿主调的，不是给你敲的。它唯一的硬规矩是**永远不能弄坏一次会话**：所有路径都以 exit 0 加可解析 JSON 结束，包括工作区不存在、payload 解析不了、文件写不进去。报错的钩子是会被你关掉的钩子，然后它守的那道闸门也一起没了。
+`magi hook` 是宿主调的，不是给你敲的。它唯一的硬规矩是**永远不能弄坏一次会话**：所有路径都以 exit 0 加可解析 JSON 结束，包括项目不存在、payload 解析不了、文件写不进去。报错的钩子是会被你关掉的钩子，然后它守的那道闸门也一起没了。
 
 同一批事件上你自己的钩子原样保留——MAGI 靠命令字符串认自己的那条，所以装第二次什么都不会变。
 
@@ -301,13 +302,13 @@ fan-out 那个只计数，一次都不拦。托管块的不变量 5 要求 agent
 
 ### 让你的 CLI agent 学会用 MAGI {#install-hosts}
 
-这一步不是锦上添花：**知识库的编译环节只在 agent 里跑**（见第 6 章）。
+这一步不是锦上添花：**项目的编译环节只在 agent 里跑**（见第 6 章）。
 
-**在工作区里跑一条命令**，你机器上所有 agent CLI 就都学会了：
+**在项目里跑一条命令**，你机器上所有 agent CLI 就都学会了：
 
 ```powershell
-cd <你的主题工作区>
-magi skills install              # 装进这个工作区（默认，推荐）
+cd <你的项目目录>
+magi skills install              # 装进这个项目（默认，推荐）
 magi skills where                # 看每个 CLI 从哪读、现在装了几个
 magi skills install --dry-run    # 只看会写哪些文件，不动手
 magi skills uninstall            # 撤掉
@@ -316,8 +317,8 @@ magi skills uninstall            # 撤掉
 技能文件随 CLI 一起分发，**不需要 clone 仓库、不需要联网**。
 
 > [!WARN]
-> **默认只装进当前工作区，不装全局。** 这 8 个技能都是围着某个研究工作区转的（往 `raw/` 摄入、编译进 `wiki/`、查这个库的图谱），装到全局意味着你打开任何一个无关项目，agent 都要背着它们。真想全机可用：`magi skills install --scope global`（命令会提醒你一次）。
-> 装在工作区里还有个好处：这些文件跟着仓库走，同事 clone 下来就有。
+> **默认只装进当前项目，不装全局。** 这 8 个技能都是围着某个研究项目转的（往 `raw/` 摄入、编译进 `wiki/`、查这个项目的图谱），装到全局意味着你打开任何一个无关项目，agent 都要背着它们。真想全机可用：`magi skills install --scope global`（命令会提醒你一次）。
+> 装在项目里还有个好处：这些文件跟着仓库走，同事 clone 下来就有。
 
 | 宿主 | 全局位置 | 项目位置 | 怎么触发 |
 |---|---|---|---|
@@ -351,7 +352,7 @@ magi skills uninstall            # 撤掉
 >       model_flag: "--model"
 > ```
 >
-> 能替换的只有 `{home}`、`{config}`（`XDG_CONFIG_HOME`）和 `{root}`（当前 workspace）。记录里**唯一写不了**的是怎么读这个 CLI 存下来的会话——各家存法都不一样，`magi reflect read` 要的是解析器，不是模板。没有 reader 的宿主只是不给慢回路贡献会话，别的一切照常。
+> 能替换的只有 `{home}`、`{config}`（`XDG_CONFIG_HOME`）和 `{root}`（当前项目）。记录里**唯一写不了**的是怎么读这个 CLI 存下来的会话——各家存法都不一样，`magi reflect read` 要的是解析器，不是模板。没有 reader 的宿主只是不给慢回路贡献会话，别的一切照常。
 > `key` 撞上内置宿主就整条替换掉内置的——你把某个 CLI 装成了别的名字，就是这么指过去。
 
 **Claude Code 还可以走插件**（一键脚本已自动执行）：技能带 `magi:` 命名空间出现，还附带一个 SessionStart 钩子每次自动跑 `magi sync`：
@@ -364,13 +365,13 @@ claude plugin install <本地仓库目录>      # 本地开发模式
 
 插件和 `magi skills install` 可以共存——前者给你 `/magi:技能名`，后者给你 `/技能名`。
 
-**任何其他 agent**——工作区里的 `CLAUDE.md` 和 `AGENTS.md`（两份内容完全一致）就是入场协议：它告诉 agent 进场先跑 `magi sync`、三核对应哪些命令、卡住时用 `magi guide --search` 查手册，以及「不许凭记忆回答研究问题」。只要宿主会读其中之一就能开工；实在不认，把 `magi --help` 贴给它也行。
+**任何其他 agent**——项目里的 `CLAUDE.md` 和 `AGENTS.md`（两份内容完全一致）就是入场协议：它告诉 agent 进场先跑 `magi sync`、三核对应哪些命令、卡住时用 `magi guide --search` 查手册，以及「不许凭记忆回答研究问题」。只要宿主会读其中之一就能开工；实在不认，把 `magi --help` 贴给它也行。
 
 > [!EXPECT]
-> `magi skills where` 里 project 那几行显示 8/8；在**这个工作区目录里**重开一个 agent 会话，输入 `/` 能看到技能（Claude Code / opencode），或者直接说「摄入 inbox 里的论文」它就动手。`magi setup --check` 的体检表也会显示当前工作区各 CLI 的技能数。
+> `magi skills where` 里 project 那几行显示 8/8；在**这个项目目录里**重开一个 agent 会话，输入 `/` 能看到技能（Claude Code / opencode），或者直接说「摄入 inbox 里的论文」它就动手。`magi setup --check` 的体检表也会显示当前项目各 CLI 的技能数。
 
 > [!FIX]
-> - **装完看不到**：技能是启动时扫描的——**在工作区目录里重开一个会话**（项目级技能只在从该目录启动时可见）。
+> - **装完看不到**：技能是启动时扫描的——**在项目目录里重开一个会话**（项目级技能只在从该目录启动时可见）。
 > - **不确定装到哪了**：`magi skills where` 会打印每个 CLI 的真实路径与数量。
 > - **提示 skipped**：目标位置已有同名文件且不像我们写的，出于安全没覆盖。确认后 `magi skills install --force`。
 > - **agent 调用了不存在的脚本路径**（`python bin/llm-wiki.py ...`）：旧版 Wikify 的 SKILL.md 还在，跑 `magi setup --remove-legacy`。
@@ -404,7 +405,7 @@ ollama pull qwen3-embedding:0.6b     # 向量检索（约 640MB）
 ollama pull glm-ocr:q8_0             # 本地 OCR（可选）
 ```
 
-Windows 的 `pandoc-crossref.exe` 已内置于仓库 `vendor/windows/`：加入 PATH，或在工作区 `config.yaml` 的 `tools.pandoc_crossref_path` 里指路。
+Windows 的 `pandoc-crossref.exe` 已内置于仓库 `vendor/windows/`：加入 PATH，或在项目 `config.yaml` 的 `tools.pandoc_crossref_path` 里指路。
 
 体检表最后几行是你机器上的 agent CLI（claude / codex / agy / qwen / opencode）：装没装、技能装了几个。缺技能时它会直接给出补装命令。
 
@@ -421,7 +422,7 @@ Windows 的 `pandoc-crossref.exe` 已内置于仓库 `vendor/windows/`：加入 
 magi migrate            # 在旧仓库根目录跑
 ```
 
-它会把旧配置搬过来、标出项目里过时的技能，并对每个课题跑一遍 `magi sync --fix`。它**不再**设置任务追踪：任务库属于一个项目而不是它上面那个目录，所以每个工作区在 `magi sync` 认为需要时自己要一个。`raw/`、`wiki/`、`inbox/` 的格式没变，数据原样可用。下面是每一步具体动了什么，以及新旧命令对照表。
+它会把旧配置搬过来、标出项目里过时的技能，并对每个项目跑一遍 `magi sync --fix`。它**不再**设置任务追踪：任务库属于一个项目而不是它上面那个目录，所以每个项目在 `magi sync` 认为需要时自己要一个。`raw/`、`wiki/`、`inbox/` 的格式没变，数据原样可用。下面是每一步具体动了什么，以及新旧命令对照表。
 
 MAGI 是 Wikify 的重构版：脚本集变成统一 CLI，任务状态外接 Beads，新增混合检索、命题溯源与文献雷达。**`raw/`、`wiki/`、`inbox/` 的格式没有变，你的数据完全兼容。**
 
@@ -439,35 +440,38 @@ cd <你的 KnowledgeHub>
 magi migrate
 ```
 
-**`magi migrate` 会一路做完**：逐个主题补齐脚手架 → 搬旧配置 → 重建图谱与目录表 → 在 hub 根 `magi pm init` → 每个主题 `magi sync --fix`（建索引、同步积压）。加 `--minimal` 只迁移不收尾。
+**`magi migrate` 会一路做完**：逐个项目补齐脚手架 → 搬旧配置 → 重建图谱与目录表 → 在 hub 根 `magi pm init` → 每个项目 `magi sync --fix`（建索引、同步积压）。加 `--minimal` 只迁移不收尾。
 
-`magi migrate` 会自动判断你给的路径是 hub 还是单个主题：hub 模式一次迁移 `topics/` 下所有**未归档**主题；单主题模式只迁移当前这个。
+`magi migrate` 会自动判断你给的路径是 hub 还是单个项目：hub 模式一次迁移 `topics/` 下所有**未归档**项目；单项目模式只迁移当前这个。
 
 **它只做加法**：补齐缺失的 `CLAUDE.md` / `AGENTS.md` / `config.yaml` / `scratch/` 和各级 `_index.md`，然后重建 `output/graph.db`（新增 claims/evidence 表）和 `wiki/{concepts,references}/_index.md`。已存在的文件一律跳过——`raw/`、`wiki/` 内容、`config.md`、`log.md` 一个字都不会改。
 
-**旧配置会自动搬过来**：它会在 `<课题>/.agents/`、`<hub>/.agents/`、`~/.claude`、`~/.gemini` 里找旧的 `config.yaml`，把 MinerU token、模型名、dpi、语义连边阈值等填进新配置（只填还是默认值的项，你后来手动改过的绝不覆盖），并打印搬了哪些键——token 只报键名不回显。
+**旧配置会自动搬过来**：它会在 `<项目>/.agents/`、`<hub>/.agents/`、`~/.claude`、`~/.gemini` 里找旧的 `config.yaml`，把 MinerU token、模型名、dpi、语义连边阈值等填进新配置（只填还是默认值的项，你后来手动改过的绝不覆盖），并打印搬了哪些键——token 只报键名不回显。
 
 > [!NOTE]
 > `magi migrate` **没有** `--dry-run`，也**没有** `--force`。非破坏性是写死在实现里的，不靠开关保证：它调用脚手架时从不传 `--force`，所以只可能新建缺失文件。重复跑是安全的，第二次会走「刷新索引」分支。
 
-剩下的一步（要选装给哪个 CLI，所以没自动做）：
+剩下的一步——它需要一个项目才能装进去，所以没法在迁移里替你做：
 
 ```powershell
-cd topics\<你的主题> && magi skills install
+cd <你的项目> && magi install
 ```
 
+它会装进这台机器上每一个探测到的 agent CLI，不问你。会问的是
+`magi skills install`，那条只装技能、不装协议块和会话钩子。
+
 > [!EXPECT]
-> 每个主题先打印 `Migrating workspace: <path>`，有旧配置可搬时打印 `config carried from ...`，然后 `magi graph build: ok` / `magi wiki reindex: ok`。最后「Finishing up」对每个主题跑 `magi sync --fix`，并报出新的同步率。
+> 每个项目先打印 `Migrating workspace: <path>`，有旧配置可搬时打印 `config carried from ...`，然后 `magi graph build: ok` / `magi wiki reindex: ok`。最后「Finishing up」对每个项目跑 `magi sync --fix`，并报出新的同步率。
 
 > [!FIX]
-> - **某个课题中途报 `FAILED`**：脚手架失败现在算数了——汇总行和退出码都会反映。`graph build` / `wiki reindex` 的 `FAILED` **故意**不算：那两样是从已经就位的文件派生出来的，在那个课题里跑 `magi sync --fix` 就会重建。
-> - **没提醒你建索引**：迁移会对每个工作区跑 `magi sync --fix`，图谱和索引都在里面。如果你加了 `--minimal`，两样都没做——自己进每个目录跑一遍 `magi sync --fix`。
+> - **某个项目中途报 `FAILED`**：脚手架失败现在算数了——汇总行和退出码都会反映。`graph build` / `wiki reindex` 的 `FAILED` **故意**不算：那两样是从已经就位的文件派生出来的，在那个项目里跑 `magi sync --fix` 就会重建。
+> - **没提醒你建索引**：迁移会对每个项目跑 `magi sync --fix`，图谱和索引都在里面。如果你加了 `--minimal`，两样都没做——自己进每个目录跑一遍 `magi sync --fix`。
 > - **迁移后 agent 还在提旧命令**：`magi setup --remove-legacy` 没跑，或宿主技能缓存没刷新——重启 agent 会话。
-> - **某个主题没被迁移**：迁移会跳过既没有 `wiki/` 也没有 `raw/` 的目录。进那个目录单独跑 `magi migrate`——它会顺手把库登记进注册表。
+> - **某个项目没被迁移**：迁移会跳过既没有 `wiki/` 也没有 `raw/` 的目录。进那个目录单独跑 `magi migrate`——它会顺手把项目登记进注册表。
 > - **直接抛 Python 异常**：脚手架步骤没有异常保护，常见原因是文件被占用/权限不足（Windows 上编辑器锁了 `CLAUDE.md`）。关掉占用程序重跑即可，不会有半成品。
 
 > [!WARN]
-> **项目内的旧 skills 要单独处理。** 如果你的 hub 或课题目录里有 `.agents/skills/`（Wikify 时代复制进去的），`magi setup --remove-legacy` **管不到**——它只扫 `~/.claude` 和 `~/.gemini`。而 `.agents/skills/` 恰恰是 Codex、agy、opencode 都会读的目录，里面的旧 SKILL.md 会让 agent 去调已经不存在的脚本。`magi migrate` 现在会检测并提示，改名备份即可：`mv .agents .agents.wikify-backup`。
+> **项目内的旧 skills 要单独处理。** 如果你的 hub 或项目目录里有 `.agents/skills/`（Wikify 时代复制进去的），`magi setup --remove-legacy` **管不到**——它只扫 `~/.claude` 和 `~/.gemini`。而 `.agents/skills/` 恰恰是 Codex、agy、opencode 都会读的目录，里面的旧 SKILL.md 会让 agent 去调已经不存在的脚本。`magi migrate` 现在会检测并提示，改名备份即可：`mv .agents .agents.wikify-backup`。
 
 > [!WARN]
 > `magi setup --remove-legacy` 删的不只是那个 `llm-wiki.py`：一旦在 `~/.claude/bin`（或 `~/.gemini/bin`）里发现它，**整个 bin 目录会被递归删除**，没有二次确认。跑之前先看一眼那个目录里有没有你自己放的东西。
@@ -490,35 +494,35 @@ cd topics\<你的主题> && magi skills install
 
 ---
 
-## 建立文献库 {#workspace}
+## 建立项目 {#workspace}
 
 两条命令就能建好：
 
 ```powershell
-magi init               # 在这个课题自己的目录里
+magi init               # 在这个项目自己的目录里
 magi install            # 装进你的 agent CLI：技能 + 协议块 + 收工闸门
 ```
 
-一个课题一个目录，之上没有别的层。下面是生成了什么、多个库怎么一起用、以及 MAGI 怎么判断「当前工作区」。
+一个项目一个目录，之上没有别的层。下面是生成了什么、多个项目怎么一起用、以及 MAGI 怎么判断「当前项目」。
 
-### 一个库还是好几个 {#workspace-shape}
+### 一个项目还是好几个 {#workspace-shape}
 
-一个课题、一个目录，`magi init` 就完事。第二个课题就是第二个目录——不需要共同的父目录，
+一个项目、一个目录，`magi init` 就完事。第二个项目就是第二个目录——不需要共同的父目录，
 也不需要先规划。`magi init` 会把它登记进用户级注册表，于是：
 
 ```powershell
 mkdir my-topic ; cd my-topic
-magi init --name "显示名" --scope "一句话说清这个库收什么、不收什么"
+magi init --name "显示名" --scope "一句话说清这个项目收什么、不收什么"
 magi install
 magi pm init           # 可选：机械任务的任务库（会 git-init 本目录）
 ```
 
 `magi search` 默认只搜你现在这个项目，`--scope all` 才去读别的；`magi kb list` 列出这台机器上都有哪些。v1 的 hub（父目录 +
 `wikis.json` + `topics/`）退场了：它存在的理由是那份注册表，而注册表现在是每台机器一份，
-库住在哪里都能被找到。
+项目住在哪里都能被找到。
 
 `--scope` 不是装饰：它会写进 `AGENTS.md` 的托管块，成为 agent 判断「这篇该不该收、这个概念
-算不算本库范围」的依据。**写得越具体，后面自动化的判断越准。**
+算不算本项目范围」的依据。**写得越具体，后面自动化的判断越准。**
 
 ### `magi init` 生成了什么 {#workspace-layout}
 
@@ -526,8 +530,8 @@ magi pm init           # 可选：机械任务的任务库（会 git-init 本目
 my-topic/
 ├─ AGENTS.md               agent 入场协议（`magi:begin` 托管块 + 你自己写的部分）
 ├─ CLAUDE.md               只有一行 `@AGENTS.md`——协议只有一份
-├─ config.md               本库的人读说明（标题 + 研究范围）
-├─ config.yaml             本工作区配置（OCR、模型、雷达……见第 5 章）
+├─ config.md               本项目的人读说明（标题 + 研究范围）
+├─ config.yaml             本项目配置（OCR、模型、雷达……见第 5 章）
 ├─ decisions.md            只有人做的决定；agent 誊写，别的什么都不写进来
 ├─ inbox/                  待处理投喂区（PDF 丢这里）· notes.md 是你的随手堆放区
 ├─ raw/                    摄入后的原始文献 Markdown
@@ -544,11 +548,11 @@ my-topic/
 
 > [!NOTE]
 > **没有 `log.md`，也没有 `wiki/theses/`。** 记录就是 `threads/` 里的跟帖，按时间读用
-> `magi feed`——同一批事件写在两个地方，第一次有人只改了其中一个就开始打架。老库里这两样
+> `magi feed`——同一批事件写在两个地方，第一次有人只改了其中一个就开始打架。老项目里这两样
 > 照旧留着：没人再往 `log.md` 写，`magi migrate` 会把 `theses/` 搬进 `drafts/`。
 
 > [!TIP]
-> 用 Obsidian 打开**主题目录**（不要打开 Hub 根）。在 设置 → 档案与链接 → 排除档案 里加两条正则，图谱就只剩纯知识卡片：
+> 用 Obsidian 打开**项目目录**（不要打开 Hub 根）。在 设置 → 档案与链接 → 排除档案 里加两条正则，图谱就只剩纯知识卡片：
 > ```regex
 > /(?:^|/)(?:_index|log|config|uncompiled-source-coverage|CLAUDE|AGENTS)\.md$/
 > ```
@@ -556,40 +560,40 @@ my-topic/
 > /^\..*|(?:^|/)(?:scratch|inbox|raw|output|vendor)(?:/|$)/
 > ```
 
-### 跨库工作 {#workspace-hub}
+### 跨项目工作 {#workspace-hub}
 
-工作区之上没有别的层。一个库就是一个目录；`magi init` 会把它登记进用户级列表，
-而正是这个列表让好几个库变成一个可检索的整体：
+项目之上没有别的层。一个项目就是一个目录；`magi init` 会把它登记进用户级列表，
+而正是这个列表让好几个项目变成一个可检索的整体：
 
 ```powershell
-magi kb list                      # 这台机器知道的所有库
-magi kb disable <name>            # 让某个库不参与联邦检索
-magi search "toric code"          # 先搜本库，再搜所有启用的库
+magi kb list                      # 这台机器知道的所有项目
+magi kb disable <name>            # 不让别的项目读到它
+magi search "toric code"          # 先搜本项目，再搜所有启用的项目
 ```
 
 v1 有 **hub**：一个带 `wikis.json` 注册表的父目录，下面挂 `topics/`，外加注册、归档、
-恢复、跨库批跑一整套命令。它退场了。它存在的理由——那份注册表——现在是**每台机器一份**
-而不是每个父目录一份，而这才是真正干活的部分；库也不必住在某个特定位置才被找得到。
-归档一个课题＝`magi kb disable` 再把目录挪到你放完结项目的地方。
+恢复、跨项目批跑一整套命令。它退场了。它存在的理由——那份注册表——现在是**每台机器一份**
+而不是每个父目录一份，而这才是真正干活的部分；项目也不必住在某个特定位置才被找得到。
+归档一个项目＝`magi kb disable` 再把目录挪到你放完结项目的地方。
 
-原本挂在 hub 下面的工作区照常能用：`magi migrate` 会把每个都登记好，文件一个不动。
+原本挂在 hub 下面的项目照常能用：`magi migrate` 会把每个都登记好，文件一个不动。
 hub 自己的 `wikis.json`、`topics/`、`log.md` 从此不起作用——你想删的时候再删。
 
-### MAGI 怎么找到「当前工作区」{#workspace-discovery}
+### MAGI 怎么找到「当前项目」{#workspace-discovery}
 
-所有命令都靠**从当前目录向上走**（最多 30 层）来定位工作区：
+所有命令都靠**从当前目录向上走**（最多 30 层）来定位项目：
 
-- **主题根**的判定：目录里既有 `wiki/` 或 `raw/`，又有 `config.md` / `log.md` / `config.yaml` 三者之一。
+- **项目根**的判定：目录里既有 `wiki/` 或 `raw/`，又有 `config.md` / `log.md` / `config.yaml` 三者之一。
 - **Hub 根**的判定：既有 `wikis.json` 又有 `topics/`。
 
-**没有任何环境变量能改这个行为**——不存在 `MAGI_HOME`。要跨目录操作就用 `--topic-dir` / `--db` 这类显式参数。
+**没有任何环境变量能改这个行为**——不存在 `MAGI_HOME`。要跨目录操作就用 `--project-dir` / `--db` 这类显式参数。
 
 > [!FIX]
-> - **报 `no workspace found`**：你站在 hub 根或更上层。`cd` 进具体主题目录，或加 `--topic-dir <路径>`。
+> - **报 `no project found`**：你站在 hub 根或更上层。`cd` 进具体项目目录，或加 `--project-dir <路径>`。
 > - **`magi init` 重跑说 `Skipping existing ...`**：这不是错误。默认不覆盖已有文件；真想按新的 `--name/--scope` 重新生成，加 `--force`（会丢掉你对这些文件的手工修改）。
 
 > [!WARN]
-> **别把工作区套娃**。`magi init` 不检查父目录是不是已经是工作区。如果你在某个主题的 `raw/` 里面又 init 了一个工作区，外层的待编译积压计数会把内层的 `raw/*.md` 全算进来，同步率会莫名其妙地掉。已经套了就把内层挪到外层的 `raw/ wiki/ inbox/ output/` 之外。
+> **别把项目套娃**。`magi init` 不检查父目录是不是已经是项目。如果你在某个项目的 `raw/` 里面又 init 了一个项目，外层的待编译积压计数会把内层的 `raw/*.md` 全算进来，同步率会莫名其妙地掉。已经套了就把内层挪到外层的 `raw/ wiki/ inbox/ output/` 之外。
 
 ---
 
@@ -618,7 +622,7 @@ magi ingest review --item <ID> --decision approve      # 逐条过
 magi ingest review --commit                           # 到这一步才真的进 raw/
 ```
 
-`--library <名字>` 可以按名字排进某个已注册的知识库，不用非得站在那个目录里
+`--library <名字>` 可以按名字排进某个已注册的项目，不用非得站在那个目录里
 （`magi kb list` 看名字）。
 
 两件值得知道的事：
@@ -632,7 +636,7 @@ MAGI 先问这份文档是不是真需要：**没有数学的原生电子版 PDF
 ——免费、快，而且忠实，因为那是文档自己的文字，不是对它的一次识别。**带数学的不行**：
 字符出得来，二维结构出不来，所以照样交给模型。这个不用你选，闸门自己判，并把判断打出来。
 
-**不点头，什么都进不了你的库。** `batch-run` 只写进暂存区就停下；只要批次里还有
+**不点头，什么都进不了你的项目。** `batch-run` 只写进暂存区就停下；只要批次里还有
 一条没决定，`batch-commit` 就**直接拒绝**。而「拒绝」不等于丢弃——它会自动落到
 **下一档路线**、出现在下一批里，所以「这份转得不行，换个法子」只要一条命令。
 
@@ -675,7 +679,7 @@ magi ingest auto --dry-run        # 先看它打算怎么走
 
 ### 需要配置什么 {#ingest-config}
 
-配置写在**工作区根目录的 `config.yaml`**（找不到才回退 `~/.config/magi/config.yaml`；两者不合并，就近的那份完全覆盖全局那份）。
+配置写在**项目根目录的 `config.yaml`**（找不到才回退 `~/.config/magi/config.yaml`；两者不合并，就近的那份完全覆盖全局那份）。
 
 ```yaml
 ocr:
@@ -707,7 +711,7 @@ tools:                      # 只有在这些程序不在 PATH 上时才需要�
 
 语义检索需要一个嵌入模型。默认走本机 Ollama，但任何说 OpenAI `/v1/embeddings`
 这套协议的接口都可以：把 `embedding.provider` 设成 `openai`，填上面三个字段即可；
-也可以在 WebUI 的「工作区配置」卡片里填，key 那一栏是遮蔽输入。
+也可以在 WebUI 的「项目配置」卡片里填，key 那一栏是遮蔽输入。
 
 下面四家的接口形状都对着各自官方文档实际查过：
 
@@ -770,16 +774,16 @@ magi ingest add --file inbox/notes.md --type notes --move
 **每一条路线跑完都必须收尾**：
 
 ```powershell
-magi ingest finalize inbox/paper.pdf --topic-dir . --md-file raw/papers/2026-08-20-paper.md
+magi ingest finalize inbox/paper.pdf --project-dir . --md-file raw/papers/2026-08-20-paper.md
 ```
 
-`finalize` 才是真正把文件接进知识库的那一步：把原件归档到 `inbox/.processed/`、清理 frontmatter、把图片链接转成 Obsidian 双链、跑公式格式化与校验，最后 `magi lint --fix` + `magi graph build` + `magi wiki reindex`。
+`finalize` 才是真正把文件接进项目的那一步：把原件归档到 `inbox/.processed/`、清理 frontmatter、把图片链接转成 Obsidian 双链、跑公式格式化与校验，最后 `magi lint --fix` + `magi graph build` + `magi wiki reindex`。
 
 > [!WARN]
-> 最后那三条是**对整个工作区**跑的，不只是这一篇；而且**任何一条失败都只打印一行 warning，不中断、不改退出码**。第一次摄入时留意终端里有没有 `Warning: 'magi lint' failed` 这类行——它会在之后每次摄入时静默重复。看到了就单独把那条命令跑一遍看真实报错。
+> 最后那三条是**对整个项目**跑的，不只是这一篇；而且**任何一条失败都只打印一行 warning，不中断、不改退出码**。第一次摄入时留意终端里有没有 `Warning: 'magi lint' failed` 这类行——它会在之后每次摄入时静默重复。看到了就单独把那条命令跑一遍看真实报错。
 
 > [!TIP]
-> 批量摄入时别每篇都重建图谱：每篇加 `--skip-lint`，全部结束后再跑一次 `magi ingest finalize none --topic-dir . --lint-only`。
+> 批量摄入时别每篇都重建图谱：每篇加 `--skip-lint`，全部结束后再跑一次 `magi ingest finalize none --project-dir . --lint-only`。
 
 > [!EXPECT]
 > `raw/<type>/YYYY-MM-DD-<slug>.md` 出现，插图在同级 `images/`；终端最后一行是 `Successfully converted and saved to ...` 或本地 OCR 的 `✓ 转换完成！`。
@@ -816,13 +820,13 @@ magi ingest finalize inbox/paper.pdf --topic-dir . --md-file raw/papers/2026-08-
 
 ---
 
-## 编译成知识库 {#compile}
+## 编译进项目 {#compile}
 
 编译是唯一没有命令的一步——你对 agent 说：
 
 > 「把待编译的都编译了」
 
-它会执行 `compile` 技能：读懂每篇摄入进来的论文、拆出概念、判断哪些属于本库范围、写成结构化的互链卡片。`magi compile` 不存在、以后也不会有——这是理解工作，CLI 在这一层只负责检查和修补 agent 写出来的东西。
+它会执行 `compile` 技能：读懂每篇摄入进来的论文、拆出概念、判断哪些属于本项目范围、写成结构化的互链卡片。`magi compile` 不存在、以后也不会有——这是理解工作，CLI 在这一层只负责检查和修补 agent 写出来的东西。
 
 编译完，三条命令收尾：
 
@@ -849,7 +853,7 @@ magi graph build        # 把新卡片刷进图谱
 | 「合并重复概念」 | `tidy` | 同义概念物理归并、过宽概念拆分、多源定义重写 |
 | 「清理标签」 | `tidy` | 标签/别名本体论归一（见第 7 章） |
 | 「体检并修复」 | `magi lint --fix` | 死链、frontmatter、公式的自动修补——确定性命令，不需要 skill |
-| 「公式被摄入弄坏了」 | `tidy` | 全库把坏公式抓成一张清单，逐条读懂再改 |
+| 「公式被摄入弄坏了」 | `tidy` | 全项目把坏公式抓成一张清单，逐条读懂再改 |
 
 对应的确定性命令：
 
@@ -857,7 +861,7 @@ magi graph build        # 把新卡片刷进图谱
 magi wiki uncompiled                      # 还有哪些 raw 源没编译（编译进度就看它）
 magi lint --fix                           # 结构自愈：补 frontmatter、归位文件、重建目录表
 magi wiki reindex .                       # 重建 concepts/、references/、topics/、theses/ 的 _index.md 目录表
-magi stats . wiki-summary                 # 全库结构统计
+magi stats . wiki-summary                 # 全项目结构统计
 magi map wiki/concepts                    # 某个目录里每个文件的章节与公式块分布
 magi wiki placeholders wiki/concepts/x.md # 找出没写完的占位段落
 ```
@@ -883,7 +887,7 @@ magi wiki placeholders wiki/concepts/x.md # 找出没写完的占位段落
 > - `Wikily [[...]] contains Windows-illegal filename character(s)`：双链里出现了 `\ / : * ? " < > |`，改名。
 > - `Wikilink appears to contain a raw mathematical equation`：双链里塞了 LaTeX，换成干净的概念名，公式另起一行写。
 > - `Master _index.md is missing`：标着 fixable，但 **`--fix` 并没有实现这一条**；`config.md is missing` 压根没标 fixable。两个都得手工建。
-> - **在工作区外面跑 lint 几乎什么都不查**：只做最外层结构检查就停了。真正的质量闸门要进主题目录跑。
+> - **在项目外面跑 lint 几乎什么都不查**：只做最外层结构检查就停了。真正的质量闸门要进项目目录跑。
 
 > [!WARN]
 > `magi lint --json` 里的 `status` 字段和退出码**判定标准不同**：JSON 的 status 只要有任何 warning/suggestion 就是 `fail`，而退出码和文本版 `Result:` 只看 critical。CI 里请以退出码为准。
@@ -892,17 +896,17 @@ magi wiki placeholders wiki/concepts/x.md # 找出没写完的占位段落
 
 ```powershell
 magi math format                    # 机械修复：$$ 配对、\tag 位置、eqnarray→align、OCR 粘连
-magi math check                     # 只报错不改：整库扫一遍，按文件列出坏在哪
+magi math check                     # 只报错不改：整个项目扫一遍，按文件列出坏在哪
 magi math check --json              # 同上，但输出一张可逐条处理的工单
 ```
 
-**两条命令默认都作用于整个工作区**（和 `magi lint` 一样），也可以像 `magi math check raw/papers/x.md`
+**两条命令默认都作用于整个项目**（和 `magi lint` 一样），也可以像 `magi math check raw/papers/x.md`
 这样只点一个文件或目录。范围限定在 `wiki/ raw/ drafts/`——`format` 是就地改写且没有 dry-run，
 `scratch/` 里放的正是概念卡备份，不能被它碰。
 
 顺序永远是**先 format 再 check**：能机械修的先修掉，剩下的才值得人去读。
 
-`--fast` 跳过逐文件的 pdflatex 深检（大库能省几分钟），`--wiki-only` 只看编译好的卡片。
+`--fast` 跳过逐文件的 pdflatex 深检（大项目能省几分钟），`--wiki-only` 只看编译好的卡片。
 
 `--json` 每条一个公式，带 `id`（`路径:行`，可勾掉）、行范围、原始 TeX、以及 `confidence`：
 
@@ -1040,7 +1044,7 @@ magi index --quiet        # 不打进度行（末尾汇总照常输出）
 
 索引覆盖 `wiki/`、`raw/`、`drafts/` 下所有 `.md`，按一到三级标题切块，单块上限 250 行。**增量更新**：内容哈希没变的文件跳过，删掉的文件自动清理。
 
-慢的是嵌入这一半；如果这个库当初是在没有 Ollama 的情况下建的索引，那要补的就是整个语料。过程中会持续报进度，并且**每批各自提交**——中途打断也不会丢掉已经算完的部分，下次接着补。
+慢的是嵌入这一半；如果这个项目当初是在没有 Ollama 的情况下建的索引，那要补的就是整个语料。过程中会持续报进度，并且**每批各自提交**——中途打断也不会丢掉已经算完的部分，下次接着补。
 
 > [!EXPECT]
 > ```
@@ -1052,7 +1056,7 @@ magi index --quiet        # 不打进度行（末尾汇总照常输出）
 
 每次送 16 块给 Ollama。要改就在 `config.yaml` 里设 `ollama.embed_batch`——调大更快，但 Ollama 那边内存占用也更高；嵌入服务跑到一半被杀掉，代价远大于省下的那点时间。
 
-`magi index` 还会把当前工作区**自动注册**进全局知识库表（`~/.config/magi/registry.json`），这样别的工作区也能搜到它。
+`magi index` 还会把当前项目**自动注册**进全局项目表（`~/.config/magi/registry.json`），这样别的项目也能搜到它。
 
 ### 搜索 {#search-query}
 
@@ -1069,10 +1073,10 @@ magi search "..." --json                     # 机器可读
 
 默认的 `hybrid` 模式把关键词与语义两路结果用 RRF 融合排序，中英文都支持（中文按二元组切分进关键词索引，语义那侧由嵌入模型天然跨语言）。
 
-**跨库检索**：
+**跨项目检索**：
 
 ```powershell
-magi kb list                  # 所有注册库及其可搜状态
+magi kb list                  # 所有注册项目及其可搜状态
 magi kb disable <名字>         # 排除出全局检索（enable 恢复）
 magi kb register <路径>        # 手动注册（默认按目录名命名，重名自动加 -2）
 magi kb unregister <名字>      # 只删注册项，不动文件
@@ -1080,7 +1084,7 @@ magi kb unregister <名字>      # 只删注册项，不动文件
 
 > [!FIX]
 > - `no index at output/index.db` → 先 `magi index`。
-> - `no workspace here and no searchable registered KBs` → 你不在工作区里，且没有可搜的注册库。`cd` 进去，或 `magi kb register` + `enable`。
+> - `no workspace here and no searchable registered KBs` → 你不在项目里，且没有可搜的注册项目。`cd` 进去，或 `magi kb register` + `enable`。
 > - **搜不到刚写的内容** → 索引是按哈希增量的，但**不会自动触发**。编辑后重跑 `magi index`。
 > - **结果全是关键词命中，没有语义** → 结尾会提示 `BM25-only`。MAGI 已经试过拉起本机 Ollama 了；还是 BM25-only 就说明它没装、或者嵌入模型没拉。用 `magi setup --check` 看一眼，再重跑 `magi index` 补向量。
 > - **索引任务在跑的时候，搜索提示降级成了关键词** → Ollama 一次只处理一个请求，索引任务会一直占着它。搜索等 8 秒还拿不到向量就先把关键词那一半结果返回来，而不是干等着；等任务跑完再搜一次即可。
@@ -1097,7 +1101,7 @@ magi kb unregister <名字>      # 只删注册项，不动文件
 
 ## 研究状态 {#threads}
 
-课题的状态住在文件里，不在任务追踪器里。`threads/` 下每篇 note 是一个**命题**（有真值，
+项目的状态住在文件里，不在任务追踪器里。`threads/` 下每篇 note 是一个**命题**（有真值，
 研究的基本单元）、一个**问题**（开放式，答案是一批命题），或者一条**研究线**（正文就是
 它的 STATUS：到哪了、卡在哪、下一步）。文件名就是它的 ID，建好不改。
 
@@ -1127,7 +1131,7 @@ magi feed -n 20       # 所有跟帖按时间倒序——记录本身
 magi sync --close     # 收工闸门：还有没写下来的事就拦住
 ```
 
-在工作区里不带任何参数运行 CLI，跑的就是 `next`——一个入口，路由自己决定。
+在项目里不带任何参数运行 CLI，跑的就是 `next`——一个入口，路由自己决定。
 
 `magi next` 的顺序是有理由的：**记账债在最前**，因为它下面每一行都是从当前不对的 note
 算出来的；然后是**只有人能决定的事**（审核驳回、两个写者撞车、该不该转向），它们不能排在
@@ -1307,7 +1311,7 @@ magi pm backlog-sync  # 把「还没编译的 raw 源」变成待办
 ```
 
 > [!NOTE]
-> `magi pm init` 就在当前项目里建库（v2 起不再往上找 hub），一个项目一个任务库。任务库只放机械活——编译积压、待读、待审；课题状态在 `threads/` 里，那里才装得下状态和论证。给某条线开的活打 `line:<线名>` 标签。
+> `magi pm init` 就在当前项目里建库（v2 起不再往上找 hub），一个项目一个任务库。任务库只放机械活——编译积压、待读、待审；项目状态在 `threads/` 里，那里才装得下状态和论证。给某条线开的活打 `line:<线名>` 标签。
 
 六种科研类型：`question`、`survey`、`derivation`、`computation`、`experiment`、`review`（外加 bd 自带的 `task`/`bug`/`feature`/`epic`/`chore`/`decision`）。
 
@@ -1342,7 +1346,7 @@ magi wiki context --name "某概念"             # 　 把所有提到该概念�
 magi bib --all -o drafts/refs.bib             # 3. 导出参考文献
 magi bib pretko-2020 --fetch                  # 　 有 arxiv_id 时拉 arXiv 官方条目
 magi stats . verify-refs drafts/paper.md      # 4. 检查双链是否都指向真实文件
-magi verify drafts/paper.md --topic-dir .     # 　 检查命题的引文是否真的存在
+magi verify drafts/paper.md --project-dir .     # 　 检查命题的引文是否真的存在
 magi math check drafts/paper.md
 ```
 
@@ -1366,8 +1370,8 @@ SOURCE: raw/papers/laughlin-1983.md
 `FINDING:` 是 `CLAIM:` 的同义词。四个字段缺一不可。然后：
 
 ```powershell
-magi verify drafts/paper.md --topic-dir .            # 退出码 0=全部通过，1=有未核验
-magi verify drafts/paper.md --topic-dir . --fetch-web  # 网页来源也真的抓取比对
+magi verify drafts/paper.md --project-dir .            # 退出码 0=全部通过，1=有未核验
+magi verify drafts/paper.md --project-dir . --fetch-web  # 网页来源也真的抓取比对
 magi validate wiki/topics/x.md                      # 一篇综述的结构校验
 ```
 
@@ -1395,7 +1399,7 @@ magi radar harvest              # 或者随时手动跑一次
 
 ### 配置 {#radar-config}
 
-写在工作区 `config.yaml`：
+写在项目 `config.yaml`：
 
 ```yaml
 radar:
@@ -1412,10 +1416,10 @@ radar:
 
 `min_relevance`、`own_arxiv_ids`、`citation_gap.*` 这三组**不在 `magi init` 生成的模板里**，需要时自己加。
 
-相关度是「候选摘要与本库嵌入质心的余弦相似度」，所以它依赖 `magi index` 建好的向量索引 + 可用的 Ollama；没有的话候选按来源顺序排列，不打分。
+相关度是「候选摘要与本项目嵌入质心的余弦相似度」，所以它依赖 `magi index` 建好的向量索引 + 可用的 Ollama；没有的话候选按来源顺序排列，不打分。
 
 > [!NOTE]
-> **这个分数要当排名看，不要当概率看。** 能进简报的候选，本来就来自你配的 arXiv 分类、或者以你自己论文为种子的推荐——打分之前它们就已经是「像样的」了，所以分数会挤在量程的高端。在一个真实的 67 篇论文的库上实测：40 个候选全部落在 **0.55–0.70** 之间；而真正无关的文本分数低得多——一篇普通凝聚态论文 0.45、一篇机器学习论文 0.37、随机字符 0.31。
+> **这个分数要当排名看，不要当概率看。** 能进简报的候选，本来就来自你配的 arXiv 分类、或者以你自己论文为种子的推荐——打分之前它们就已经是「像样的」了，所以分数会挤在量程的高端。在一个真实的 67 篇论文的项目上实测：40 个候选全部落在 **0.55–0.70** 之间；而真正无关的文本分数低得多——一篇普通凝聚态论文 0.45、一篇机器学习论文 0.37、随机字符 0.31。
 > 
 > 也就是说 `min_relevance` 是用来兜**分类层面**的错的（比如 arXiv 分类填错了，把另一个领域的东西拉了进来），不是精度旋钮。取 0.50 左右能兜住这种情况，除此之外什么也不会拦；调到 0.60 以上就开始误杀了。排序在列表顶端是可信的、在中位数附近基本是噪声——界面里因此把它显示成每批内部的 **高相关 / 中等 / 偏低**，原始余弦值放在悬停提示里。
 
@@ -1455,7 +1459,7 @@ magi radar install-schedule --uninstall      # 卸载
 - **Linux**：**什么都不会装**——只打印一行建议的 crontab（会按你传的 `--time` 来），自己 `crontab -e` 加进去。
 
 > [!WARN]
-> 任务名里含工作区路径的哈希。**移动或改名工作区之后，`--uninstall` 就找不到旧任务了**，得手动删（`schtasks /Delete /TN <名字> /F` 或删 plist）。
+> 任务名里含项目路径的哈希。**移动或改名项目之后，`--uninstall` 就找不到旧任务了**，得手动删（`schtasks /Delete /TN <名字> /F` 或删 plist）。
 
 ### 噪声调优 {#radar-tuning}
 
@@ -1498,8 +1502,8 @@ magi ui --reload                 # 改代码自动重载（开发用）
 
 | 面板 | 能干什么 |
 |---|---|
-| **课题总览** | 你该看的两件事，外加一个可以不讲究的框：**想到什么就写在这**（直接写进 `inbox/notes.md`，分类是 agent 的活）、**等你拍板的决定**、**研究线**（相位 + 线上开着几条）、**回头看**（你的预测记录和最近的决定）。再往下才是同步率、一键修复建议、注册库管理和 `config.yaml` 关键字段 |
-| **Melchior（认知）** | **Threads**（所有命题、问题、线，带种类、状态、温层和已下的注）和**单条视图**：note 自己的正文、整段讨论、一个说话的框，以及每一个它合法能去的状态各一个按钮——只有人能做的那些带 `*`。然后是**时间线**（所有跟帖，最新在前）、命题与证据表、待编译积压、图谱七视图 + 只读 SQL 台、BibTeX 复制、草稿列表。图上现在也画 `threads/`，按种类着色，可以只看库、只看研究状态，或者缩到骨架 |
+| **项目总览** | 你该看的两件事，外加一个可以不讲究的框：**想到什么就写在这**（直接写进 `inbox/notes.md`，分类是 agent 的活）、**等你拍板的决定**、**研究线**（相位 + 线上开着几条）、**回头看**（你的预测记录和最近的决定）。再往下才是同步率、一键修复建议、注册项目管理和 `config.yaml` 关键字段 |
+| **Melchior（认知）** | **Threads**（所有命题、问题、线，带种类、状态、温层和已下的注）和**单条视图**：note 自己的正文、整段讨论、一个说话的框，以及每一个它合法能去的状态各一个按钮——只有人能做的那些带 `*`。然后是**时间线**（所有跟帖，最新在前）、命题与证据表、待编译积压、图谱七视图 + 只读 SQL 台、BibTeX 复制、草稿列表。图上现在也画 `threads/`，按种类着色，可以只看项目、只看研究状态，或者缩到骨架 |
 | **Balthasar（任务）** | Beads 计数 + 一键「把积压同步成任务」 |
 | **Casper（文献检索）** | 检索实验台：模式/范围/集合/路径过滤，与 `magi search --json` 完全同构——点一条命中就打开卡片，直接停在命中的那一段 |
 | **文献雷达** | 简报阅读 + 逐条审阅动作 |
@@ -1510,8 +1514,8 @@ magi ui --reload                 # 改代码自动重载（开发用）
 > **读卡片的入口只有一个。** 图谱上的节点、侧栏里的链接、卡片正文里的 `[[双链]]`、
 > Casper 里的一条检索命中——点开的都是同一个渲染视图：公式排好版的 markdown、
 > 从卡片自己的 `images/` 里取出的插图、就地画出来的 mermaid 图，正文旁边是目录
-> 大纲。检索命中会停在匹配的那一段而不是文件开头；命中落在哪个已注册的库里，
-> 预览就去那个库里读。
+> 大纲。检索命中会停在匹配的那一段而不是文件开头；命中落在哪个已注册的项目里，
+> 预览就去那个项目里读。
 
 **日常那一环，浏览器里能走完整条。** 开命题、跟帖、翻状态、记决定、找人复核、
 收 `inbox/` 里的文件、检索、结束一条线、发表、收工——每一步都有入口。判据是
@@ -1531,7 +1535,7 @@ setup / migrate / pm init / 删除旧版拷贝 / 雷达定时任务。
 > **仍然只在终端的**：`magi init`（还没有项目的时候，也就没有面板）、
 > `validate` / `verify` / `tags *` / `math *` 这些维护命令，以及**编译**——
 > 编译需要一个 LLM，所以它是 skill 不是命令，`magi compile` 不存在也不会有
-> （见「编译成知识库」一章）。这一条对终端用户同样成立，不是浏览器的短板。
+> （见「编译进项目」一章）。这一条对终端用户同样成立，不是浏览器的短板。
 
 顶栏的 **⚡ MAGI 模式** 切换战术主题：红色为战斗态（深色），蓝色为静默值守（浅色），☀︎/☽ 在两者间切换。
 
@@ -1550,7 +1554,7 @@ setup / migrate / pm init / 删除旧版拷贝 / 雷达定时任务。
 两条命令能解决大部分问题：
 
 ```powershell
-magi sync                          # 这个工作区接下来该做什么，连修复命令一起给出
+magi sync                          # 这个项目接下来该做什么，连修复命令一起给出
 magi guide --symptoms              # 拿你真正看到的报错去查
 ```
 
@@ -1571,16 +1575,16 @@ magi guide --symptoms --search "ollama"     # 按关键词过滤
 | 装完了但 `magi` 找不到 | 开**新终端**；仍不行把 `~/.local/bin` 加进 PATH |
 | 升级时报 `failed to remove directory ... Lib: 拒绝访问` | Windows 上 `magi ui` 正开着，占用安装目录。关掉看板再重装 |
 | 某个功能报缺依赖 | `magi setup --check` |
-| 命令说 `no workspace found` | `cd` 进主题目录，或加 `--topic-dir` |
-| 不知道某个库在哪 | `magi kb list` |
-| 摄入完了但库里没有 | 忘了 `magi ingest finalize` |
+| 命令说 `no project found` | `cd` 进项目目录，或加 `--project-dir` |
+| 不知道某个项目在哪 | `magi kb list` |
+| 摄入完了但项目里没有 | 忘了 `magi ingest finalize` |
 | 图谱是旧的 | `magi graph build` —— 它没有增量模式 |
 | 搜不到刚写的东西 | `magi index` —— 它不会自动触发 |
 | 检索没有语义结果 | `magi setup --check`——停着的 Ollama 会自己起来，所以是没装或模型没拉；然后 `magi index` 补向量 |
 | 双链点不开 / 断链多 | `magi graph browse broken` |
 | 概念重复、标签发散 | `magi link . --dedup-only`；`magi tags extract` |
 | 卡片格式报错 | `magi lint --fix` |
-| 公式渲染不对 | `magi math format` → `magi math check`（整库；`--json` 出清单交给 `tidy` 技能逐条修）|
+| 公式渲染不对 | `magi math format` → `magi math check`（整个项目；`--json` 出清单交给 `tidy` 技能逐条修）|
 | 引用导不出来 | 检查文献卡 frontmatter 的 `title/authors/year/arxiv_id` |
 | 论断被标 unverified | 引文要与来源逐字一致，且必须单行 |
 | 雷达没有新东西 | 检查 `arxiv_categories` / `seed_arxiv_ids`；`--days` 放宽 |

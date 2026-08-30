@@ -68,11 +68,24 @@ def test_find_chapter_by_number_anchor_section_and_title():
 
 
 @pytest.mark.parametrize("lang,needle", [
-    ("zh", "no workspace found"),
-    ("en", "no workspace found"),
+    # Real strings the CLI prints. When one is reworded the manual has to
+    # follow it — this pair went stale the moment "no workspace found" became
+    # "no project found", and the guide kept quoting the old one under a
+    # green test.
+    ("zh", "no project found"),
+    ("en", "no project found"),
     ("zh", "mineru_api_token"),
 ])
 def test_search_finds_real_error_strings_with_commands(lang, needle):
+    from pathlib import Path as _Path
+
+    source = "\n".join(
+        f.read_text(encoding="utf-8", errors="replace")
+        for f in (_Path(__file__).resolve().parents[1] / "src" / "magi").rglob("*.py"))
+    assert needle in source, (
+        f"{needle!r} is not a string this CLI prints any more — the manual is "
+        f"being checked against an error that no longer exists")
+
     hits = search_guide(_chapters(lang), needle)
     assert hits, f"{lang}: manual should cover {needle!r}"
     top = hits[0]

@@ -121,7 +121,7 @@ def cmd_url(args) -> int:
     else:
         topic = _resolve_topic(args.topic_dir)
     if topic is None:
-        print("no workspace found — run this from a topic directory, pass "
+        print("no project found — run this from inside one, pass "
               "--topic-dir, or name a registered library with --library "
               "(see 'magi kb list')", file=sys.stderr)
         return 1

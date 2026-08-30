@@ -171,7 +171,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     topic = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if topic is None:
-        msg = "no workspace found (run inside a topic directory or pass --topic-dir)"
+        msg = "no project found (run inside one, or pass --project-dir)"
         print(json.dumps({"error": msg}, ensure_ascii=False) if args.json else f"error: {msg}",
               file=None if args.json else sys.stderr)
         return 1

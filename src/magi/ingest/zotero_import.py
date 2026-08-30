@@ -90,7 +90,7 @@ def cmd_import(args) -> int:
     else:
         topic = _resolve_topic(args.topic_dir)
     if topic is None:
-        print("no workspace found — pass --library <NAME> (see 'magi kb list') "
+        print("no project found — pass --library <NAME> (see 'magi kb list') "
               "or run this from inside a topic directory", file=sys.stderr)
         return 1
 

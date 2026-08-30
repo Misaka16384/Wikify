@@ -365,7 +365,7 @@ def cmd_backlog_sync(args: argparse.Namespace) -> int:
     """Create a bd issue (type: task, label: magi-compile) per uncompiled raw source."""
     topic = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if topic is None:
-        print("no workspace found", file=sys.stderr)
+        print("no project found (run inside one, or pass --project-dir)", file=sys.stderr)
         return 1
     beads_root = find_beads_root(topic)
     if beads_root is None or not bd_available():

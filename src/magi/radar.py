@@ -627,7 +627,7 @@ def _resolve_topic(args: argparse.Namespace) -> Path | None:
     if not getattr(args, "topic_dir", None):
         topic = find_workspace_root()
         if topic is None:
-            print("no workspace found (run from inside a project, or pass --project-dir)",
+            print("no project found (run from inside one, or pass --project-dir)",
                   file=sys.stderr)
         return topic
     topic = Path(args.topic_dir).expanduser().resolve()

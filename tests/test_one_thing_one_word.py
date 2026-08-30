@@ -33,6 +33,59 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 APP_JS = ROOT / "src" / "magi" / "ui" / "static" / "app.js"
 INDEX = ROOT / "src" / "magi" / "ui" / "static" / "index.html"
+GUIDES = {
+    "zh": ROOT / "src" / "magi" / "docs" / "guide.zh.md",
+    "en": ROOT / "src" / "magi" / "docs" / "guide.en.md",
+}
+
+#: The dashboard's RETIRED list above is what a dropdown menu needed. Prose
+#: reaches for more synonyms than a menu ever did: the guides also used
+#: "library" and "knowledge base" as a fourth and fifth English gloss, 主题
+#: (the direct translation of "topic") throughout the Chinese guide, and bare
+#: 库 ("library"/"store", the noun the compounds above are built from) on its
+#: own wherever a sentence just said "this library" or "67 libraries" instead
+#: of naming one of the compounds. None of that reaches the screen, but a
+#: reader of the manual meets it exactly the way a reader of the dashboard
+#: used to meet 工作区 and 知识库.
+GUIDE_RETIRED = re.compile(
+    r"工作区|工作空间|知识库|本库|课题|主题|库"
+    r"|\bworkspace\b|\btopic\b|\btopics\b|knowledge.base|\blibrar(?:y|ies)\b",
+    re.IGNORECASE)
+
+#: Each of these is a different word that happens to be spelled the same, or a
+#: literal quote of something the CLI actually prints — checked the same way
+#: ALLOWED is above: if the line carries one of these, the retired-looking
+#: word next to it is not our word. Named per concept, with the reason, so
+#: that adding one is a decision and not a regex accident.
+GUIDE_ALLOWED = re.compile(
+    r"topics[/\\]"                                    # wiki/topics/, and v1 hub's own topics/ — real directories, not "research subject"
+    r"|topic pages|主题页"                              # what lives in wiki/topics/ — synthesis writeups, not projects
+    r"|--topic-dir|--project-dir"                      # the accepted flag alias and its current spelling
+    r"|magi kb\b|--library\b"                          # real command and real flag names
+    r"|任务库|建库|task.store|task.database"            # the Beads task DB, not a project
+    r"|仓库|\brepo\b|clone"                             # a git repository, not a project
+    r"|模式库|pattern library"                          # output/reflect/patterns/, a different library entirely
+    r"|--kb-only|--full\b|纯知识库|knowledge-base-only"  # the flag's own name for a feature mode, not the directory
+    r"|战术主题|tactical theme"                          # the WebUI's colour scheme, not a research subject
+    r"|主题分区|topic clusters"                          # a thematic cluster in the graph view, not a project
+    r"|category.{0,30}(?:concept|topic|reference)"      # the `category:` frontmatter's real enum value
+    r"|~/Library|Library/LaunchAgents"                  # macOS's own folder convention
+    r"|my-topic|quantum-toys"                           # an arbitrary example directory name, not a claim about vocabulary
+    r"|\{#workspace[a-z-]*\}"                           # an anchor; external links point at it, so it never changes
+)
+
+#: Text the guides quote because the CLI prints it. Kept apart from
+#: `GUIDE_ALLOWED` because the two are excused for different reasons and only
+#: this one can go stale: a quote stops being legitimate the moment the code
+#: stops emitting it, and an exemption that outlives the string it protects is
+#: a standing pass for a false quote. `test_no_exemption_excuses_text_the_cli_
+#: never_prints` walks this tuple against the source.
+QUOTED_OUTPUT = (
+    "no workspace here and no searchable",
+    "Migrating workspace",
+    "what the library itself needs",
+    "start building the library",
+)
 
 #: Entries whose "library" is not this system's. Named, so that adding one is
 #: a decision somebody makes rather than a regex accident.
@@ -141,3 +194,29 @@ def test_the_explainer_no_longer_disambiguates_one_word_from_itself():
     assert "magi hub init" not in zh, "it still teaches a retired command"
     assert "也叫项目" not in zh, "it still disambiguates one word from itself"
     assert "registry.json" in zh, "what registering does is the part worth saying"
+
+
+@pytest.mark.parametrize("lang", ["zh", "en"])
+def test_the_guides_use_one_word(lang):
+    """The two long-form guides (`guide.zh.md`, `guide.en.md`) are prose, not
+    a dropdown menu, so they reached for synonyms the dashboard never showed:
+    "library" and "knowledge base" in English, 主题 and bare 库 in Chinese.
+    Checked per line rather than per dictionary entry — a guide has no keys —
+    but the principle is the same one `test_the_screen_uses_one_word` uses:
+    a line that names one of the excused concepts is not making the mistake
+    this test exists to catch."""
+    offenders = []
+    for number, line in enumerate(
+            GUIDES[lang].read_text(encoding="utf-8").splitlines(), 1):
+        # Cut the excused spans out and look at what is left, rather than
+        # skipping any line that contains one. Skipping the line let
+        # `magi kb disable <name>  # leave one workspace out` through: the
+        # command name is excused, so the sentence beside it was never read.
+        rest = GUIDE_ALLOWED.sub(" ", line)
+        for phrase in QUOTED_OUTPUT:
+            rest = rest.replace(phrase, " ")
+        if GUIDE_RETIRED.search(rest):
+            offenders.append((number, line.strip()[:120]))
+
+    assert not offenders, (
+        f"guide.{lang}.md still calls a project something else: {offenders}")

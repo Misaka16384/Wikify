@@ -78,16 +78,42 @@ def test_a_guide_search_example_finds_something_real(doc):
         f"{missing}")
 
 
+#: Words that mean "it reaches past this project", in either language.
+_REACHES_OUT = re.compile(r"联邦|跨项目|跨库|所有启用|federat|every enabled|"
+                          r"all enabled|across .*projects", re.IGNORECASE)
+
+#: Words that mean "by default".
+_BY_DEFAULT = re.compile(r"默认|by default", re.IGNORECASE)
+
+
 def test_the_docs_do_not_promise_the_old_search_default():
-    """The default became "this project only" and three chapters said
-    otherwise. Stated as the specific claim rather than as a word ban: what
-    went wrong was a promise, not a vocabulary."""
+    """`--scope` defaults to `local`. Three chapters said it federated.
+
+    Checked by shape, not by spelling. The first version of this test banned
+    the exact string "默认联邦检索", and the vocabulary sweep rewrote the same
+    false sentence as "默认就会联邦检索" — one particle, and the ban was gone.
+    A phrase that can be paraphrased past a guard was never being guarded.
+
+    So: any line that mentions `magi search`, says "by default", and also says
+    it reaches other projects is the claim this is looking for, however it is
+    worded.
+    """
+    from magi import retrieval
+
+    assert retrieval.build_parser().parse_args(["search", "q"]).scope == "local", (
+        "the default changed — this test is now guarding the wrong claim")
+
+    offenders = []
     for name, text in _all_docs():
-        for phrase in ("默认：本库 + 所有启用",
-                       "默认联邦检索",
-                       "federates by default",
-                       "this wiki + every enabled registered KB"):
-            assert phrase not in text, f"{name} still promises the old default"
+        for number, line in enumerate(text.splitlines(), 1):
+            if "magi search" not in line:
+                continue
+            if _BY_DEFAULT.search(line) and _REACHES_OUT.search(line):
+                offenders.append(f"{name}:{number}: {line.strip()[:70]}")
+
+    assert not offenders, (
+        "these say searching reaches other projects by default, and it does "
+        f"not: {offenders}")
 
 
 def test_the_dashboard_chapter_does_not_deny_what_the_dashboard_does():
@@ -134,3 +160,27 @@ def test_retired_commands_are_not_taught():
         for gone in ("magi ingest batch-list", "magi ingest batch-decide",
                      "magi ingest batch-commit"):
             assert gone not in text, f"{name} still teaches {gone}"
+
+
+def test_no_exemption_excuses_text_the_cli_never_prints():
+    """`test_one_thing_one_word` excuses lines that quote real CLI output. An
+    exemption for a sentence the code stopped printing is worse than none: it
+    is a standing pass for a false quote, and it survives exactly the change
+    that made the quote wrong.
+
+    Two of them were already dead when this was written — `no workspace found`
+    and `this library has knowledge but…`, both rewritten in the vocabulary
+    merge — and the guides were still quoting both under their protection.
+    """
+    from tests import test_one_thing_one_word as vocab
+
+    haystack = _cli_strings()
+
+    # Walked from the tuple itself, not from a copy kept here by hand. The
+    # first version listed the phrases in this file, so adding a stale one
+    # over there changed nothing on this side.
+    assert vocab.QUOTED_OUTPUT, "the exemption list vanished"
+    for phrase in vocab.QUOTED_OUTPUT:
+        assert phrase in haystack, (
+            f"the guides are excused for quoting {phrase!r} as CLI output, and "
+            f"nothing in src/magi prints it any more")

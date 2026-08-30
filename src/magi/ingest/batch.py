@@ -434,7 +434,7 @@ def _source_census(value: str):
 def cmd_run(args) -> int:
     topic = _resolve_topic(args.topic_dir)
     if topic is None:
-        print("no workspace found", file=sys.stderr)
+        print("no project found (run inside one, or pass --project-dir)", file=sys.stderr)
         return 1
 
     # Snapshot before doing anything. A "reject and retry" that lands mid-run
@@ -525,7 +525,7 @@ def cmd_run(args) -> int:
 def cmd_list(args) -> int:
     topic = _resolve_topic(args.topic_dir)
     if topic is None:
-        print("no workspace found", file=sys.stderr)
+        print("no project found (run inside one, or pass --project-dir)", file=sys.stderr)
         return 1
 
     known = ledger.list_batches(topic)
@@ -603,7 +603,7 @@ def cmd_list(args) -> int:
 def cmd_decide(args) -> int:
     topic = _resolve_topic(args.topic_dir)
     if topic is None:
-        print("no workspace found", file=sys.stderr)
+        print("no project found (run inside one, or pass --project-dir)", file=sys.stderr)
         return 1
 
     for batch_id in ledger.list_batches(topic):
@@ -669,7 +669,7 @@ def _finalize(argv: list, *, what: str) -> bool:
 def cmd_commit(args) -> int:
     topic = _resolve_topic(args.topic_dir)
     if topic is None:
-        print("no workspace found", file=sys.stderr)
+        print("no project found (run inside one, or pass --project-dir)", file=sys.stderr)
         return 1
 
     # `--batch` means the same thing here as it does in the listing: this one.

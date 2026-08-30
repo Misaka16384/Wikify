@@ -700,7 +700,7 @@ class _Progress:
 def cmd_index(args: argparse.Namespace) -> int:
     root = Path(args.topic_dir).resolve() if args.topic_dir else find_workspace_root()
     if root is None:
-        return _die("no workspace found (run from inside a project, or pass --project-dir)")
+        return _die("no project found (run from inside one, or pass --project-dir)")
     db_path = root / "output" / "index.db"
     # The one honest remedy for a changed embedding model: the vector table is
     # created with a fixed width and cannot be widened in place, so the file
@@ -1032,7 +1032,7 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
                            if not wanted or name in wanted)
         if not targets:
             if scope == "local":
-                raise SearchError("no workspace found", "run from inside a project, or pass --project-dir")
+                raise SearchError("no project found", "run from inside one, or pass --project-dir")
             raise SearchError("no workspace here and no searchable registered KBs",
                               "run inside a topic dir, or 'magi kb register' + 'magi kb enable'")
 
