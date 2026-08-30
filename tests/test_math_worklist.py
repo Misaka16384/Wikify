@@ -47,6 +47,14 @@ def library(tmp_path):
         encoding="utf-8")
     (ws / "raw" / "papers" / "env.md").write_text(
         "# P\n\n$$\n\\begin{aligned}\n1 & 2\n\\end{pmatrix}\n$$\n", encoding="utf-8")
+    # A draft with the same defect. `drafts/` is where the working-out lives,
+    # so it is where an unfinished formula actually sits — and until this file
+    # existed, no fixture put anything there and `CORPUS_DIRS` could lose the
+    # directory without a single test noticing.
+    (ws / "drafts").mkdir(parents=True, exist_ok=True)
+    (ws / "drafts" / "sketch.md").write_text(
+        "# Working out\n\nTrying $\\mathcal{B}_{\\mathrm{x}}} = 3$ here.\n",
+        encoding="utf-8")
     # Same defect, in a backup. Must never appear in the worklist — in either
     # place a backup has ever lived. `wiki/concepts/.backup/` is where `magi
     # link` and `magi wiki refactor-concept` write now, and it is inside the
@@ -143,6 +151,21 @@ def test_every_entry_is_addressable_and_carries_its_source(library):
         assert e["kind"] in ("block", "inline")
         assert e["confidence"] in ("certain", "likely-macro")
         assert e["collection"] in ("wiki", "raw", "drafts")
+
+
+def test_every_tree_in_the_corpus_is_actually_walked(library):
+    """Membership in a tuple is not coverage. The assertion above passed
+    whether or not `drafts/` was scanned, because nothing ever put a defect
+    there; this names each tree and requires a real entry from it."""
+    # Named here, not imported from `wiki_common`. Reading the expectation out
+    # of the constant under test makes the check move with the bug: cutting
+    # `drafts` from CORPUS_DIRS shrank the expected set too, and the test went
+    # green on a corpus that had just lost a directory.
+    found = {e["collection"] for e in collect_issues(library, use_pdflatex=False)}
+    missing = sorted({"wiki", "raw", "drafts"} - found)
+    assert not missing, (
+        f"{missing} is in CORPUS_DIRS but no defect there reached the worklist "
+        "— either the fixture stopped covering it or the walk stopped visiting it")
 
 
 def test_a_swallowed_page_does_not_swallow_the_worklist(tmp_path):

@@ -487,59 +487,6 @@ def format_issue_for_cli(issue):
     indented_context = "\n".join("      " + line for line in issue['context'].split('\n'))
     return f"{header}\n{indented_context}"
 
-def process_file(file_path, use_pdflatex=False):
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        issues, valid_blocks, valid_inlines = validate_math_pylatexenc(content)
-        if use_pdflatex and (valid_blocks or valid_inlines):
-            try:
-                pdflatex_issues = validate_math_pdflatex(valid_blocks, valid_inlines)
-                issues.extend(pdflatex_issues)
-            except Exception as e:
-                print(f"[\033[93mWARNING\033[0m] pdflatex validation failed for {file_path}: {e}")
-
-        if issues:
-            print(f"[\033[93mWARNING\033[0m] Math syntax errors in {os.path.basename(file_path)}:")
-            for issue in issues:
-                print(f"    - {format_issue_for_cli(issue)}")
-            return True
-    except Exception as e:
-        print(f"[\033[93mWARNING\033[0m] Failed to process math validation for {file_path}: {e}")
-        return False
-    return False
-
-def process_directory(directory):
-    print(f"Validating math formulas in markdown files under: {directory}")
-    
-    has_pdflatex = shutil.which("pdflatex") is not None
-    if has_pdflatex:
-        print("Using native pdflatex for deep semantic validation (detects double subscripts, missing braces, etc.)")
-    elif HAS_PYLATEXENC:
-        print("pdflatex not found. Falling back to pylatexenc for structural validation (detects missing braces).")
-    else:
-        print("Neither pdflatex nor pylatexenc found. Skipping math validation.")
-        return
-
-    files_with_issues = 0
-    total_files = 0
-    
-    for root, dirs, files in os.walk(directory):
-        dirs[:] = [d for d in dirs if not d.startswith('.')]
-        for file in files:
-            if file.endswith('.md'):
-                total_files += 1
-                file_path = os.path.join(root, file)
-                if process_file(file_path, use_pdflatex=has_pdflatex):
-                    files_with_issues += 1
-                    
-    if files_with_issues > 0:
-        print(f"\nCompleted: Found math errors in {files_with_issues} out of {total_files} files.")
-    else:
-        print(f"\nCompleted: All {total_files} files passed math validation cleanly.")
-    return files_with_issues > 0
-
 # A whole library's worth of ingest damage is hundreds of entries; printing
 # every one buries the shape of the problem. --json is the complete list.
 _MAX_PER_FILE = 6

@@ -58,3 +58,56 @@ def test_normalize_loose_folds_expected_artifacts():
     assert normalize_loose("eﬀective ﬁeld") == "effectivefield"
     assert normalize_loose("compli-\ncated") == "complicated"
     assert normalize_loose("，（）") == normalize_loose(",()")
+
+
+# --------------------------------------------------------------------------
+# a SOURCE that points out of the project
+# --------------------------------------------------------------------------
+
+QUOTE = "The gap closes at the boundary."
+
+
+def _outside_with_the_evidence(tmp_path):
+    """A real file, outside the project, that really does contain the quote.
+
+    Both halves matter. A missing file answers "file not found" whether or not
+    the guard is there, and a file without the quote answers "not found in
+    source" — either way the test would pass against no guard at all.
+    """
+    project = tmp_path / "project"
+    (project / "raw").mkdir(parents=True)
+    outside = tmp_path / "elsewhere" / "private.md"
+    outside.parent.mkdir(parents=True)
+    outside.write_text(QUOTE + "\n", encoding="utf-8")
+    return project, outside
+
+
+def test_a_relative_source_cannot_climb_out_of_the_project(tmp_path):
+    project, outside = _outside_with_the_evidence(tmp_path)
+
+    status, note = verify_local(QUOTE, "../elsewhere/private.md", str(project))
+
+    assert status == "unverified", (
+        f"a claim verified itself against {outside}, which is outside the "
+        f"project: {note}")
+    assert "traversal" in note
+
+
+def test_an_absolute_source_cannot_reach_outside_either(tmp_path):
+    project, outside = _outside_with_the_evidence(tmp_path)
+
+    status, note = verify_local(QUOTE, str(outside), str(project))
+
+    assert status == "unverified", note
+    assert "traversal" in note
+
+
+def test_the_same_evidence_inside_the_project_still_verifies(tmp_path):
+    """The other side of the guard, so it cannot be widened into refusing
+    everything: the identical quote, in the identical file, inside."""
+    project, _ = _outside_with_the_evidence(tmp_path)
+    (project / "raw" / "private.md").write_text(QUOTE + "\n", encoding="utf-8")
+
+    status, note = verify_local(QUOTE, "raw/private.md", str(project))
+
+    assert status == "verified", note

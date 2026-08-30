@@ -384,6 +384,15 @@ def main(argv=None):
     parser.add_argument("--status", default=None, help="claims: filter by status.")
     parser.add_argument("--tags", action="store_true",
                         help="map: include tag nodes and has_tag edges.")
+    # `browse_map` has taken both of these since before the WebUI started
+    # passing them; only the CLI never asked, so the view its own docstring
+    # describes was unreachable from a terminal.
+    parser.add_argument("--kinds", default=None,
+                        help="map: comma-separated node kinds to keep "
+                             "(concept, reference, proposition, question, line, claim).")
+    parser.add_argument("--skeleton", action="store_true",
+                        help="map: shape rather than texture — the hubs and what "
+                             "joins them, without the leaves.")
     parser.add_argument("--limit", type=int, default=None, help="Max rows to return.")
     parser.add_argument("--json", action="store_true", help="Machine-readable output.")
     parser.add_argument("--db", default=None,
@@ -432,8 +441,11 @@ def main(argv=None):
         elif view == "tags":
             results = browse_tags(conn, q=args.q, limit=args.limit or 100)
         elif view == "map":
+            kinds = ([k.strip() for k in args.kinds.split(",") if k.strip()]
+                     if args.kinds else None)
             results = browse_map(conn, include_tags=args.tags,
-                                 limit=args.limit or 800)
+                                 limit=args.limit or 800,
+                                 kinds=kinds, skeleton=args.skeleton)
         else:  # broken
             results = browse_broken(conn, limit=args.limit or 200)
     except Exception as e:

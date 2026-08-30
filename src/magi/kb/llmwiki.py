@@ -2607,13 +2607,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     graph = subparsers.add_parser(
         "graph",
-        help="Extract a SQLite knowledge graph from the wiki.",
+        help="Extract a SQLite knowledge graph from this project.",
         description=(
-            "Parse [[wikilinks]], tags, and aliases from the wiki/ folder "
-            "and build an AI-friendly SQLite graph database in output/graph.db."
+            "Build output/graph.db: [[wikilinks]], tags and aliases from wiki/, "
+            "the claims and evidence in magi:claims blocks, and the propositions, "
+            "questions and lines in threads/ with the edges between them "
+            "(depends_on, answers, derivation)."
         ),
     )
-    graph.add_argument("--local", action="store_true", help="Use .wiki/ in the current directory.")
+    graph.add_argument("--local", action="store_true",
+                       help="Use a pre-v1 .wiki/ directory here instead of wiki/.")
     graph.add_argument("--wiki", help=argparse.SUPPRESS)
     graph.add_argument("path", nargs="?", help="Wiki root path.")
     graph.set_defaults(func=run_graph)

@@ -205,3 +205,43 @@ def test_the_printed_count_is_the_count_in_the_table(built, tmp_path):
     nodes = built.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
     edges = built.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
     assert nodes > 3 and edges > 1, "tags become nodes and edges of their own"
+
+
+def test_the_number_it_prints_is_the_number_in_the_tables(tmp_path):
+    """`Indexed N nodes and M edges` is the only report most people read, and
+    nothing checked it against the database.
+
+    `run_graph` counts from the tables on purpose — tags become nodes in a
+    later pass, so the rows collected during the walk were never the whole
+    graph. Nothing held that: going back to `len(node_rows)` made the printed
+    number wrong with every test still green.
+    """
+    import re
+    import sqlite3
+    import subprocess
+    import sys
+
+    ws = tmp_path / "p"
+    (ws / "wiki" / "concepts").mkdir(parents=True)
+    (ws / "wiki" / "concepts" / "a.md").write_text(
+        "---\ntitle: A\ntags: [alpha, beta]\n---\n\nSee [[b]].\n", encoding="utf-8")
+    (ws / "wiki" / "concepts" / "b.md").write_text(
+        "---\ntitle: B\ntags: [alpha]\n---\n\nBack to [[a]].\n", encoding="utf-8")
+
+    proc = subprocess.run([sys.executable, "-m", "magi", "graph", "build", str(ws)],
+                          capture_output=True, text=True, encoding="utf-8",
+                          errors="replace")
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    said = re.search(r"Indexed (\d+) nodes and (\d+) edges", proc.stdout)
+    assert said, f"no count in the output: {proc.stdout!r}"
+
+    conn = sqlite3.connect(ws / "output" / "graph.db")
+    try:
+        nodes = conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+        edges = conn.execute("SELECT COUNT(*) FROM edges").fetchone()[0]
+    finally:
+        conn.close()
+
+    assert (int(said.group(1)), int(said.group(2))) == (nodes, edges), (
+        "the command reported a different graph from the one it wrote")
