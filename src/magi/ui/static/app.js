@@ -87,6 +87,38 @@
       need_workspace: "先在顶栏选一个工作空间——不然这行字会写进服务器启动的那个目录",
       badge_kb_gone: "目录不在了",
       btn_review: "找人复核这条",
+      btn_thread_new: "开一条新的",
+      btn_decide: "记下这是我的决定",
+      decide_needs_words: "先在上面写下你的原话——decisions.md 记的是你说的,不是摘要",
+      decided: "已写进 decisions.md",
+      bet_none: "不带预测",
+      bet_supported: "我赌它成立",
+      bet_refuted: "我赌它不成立",
+      bet_unknown: "不知道(合法,也会记下来)",
+      btn_open_it: "开",
+      kind_proposition: "命题（一个可以被证伪的说法）",
+      kind_question: "问题（还不知道答案）",
+      kind_line: "研究线（一组相关的命题）",
+      new_title_ph: "标题——它到底主张什么",
+      new_purpose_ph: "为什么现在值得开这一条",
+      new_line_ph: "属于哪条线（可留空）",
+      new_hint: "标题会变成它的永久 id。命题是能被证伪的说法;问题是还不知道答案;线是一组相关命题的视图。",
+      new_needs_both: "标题和「为什么现在」都要填",
+      new_opened: "{slug} 开好了",
+      line_field_ph: "属于哪些线,逗号分隔",
+      btn_set_line: "改所属的线",
+      btn_close_line: "结束这条线",
+      btn_publish: "发表并归档",
+      close_would_silence: "关掉之后这 {n} 条会永远没人再提起：",
+      close_nothing_open: "这条线上没有还开着的东西。",
+      close_why_prompt: "结束 {line}——为什么？（这句会记进结案帖）",
+      closed_line: "{line} 已结束",
+      publish_no_papers: "drafts/ 和 output/ 里没有 .md,先把稿子放进去。",
+      publish_which: "发表哪一篇？",
+      publish_would_bury: "这 {n} 条会被标成「已被论文取代」：",
+      publish_why: "这篇论文报告的是什么？（这句会记进归档帖）",
+      publish_loose_ends: "还有没收尾的：{slugs}。仍要发表就说明为什么——这句会写进记录。",
+      published: "已归档,相关工作已退役",
       btn_review_running: "正在问…",
       review_hint: "让另一个厂商的 CLI 读这条命题——它没有你这段对话的上下文。要花一次周预算。",
       review_confirm: "要问 {host}（模型 {model}）复核这条命题吗？\n\n这会花掉本周预算的一次:还剩 {left}/{limit}。\n一般十几秒。",
@@ -883,6 +915,38 @@
       need_workspace: "Pick a workspace in the top bar first — otherwise this lands in whichever directory the server was started in",
       badge_kb_gone: "directory gone",
       btn_review: "Have this reviewed",
+      btn_thread_new: "Open a new one",
+      btn_decide: "Record this as my decision",
+      decide_needs_words: "Write it in your own words above — decisions.md keeps what you said, not a summary",
+      decided: "Written into decisions.md",
+      bet_none: "no prediction",
+      bet_supported: "I bet it holds",
+      bet_refuted: "I bet it does not",
+      bet_unknown: "don't know (legitimate, and recorded)",
+      btn_open_it: "Open it",
+      kind_proposition: "Proposition (a claim that could be wrong)",
+      kind_question: "Question (nobody knows yet)",
+      kind_line: "Research line (a view over related claims)",
+      new_title_ph: "Title — what it actually claims",
+      new_purpose_ph: "Why this is worth opening now",
+      new_line_ph: "Which line it belongs to (optional)",
+      new_hint: "The title becomes its permanent id. A proposition is a claim that could be wrong; a question is one nobody has answered; a line is a view over related claims.",
+      new_needs_both: "A title and a why-now are both required",
+      new_opened: "{slug} is open",
+      line_field_ph: "Lines it belongs to, comma separated",
+      btn_set_line: "Set its lines",
+      btn_close_line: "End this line",
+      btn_publish: "Publish and file",
+      close_would_silence: "Closing it means these {n} are never mentioned again:",
+      close_nothing_open: "Nothing is still open on this line.",
+      close_why_prompt: "Ending {line} — why? (this goes into the closing post)",
+      closed_line: "{line} is closed",
+      publish_no_papers: "No .md in drafts/ or output/ — put the write-up there first.",
+      publish_which: "Which paper?",
+      publish_would_bury: "These {n} will be marked superseded by the paper:",
+      publish_why: "What does this paper report? (this goes into the record)",
+      publish_loose_ends: "Loose ends: {slugs}. Publishing anyway — say why; it goes into the record.",
+      published: "Filed, and the work it reports is retired",
       btn_review_running: "asking…",
       review_hint: "Asks another vendor's CLI to read this claim — one that does not share your conversation. Costs one call from the week's budget.",
       review_confirm: "Ask {host} (model {model}) to review this claim?\n\nThis spends one call from this week's budget: {left}/{limit} left.\nUsually about fifteen seconds.",
@@ -3450,6 +3514,7 @@
   // ---------------------------------------------------------------- threads
 
   async function loadThreads() {
+    wireNewThread();
     const body = document.getElementById("threads-body");
     if (!body || !state.workspace) return;
     const kind = document.getElementById("threads-kind");
@@ -3565,6 +3630,8 @@
     // available until there is a sentence.
     wireMoveGate();
     renderReviewRow(data);
+    renderLineRow(data);
+    renderDecideRow(data);
     view.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -3683,6 +3750,226 @@
       box.addEventListener("input", sync);
     }
     sync();
+  }
+
+  // ------------------------------------------------------- opening a note
+
+  function wireNewThread() {
+    const toggle = document.getElementById("thread-new-toggle");
+    const form = document.getElementById("thread-new-form");
+    if (!toggle || !form || toggle.dataset.wired) return;
+    toggle.dataset.wired = "1";
+    toggle.textContent = t("btn_thread_new");
+    document.getElementById("new-submit").textContent = t("btn_open_it");
+    document.getElementById("new-title").placeholder = t("new_title_ph");
+    document.getElementById("new-purpose").placeholder = t("new_purpose_ph");
+    document.getElementById("new-line").placeholder = t("new_line_ph");
+    document.getElementById("new-hint").textContent = t("new_hint");
+    const kind = document.getElementById("new-kind");
+    // Written out rather than built from a prefix: a key assembled at
+    // runtime cannot be checked against the dictionary, and the check exists
+    // because a missing key renders as the key.
+    kind.innerHTML = [
+      ["proposition", t("kind_proposition")],
+      ["question", t("kind_question")],
+      ["line", t("kind_line")],
+    ].map(([v, label]) => `<option value="${v}">${escapeHtml(label)}</option>`)
+      .join("");
+    toggle.addEventListener("click", () => { form.hidden = !form.hidden; });
+    document.getElementById("new-submit").addEventListener("click", openNote);
+  }
+
+  async function openNote() {
+    const title = document.getElementById("new-title").value.trim();
+    const purpose = document.getElementById("new-purpose").value.trim();
+    const line = document.getElementById("new-line").value.trim();
+    if (!title || !purpose) { showToast(t("new_needs_both"), "error"); return; }
+    try {
+      const res = await apiFetch("/api/workspace/thread/new", {
+        method: "POST",
+        body: JSON.stringify({
+          workspace: state.workspace,
+          kind: document.getElementById("new-kind").value,
+          title, purpose, lines: line ? [line] : [],
+        }),
+      });
+      document.getElementById("new-title").value = "";
+      document.getElementById("new-purpose").value = "";
+      document.getElementById("thread-new-form").hidden = true;
+      showToast(t("new_opened", { slug: res.slug }), "success");
+      loadThreads();
+      loadMap();
+      openThread(res.slug);
+    } catch (err) {
+      showToast(err.message, "error");
+    }
+  }
+
+  // ------------------------------------------- the line, and the ceremonies
+
+  function renderLineRow(data) {
+    const input = document.getElementById("thread-line-input");
+    const btn = document.getElementById("thread-line-btn");
+    const row = document.getElementById("thread-ceremony-row");
+    if (!input || !btn) return;
+    input.value = (data.lines || []).join(", ");
+    input.placeholder = t("line_field_ph");
+    btn.textContent = t("btn_set_line");
+    if (!btn.dataset.wired) {
+      btn.dataset.wired = "1";
+      btn.addEventListener("click", () => setThreadLines(input.value));
+    }
+    // Closing and publishing are about a line, so they appear on one.
+    if (row) {
+      row.hidden = data.kind !== "line";
+      if (!row.hidden) {
+        const cb = document.getElementById("thread-close-line-btn");
+        const pb = document.getElementById("thread-publish-btn");
+        cb.textContent = t("btn_close_line");
+        pb.textContent = t("btn_publish");
+        if (!cb.dataset.wired) {
+          cb.dataset.wired = "1";
+          cb.addEventListener("click", () => closeLineFlow(data.slug));
+          pb.addEventListener("click", () => publishFlow(data.slug));
+        }
+      }
+    }
+    const out = document.getElementById("thread-ceremony-out");
+    if (out) out.innerHTML = "";
+  }
+
+  function renderDecideRow(data) {
+    // `/api/workspace/decide` has existed with nothing in the browser calling
+    // it. An endpoint with no button is the same wall as a missing endpoint,
+    // with extra steps — and this is the action that clears the debt the
+    // close gate reports as "a person's call and nothing records that they
+    // made it".
+    const sel = document.getElementById("thread-bet");
+    const btn = document.getElementById("thread-decide-btn");
+    const row = document.getElementById("thread-decide-row");
+    if (!sel || !btn || !row) return;
+    row.hidden = data.kind === "line";
+    if (row.hidden) return;
+    if (!sel.options.length) {
+      sel.innerHTML = [
+        ["", t("bet_none")],
+        ["supported", t("bet_supported")],
+        ["refuted", t("bet_refuted")],
+        ["unknown", t("bet_unknown")],
+      ].map(([v, label]) => `<option value="${v}">${escapeHtml(label)}</option>`)
+        .join("");
+    }
+    btn.textContent = t("btn_decide");
+    if (!btn.dataset.wired) {
+      btn.dataset.wired = "1";
+      btn.addEventListener("click", () => recordDecision(data.slug));
+    }
+  }
+
+  async function recordDecision(slug) {
+    const text = saidText();
+    if (!text) { showToast(t("decide_needs_words"), "error"); return; }
+    try {
+      await apiFetch("/api/workspace/decide", {
+        method: "POST",
+        body: JSON.stringify({
+          workspace: state.workspace, about: slug, text,
+          bet: document.getElementById("thread-bet").value || null,
+        }),
+      });
+      document.getElementById("thread-say").value = "";
+      showToast(t("decided"), "success");
+      openThread(slug);
+      loadMap();
+    } catch (err) { showToast(err.message, "error"); }
+  }
+
+  async function setThreadLines(raw) {
+    const why = saidText();
+    if (!why) { showToast(t("need_reason"), "error"); return; }
+    const lines = raw.split(",").map((s) => s.trim()).filter(Boolean);
+    try {
+      await apiFetch("/api/workspace/thread/line", {
+        method: "POST",
+        body: JSON.stringify({ workspace: state.workspace,
+                               slug: state.thread.slug, lines, text: why }),
+      });
+      document.getElementById("thread-say").value = "";
+      openThread(state.thread.slug);
+      loadMap();
+    } catch (err) { showToast(err.message, "error"); }
+  }
+
+  async function closeLineFlow(line) {
+    const out = document.getElementById("thread-ceremony-out");
+    let found;
+    try {
+      found = await apiFetch(`/api/workspace/line/close?workspace=`
+        + encodeURIComponent(state.workspace) + `&line=` + encodeURIComponent(line));
+    } catch (err) { showToast(err.message, "error"); return; }
+
+    // The survey, shown before the flip. `close_cmd` exists for this: closing
+    // a line with three open propositions is a decision about those three,
+    // and somebody who has not been shown them has not made it.
+    const open = found.open || [];
+    out.innerHTML = open.length
+      ? `<p class="card-subtitle">${escapeHtml(t("close_would_silence", { n: open.length }))}</p>`
+        + `<ul>${open.map((i) => `<li><code>${escapeHtml(i.slug)}</code> — ${escapeHtml(i.status)}</li>`).join("")}</ul>`
+      : `<p class="card-subtitle">${escapeHtml(t("close_nothing_open"))}</p>`;
+
+    const why = window.prompt(t("close_why_prompt", { line }));
+    if (!why || !why.trim()) return;
+    try {
+      await apiFetch("/api/workspace/line/close", {
+        method: "POST",
+        body: JSON.stringify({ workspace: state.workspace, line,
+                               text: why.trim(), anyway: open.length > 0 }),
+      });
+      showToast(t("closed_line", { line }), "success");
+      openThread(line);
+      loadMap();
+      loadThreads();
+    } catch (err) { out.innerHTML = `<p class="card-subtitle">${escapeHtml(err.message)}</p>`; }
+  }
+
+  async function publishFlow(line) {
+    const out = document.getElementById("thread-ceremony-out");
+    let papers;
+    try {
+      papers = await apiFetch(`/api/workspace/papers?workspace=`
+        + encodeURIComponent(state.workspace));
+    } catch (err) { showToast(err.message, "error"); return; }
+    if (!(papers.papers || []).length) {
+      out.innerHTML = `<p class="card-subtitle">${escapeHtml(t("publish_no_papers"))}</p>`;
+      return;
+    }
+    const paper = window.prompt(t("publish_which"), papers.papers[0]);
+    if (!paper) return;
+    let found;
+    try {
+      found = await apiFetch(`/api/workspace/publish?workspace=`
+        + encodeURIComponent(state.workspace) + `&paper=` + encodeURIComponent(paper)
+        + `&line=` + encodeURIComponent(line));
+    } catch (err) { showToast(err.message, "error"); return; }
+
+    const burying = found.supersede || [];
+    out.innerHTML = `<p class="card-subtitle">${escapeHtml(t("publish_would_bury", { n: burying.length }))}</p>`
+      + `<ul>${burying.map((i) => `<li><code>${escapeHtml(i.slug)}</code> — ${escapeHtml(i.status)}</li>`).join("")}</ul>`;
+    const loose = (found.disputed || []).concat(found.unfinished || []);
+    const why = window.prompt(loose.length
+      ? t("publish_loose_ends", { slugs: loose.join(", ") }) : t("publish_why"));
+    if (!why || !why.trim()) return;
+    try {
+      await apiFetch("/api/workspace/publish", {
+        method: "POST",
+        body: JSON.stringify({ workspace: state.workspace, paper, lines: [line],
+                               text: why.trim(), anyway: loose.length > 0 }),
+      });
+      showToast(t("published"), "success");
+      openThread(line);
+      loadMap();
+      loadThreads();
+    } catch (err) { out.innerHTML = `<p class="card-subtitle">${escapeHtml(err.message)}</p>`; }
   }
 
   function saidText() {

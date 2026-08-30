@@ -431,7 +431,20 @@
             <select id="threads-kind" class="text-input"></select>
             <select id="threads-status" class="text-input"></select>
             <button class="btn btn-secondary btn-sm" id="threads-refresh-btn" data-i18n="btn_refresh">Refresh</button>
+            <button class="btn btn-primary btn-sm" id="thread-new-toggle"></button>
           </div>
+        </div>
+        <div class="card-body" id="thread-new-form" hidden>
+          <div class="form-row">
+            <select id="new-kind" class="text-input"></select>
+            <input type="text" id="new-title" class="text-input grow-2">
+            <input type="text" id="new-line" class="text-input">
+          </div>
+          <div class="form-row">
+            <input type="text" id="new-purpose" class="text-input grow-2">
+            <button class="btn btn-primary btn-sm" id="new-submit"></button>
+          </div>
+          <p class="card-subtitle" id="new-hint"></p>
         </div>
         <div class="table-scroll vh-280">
           <table class="data-table" id="threads-table">
@@ -476,6 +489,19 @@
           <span class="card-subtitle" id="thread-review-note"></span>
         </div>
         <div id="thread-review-out"></div>
+        <div class="form-row" id="thread-line-row">
+          <input type="text" id="thread-line-input" class="text-input grow-2">
+          <button class="btn btn-secondary btn-sm" id="thread-line-btn"></button>
+        </div>
+        <div class="form-row" id="thread-decide-row">
+          <select id="thread-bet" class="text-input"></select>
+          <button class="btn btn-secondary btn-sm" id="thread-decide-btn"></button>
+        </div>
+        <div class="form-row" id="thread-ceremony-row" hidden>
+          <button class="btn btn-secondary btn-sm" id="thread-close-line-btn"></button>
+          <button class="btn btn-secondary btn-sm" id="thread-publish-btn"></button>
+        </div>
+        <div id="thread-ceremony-out"></div>
       </div>
 
       <div class="card" id="feed-card">

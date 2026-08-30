@@ -23,7 +23,7 @@ from __future__ import annotations
 import datetime as dt
 import threading
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 #: Serialises the one route that captures a CLI's stdout. `redirect_stdout`
 #: mutates `sys.stdout` for the whole process, so two concurrent requests on
@@ -51,6 +51,26 @@ def register(app, resolve_workspace) -> None:
             return ws, state_mod, state_mod.loaded(ws)
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=500, detail=f"could not read notes: {exc}")
+
+    def _inside(ws: Path, rel: str) -> Path:
+        """A path the caller named, resolved under the workspace or refused.
+
+        Publishing copies a file into `raw/`, which is the one directory this
+        system treats as immutable truth, so "any path a request mentions" is
+        not a thing this endpoint accepts.
+        """
+        rel = (rel or "").strip()
+        if not rel:
+            raise HTTPException(status_code=400, detail="which paper?")
+        target = (ws / rel).resolve()
+        try:
+            target.relative_to(ws.resolve())
+        except ValueError:
+            raise HTTPException(status_code=400,
+                                detail="that path is outside this workspace")
+        if not target.is_file():
+            raise HTTPException(status_code=404, detail=f"no file at {rel}")
+        return target
 
     def _note(ws: Path, slug: str):
         from magi.kb import threads
@@ -319,6 +339,162 @@ def register(app, resolve_workspace) -> None:
         return {"slug": slug, "verdict": result.verdict, "host": result.host,
                 "model": model or None, "reason": result.reason, "said": line,
                 "budget": ledger.summary(ws, limit=settings.limit)}
+
+    @app.post("/api/workspace/thread/new")
+    def post_workspace_thread_new(payload: dict = Body(...)) -> dict:
+        """Open a proposition, a question or a line, from the browser.
+
+        There was no way to do this at all. `magi next` on a fresh workspace
+        opens with "what is the next question?", so a person who came to the
+        browser to avoid a terminal met the wall on the first screen.
+
+        The slug is canonical or refused, never quietly repaired: it becomes a
+        filename, and `P Gap` and `p-gap` would be two notes about one claim.
+        """
+        from magi.core import vocab
+        from magi.core.wiki_common import slugify
+        from magi.kb import threads
+
+        ws = resolve_workspace(payload.get("workspace"))
+        kind = (payload.get("kind") or "").strip()
+        if kind not in (vocab.PROPOSITION, vocab.QUESTION, vocab.LINE):
+            raise HTTPException(
+                status_code=400,
+                detail=f"kind is one of {vocab.PROPOSITION}, {vocab.QUESTION}, "
+                       f"{vocab.LINE}")
+        title = (payload.get("title") or "").strip()
+        purpose = (payload.get("purpose") or "").strip()
+        if not title or not purpose:
+            raise HTTPException(
+                status_code=400,
+                detail="a note needs a title and a purpose — what it claims, "
+                       "and why it is worth opening now")
+
+        asked = (payload.get("slug") or title).strip()
+        slug = slugify(asked)
+        if not slug:
+            raise HTTPException(status_code=400,
+                                detail="that title produces no usable id — give one")
+        path = ws / threads.DIRNAME / f"{slug}.md"
+        if path.exists():
+            raise HTTPException(status_code=409, detail=f"{slug} already exists")
+
+        lines = [str(x) for x in (payload.get("lines") or []) if str(x).strip()]
+        try:
+            threads.create(path, kind, title, purpose, lines=lines or None)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        note = threads.read_note(path)
+        return {"slug": note.slug, "kind": note.kind, "status": note.status,
+                "path": str(path)}
+
+    @app.post("/api/workspace/thread/line")
+    def post_workspace_thread_line(payload: dict = Body(...)) -> dict:
+        """Attach or detach research lines on a note that already exists.
+
+        `--line` was accepted only at creation, so forgetting it once meant the
+        note never counted toward that line and nothing in the system could
+        repair it — the count was wrong and stayed wrong.
+        """
+        from magi.kb import threads
+
+        ws = resolve_workspace(payload.get("workspace"))
+        note = _note(ws, payload.get("slug") or "")
+        lines = [str(x).strip() for x in (payload.get("lines") or [])
+                 if str(x).strip()]
+        why = (payload.get("text") or "").strip()
+        if not why:
+            raise HTTPException(
+                status_code=400,
+                detail="say why this belongs there — the field and the sentence "
+                       "explaining it are one action")
+        try:
+            threads.set_field(note.path, "line", lines, host="human", text=why)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+        return {"slug": note.slug, "lines": lines}
+
+    @app.get("/api/workspace/line/close")
+    def get_workspace_line_close(workspace: Optional[str] = Query(None),
+                                 line: str = Query(...)) -> dict:
+        """What closing this line would leave behind. Writes nothing.
+
+        The survey *is* the command (see `close_cmd`): closing a line with
+        three open propositions is a decision about those three, and a person
+        who has not been shown them has not made it. The browser gets the same
+        answer before it presses.
+        """
+        from magi import close_cmd
+
+        return close_cmd.survey(resolve_workspace(workspace), line)
+
+    @app.post("/api/workspace/line/close")
+    def post_workspace_line_close(payload: dict = Body(...)) -> dict:
+        """Close a research line. design-v2 §6: only a person calls this."""
+        from magi import close_cmd
+        from magi.core import vocab
+
+        ws = resolve_workspace(payload.get("workspace"))
+        line = (payload.get("line") or "").strip()
+        why = (payload.get("text") or "").strip()
+        if not line or not why:
+            raise HTTPException(status_code=400,
+                                detail="which line, and why it is ending")
+        found = close_cmd.close(ws, line, why, anyway=bool(payload.get("anyway")),
+                                host=vocab.HUMAN)
+        if not found.get("ok"):
+            raise HTTPException(status_code=409, detail=found)
+        return found
+
+    @app.get("/api/workspace/publish")
+    def get_workspace_publish(workspace: Optional[str] = Query(None),
+                              paper: str = Query(...),
+                              line: List[str] = Query(default=[])) -> dict:
+        """What publishing would bury, and what it refuses to bury quietly."""
+        from magi import publish_cmd
+
+        ws = resolve_workspace(workspace)
+        return publish_cmd.survey(ws, _inside(ws, paper), list(line))
+
+    @app.post("/api/workspace/publish")
+    def post_workspace_publish(payload: dict = Body(...)) -> dict:
+        """File our own paper and retire the work it reports. §6: a person."""
+        from magi import publish_cmd
+        from magi.core import vocab
+
+        ws = resolve_workspace(payload.get("workspace"))
+        lines = [str(x) for x in (payload.get("lines") or []) if str(x).strip()]
+        why = (payload.get("text") or "").strip()
+        if not lines or not why:
+            raise HTTPException(status_code=400,
+                                detail="which line(s) this reports, and a sentence")
+        found = publish_cmd.publish(ws, _inside(ws, payload.get("paper") or ""),
+                                    lines, why,
+                                    anyway=bool(payload.get("anyway")),
+                                    host=vocab.HUMAN)
+        if not found.get("ok"):
+            raise HTTPException(status_code=409, detail=found)
+        return found
+
+    @app.get("/api/workspace/papers")
+    def get_workspace_papers(workspace: Optional[str] = Query(None)) -> dict:
+        """Documents in this workspace that could be the paper being published.
+
+        `drafts/` is where our own writing lives, so a picker that made
+        somebody type a path would be a text box standing in for a list we
+        already have.
+        """
+        ws = resolve_workspace(workspace)
+        out = []
+        for base in ("drafts", "output"):
+            d = ws / base
+            if not d.is_dir():
+                continue
+            for path in sorted(d.rglob("*.md")):
+                if path.name.startswith((".", "_")):
+                    continue
+                out.append((path.relative_to(ws)).as_posix())
+        return {"papers": out}
 
     @app.post("/api/workspace/thread/post")
     def post_workspace_thread_post(payload: dict = Body(...)) -> dict:
