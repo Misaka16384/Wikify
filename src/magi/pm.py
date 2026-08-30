@@ -310,7 +310,11 @@ def _agreed_to_hand_over(root: Path, assumed_yes: bool) -> bool:
         print()
         answer = ""
     if answer not in ("y", "yes"):
-        print("nothing was handed over.")
+        # Naming `--yes` here rather than only in `--help`: this path is
+        # reached most often by something running without a person attached,
+        # and "nothing was handed over" with no way forward is where it stops.
+        print("nothing was handed over. Pass --yes to go ahead without being "
+              "asked.")
         return False
     return True
 

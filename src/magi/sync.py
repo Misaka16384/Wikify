@@ -360,7 +360,11 @@ def build_report(cwd: Path | None = None) -> dict:
         if not b["bd_installed"]:
             _hint("beads-missing",
                   "install beads (bd) for work-state tracking: https://github.com/gastownhall/beads")
-        elif not b["beads_root"]:
+        elif not b["beads_root"] and topic is not None:
+            # Only inside a workspace. Outside one, the missing thing is the
+            # workspace, and offering a workspace-scoped command as the first
+            # suggestion sends somebody to set up task tracking for a project
+            # they have not made yet.
             # Named, not just offered. This one hands the directory to
             # another program that git-inits and commits under the person's
             # own identity, and a one-line nudge that does not say so is how

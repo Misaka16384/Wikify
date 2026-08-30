@@ -1180,7 +1180,10 @@ def cmd_search(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="magi index|search", description=__doc__)
+    # `prog` is the command as typed. Naming two commands here produced
+    # `usage: magi index|search search [-h] …` — a usage line that looks like
+    # a bug in the first thing a person reads about the command.
+    parser = argparse.ArgumentParser(prog="magi", description=__doc__)
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_index = sub.add_parser("index", help="Build/refresh the hybrid retrieval index")

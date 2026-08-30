@@ -1447,3 +1447,41 @@ def test_an_empty_library_is_not_told_it_has_knowledge(ws):
     rendered = state.render(projection, state.candidates(projection))
 
     assert "has knowledge" not in rendered
+
+
+def test_the_close_report_and_the_map_agree_about_what_is_waiting(ws):
+    """`magi sync --close` printed "nothing is holding this session" while
+    `MAP.md`, written by that same call, said "Decisions waiting on you —
+    conflict [[…]]". Both were true and the reader had to reconcile them."""
+    path = threads.create(ws / "threads" / "p-a.md", vocab.PROPOSITION, "A", "why")
+    threads.set_status(path, "testing", "a", host="claude")
+    threads.set_status(path, vocab.CONFLICT, "two writers collided", host="magi")
+
+    report = state.close(ws, now=NOW, write=False)
+    text = state.render_close(report)
+    projection = state.load(ws, now=NOW)
+    on_map = [item for item in projection.queue if item.kind != "wip"]
+
+    assert on_map, "the fixture has nothing on the queue"
+    assert len(report.waiting) == len(on_map)
+    assert "waiting on you" in text
+    assert report.ok, "a decision waiting on a person does not hold the session"
+
+
+def test_the_remedy_only_names_things_that_clear_it(ws):
+    """Two of the three named remedies worked as written. The third —
+    "move the status" — needs the new move to be signed *and* to be a legal
+    target, and the obvious attempt (`superseded → supported`) is refused by
+    the lifecycle. A remedy that costs a round trip to discover reads as
+    broken."""
+    path = threads.create(ws / "threads" / "p-b.md", vocab.PROPOSITION, "B", "why")
+    threads.set_status(path, "testing", "a", host="claude")
+    threads.set_status(path, vocab.CONFLICT, "two writers collided", host="magi")
+    threads.set_status(path, "refuted", "I say no", host="claude")
+
+    text = state.render_close(state.close(ws, now=NOW, write=False))
+
+    assert "magi thread post" in text
+    assert "magi decide" in text
+    assert "magi thread status" not in text, (
+        "it still offers the remedy whose legal target it does not name")

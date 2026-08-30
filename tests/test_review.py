@@ -731,3 +731,56 @@ def test_a_verdict_that_could_not_be_written_is_a_failure(ws, monkeypatch):
                         lambda *a, **k: (_ for _ in ()).throw(OSError("disk full")))
 
     assert review.main(["--topic-dir", str(ws), "--host", "codex", "p-gap"]) == 1
+
+
+def test_a_real_call_says_what_it_cost_where_it_was_spent(ws, monkeypatch, capsys):
+    """`MAP.md` carries the week's spend, and it is DERIVED — rewritten only at
+    session close. Between a review and the next `sync --close` the one surface
+    a person would check still showed the old number, so "did that just cost me
+    something" had no answer where it was being asked."""
+    solved(ws, "p-gap")
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
+    monkeypatch.setattr(review, "ask",
+                        lambda *a, **k: "VERDICT: stands\nREASON: it holds.")
+
+    review.main(["--topic-dir", str(ws), "--host", "codex", "p-gap"])
+
+    out = capsys.readouterr().out
+    assert "model calls this week" in out
+    assert "39 left" in out or "/40" in out
+
+
+def test_a_run_refused_by_the_budget_reports_no_spend(ws, monkeypatch, capsys):
+    """Nothing was asked, so there is nothing to say about a spend.
+
+    What this covers is the *top-level* refusal, which returns before the
+    reporting block is reached at all — and that is worth saying plainly,
+    because two earlier versions of this test claimed to cover the guard
+    inside that block. They could not: by the time the block runs, something
+    has always been attempted, so the guard is defensive and unreachable. A
+    test whose name promises coverage it does not have is worse than no test.
+    """
+    from magi.core import ledger
+
+    solved(ws, "p-gap")
+    (ws / "config.yaml").write_text("research:\n  weekly_calls: 1\n", encoding="utf-8")
+    ledger.record(ws, ledger.REVIEW, "codex", slug="earlier")
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
+    monkeypatch.setattr(review, "ask", lambda *a, **k: pytest.fail("it called out"))
+
+    review.main(["--topic-dir", str(ws), "--host", "codex", "p-gap"])
+
+    assert "model calls this week" not in capsys.readouterr().out
+
+
+def test_a_call_that_failed_still_says_what_it_cost(ws, monkeypatch, capsys):
+    """A timeout spent the wall clock and, on a metered account, the money.
+    The ledger records it, so that is exactly when somebody wants the number."""
+    solved(ws, "p-gap")
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
+    monkeypatch.setattr(review, "ask",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("codex exited 1")))
+
+    review.main(["--topic-dir", str(ws), "--host", "codex", "p-gap"])
+
+    assert "model calls this week" in capsys.readouterr().out

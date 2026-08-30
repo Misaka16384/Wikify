@@ -786,7 +786,10 @@ _VERBS = {
     "list": ("magi ingest batch-list",
              "Show batches awaiting approval, with findings."),
     "decide": ("magi ingest batch-decide",
-               "Approve, reject or undo one item. Rejecting requeues it a rung down."),
+               "Approve, reject or undo one item. **Rejecting is not "
+               "discarding**: it requeues the item on the next rung of the "
+               "conversion ladder (arxiv-html -> tex -> textlayer -> mineru "
+               "-> ocr), which is how you walk a stubborn paper down it."),
     "commit": ("magi ingest batch-commit",
                "Move approved documents into raw/. Refuses a batch with undecided items."),
     "review": ("magi ingest review",

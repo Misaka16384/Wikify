@@ -1162,7 +1162,11 @@ def test_a_rejected_mineru_key_is_explained_in_our_words():
 
     assert "MinerU rejected the API key" in src
     assert "ocr.mineru_api_token" in src
-    assert "the ladder falls" in src, "it does not say the rung is optional"
+    assert "ocr.use_mineru: false" in src, "it does not say how to switch it off"
+    # Not "the ladder falls through to local OCR": that is true of `batch-run`
+    # and false of `ingest auto`, which has no ladder beneath it. A sentence
+    # describing the other command's behaviour is worse than none.
+    assert "the ladder falls" not in src
     assert 'print("Error getting upload URL:", res.text)' not in src, (
         "the vendor's raw JSON is going to the CLI again")
 

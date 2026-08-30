@@ -15,7 +15,7 @@ import sys
 
 import pytest
 
-from magi.ingest import routing
+from magi.ingest import auto, routing
 
 
 @pytest.fixture(autouse=True)
@@ -333,10 +333,38 @@ def test_a_file_replaced_under_the_same_name_is_inspected_again(tmp_path, monkey
 def test_auto_still_answers_what_can_run_here_by_itself(tmp_path, monkeypatch):
     """The shared router says what *should* run; whether the tooling exists is
     still auto's own question, because auto has no ladder to fall down."""
-    from magi.ingest import auto
-
+    
     monkeypatch.setattr(auto.shutil, "which", lambda _n: None)
     route, why = auto.classify(_blank_pdf(tmp_path / "scan.pdf"), {})
 
     assert route == "skip"
     assert "mineru_api_token" in why and "Ollama" in why
+
+
+def test_auto_honours_the_switch_and_not_only_the_token(tmp_path):
+    """Two entry points to one ladder disagreed about whose money it is.
+
+    `ingest auto` chose its rung by asking whether a *token* was configured —
+    and a token in the user-level config is enough — so a workspace saying
+    `ocr.use_mineru: false` uploaded to a paid service anyway, while the queue
+    path refused the very same file correctly.
+    """
+    pdf = tmp_path / "paper.pdf"
+    pdf.write_bytes(b"%PDF-1.7\n" + b"x" * 400)
+    cfg = {"ocr": {"use_mineru": False, "mineru_api_token": "a-key"}}
+
+    route, why = auto.classify(pdf, cfg)
+
+    assert route != "mineru", f"routed to a paid service that is switched off ({why})"
+
+
+def test_the_token_still_routes_there_when_the_switch_is_on(tmp_path):
+    """Absent means on: the shipped root config sets `use_mineru: true`, and a
+    guard defaulting to off would quietly remove a rung from every workspace
+    that never mentioned it."""
+    pdf = tmp_path / "paper.pdf"
+    pdf.write_bytes(b"%PDF-1.7\n" + b"x" * 400)
+
+    route, _why = auto.classify(pdf, {"ocr": {"mineru_api_token": "a-key"}})
+
+    assert route == "mineru"

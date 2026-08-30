@@ -102,8 +102,8 @@ def convert(input_path, output_dir) -> ConversionResult:
         if res.status_code in (401, 403) or "authenticate" in said.lower():
             why = ("MinerU rejected the API key. MinerU is a paid cloud OCR "
                    "service; set a working key as `ocr.mineru_api_token` in "
-                   "config.yaml, or leave this rung out — the ladder falls "
-                   "through to local OCR without it.")
+                   "config.yaml, or switch the rung off with "
+                   "`ocr.use_mineru: false`.")
         else:
             why = (f"MinerU refused the upload"
                    + (f" ({said})" if said else "")

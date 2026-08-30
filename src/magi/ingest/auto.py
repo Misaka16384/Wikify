@@ -79,10 +79,22 @@ def classify(path: Path, cfg: dict) -> Tuple[str, str]:
     # Everything else is a PDF needing a model. Which model is available is a
     # local question the ladder would answer by falling; here it is answered by
     # looking, so the reason a file was skipped names the thing to fix.
-    if _cfg_get(cfg, "ocr.mineru_api_token"):
+    # The switch, then the token. Asking only whether a token exists meant a
+    # workspace with `ocr.use_mineru: false` still uploaded to a paid service,
+    # because the token lives in the user-level config and was found there —
+    # while the queue path, which does read the switch, refused the same file.
+    # Two entry points to one ladder is where a guard goes missing.
+    wants_mineru = bool(_cfg_get(cfg, "ocr.use_mineru", True))
+    if wants_mineru and _cfg_get(cfg, "ocr.mineru_api_token"):
         return "mineru", f"{why}; MinerU token configured"
     if shutil.which("ollama"):
-        return "ocr", f"{why}; no MinerU token, using local OCR"
+        reason = ("MinerU is switched off" if not wants_mineru
+                  else "no MinerU token")
+        return "ocr", f"{why}; {reason}, using local OCR"
+    if not wants_mineru:
+        return "skip", ("PDF, and MinerU is switched off "
+                        "(`ocr.use_mineru: false`) with no Ollama for local "
+                        "OCR — turn one of them on")
     return "skip", ("PDF, but neither a MinerU token nor Ollama is available "
                     "(set ocr.mineru_api_token, or install Ollama)")
 

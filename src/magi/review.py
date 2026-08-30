@@ -698,6 +698,19 @@ def main(argv=None) -> int:
     else:
         for line in lines:
             print(f"  {line}")
+        # Said at the moment it is spent. `MAP.md` carries this too, but it is
+        # DERIVED and only rewritten at session close — so between a review and
+        # the next `sync --close` the one surface a person would check still
+        # shows the old number, and the question "did that just cost me
+        # something" has no answer where it is being asked.
+        # `results`, not "any of them succeeded": a call that was made and
+        # then failed is recorded in the ledger too — a timeout spent the wall
+        # clock and, on a metered account, the money — so that is exactly when
+        # somebody most wants the number.
+        if results:
+            spend = ledger.summary(root, limit=limit)
+            print(f"  ({spend['spent']}/{spend['limit']} model calls this week, "
+                  f"{spend['left']} left)")
 
     # A short list is the only sign the budget stopped the run, so it is said
     # out loud rather than left for somebody to notice by counting.

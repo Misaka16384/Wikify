@@ -1246,6 +1246,14 @@ class CloseReport:
     older: list = field(default_factory=list)
     conflicts: list = field(default_factory=list)
     unreviewed: list = field(default_factory=list)
+    #: Decisions already on the queue — `disputed`, `conflict`, a line waiting
+    #: to turn. Not blocking: they are waiting on a person, and a gate that
+    #: refuses every session until somebody rules is a gate people turn off.
+    #: Reported because `MAP.md`, written by the same call, lists them under
+    #: "Decisions waiting on you" — and a report saying "nothing is holding
+    #: this session" beside a map saying "waiting on you" makes the reader
+    #: reconcile two sentences that were never in conflict.
+    waiting: list = field(default_factory=list)
     map_path: str | None = None
 
     @property
@@ -1364,6 +1372,11 @@ def close(root, window_hours: int = CLOSE_WINDOW_HOURS, write: bool = True,
     # the loop closed: `magi next` proposes the review, and an agent that is
     # still working runs it. A stop hook that takes five minutes is a stop hook
     # somebody uninstalls.
+    # The same list `MAP.md` prints under "Decisions waiting on you", from the
+    # same projection, so the report and the map this call is about to write
+    # cannot say different things about the same workspace.
+    report.waiting = [f"{item.kind}: {item.slug} — {item.why}"
+                      for item in state.queue if item.kind != "wip"]
     report.unreviewed = unreviewed(state)
 
     if write:
@@ -1443,14 +1456,27 @@ def render_close(report: CloseReport) -> str:
         out.append("Not finished — this happened and was not written down:")
         out.extend(f"  {item.slug}: {item.why}" for item in report.blocking)
         out.append("")
-        out.append("Post what you did (`magi thread post`) or move the status "
-                   "(`magi thread status`), then close again.")
+        # `magi thread status` is deliberately not offered here. It can
+        # clear this, but only if the *new* move is itself signed `--host
+        # human`, and the obvious target is usually not a legal one — the
+        # retest tried `superseded → supported` and was refused by the
+        # lifecycle. A remedy that costs a round trip to discover is a remedy
+        # that reads as broken.
+        out.append("Say it in your own words (`magi thread post <slug> --text "
+                   "'...' --host human`) or record it as a decision "
+                   "(`magi decide --about <slug> --text '...'`), then close "
+                   "again.")
     else:
         # "nothing is holding this session" and not merely "current", because
         # everything printed below this line is advice and a bare
         # "Bookkeeping is current." above a list of things to do reads as a
         # contradiction rather than as a heading.
         out.append("Bookkeeping is current — nothing is holding this session.")
+    if report.waiting and not report.blocking:
+        out.append("")
+        out.append(f"On the decision queue, waiting on you "
+                   f"({len(report.waiting)}):")
+        out.extend(f"  {item}" for item in report.waiting[:5])
     if report.unreviewed:
         out.append("")
         # Labelled the way `older` already is. An unreviewed claim is not
