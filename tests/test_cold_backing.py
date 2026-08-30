@@ -126,3 +126,53 @@ def test_a_lowercase_claim_is_still_checked(tmp_path):
 def test_a_note_with_no_claims_is_not_parsed_at_all(tmp_path):
     assert _cold_backing_issues(tmp_path, "wiki/concepts/gap.md",
                                 "---\ntitle: Gap\n---\n\n# Gap\n\nProse.\n") == []
+
+
+# --------------------------------------------------------------------------
+# a sources: field that points out of the project
+# --------------------------------------------------------------------------
+
+def test_a_source_ref_cannot_resolve_outside_the_project(tmp_path):
+    """`sources:` travels from an ingested paper through the compile
+    pipeline, so it is not the user's typing.
+
+    The `../`-relative branch resolved it with no containment check: a value
+    of `../../../secret.md` in a card under `wiki/concepts/` resolved to, and
+    stat'd, a real file outside the project. No caller read those bytes —
+    each re-checked `is_under(..., root/"raw")` first — but the `.exists()`
+    here is itself observable, and safety by every caller remembering is the
+    arrangement `verify_claims.verify_local` was just moved off.
+    """
+    from magi.kb import llmwiki
+
+    root = tmp_path / "project"
+    (root / "wiki" / "concepts").mkdir(parents=True)
+    owner = root / "wiki" / "concepts" / "a.md"
+    owner.write_text("---\ntitle: A\n---\n\nBody.\n", encoding="utf-8")
+
+    outside = tmp_path / "secret.md"
+    outside.write_text("not yours\n", encoding="utf-8")
+
+    ctx = llmwiki.LintContext(root)
+    got = llmwiki.resolve_source_ref(ctx, owner, "../../../secret.md", wiki_source=False)
+
+    assert got is None, f"resolved to {got}, which is outside {root}"
+
+
+def test_a_source_ref_inside_the_project_still_resolves(tmp_path):
+    """The other side, so the boundary cannot be widened into refusing
+    everything a card legitimately cites."""
+    from magi.kb import llmwiki
+
+    root = tmp_path / "project"
+    (root / "wiki" / "concepts").mkdir(parents=True)
+    (root / "raw").mkdir(parents=True)
+    owner = root / "wiki" / "concepts" / "a.md"
+    owner.write_text("---\ntitle: A\n---\n\nBody.\n", encoding="utf-8")
+    paper = root / "raw" / "paper.md"
+    paper.write_text("# P\n", encoding="utf-8")
+
+    ctx = llmwiki.LintContext(root)
+    got = llmwiki.resolve_source_ref(ctx, owner, "raw/paper.md", wiki_source=False)
+
+    assert got is not None and got.name == "paper.md"

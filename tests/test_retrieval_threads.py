@@ -159,3 +159,67 @@ def _conn_paths(rows):
     conn.execute("CREATE TABLE chunks (id INTEGER PRIMARY KEY, path TEXT, collection TEXT)")
     conn.executemany("INSERT INTO chunks (id, path) VALUES (?, ?)", rows)
     return conn
+
+
+# --------------------------------------------------------------------------
+# a file that is not a database
+# --------------------------------------------------------------------------
+
+def _scaffold(tmp_path):
+    import subprocess
+    import sys
+
+    root = tmp_path / "p"
+    subprocess.run([sys.executable, "-m", "magi", "init", "--project-dir", str(root),
+                    "--name", "T"], capture_output=True, text=True, check=True)
+    return root
+
+
+def test_a_corrupt_index_does_not_crash_search(tmp_path):
+    """`magi search` federates, so one unreadable file used to take every
+    other project on the machine down with it — the same reasoning the
+    empty-file handling in `open_db` was written for, one line earlier than
+    it looked."""
+    import subprocess
+    import sys
+
+    root = _scaffold(tmp_path)
+    (root / "output" / "index.db").write_text("garbage", encoding="utf-8")
+
+    done = subprocess.run(
+        [sys.executable, "-m", "magi", "search", "x", "--project-dir", str(root)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+    assert "Traceback" not in done.stderr, done.stderr
+    assert "not a database" not in done.stderr
+
+
+def test_magi_index_rebuilds_over_a_corrupt_index(tmp_path):
+    """The command whose job is to build the index could not survive finding
+    a broken one. The file is derived, so it is rebuilt — but it is still the
+    user's file, so it is moved aside and the move is said out loud."""
+    import subprocess
+    import sys
+
+    root = _scaffold(tmp_path)
+    (root / "output" / "index.db").write_text("garbage", encoding="utf-8")
+
+    done = subprocess.run(
+        [sys.executable, "-m", "magi", "index", "--project-dir", str(root), "--no-vectors"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace")
+
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert "not a database" in done.stderr
+    assert (root / "output" / "index.db.corrupt").is_file(), "the old file was destroyed"
+
+
+def test_sync_does_not_call_a_corrupt_index_fresh(tmp_path):
+    """Freshness was an mtime comparison, so a file written a second ago
+    scored `fresh · 0 chunks` while `magi search` crashed on it. The one
+    signal pointing at the broken file was the healthiest on the screen."""
+    from magi.sync import casper_status
+
+    root = _scaffold(tmp_path)
+    (root / "output" / "index.db").write_text("garbage", encoding="utf-8")
+
+    assert casper_status(root)["state"] == "unreadable"

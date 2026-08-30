@@ -651,12 +651,24 @@ def render(kind: str, title: str, purpose: str, status: str | None = None,
 
 
 def create(path, kind: str, title: str, purpose: str, **kwargs) -> Path:
-    """Write a new note. Refuses to overwrite: a slug is an identity."""
+    """Write a new note. Refuses to overwrite: a slug is an identity.
+
+    Under the same lock every other writer in this file takes. The check and
+    the write were separate, and the CLI and the WebUI both call this — two
+    creators that both got past `path.exists()` before either wrote left one
+    note overwritten by `atomic_write`'s `os.replace`, with no post and no
+    trace of the one that lost. Refusing is the promise; refusing only when
+    nobody else is trying is not the same promise.
+    """
+    from filelock import FileLock
+
     path = Path(path)
-    if path.exists():
-        raise FileExistsError(str(path))
     path.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(path, render(kind, title, purpose, **kwargs))
+    lock = lock_path(path)
+    with FileLock(str(lock), timeout=APPEND_TIMEOUT):
+        if path.exists():
+            raise FileExistsError(str(path))
+        atomic_write(path, render(kind, title, purpose, **kwargs))
     return path
 
 

@@ -175,6 +175,7 @@ def casper_status(topic: Path, scan: _WikiScan | None = None) -> dict:
     newest = scan.newest if scan is not None else _newest_md_mtime(topic / "wiki")
     freshness = 1.0 if idx.stat().st_mtime >= newest else 0.3
     chunks = vectors = 0
+    readable = True
     try:
         # A read must never wait on a writer: `magi index` holds a write lock
         # for the length of its run, and the dashboard polls this. Without a
@@ -188,9 +189,17 @@ def casper_status(topic: Path, scan: _WikiScan | None = None) -> dict:
                 "SELECT name FROM sqlite_master WHERE name='chunks_vec_rowids'").fetchone()
             if has_vec:
                 vectors = conn.execute("SELECT COUNT(*) FROM chunks_vec_rowids").fetchone()[0]
+    except sqlite3.DatabaseError:
+        # Freshness is an mtime comparison, so a file that is not a database
+        # at all — but was written recently — scored as `fresh · 0 chunks`.
+        # The one signal pointing at the broken file was the healthiest in the
+        # display, and `magi search` crashed on it a moment later.
+        readable = False
     except sqlite3.Error:
         pass
     coverage = (vectors / chunks) if chunks else 0.0
+    if not readable:
+        return {"state": "unreadable", "chunks": 0, "vectors": 0, "score": 0.0}
     state = "fresh" if freshness == 1.0 else "stale"
     return {"state": state, "chunks": chunks, "vectors": vectors,
             "score": round(0.7 * freshness + 0.3 * coverage, 3)}
@@ -381,6 +390,9 @@ def build_report(cwd: Path | None = None) -> dict:
         weights["casper"] = 1.0
         if c["state"] == "missing":
             _hint("index-missing", "magi index   # build the retrieval index")
+        elif c["state"] == "unreadable":
+            _hint("index-unreadable",
+                  "magi index   # output/index.db is not a database; rebuild it")
         elif c["state"] == "stale":
             _hint("index-stale", "magi index   # refresh the retrieval index")
         # Radar off means no radar hints at all — not a nag about a harvest

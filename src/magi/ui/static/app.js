@@ -643,6 +643,7 @@
       hints_subtitle: "同步报告给出的下一步建议——点按钮直接执行",
       hint_graph_build: "知识图谱落后于卡片内容，需要重建",
       hint_index: "检索索引缺失或已过期，需要重建",
+      hint_index_unreadable: "output/index.db 不是数据库文件——已损坏，重建会先把它挪到 .corrupt",
       hint_backlog_sync: "有未编译文献尚未纳入任务追踪",
       hint_pm_init: "还没有任务追踪库（可选，不用任务追踪就可以忽略）",
       hint_radar_review: "{pending} 份文献雷达简报等待审阅",
@@ -1483,6 +1484,7 @@
       hints_subtitle: "What the sync report recommends next — click to run",
       hint_graph_build: "Knowledge graph is behind the cards and needs a rebuild",
       hint_index: "Retrieval index is missing or stale and needs a rebuild",
+      hint_index_unreadable: "output/index.db is not a database — rebuilding moves it aside as .corrupt",
       hint_backlog_sync: "Uncompiled sources are not yet tracked as tasks",
       hint_pm_init: "No task-tracking database yet (optional — skip it if you do not want task tracking)",
       hint_radar_review: "{pending} literature radar digest(s) waiting for review",
@@ -3161,6 +3163,10 @@
     "graph-stale": { i18n: "hint_graph_build", action: { type: "job", op: "graph-build", nameKey: "op_build_graph" } },
     "index-missing": { i18n: "hint_index", action: { type: "job", op: "index", nameKey: "op_rebuild_index" } },
     "index-stale": { i18n: "hint_index", action: { type: "job", op: "index", nameKey: "op_rebuild_index" } },
+    // A third state, not a shade of the two above: the file exists, is
+    // recent, and is not a database. Saying "missing or stale" here would
+    // repeat the reassuring wrong answer this code was added to replace.
+    "index-unreadable": { i18n: "hint_index_unreadable", action: { type: "job", op: "index", nameKey: "op_rebuild_index" } },
     "backlog-untracked": { i18n: "hint_backlog_sync", action: { type: "job", op: "backlog-sync", nameKey: "op_backlog_sync" } },
     "pm-uninit": { i18n: "hint_pm_init", action: { type: "job", op: "pm-init", nameKey: "btn_danger_pm_init" } },
     // Two distinct codes carrying distinct counts, both rendered through one

@@ -60,7 +60,36 @@ def open_db(db_path: Path, create: bool = False,
         return None
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA journal_mode=WAL")
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+    except sqlite3.DatabaseError:
+        # Not a database at all — a truncated copy, a half-written file from a
+        # killed run, something else that took the name. One line earlier than
+        # the empty-file handling below, and until now it threw straight out of
+        # both `magi search` and `magi index` as a raw DatabaseError.
+        conn.close()
+        if not create:
+            # Same answer as an empty file: "no index here". Federated search
+            # then skips this project instead of taking every other one down
+            # with it.
+            return None
+        # `create` means `magi index`, whose whole job is to build this file.
+        # It is derived from the corpus, so rebuilding costs nothing but time
+        # — but it is still the user's file, so it is moved, not deleted, and
+        # the move is said out loud.
+        spoiled = db_path.with_suffix(db_path.suffix + ".corrupt")
+        try:
+            if spoiled.exists():
+                spoiled.unlink()
+            db_path.replace(spoiled)
+        except OSError as exc:
+            raise SearchError(
+                f"{db_path} is not a database and could not be moved aside "
+                f"({exc}) — remove it and run `magi index` again") from None
+        print(f"note: {db_path.name} was not a database; moved it to "
+              f"{spoiled.name} and building a new index", file=sys.stderr)
+        conn = sqlite3.connect(db_path)
+        conn.execute("PRAGMA journal_mode=WAL")
     if not create:
         # A file that exists but holds no schema is what an interrupted
         # `magi index` leaves behind: SQLite creates the file on connect, and

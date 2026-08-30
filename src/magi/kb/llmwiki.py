@@ -603,12 +603,26 @@ def load_documents(ctx: LintContext) -> None:
             try:
                 stat = path.stat()
                 if cached.get("mtime") == stat.st_mtime and cached.get("size") == stat.st_size:
-                    doc = Document(
-                        path=path,
-                        frontmatter=cached.get("frontmatter", {}),
-                        body=cached.get("body", ""),
-                        raw_text=cached.get("raw_text", "")
-                    )
+                    # The text comes off disk rather than out of the cache.
+                    # Storing it made the cache twice the size of the library
+                    # for about 0.04s per 300 files: the read is page-cached
+                    # and the split is one string operation, while what the
+                    # cache actually saves — the checks — is unaffected.
+                    #
+                    # Strict decoding, like `read_document`: a file that has
+                    # stopped being valid UTF-8 is a critical issue, and the
+                    # fast path must not paper over it. Falling through lets
+                    # `read_document` report it properly.
+                    raw_text = path.read_text(encoding="utf-8")
+                    raw_text = raw_text.replace("\r\n", "\n").replace("\r", "\n")
+                    split = split_markdown_frontmatter(raw_text)
+                    if split is not None:
+                        doc = Document(
+                            path=path,
+                            frontmatter=cached.get("frontmatter", {}),
+                            body=split[1],
+                            raw_text=raw_text
+                        )
             except Exception:
                 pass
 
@@ -619,11 +633,12 @@ def load_documents(ctx: LintContext) -> None:
                 raw_text = path.read_text(encoding="utf-8", errors="replace")
                 raw_text_norm = raw_text.replace('\r\n', '\n').replace('\r', '\n')
                 file_md5 = hashlib.md5(raw_text_norm.encode("utf-8", errors="replace")).hexdigest()
-                if cached.get("md5") == file_md5:
+                split = split_markdown_frontmatter(raw_text_norm)
+                if cached.get("md5") == file_md5 and split is not None:
                     doc = Document(
                         path=path,
                         frontmatter=cached.get("frontmatter", {}),
-                        body=cached.get("body", ""),
+                        body=split[1],
                         raw_text=raw_text_norm
                     )
                     # Self-heal cached mtime/size for fast subsequent runs
@@ -644,9 +659,10 @@ def load_documents(ctx: LintContext) -> None:
                         "mtime": stat.st_mtime,
                         "size": stat.st_size,
                         "md5": file_md5,
+                        # Frontmatter only. It is the expensive thing to
+                        # parse and the small thing to keep; body and raw_text
+                        # made this file larger than the library.
                         "frontmatter": doc.frontmatter,
-                        "body": doc.body,
-                        "raw_text": doc.raw_text
                     }
                     ctx.cache_updated = True
                 except Exception:
@@ -1465,6 +1481,14 @@ def resolve_source_ref(ctx: LintContext, owner: Path, ref: str, wiki_source: boo
     else:
         candidates.append((ctx.root / ref).resolve())
     for candidate in candidates:
+        # The boundary lives here, not in each caller. A `sources:` value
+        # travels from an ingested paper through the compile pipeline, so it
+        # is not the user's typing, and `../../../` in one of them used to
+        # resolve and stat a file outside the project. Every caller happened
+        # to re-check before reading — safety by everyone remembering, which
+        # is what `verify_claims.verify_local` was moved off.
+        if not is_under(candidate, ctx.root):
+            continue
         if candidate.exists() and candidate.is_file():
             return candidate.resolve()
 

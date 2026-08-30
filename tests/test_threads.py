@@ -889,3 +889,42 @@ def test_a_document_the_lint_cannot_place_is_checked_rather_than_skipped(tmp_pat
     llmwiki.check_one_tier_per_file(ctx)
 
     assert any("belongs to a proposition" in issue.message for issue in ctx.issues)
+
+
+def test_two_creators_of_one_slug_leave_exactly_one_note(tmp_path):
+    """The CLI and the WebUI both create threads, and a slug is an identity.
+
+    The sequential test above only reaches the `path.exists()` line. Both
+    callers getting past that line before either wrote is the real case, and
+    `atomic_write`'s `os.replace` is an unconditional overwrite — so the loser
+    used to destroy the winner's note with no post and no trace, or, on
+    Windows, come back as an unhandled PermissionError.
+    """
+    import threading
+
+    from magi.core import vocab
+
+    path = tmp_path / "p-gap.md"
+    start = threading.Barrier(2)
+    outcome = {}
+
+    def creator(name, title):
+        start.wait()
+        try:
+            threads.create(path, vocab.PROPOSITION, title, "Why.")
+            outcome[name] = "created"
+        except FileExistsError:
+            outcome[name] = "refused"
+        except Exception as exc:                       # noqa: BLE001
+            outcome[name] = f"unexpected: {exc!r}"
+
+    workers = [threading.Thread(target=creator, args=("webui", "From the browser")),
+               threading.Thread(target=creator, args=("cli", "From the terminal"))]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join()
+
+    assert sorted(outcome.values()) == ["created", "refused"], (
+        f"exactly one creator may win and the other must be told: {outcome}")
+    assert path.is_file()
