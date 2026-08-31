@@ -3726,7 +3726,7 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
   height: 520px;
   top: 42%;
   right: 5%;
-  background: radial-gradient(circle, rgba(69, 213, 234, 0.16), transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--eva-melchior) 16%, transparent), transparent 70%);
 }
 [data-theme="eva"] .ambient-orb.orb-3 {
   width: 460px;
@@ -4530,7 +4530,7 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
 
 [data-theme="eva"] .search-hit-title {
   color: var(--eva-melchior);
-  text-shadow: 0 0 6px rgba(69, 213, 234, 0.3);
+  text-shadow: 0 0 6px var(--eva-melchior-glow);
   font-family: var(--font-mono);
 }
 
@@ -4627,7 +4627,7 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
 
 [data-theme="eva"] .search-hit-card:hover {
   border-color: var(--eva-melchior);
-  box-shadow: 0 0 12px rgba(69, 213, 234, 0.18);
+  box-shadow: 0 0 12px var(--eva-melchior-glow);
 }
 
 [data-theme="eva"] .action-row,
@@ -4847,7 +4847,7 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
 [data-theme="eva"] .terminal-btn {
   background-color: rgba(var(--eva-bg-rgb), calc(0.66 * var(--glass-scale)));
   color: var(--term-text);
-  border-color: rgba(53, 239, 126, 0.3);
+  border-color: color-mix(in srgb, var(--eva-balthasar) 30%, transparent);
 }
 
 [data-theme="eva"] .terminal-btn:hover:not(:disabled) {
@@ -5039,7 +5039,7 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
 [data-theme="eva"] .markdown-body code {
   background-color: var(--bg-subtle);
   color: var(--accent-blue);
-  border: 1px solid rgba(69, 213, 234, 0.2);
+  border: 1px solid color-mix(in srgb, var(--eva-melchior) 20%, transparent);
 }
 
 [data-theme="eva"] .markdown-body pre {
@@ -5295,17 +5295,17 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
 
 [data-theme="eva"] .eva-core.state-ok.core-mel .eva-core-shape {
   stroke: var(--eva-melchior);
-  fill: rgba(69, 213, 234, 0.07);
+  fill: color-mix(in srgb, var(--eva-melchior) 7%, transparent);
   filter: drop-shadow(0 0 6px var(--eva-melchior-glow));
 }
 [data-theme="eva"] .eva-core.state-ok.core-bal .eva-core-shape {
   stroke: var(--eva-balthasar);
-  fill: rgba(53, 239, 126, 0.07);
+  fill: color-mix(in srgb, var(--eva-balthasar) 7%, transparent);
   filter: drop-shadow(0 0 6px var(--eva-balthasar-glow));
 }
 [data-theme="eva"] .eva-core.state-ok.core-cas .eva-core-shape {
   stroke: var(--eva-casper);
-  fill: rgba(255, 74, 87, 0.07);
+  fill: color-mix(in srgb, var(--eva-casper) 7%, transparent);
   filter: drop-shadow(0 0 6px var(--eva-casper-glow));
 }
 [data-theme="eva"] .eva-core.state-ok .eva-core-stat { fill: var(--eva-balthasar); }

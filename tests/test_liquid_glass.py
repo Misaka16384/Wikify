@@ -468,13 +468,9 @@ CORE_LITERALS = {
 #: that also fails — so somebody prunes it instead of letting it become a
 #: permanent excuse.
 CORE_LITERAL_LEDGER = [
-    'background: radial-gradient(circle, rgba(69, 213, 234, 0.16), transpar',
-    'text-shadow: 0 0 6px rgba(69, 213, 234, 0.3);',
-    'box-shadow: 0 0 12px rgba(69, 213, 234, 0.18);',
     'background: linear-gradient(180deg, #FF4A57, #C91526);',
     'filter: drop-shadow(0 0 6px rgba(255, 74, 87, 0.4));',
     'filter: drop-shadow(0 0 12px rgba(255, 74, 87, 0.6));',
-    'border-color: rgba(53, 239, 126, 0.3);',
     'border-color: rgba(255, 74, 87, 0.35);',
     'linear-gradient(150deg, rgba(255, 74, 87, 0.13), rgba(255, 74, 87, 0.0',
     'border: 1px solid rgba(255, 74, 87, 0.35);',
@@ -489,10 +485,6 @@ CORE_LITERAL_LEDGER = [
     'filter: drop-shadow(0 16px 34px rgba(var(--eva-shadow-rgb), calc(0.95 ',
     'color: #FF4A57;',
     'border-bottom-color: rgba(255, 74, 87, 0.3);',
-    'border: 1px solid rgba(69, 213, 234, 0.2);',
-    'fill: rgba(69, 213, 234, 0.07);',
-    'fill: rgba(53, 239, 126, 0.07);',
-    'fill: rgba(255, 74, 87, 0.07);',
     'fill: rgba(255, 74, 87, 0.08);',
     '.eva-boot-core.c1 { color: #45D5EA; text-shadow: 0 0 10px rgba(69, 213',
     '.eva-boot-core.c2 { color: #35EF7E; text-shadow: 0 0 10px rgba(53, 239',
