@@ -183,3 +183,35 @@ def test_every_webui_op_is_a_command_the_cli_accepts(op):
         f"op '{op}' runs `magi {' '.join(argv)}` but the parser still requires "
         f"{leftover} — the job exits 2 before doing anything"
     )
+
+
+def test_no_test_imports_the_repository_root_as_a_package():
+    """The suite must pass under the command CI actually runs.
+
+    CI runs `uv run pytest tests -q`. Every local check in this project ran
+    `python -m pytest`, and `-m` puts the working directory on `sys.path`
+    while a bare `pytest` does not. So `from tests import …` resolved here and
+    raised `ModuleNotFoundError` there — green on every machine that mattered
+    to the person checking, red on the one that gates the release. It stopped
+    v2.0.0 at the test step, which is the workflow doing its job, but the
+    difference had been sitting there unnoticed because nobody ran the other
+    command.
+
+    There is no `tests/__init__.py`, so pytest puts `tests/` itself on the
+    path under either invocation: a sibling test module is imported by its
+    bare name. Anything that reaches for `tests.` needs the root, and the root
+    is exactly what the two commands disagree about.
+    """
+    import re
+    from pathlib import Path
+
+    offenders = []
+    for path in sorted((Path(__file__).resolve().parent).glob("test_*.py")):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if re.match(r"\s*(from tests(\.|\s+import)|import tests(\s|$|\.))", line):
+                offenders.append(f"{path.name}:{number}: {line.strip()}")
+
+    assert not offenders, (
+        "these need the repository root on sys.path, which `pytest tests -q` "
+        "does not provide — import the sibling module by its bare name:\n  "
+        + "\n  ".join(offenders))

@@ -378,6 +378,15 @@ CASES: list[Case] = [
         target="tests/test_docs_quote_real_output.py -k capabilities",
     ),
 
+    Case(
+        area="ci",
+        label="a test imports the repo root, green locally and red on CI",
+        path="tests/test_docs_quote_real_output.py",
+        fixed="    import test_one_thing_one_word as vocab",
+        broken="    from tests import test_one_thing_one_word as vocab",
+        target="tests/test_contracts.py -k repository_root_as_a_package",
+    ),
+
     # ------------------------------------------------------------------ vocab
     Case(
         area="vocab",

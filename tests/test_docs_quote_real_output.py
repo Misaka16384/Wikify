@@ -172,7 +172,13 @@ def test_no_exemption_excuses_text_the_cli_never_prints():
     and `this library has knowledge but…`, both rewritten in the vocabulary
     merge — and the guides were still quoting both under their protection.
     """
-    from tests import test_one_thing_one_word as vocab
+    # Not `from tests import …`: that needs the repository root on sys.path,
+    # which `python -m pytest` supplies (the `-m` puts cwd there) and
+    # `pytest tests -q` does not. CI runs the second form, so this import
+    # passed here and failed there for as long as it existed. With no
+    # `tests/__init__.py`, pytest puts `tests/` itself on the path under
+    # either invocation, so a bare module import works in both.
+    import test_one_thing_one_word as vocab
 
     haystack = _cli_strings()
 
