@@ -233,6 +233,68 @@ def test_solid_fallback_does_not_blank_background_image():
     )
 
 
+#: Surfaces whose visible fill is `background-image` in at least one theme.
+#: `[data-theme="eva"] .card` is the clearest case: `background-color:
+#: transparent` plus a gradient, so removing the image leaves a hole.
+FILL_IS_AN_IMAGE = ("card", "modal-window", "modal-content", "topbar",
+                    "core-band", "toast", "stat-pill", "icon-btn",
+                    "doc-preview-side", "glass-tuner-panel")
+
+
+def _rules_blanking_background_image():
+    """Every rule that sets `background-image: none !important`, anywhere."""
+    for match in re.finditer(r"([^{}]*)\{([^{}]*)\}", CSS_RULES):
+        selector, body = match.group(1).strip(), match.group(2)
+        if re.search(r"background-image:\s*none\s*!important", body):
+            yield selector, body
+
+
+def test_nothing_blanks_a_fill_without_supplying_one():
+    """The rule, not the instance.
+
+    `html.no-glass` learned this and wrote the reason down; two media queries
+    kept doing it anyway, and the guard above could not see them because it
+    named a selector instead of naming the property. In MAGI MODE a machine
+    with "reduce motion" switched on showed cards as holes over the artwork —
+    the third time this defect shipped.
+
+    A rule may blank `background-image`. What it may not do is blank it on a
+    surface whose fill lives there and leave nothing behind: either it sets a
+    `background-color` in the same rule, or it is not this rule's business.
+    """
+    offenders = []
+    for selector, body in _rules_blanking_background_image():
+        touches_fill = any(f".{name}" in selector for name in FILL_IS_AN_IMAGE)
+        if not touches_fill:
+            continue
+        if re.search(r"background-color:\s*[^;]+", body):
+            continue
+        offenders.append(selector.replace("\n", " ")[:120])
+
+    assert not offenders, (
+        "these rules blank the fill of a surface that has no other background "
+        "and put nothing in its place — in MAGI MODE the card becomes a hole:\n  "
+        + "\n  ".join(offenders))
+
+
+def test_reduced_motion_asks_for_less_movement_not_less_material():
+    """Reduced motion and forced colours want different things, and treating
+    them as one is how the specular kill turned into a fill kill. The moving
+    part is the pointer specular; it goes at its colour stop, the way
+    `html.no-glass` does it. Opacity and blur are nobody's business here."""
+    block = re.search(r"@media \(prefers-reduced-motion: reduce\) \{(.*?)\n\}",
+                      CSS_RULES, re.S)
+    assert block, "the reduced-motion block moved or was removed"
+    body = block.group(1)
+
+    assert "--glass-specular-color: transparent !important" in body, (
+        "reduced motion must kill the specular at the token, not by blanking "
+        "the surfaces that are painted with it")
+    assert "--glass-blur" not in body, (
+        "reduced motion is not a request for opacity — that is what the GLASS "
+        "control and html.no-glass are for")
+
+
 def test_backdrop_layer_sits_behind_unpositioned_content():
     """#app-bg is fixed. At z-index 0 it painted *above* the background of any
     static block, because a positioned box outranks one. The core band is
@@ -352,3 +414,30 @@ def test_glass_control_uses_theme_colours():
     assert "rgba(69, 213, 234" not in body
     assert "rgba(53, 239, 126" not in body
     assert "var(--accent-primary" in body
+
+
+def test_no_var_carries_a_fallback_for_a_token_that_always_exists():
+    """A fallback that can never fire is documentation that lies.
+
+    `--glass-specular-color` is defined on `:root` and again in every theme
+    block, so the second argument of `var(--glass-specular-color, X)` is
+    unreachable. Four call sites carried one anyway, typed four different ways
+    — 0.25, 0.15, 0.12, 0.15 — and not one of them matched a real theme value
+    (0.65 / 0.25 / 0.24 / 0.55). A reader checking "what colour is the
+    specular here" found four answers, all wrong, none used.
+    """
+    root = re.search(r"(?m)^:root \{(.*?)\n\}", CSS_RULES, re.S)
+    assert root, ":root token block not found"
+    always_defined = set(re.findall(r"^\s*(--[a-z0-9-]+)\s*:", root.group(1), re.M))
+    assert always_defined, "no tokens parsed out of :root"
+
+    offenders = []
+    for name, fallback in re.findall(r"var\((--[a-z0-9-]+)\s*,\s*([^)]+(?:\([^)]*\))?[^)]*)\)",
+                                     CSS_RULES):
+        if name in always_defined:
+            offenders.append(f"{name} -> {fallback.strip()[:40]}")
+
+    assert not offenders, (
+        "these var() fallbacks can never be reached, because the token is "
+        "defined on :root — and each one is a different answer to a question "
+        "it never gets asked:\n  " + "\n  ".join(sorted(set(offenders))[:12]))

@@ -215,9 +215,9 @@
      onto the hovered surface only; the -999px fallback parks the glint
      off-canvas everywhere else, which is the whole gating mechanism. Sizes and
      colours resolve per theme at the point of use. */
-  --glass-specular-layer: radial-gradient(circle var(--glass-specular-size, 320px)
+  --glass-specular-layer: radial-gradient(circle var(--glass-specular-size)
     at var(--specular-x, -999px) var(--specular-y, -999px),
-    var(--glass-specular-color, rgba(255, 255, 255, 0.25)), transparent 70%);
+    var(--glass-specular-color), transparent 70%);
   --radius-pill: 9999px;
 
   --focus-ring: var(--accent-primary);
@@ -698,15 +698,18 @@ body {
     transition-duration: 0.01ms !important;
     transform: none !important;
   }
-  .card,
-  .modal-window,
-  .modal-content,
-  .toast,
-  .doc-preview-side,
-  .glass-tuner-panel,
-  .stat-pill,
-  .icon-btn {
-    background-image: none !important;
+  /* The moving part of the material is the pointer specular, painted as a
+     gradient stop — so it goes at the token, the way `html.no-glass` does it
+     further down. This used to blank `background-image` on eight selectors,
+     which in MAGI MODE took the card's entire fill with it: that theme's
+     `.card` is `background-color: transparent` plus a gradient, so the cards
+     became holes over the artwork. Same defect as `0e7de68` and `f4ffb9e`,
+     third occurrence, first time fixed by the rule rather than the instance.
+
+     Reduced motion asks for less movement. It is not a request for opacity,
+     so the blur and the scale are left alone. */
+  :root {
+    --glass-specular-color: transparent !important;
   }
 }
 
@@ -733,7 +736,14 @@ body {
   .toast {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
+    /* Blanking the decorative gradient is right here — the system's colours
+       are meant to win. What was missing is what sits underneath: every theme
+       whose fill lives in `background-image` also sets
+       `background-color: transparent`, so removing the image left nothing at
+       all. `Canvas` is the system background these surfaces should have been
+       resolving to. */
     background-image: none !important;
+    background-color: Canvas !important;
   }
 }
 
@@ -950,7 +960,7 @@ html:not([data-theme="eva"]) .glass-tuner-panel {
 }
 
 .kv-table td:first-child {
-  color: var(--text-muted, #6b7280);
+  color: var(--text-muted);
   white-space: nowrap;
   width: 1%;
 }
@@ -960,9 +970,9 @@ html:not([data-theme="eva"]) .glass-tuner-panel {
   font-size: 0.85rem;
   padding: 0.55rem 0.7rem;
   margin: 0.6rem 0;
-  border-radius: var(--radius-sm, 6px);
+  border-radius: var(--radius-sm);
   background-color: var(--bg-inset);
-  border: 1px solid var(--border-subtle, rgba(127, 127, 127, 0.25));
+  border: 1px solid var(--border-subtle);
   overflow-x: auto;
   white-space: pre;
 }
@@ -1455,7 +1465,7 @@ html:not([data-theme="eva"]) .card::after {
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  padding: var(--glass-edge-width, 1.5px);
+  padding: var(--glass-edge-width);
   -webkit-backdrop-filter: var(--glass-edge-filter);
   backdrop-filter: var(--glass-edge-filter);
   background-image: var(--glass-edge-sheen);
@@ -1471,7 +1481,7 @@ html:not([data-theme="eva"]) .card::after {
   content: "";
   position: absolute;
   top: 0;
-  left: var(--radius-glass, 14px);
+  left: var(--radius-glass);
   width: 40px;
   height: 2px;
   border-radius: 0 0 2px 2px;
@@ -2953,7 +2963,7 @@ details.advanced-sql > summary {
      middle of the panel and slid around when the pointer was somewhere else
      entirely. Apple's material has one light source, and it is above. */
   background-image: var(--glass-specular-layer),
-    linear-gradient(180deg, var(--glass-specular-color, rgba(255, 255, 255, 0.15)), transparent 45%);
+    linear-gradient(180deg, var(--glass-specular-color), transparent 45%);
   background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(calc(var(--glass-blur) * 1.6)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
@@ -2975,7 +2985,7 @@ html:not([data-theme="eva"]) .modal-content::after {
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  padding: var(--glass-edge-width, 1.5px);
+  padding: var(--glass-edge-width);
   -webkit-backdrop-filter: var(--glass-edge-filter);
   backdrop-filter: var(--glass-edge-filter);
   background-image: var(--glass-edge-sheen);
@@ -3163,7 +3173,7 @@ html:not([data-theme="eva"]) .modal-content::after {
   border-left: 1px solid var(--glass-border);
   background-color: var(--glass-bg-subtle);
   background-image: var(--glass-specular-layer),
-    linear-gradient(180deg, var(--glass-specular-color, rgba(255, 255, 255, 0.12)), transparent 30%);
+    linear-gradient(180deg, var(--glass-specular-color), transparent 30%);
   background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
@@ -3417,7 +3427,7 @@ html:not([data-theme="eva"]) .modal-content::after {
 
 .toast {
   background-color: var(--glass-bg-elevated);
-  background-image: linear-gradient(180deg, var(--glass-specular-color, rgba(255, 255, 255, 0.15)), transparent 60%);
+  background-image: linear-gradient(180deg, var(--glass-specular-color), transparent 60%);
   background-repeat: no-repeat;
   -webkit-backdrop-filter: blur(calc(var(--glass-blur) * 1.2)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   backdrop-filter: blur(calc(var(--glass-blur) * 1.2)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
@@ -3968,7 +3978,7 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
    does it buy me, and what can I actually do about it. */
 .opt-row {
   padding: 0.7rem 0;
-  border-bottom: 1px solid var(--border-subtle, #262b36);
+  border-bottom: 1px solid var(--border-subtle);
 }
 .opt-row:last-child { border-bottom: none; }
 .opt-head {
@@ -4378,7 +4388,7 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
   border: 0;
   border-radius: 0;
   background-color: transparent;
-  padding: var(--glass-edge-width, 1.5px);
+  padding: var(--glass-edge-width);
   -webkit-backdrop-filter: var(--glass-edge-filter);
   backdrop-filter: var(--glass-edge-filter);
   background-image: var(--glass-edge-sheen);
@@ -5121,7 +5131,7 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
   inset: 0;
   border: 0;
   border-radius: 0;
-  padding: var(--glass-edge-width, 4px);
+  padding: var(--glass-edge-width);
   -webkit-backdrop-filter: var(--glass-edge-filter);
   backdrop-filter: var(--glass-edge-filter);
   background-image: var(--glass-edge-sheen);
@@ -5788,7 +5798,7 @@ html.no-glass .app-bg-ambient { display: none !important; }
    it reads as "nothing to count here". */
 .metric-value.metric-empty {
   font-size: 0.9rem;
-  color: var(--text-muted, #8a8f98);
+  color: var(--text-muted);
   letter-spacing: 0.04em;
 }
 

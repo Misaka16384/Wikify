@@ -284,6 +284,40 @@ CASES: list[Case] = [
         target="tests/test_lint_cache.py",
     ),
 
+    # ------------------------------------------------------------------ webui
+    Case(
+        area="webui",
+        label="a mode block blanks a card's fill and leaves nothing behind (shipped 3x)",
+        path="src/magi/ui/static/styles.css",
+        fixed="  :root {\n    --glass-specular-color: transparent !important;\n  }\n}",
+        broken="  .card,\n  .modal-window,\n  .toast {\n    background-image: none !important;\n  }\n}",
+        target="tests/test_liquid_glass.py -k nothing_blanks_a_fill",
+    ),
+    Case(
+        area="webui",
+        label="forced colours loses the opaque backstop under the blanked fill",
+        path="src/magi/ui/static/styles.css",
+        fixed="    background-image: none !important;\n    background-color: Canvas !important;",
+        broken="    background-image: none !important;",
+        target="tests/test_liquid_glass.py -k nothing_blanks_a_fill",
+    ),
+    Case(
+        area="webui",
+        label="reduced motion starts forcing opacity, which is not what it asks for",
+        path="src/magi/ui/static/styles.css",
+        fixed="    --glass-specular-color: transparent !important;\n  }\n}",
+        broken="    --glass-specular-color: transparent !important;\n    --glass-blur: 0px !important;\n  }\n}",
+        target="tests/test_liquid_glass.py -k asks_for_less_movement",
+    ),
+    Case(
+        area="webui",
+        label="a var() fallback that can never fire, disagreeing with the real token",
+        path="src/magi/ui/static/styles.css",
+        fixed="  border-radius: var(--radius-sm);",
+        broken="  border-radius: var(--radius-sm, 6px);",
+        target="tests/test_liquid_glass.py -k carries_a_fallback",
+    ),
+
     # ------------------------------------------------------------------ vocab
     Case(
         area="vocab",
