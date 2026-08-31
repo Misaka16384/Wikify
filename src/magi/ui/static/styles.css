@@ -4450,14 +4450,40 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
 }
 
 /* tri-core tab identities on card frames */
-[data-theme="eva"] #tab-melchior .card { border-color: rgba(69, 213, 234, 0.2); }
-[data-theme="eva"] #tab-melchior .card::before,
-[data-theme="eva"] #tab-melchior .card::after { border-color: var(--eva-melchior); }
-[data-theme="eva"] #tab-melchior .card-title {
-  color: var(--eva-melchior);
-  text-shadow: 0 0 8px var(--eva-melchior-glow);
+/* Each core tab carries its own colour; the card rules below read it. The
+   three blocks that used to be here were the same four rules three times
+   over, and each began by typing the core's colour as a literal `rgba()` on
+   the line above the one that used the token for the same colour. Since
+   `[data-eva="blue"]` redefines all three cores, blue mode drew a card's
+   border from the red palette and its brackets from the blue one. */
+[data-theme="eva"] #tab-melchior { --core: var(--eva-melchior); --core-glow: var(--eva-melchior-glow); }
+[data-theme="eva"] #tab-balthasar { --core: var(--eva-balthasar); --core-glow: var(--eva-balthasar-glow); }
+[data-theme="eva"] #tab-casper { --core: var(--eva-casper); --core-glow: var(--eva-casper-glow); }
+
+[data-theme="eva"] #tab-melchior .card,
+[data-theme="eva"] #tab-balthasar .card,
+[data-theme="eva"] #tab-casper .card {
+  border-color: color-mix(in srgb, var(--core) 20%, transparent);
 }
-[data-theme="eva"] #tab-melchior .card-title::before { color: var(--eva-melchior); }
+[data-theme="eva"] #tab-melchior .card::before,
+[data-theme="eva"] #tab-melchior .card::after,
+[data-theme="eva"] #tab-balthasar .card::before,
+[data-theme="eva"] #tab-balthasar .card::after,
+[data-theme="eva"] #tab-casper .card::before,
+[data-theme="eva"] #tab-casper .card::after {
+  border-color: var(--core);
+}
+[data-theme="eva"] #tab-melchior .card-title,
+[data-theme="eva"] #tab-balthasar .card-title,
+[data-theme="eva"] #tab-casper .card-title {
+  color: var(--core);
+  text-shadow: 0 0 8px var(--core-glow);
+}
+[data-theme="eva"] #tab-melchior .card-title::before,
+[data-theme="eva"] #tab-balthasar .card-title::before,
+[data-theme="eva"] #tab-casper .card-title::before {
+  color: var(--core);
+}
 [data-theme="eva"] #melchior-concepts,
 [data-theme="eva"] #melchior-refs,
 [data-theme="eva"] #melchior-graph-status,
@@ -4466,14 +4492,6 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
   text-shadow: 0 0 10px var(--eva-melchior-glow);
 }
 
-[data-theme="eva"] #tab-balthasar .card { border-color: rgba(53, 239, 126, 0.2); }
-[data-theme="eva"] #tab-balthasar .card::before,
-[data-theme="eva"] #tab-balthasar .card::after { border-color: var(--eva-balthasar); }
-[data-theme="eva"] #tab-balthasar .card-title {
-  color: var(--eva-balthasar);
-  text-shadow: 0 0 8px var(--eva-balthasar-glow);
-}
-[data-theme="eva"] #tab-balthasar .card-title::before { color: var(--eva-balthasar); }
 [data-theme="eva"] #task-ready-val,
 [data-theme="eva"] #task-open-val {
   color: var(--eva-balthasar);
@@ -4488,14 +4506,6 @@ html:not([data-theme="eva"]) .app-bg > *:not(.app-bg-ambient) {
   text-shadow: 0 0 10px var(--eva-casper-glow);
 }
 
-[data-theme="eva"] #tab-casper .card { border-color: rgba(255, 74, 87, 0.2); }
-[data-theme="eva"] #tab-casper .card::before,
-[data-theme="eva"] #tab-casper .card::after { border-color: var(--eva-casper); }
-[data-theme="eva"] #tab-casper .card-title {
-  color: var(--eva-casper);
-  text-shadow: 0 0 8px var(--eva-casper-glow);
-}
-[data-theme="eva"] #tab-casper .card-title::before { color: var(--eva-casper); }
 
 [data-theme="eva"] .search-hit-title {
   color: var(--eva-melchior);

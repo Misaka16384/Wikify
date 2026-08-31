@@ -441,3 +441,80 @@ def test_no_var_carries_a_fallback_for_a_token_that_always_exists():
         "these var() fallbacks can never be reached, because the token is "
         "defined on :root — and each one is a different answer to a question "
         "it never gets asked:\n  " + "\n  ".join(sorted(set(offenders))[:12]))
+
+
+#: The three MAGI cores, in both variants, as they are written in the token
+#: definitions. Any other appearance of these numbers is a colour that will
+#: not follow `[data-eva="blue"]` when the palette swaps.
+CORE_LITERALS = {
+    "#45D5EA": "--eva-melchior (red)",   "69, 213, 234": "--eva-melchior (red)",
+    "#35EF7E": "--eva-balthasar (red)",  "53, 239, 126": "--eva-balthasar (red)",
+    "#FF4A57": "--eva-casper (red)",     "255, 74, 87": "--eva-casper (red)",
+    "#086080": "--eva-melchior (blue)",  "#0E6E3E": "--eva-balthasar (blue)",
+    "#A81F2A": "--eva-casper (blue)",
+}
+
+#: The core colours written out in a *rule*, as they stand today. Each one
+#: cannot follow `[data-eva="blue"]` when the palette swaps — a bug where
+#: the colour means "this core", and correct where it means something else.
+#: About sixteen sit in the Operations & Danger Zone panel, where casper's
+#: red is being used as *danger's* red; if that is what it means, staying
+#: red in the blue palette is right and changing it would be the defect.
+#:
+#: A ledger of open questions, not a list of blessings. Checked both ways:
+#: a new one is not here and fails, and fixing one leaves a stale entry
+#: that also fails — so somebody prunes it instead of letting it become a
+#: permanent excuse.
+CORE_LITERAL_LEDGER = [
+    'background: radial-gradient(circle, rgba(69, 213, 234, 0.16), transpar',
+    'text-shadow: 0 0 6px rgba(69, 213, 234, 0.3);',
+    'box-shadow: 0 0 12px rgba(69, 213, 234, 0.18);',
+    'background: linear-gradient(180deg, #FF4A57, #C91526);',
+    'filter: drop-shadow(0 0 6px rgba(255, 74, 87, 0.4));',
+    'filter: drop-shadow(0 0 12px rgba(255, 74, 87, 0.6));',
+    'border-color: rgba(53, 239, 126, 0.3);',
+    'border-color: rgba(255, 74, 87, 0.35);',
+    'linear-gradient(150deg, rgba(255, 74, 87, 0.13), rgba(255, 74, 87, 0.0',
+    'border: 1px solid rgba(255, 74, 87, 0.35);',
+    'border-left: 4px solid #FF4A57;',
+    'filter: drop-shadow(0 4px 14px rgba(var(--eva-shadow-rgb), calc(0.4 * ',
+    'color: rgba(255, 74, 87, 0.1);',
+    'color: #FF4A57;',
+    'text-shadow: 0 0 8px rgba(255, 74, 87, 0.4);',
+    'border-color: rgba(255, 74, 87, 0.55);',
+    'filter: drop-shadow(0 16px 34px rgba(var(--eva-shadow-rgb), calc(0.95 ',
+    'border-color: rgba(255, 74, 87, 0.55);',
+    'filter: drop-shadow(0 16px 34px rgba(var(--eva-shadow-rgb), calc(0.95 ',
+    'color: #FF4A57;',
+    'border-bottom-color: rgba(255, 74, 87, 0.3);',
+    'border: 1px solid rgba(69, 213, 234, 0.2);',
+    'fill: rgba(69, 213, 234, 0.07);',
+    'fill: rgba(53, 239, 126, 0.07);',
+    'fill: rgba(255, 74, 87, 0.07);',
+    'fill: rgba(255, 74, 87, 0.08);',
+    '.eva-boot-core.c1 { color: #45D5EA; text-shadow: 0 0 10px rgba(69, 213',
+    '.eva-boot-core.c2 { color: #35EF7E; text-shadow: 0 0 10px rgba(53, 239',
+    '.eva-boot-core.c3 { color: #FF4A57; text-shadow: 0 0 10px rgba(255, 74',
+]
+
+
+def test_the_ledger_of_hardcoded_core_colours_is_exact():
+    """Both directions, so neither growth nor silent shrinkage passes."""
+    found = []
+    for line in CSS_RULES.splitlines():
+        stripped = line.strip()
+        if re.match(r"--[a-z0-9-]+\s*:", stripped):
+            continue
+        if any(lit.lower() in line.lower() for lit in CORE_LITERALS):
+            found.append(stripped[:70])
+
+    added = [s for s in found if s not in CORE_LITERAL_LEDGER]
+    assert not added, (
+        "a core colour was written out in a new rule; inside a core tab use "
+        "var(--core), elsewhere var(--eva-<core>):\n  " + "\n  ".join(added[:8]))
+
+    gone = [s for s in CORE_LITERAL_LEDGER if s not in found]
+    assert not gone, (
+        "these were fixed — good — but the ledger still lists them, and a "
+        "ledger nobody prunes turns into a permanent excuse:\n  "
+        + "\n  ".join(gone[:8]))
