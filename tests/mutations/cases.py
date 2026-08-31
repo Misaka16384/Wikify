@@ -318,6 +318,31 @@ CASES: list[Case] = [
         target="tests/test_liquid_glass.py -k carries_a_fallback",
     ),
 
+    Case(
+        area="webui",
+        label="a surface hand-composes a glass recipe instead of naming one",
+        path="src/magi/ui/static/styles.css",
+        fixed="box-shadow: var(--fx-surface-sm);",
+        broken="box-shadow: var(--glass-shadow-sm), var(--glass-rim-top);",
+        target="tests/test_liquid_glass.py -k composes_its_own",
+    ),
+    Case(
+        area="webui",
+        label="a preset loses the bottom rim the author said everything gets",
+        path="src/magi/ui/static/styles.css",
+        fixed="  --fx-surface-md: var(--glass-shadow-md), var(--glass-rim-top), var(--glass-rim-bottom);",
+        broken="  --fx-surface-md: var(--glass-shadow-md), var(--glass-rim-top);",
+        target="tests/test_liquid_glass.py -k carries_both_rims",
+    ),
+    Case(
+        area="webui",
+        label="a thirtieth hardcoded core colour arrives unnoticed",
+        path="src/magi/ui/static/styles.css",
+        fixed='[data-theme="eva"] #tab-melchior { --core:',
+        broken='[data-theme="eva"] .brand-new { color: #45D5EA; }\n[data-theme="eva"] #tab-melchior { --core:',
+        target="tests/test_liquid_glass.py -k ledger_of_hardcoded",
+    ),
+
     # ------------------------------------------------------------------ vocab
     Case(
         area="vocab",

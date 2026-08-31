@@ -518,3 +518,55 @@ def test_the_ledger_of_hardcoded_core_colours_is_exact():
         "these were fixed — good — but the ledger still lists them, and a "
         "ledger nobody prunes turns into a permanent excuse:\n  "
         + "\n  ".join(gone[:8]))
+
+
+#: The named recipes. A surface asks for one of these; it does not compose
+#: its own out of the tokens underneath.
+FX_PRESETS = ("--fx-surface-sm", "--fx-surface-md", "--fx-surface-lg", "--fx-rim")
+
+#: The non-glass shadow family, for surfaces that are not made of glass.
+PLAIN_SHADOWS = ("--shadow-sm", "--shadow-md", "--shadow-lg")
+
+
+def test_no_surface_composes_its_own_glass_recipe():
+    """Presets only stay presets if nothing may hand-write a new one.
+
+    Eight compositions of the same four tokens were in use and which one a
+    surface got was arbitrary: at the same size tier `.pane-list` had a bottom
+    rim and `.toast` did not, `.modal-window` had one and `.glass-tuner-panel`
+    did not. Naming the four that remain is worth nothing on its own — without
+    this, a year from now there are four presets and six new recipes, and the
+    grep is worse than before because the tokens are one level further away.
+
+    A glass surface names a preset. A non-glass one uses the plain shadow
+    family. Anything that spells out `--glass-rim-*` or `--glass-shadow-*` in
+    a `box-shadow` is composing a recipe by hand.
+    """
+    offenders = []
+    for number, line in enumerate(CSS_RULES.splitlines(), 1):
+        match = re.search(r"box-shadow:\s*([^;]+)", line)
+        if not match:
+            continue
+        value = match.group(1)
+        if "--glass-rim" in value or "--glass-shadow" in value:
+            offenders.append(f"line {number}: {line.strip()[:80]}")
+
+    assert not offenders, (
+        "these compose a glass recipe instead of naming one — use "
+        f"{', '.join(FX_PRESETS)}:\n  " + "\n  ".join(offenders[:10]))
+
+
+def test_every_preset_carries_both_rims():
+    """The author's rule, in one place: if any surface has a bottom rim, all
+    of them do. Held on the definitions rather than on the 19 call sites, so
+    it stays true for a preset added later."""
+    root = re.search(r"(?m)^:root \{(.*?)\n\}", CSS_RULES, re.S)
+    assert root, ":root not found"
+    body = root.group(1)
+
+    for preset in FX_PRESETS:
+        m = re.search(rf"{re.escape(preset)}:\s*([^;]+);", body)
+        assert m, f"{preset} is not defined on :root"
+        value = m.group(1)
+        assert "--glass-rim-top" in value and "--glass-rim-bottom" in value, (
+            f"{preset} has one rim and not the other: {value.strip()[:70]}")
