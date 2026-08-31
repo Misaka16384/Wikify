@@ -13,6 +13,8 @@ Design contract (see ROADMAP.md):
 from __future__ import annotations
 
 import importlib
+import json
+from magi.core import trace
 import sys
 
 from magi import __version__
@@ -192,6 +194,11 @@ def main(argv: list[str] | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
 
+    # Consumed here rather than declared by forty subparsers: the commands
+    # that most need tracing are the ones that spawn other commands, and a
+    # flag only some of them accept is a flag nobody remembers.
+    argv = trace.consume_flag(list(argv))
+
     if not argv:
         # Bare `magi` is `magi next` (design-v2 §7): one entry, and the router
         # decides. Outside a workspace there is no state to route, so the help
@@ -273,6 +280,25 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except KeyboardInterrupt:
         return 130
+    except Exception as exc:                                    # noqa: BLE001
+        # Everything that is not one of the three above used to reach the
+        # interpreter as a traceback, `--json` or not. A caller that asked for
+        # JSON gets JSON even when the answer is "it broke"; a person gets the
+        # error rather than a stack; and the stack still exists on the trace
+        # channel, which is what `--verbose` is for.
+        import traceback
+
+        trace.say("".join(traceback.format_exception(exc)).rstrip())
+        if "--json" in rest:
+            print(json.dumps({"error": f"{type(exc).__name__}: {exc}"},
+                             ensure_ascii=False))
+        else:
+            print(f"magi {argv[0]}: {type(exc).__name__}: {exc}",
+                  file=sys.stderr)
+            if not trace.enabled():
+                print("  run again with --verbose for the full traceback",
+                      file=sys.stderr)
+        return 1
     finally:
         _update_notice(argv)
     return int(result) if result is not None else 0

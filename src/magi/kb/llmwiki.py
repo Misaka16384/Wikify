@@ -563,9 +563,29 @@ def markdown_files(root: Path) -> list[Path]:
         raise
 
 
+def _document_dirs() -> tuple:
+    from ..core.project import dirs
+
+    return dirs(documents=True)
+
+
+#: The trees this loader walks. It used to be the literal tuple
+#: ("raw", "wiki", "inventory", "datasets"): two directories that stopped
+#: being scaffolded before v2, and neither of the two v2 added. Nothing in
+#: `drafts/` — where every derivation lives — was ever linted, and no test
+#: could notice, because the list existed only here.
+DOCUMENT_DIRS = _document_dirs()
+
+
+#: Where a broken or malformed link is worth reporting. Narrower than
+#: `DOCUMENT_DIRS` on purpose: `raw/` holds converted sources, whose links
+#: belong to whoever wrote the paper and are not this project's to fix.
+LINK_CHECKED_DIRS = ("wiki", "drafts")
+
+
 def content_markdown_files(root: Path) -> list[Path]:
     """Return content markdown files, targeting known directories to avoid traversing .git/.obsidian."""
-    known_dirs = ("raw", "wiki", "inventory", "datasets")
+    known_dirs = DOCUMENT_DIRS
     result: list[Path] = []
 
     # If root's name is one of the known dirs AND none of those dirs exist as children,
@@ -681,7 +701,10 @@ def is_schema_checked_path(root: Path, path: Path) -> bool:
     parts = rel.parts
     if not parts or any(part.startswith(".") for part in parts[:-1]):
         return False
-    return parts[0] in {"raw", "wiki", "inventory", "datasets"}
+    # The same list as `DOCUMENT_DIRS`, and for a while the same mistake in
+    # two places: fixing the loader above changed nothing, because this copy
+    # still said `inventory`/`datasets` and still left `drafts/` out.
+    return parts[0] in set(DOCUMENT_DIRS)
 
 
 def require_fields(ctx: LintContext, doc: Document, fields: list[str], severity: str = "critical") -> None:
@@ -1262,7 +1285,11 @@ def check_links(ctx: LintContext) -> None:
             rel = doc.path.resolve().relative_to(ctx.root)
         except ValueError:
             continue
-        if rel.parts[0] not in {"wiki", "inventory"}:
+        # A link that points nowhere is a defect wherever it sits, and
+        # `drafts/` is a declared wikilink target — see the `wikilink` column
+        # in `core/project.LAYOUT`. `inventory` used to be here and has not
+        # been scaffolded since v1.
+        if rel.parts[0] not in LINK_CHECKED_DIRS:
             continue
         full_text = doc.raw_text if doc.raw_text else doc.path.read_text(encoding="utf-8")
         modified = False
@@ -1299,7 +1326,7 @@ def check_wikilinks_formatting(ctx: LintContext) -> None:
             rel = doc.path.resolve().relative_to(ctx.root)
         except ValueError:
             continue
-        if rel.parts[0] != "wiki":
+        if rel.parts[0] not in LINK_CHECKED_DIRS:
             continue
         full_text = doc.raw_text if doc.raw_text else doc.path.read_text(encoding="utf-8", errors="replace")
         links = extract_wikilinks(full_text)

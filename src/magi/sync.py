@@ -492,7 +492,9 @@ def run_fixes(report: dict, dry_run: bool = False, cwd=None) -> tuple[int, int]:
     whatever directory the person happened to be standing in — a read bug in
     the report path, and a write bug here.
     """
-    import subprocess
+    import subprocess  # noqa: F401  (kept: other helpers below use it)
+
+    from .core import trace
 
     def _rank(hint: dict) -> int:
         code = hint.get("code")
@@ -526,11 +528,8 @@ def run_fixes(report: dict, dry_run: bool = False, cwd=None) -> tuple[int, int]:
         # character device, so `isatty()` still answers True. An empty pipe
         # answers False on both platforms, which is the non-tty path
         # `_agreed_to_hand_over` documents — print the notice and continue.
-        proc = subprocess.run([sys.executable, "-m", "magi", *cmd],
-                              cwd=str(cwd) if cwd else None,
-                              capture_output=True, text=True,
-                              encoding="utf-8", errors="replace",
-                              input="")
+        proc = trace.run([sys.executable, "-m", "magi", *cmd],
+                         cwd=str(cwd) if cwd else None)
         ran += 1
         out = (proc.stdout or proc.stderr or "").strip().splitlines()
         for line in out[-2:]:

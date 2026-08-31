@@ -48,6 +48,17 @@ def _die(msg: str, hint: str | None = None, as_json: bool = False) -> int:
     return 1
 
 
+def _searchable_dirs() -> tuple:
+    from .core.project import dirs
+
+    return dirs(searchable=True)
+
+
+#: The trees the index walks. Named so the layout test can hold it against
+#: the column it implements.
+CORPUS = _searchable_dirs()
+
+
 def open_db(db_path: Path, create: bool = False,
             want_vectors: bool = True) -> tuple[sqlite3.Connection, bool] | None:
     """Open the index db. Returns (conn, vec_loaded) or None when absent.
@@ -577,11 +588,11 @@ def _collection_of(rel: Path) -> str:
 
 
 def _iter_corpus(root: Path):
-    # `threads/` is indexed but deliberately absent from `wiki_common
-    # .CORPUS_DIRS`: that tuple drives the maintenance passes that *rewrite*
-    # files, and a discussion is append-only — nothing reformats somebody's
-    # post. Searchable, not editable.
-    for base in ("wiki", "raw", "drafts", "threads"):
+    # `threads/` is searchable but not rewritable — a discussion is
+    # append-only, and nothing reformats somebody's post. Both facts are one
+    # row in `core/project.LAYOUT` now, so the two sets cannot drift apart
+    # without a test saying so.
+    for base in CORPUS:
         d = root / base
         if not d.is_dir():
             continue

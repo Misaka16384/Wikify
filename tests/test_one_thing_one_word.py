@@ -260,9 +260,11 @@ CLI_ALLOWED = re.compile(
     r"Zotero\s*(?:librar|库)"
     r"|--topic-dir|--library|--kb-only|topic_dir"   # real flags and their dests
     r"|magi kb|kb list|kb register"                # the command is called kb
-    # Real paths. A directory name followed by a separator is a shape, not a
-    # noun — `GUIDE_ALLOWED` carries the same rule for the same reason.
-    r"|topics[/\\]"
+    # Real paths. A path segment is a shape, not a noun: either something
+    # follows the separator (`topics/`) or something precedes it
+    # (`wiki/topics`). The bare word stays banned, which is the whole
+    # difference between excusing a form and excusing a word.
+    r"|topics[/\\]|\w+[/\\]topics"
 )
 
 

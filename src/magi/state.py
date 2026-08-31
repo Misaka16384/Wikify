@@ -542,8 +542,17 @@ def _stale_derivation(root: Path, note, links):
 
 #: Where a `[[wikilink]]` may point, in the order a tie is broken. Drafts
 #: first because that is what a `derivation:` names; `wiki/` last because a
-#: concept card sharing a stem with a draft is the less likely target.
-_LINK_DIRS = ("drafts", "threads", "wiki")
+#: concept card sharing a stem with a draft is the less likely target. The
+#: order is the `wikilink` column in `core/project.LAYOUT`, so a directory
+#: that becomes a link target says so in the same row as everything else
+#: about it.
+def _link_dirs() -> tuple:
+    from .core.project import wikilink_dirs
+
+    return wikilink_dirs()
+
+
+_LINK_DIRS = _link_dirs()
 
 
 def _link_index(root: Path) -> dict:

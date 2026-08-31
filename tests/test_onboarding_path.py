@@ -230,11 +230,19 @@ def test_run_fixes_does_not_hand_its_child_a_terminal():
 
     from magi import sync
 
-    source = inspect.getsource(sync.run_fixes)
-    assert 'input=""' in source, (
-        "run_fixes spawns magi children with capture_output; without an empty "
-        "pipe for stdin, a child that confirms on a tty asks a question "
-        "nobody can answer")
+    from magi.core import trace
+
+    # Checked where the property now lives. `run_fixes` used to spell
+    # `input=""` itself; it now goes through `trace.run`, which owns that
+    # default for every spawn. Pinning the old call site would be pinning the
+    # spelling rather than the guarantee — the mistake this file's own first
+    # rule is about.
+    assert "trace.run(" in inspect.getsource(sync.run_fixes), (
+        "run_fixes spawns its children directly again, so nothing guarantees "
+        "the stdin and tracing defaults")
+    assert 'kwargs["input"] = ""' in inspect.getsource(trace.run), (
+        "trace.run stopped handing its children an empty pipe; a child that "
+        "confirms on a tty would ask a question nobody can answer")
 
 
 def test_the_handover_gate_needs_both_ends_of_the_terminal(monkeypatch, capsys, tmp_path):

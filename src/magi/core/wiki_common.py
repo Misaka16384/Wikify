@@ -320,11 +320,22 @@ def _index_body(text: str) -> str:
 # What counts as "the library"
 # --------------------------------------------------------------------------
 
-# The same three trees `magi index` walks. output/ is generated and the
-# concept backups under `wiki/**/.backup/` are copies of the originals, so a
-# maintenance pass that included them would report every defect twice — and,
-# worse, rewrite the backups you were keeping in case the fix went wrong.
-CORPUS_DIRS = ("wiki", "raw", "drafts")
+#: Where a whole-project maintenance pass may rewrite files. Read off the
+#: layout table rather than typed here: this tuple used to be one of eight
+#: hand-maintained answers to "which directories count", and the one in
+#: `magi lint` had drifted to two directories that no longer exist.
+#:
+#: `threads/` is deliberately absent — a discussion is append-only and nothing
+#: reformats somebody's post — and so are `output/` (generated) and the
+#: backups under `scratch/`, which are the copies being kept in case a pass
+#: went wrong. All three reasons now live beside the flag, in `core/project`.
+def _corpus_dirs() -> tuple:
+    from .project import dirs
+
+    return dirs(rewritten=True)
+
+
+CORPUS_DIRS = _corpus_dirs()
 
 
 def corpus_files(root) -> list:
