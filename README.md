@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/magi-research)](https://pypi.org/project/magi-research/)
 [![License](https://img.shields.io/pypi/l/magi-research)](LICENSE)
 
-**MAGI** 是一个 agent-native 的科研工作环境：人是驾驶员，LLM agent 是机体，确定性的 `magi` CLI 是拘束具——三者同步率越高，科研越快。它把学术论文（PDF/LaTeX）摄入、编译为 Obsidian 兼容的概念卡片知识库，并用三核架构管理完整的科研状态：
+**MAGI** 是一个 agent-native 的科研工作环境：人是驾驶员，LLM agent 是机体，确定性的 `magi` CLI 是拘束具——三者同步率越高，科研越快。它把学术论文（PDF/LaTeX）摄入、编译为 Obsidian 兼容的概念卡片项目，并用三核架构管理完整的科研状态：
 
 | 核 | 状态 | 由谁承载 | 回答的问题 |
 |---|---|---|---|
@@ -95,7 +95,7 @@ mkdir my-topic ; cd my-topic ; magi init ; magi install
 - 背景画默认按屏幕宽高比选图、切页随机轮换、平滑交叉淡入；也可以在 ◐ 面板的缩略图里**钉住某一张或几张**；把自己的图放进 `~/.config/magi/ui-backgrounds/{blue,red}/` 即可替换整套艺术
 - 全部动画尊重 `prefers-reduced-motion`；界面中英双语一键切换
 
-### 知识库成品
+### 项目成品
 
 ![知识图谱可视化](https://raw.githubusercontent.com/Misaka16384/magi/main/graph.png)
 *自动生成的密集语义图谱，展示物理与数学概念。*
@@ -255,7 +255,7 @@ MAGI SYSTEM ONLINE — sync ratio 59.2%
 
 > **BALTHASAR 报的是研究状态，不是杂活。** `1 waiting on you` 是只有人能做的决定；`1 unrecorded` 是发生了但没人记下来的事——那是记账债，它下面每一个数字都是从当前错误的 note 算出来的，所以 `magi next` 把它排在第一。这个分数量的是记账干净度不是进度：六条开着的命题、零欠账，完全健康。
 >
-> 同步率随三核就绪程度浮动。照着 hints 逐条执行即可；新库数字低不是配置错了。
+> 同步率随三核就绪程度浮动。照着 hints 逐条执行即可；新项目数字低不是配置错了。
 
 然后把 PDF / LaTeX / 笔记丢进 `inbox/`，在你的 agent 里说一句"摄入 inbox 里的论文"（或直接 `/magi:ingest`），流水线就开始了。
 
@@ -314,13 +314,13 @@ magi search "..." --kb <name>    # 定向搜某一个
 - **`research.search_projects`（项目自己的 config.yaml）**——本项目**读**哪几个。
 
 默认只搜本项目，但结果末尾会点名还有哪些可读，所以别的项目不会因此消失。
-`magi kb register <path>` 手动注册任意项目，`unregister` 只移除注册项、不动文件。WebUI 里点开带 `[kb:名称]` 标记的命中，卡片照样就地展开、公式插图照样渲染——预览请求带着来源库名走，不用先切过去。
+`magi kb register <path>` 手动注册任意项目，`unregister` 只移除注册项、不动文件。WebUI 里点开带 `[kb:名称]` 标记的命中，卡片照样就地展开、公式插图照样渲染——预览请求带着来源项目名走，不用先切过去。
 
 > 检索小抄：`--path 'raw/papers/2026-*<slug>*'` 可把语义检索限定在某一篇论文里；中英文问题都支持（中文经 CJK 二元组分词进 BM25，向量侧由嵌入模型天然跨语言）。
 
 ### 写作与引用（`drafts/` + `magi bib`）
 
-草稿是工作区一等公民：放在 `drafts/`，被 `magi index` 收进检索（collection `drafts`），但不进图谱、不计同步率。引用直接从参考卡导出：
+草稿是项目一等公民：放在 `drafts/`，被 `magi index` 收进检索（collection `drafts`），但不进图谱、不计同步率。引用直接从参考卡导出：
 
 ```powershell
 magi bib pretko-2020            # 参考卡 frontmatter → BibTeX 条目
@@ -334,11 +334,11 @@ magi bib pretko-2020 --fetch    # 有 arxiv_id 时拉取 arXiv 官方 BibTeX
 
 ### 文献雷达（`magi radar`）
 
-工作区 `config.yaml` 的 `radar:` 段配置 arXiv 分类、种子论文与我方论文后：
+项目 `config.yaml` 的 `radar:` 段配置 arXiv 分类、种子论文与我方论文后：
 
 ```powershell
 magi radar harvest              # 手动收割：S2 推荐 ∪ arXiv 新文 → inbox/radar/日期-digest.md
-                                # （候选按"与本库嵌入质心的余弦相关度"排序并标注 relevance 分；
+                                # （候选按"与本项目嵌入质心的余弦相关度"排序并标注 relevance 分；
                                 #   config 里 radar.min_relevance 可设过滤阈值）
 magi radar install-schedule     # 注册每日定时收割（Windows 任务计划程序 / macOS launchd；--uninstall 卸载）
 magi radar citation-gap         # 侦察"该引我方论文却未引"的近期文献（四层漏斗，人工审核队列）
@@ -355,7 +355,7 @@ magi ui                       # 启动并在默认浏览器中打开本地看板
 magi ui --port 8080 --no-open # 自定义端口且不自启浏览器
 ```
 
-包含 7 大面板：Dashboard（你该看的两件事：**等你拍板的决定**和**每条线现在在哪**，外加一个「想到什么就写在这」的框直接写进 `inbox/notes.md`、一段**回头看**给你的预测命中率；再往下才是同步率、一键修复建议、注册库和 config.yaml 关键字段）、Melchior（Threads 与单条论坛视图、时间线、认知网络/Claims/图谱 SQL/文献 BibTeX 复制/草稿；图上现在也画 `threads/`，可以只看库、只看研究状态或缩到骨架）、Balthasar（Beads 任务）、Casper（混合检索实验台：联邦/集合/路径过滤）、Radar（简报阅读 + 审阅动作：标已审/收入 inbox/建阅读任务）、Operations & Danger Zone（服务端操作白名单 + 输入操作 ID 确认 + SSE 实时终端，任务历史落盘）与内置文档。API 与 `--json` 契约逐字段一致。
+包含 7 大面板：Dashboard（你该看的两件事：**等你拍板的决定**和**每条线现在在哪**，外加一个「想到什么就写在这」的框直接写进 `inbox/notes.md`、一段**回头看**给你的预测命中率；再往下才是同步率、一键修复建议、注册项目和 config.yaml 关键字段）、Melchior（Threads 与单条论坛视图、时间线、认知网络/Claims/图谱 SQL/文献 BibTeX 复制/草稿；图上现在也画 `threads/`，可以只看知识、只看研究状态或缩到骨架）、Balthasar（Beads 任务）、Casper（混合检索实验台：联邦/集合/路径过滤）、Radar（简报阅读 + 审阅动作：标已审/收入 inbox/建阅读任务）、Operations & Danger Zone（服务端操作白名单 + 输入操作 ID 确认 + SSE 实时终端，任务历史落盘）与内置文档。API 与 `--json` 契约逐字段一致。
 
 顶栏的 **⚡ MAGI MODE** 可一键切换 EVA/NERV 战术主题：三贤者三体阵列 HUD（MELCHIOR·1 / BALTHASAR·2 / CASPER·3 实时状态 + 同调率）、CRT 扫描线、蜂窝网格、警示条纹 Danger Zone 与启动同步序列。看板仅监听 `127.0.0.1`，带 Host 白名单防护，不发送任何 CORS 头。
 
@@ -374,16 +374,19 @@ powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Mis
 # 2. 删除旧安装拷贝（旧 SKILL.md 会误导 agent 调用已不存在的脚本路径）
 magi setup --remove-legacy
 
-# 3. 在 Hub 根目录跑一条命令（非破坏性，且会自动收尾）：
+# 3. 在 Hub 根目录先看一眼，再跑：
 cd <你的KnowledgeHub>
+magi migrate --dry-run   # 说清会改什么，一个字节都不写
 magi migrate
-#    ↳ 逐个 topic 补齐 CLAUDE.md / AGENTS.md / config.yaml / scratch/（沿用 config.md
+#    ↳ 逐个项目补齐 CLAUDE.md / AGENTS.md / config.yaml / scratch/（沿用 config.md
 #      里的旧标题与 scope）、把旧 config.yaml 里的 token/模型/阈值搬过来，重建
-#      graph.db（新增 claims/evidence 表）与 _index.md；raw/ wiki/ 内容一字不动。
-#      随后自动 magi pm init + 每个 topic 的 magi sync --fix（建索引、同步积压）。
-#      --minimal 只迁移不收尾；单个 topic 目录里跑则只迁移该 topic。
+#      graph.db（新增 claims/evidence 表）与 _index.md。raw/ 与 wiki/ 的字节不
+#      改写；唯一会动的是 wiki/theses/*.md——它们被移进 drafts/，重名的留在
+#      原地并报出来，什么都不会删。
+#      随后自动 magi pm init + 每个项目的 magi sync --fix（建索引、同步积压）。
+#      --minimal 只迁移不收尾；在单个项目目录里跑则只迁移那一个。
 
-# 收尾：各 topic 跑 `magi install`（技能 + 协议 + 闸门）、`magi index`、`magi sync` 验收。
+# 收尾：各项目跑 `magi install`（技能 + 协议 + 闸门）、`magi index`、`magi sync` 验收。
 # 迁移后 hub 自己的 wikis.json / topics/ / log.md 就不起作用了，想删随时删。
 ```
 
@@ -391,7 +394,7 @@ magi migrate
 
 | 旧（Wikify） | 新（MAGI） |
 |---|---|
-| `install.ps1` / `install.sh` **复制** `skills/`+`bin/` 到 agent 目录 | 同名脚本已改为**一键引导安装**（uv + CLI + `magi setup`，§2.1）；skills 随包分发，用 `magi skills install` 按工作区安装（§2.4） |
+| `install.ps1` / `install.sh` **复制** `skills/`+`bin/` 到 agent 目录 | 同名脚本已改为**一键引导安装**（uv + CLI + `magi setup`，§2.1）；skills 随包分发，用 `magi skills install` 按项目安装（§2.4） |
 | `python <BIN>/llm-wiki.py lint --fix <dir>` | `magi lint --fix <dir>` |
 | `python <BIN>/llm-wiki.py graph <dir>` | `magi graph build <dir>` |
 | `python <BIN>/query-graph.py "<SQL>"` | `magi graph query "<SQL>"` |
@@ -408,7 +411,7 @@ magi migrate
 
 ## 6. Obsidian 集成
 
-在 Obsidian 中**直接打开具体的主题工作区目录**（不要打开 Hub 根目录）。在 设置 → 档案与链接 → 排除档案 中添加两条正则，让图谱只显示纯粹的知识卡片：
+在 Obsidian 中**直接打开具体的项目目录**（不要打开 Hub 根目录）。在 设置 → 档案与链接 → 排除档案 中添加两条正则，让图谱只显示纯粹的知识卡片：
 
 ```regex
 /(?:^|/)(?:_index|log|config|uncompiled-source-coverage|CLAUDE|AGENTS)\.md$/

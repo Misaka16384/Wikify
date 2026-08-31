@@ -38,6 +38,15 @@ GUIDES = {
     "en": ROOT / "src" / "magi" / "docs" / "guide.en.md",
 }
 
+#: The first document anybody reads, and the one surface three vocabulary
+#: sweeps walked past. `src/magi/docs/readme.*.md` are the packaged copies
+#: and are asserted elsewhere to be byte-identical, so checking the two at
+#: the repository root covers all four.
+READMES = {
+    "zh": ROOT / "README.md",
+    "en": ROOT / "README_en.md",
+}
+
 #: The dashboard's RETIRED list above is what a dropdown menu needed. Prose
 #: reaches for more synonyms than a menu ever did: the guides also used
 #: "library" and "knowledge base" as a fourth and fifth English gloss, 主题
@@ -63,6 +72,9 @@ GUIDE_ALLOWED = re.compile(
     r"|--topic-dir|--project-dir"                      # the accepted flag alias and its current spelling
     r"|magi kb\b|--library\b"                          # real command and real flag names
     r"|任务库|建库|task.store|task.database"            # the Beads task DB, not a project
+    r"|数据库|database"                             # a database; the retired word is the bare 库 inside it
+    r"|套主题|主题切换|战术主题|tactical theme"        # a UI skin — the counter 套 never precedes a research subject
+    r"|Hub 根目录|hub root|hub 根"                    # v1's own structure, named as v1's, for people who still have one
     r"|仓库|\brepo\b|clone"                             # a git repository, not a project
     r"|模式库|pattern library"                          # output/reflect/patterns/, a different library entirely
     r"|--kb-only|--full\b|纯知识库|knowledge-base-only"  # the flag's own name for a feature mode, not the directory
@@ -349,3 +361,26 @@ def test_what_the_cli_prints_uses_one_word():
     assert not offenders, (
         "the CLI still says a retired word out loud:\n  "
         + "\n  ".join(sorted(set(offenders))[:25]))
+
+
+@pytest.mark.parametrize("lang", ["zh", "en"])
+def test_the_readme_uses_one_word(lang):
+    """The document that introduces the system, checked like the manual.
+
+    It described the thing as a `workspace` in its first sentence and gave a
+    section the heading `知识库成品`, months after both words were retired
+    everywhere else — because every guard written for the merge looked at the
+    dashboard, the guides, the skills or the CLI, and none at this file.
+    """
+    offenders = []
+    for number, line in enumerate(
+            READMES[lang].read_text(encoding="utf-8").splitlines(), 1):
+        rest = GUIDE_ALLOWED.sub(" ", line)
+        for phrase in QUOTED_OUTPUT:
+            rest = rest.replace(phrase, " ")
+        if GUIDE_RETIRED.search(rest):
+            offenders.append(f"line {number}: {line.strip()[:96]}")
+
+    assert not offenders, (
+        f"README ({lang}) still calls a project something else:\n  "
+        + "\n  ".join(offenders[:16]))

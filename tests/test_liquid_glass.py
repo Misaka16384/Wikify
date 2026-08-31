@@ -457,9 +457,11 @@ CORE_LITERALS = {
 #: The core colours written out in a *rule*, as they stand today. Each one
 #: cannot follow `[data-eva="blue"]` when the palette swaps — a bug where
 #: the colour means "this core", and correct where it means something else.
-#: About sixteen sit in the Operations & Danger Zone panel, where casper's
-#: red is being used as *danger's* red; if that is what it means, staying
-#: red in the blue palette is right and changing it would be the defect.
+#: About sixteen sit in the Operations & Danger Zone panel. The author
+#: settled it (2026-08-31): that red is *danger's* red, not casper's. A
+#: danger zone is red in every palette, so those literals are correct and
+#: changing them to follow `[data-eva="blue"]` would be the defect. They stay
+#: on this list because the check is mechanical, not because they are open.
 #:
 #: A ledger of open questions, not a list of blessings. Checked both ways:
 #: a new one is not here and fails, and fixing one leaves a stale entry

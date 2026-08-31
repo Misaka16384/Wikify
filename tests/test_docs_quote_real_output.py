@@ -194,3 +194,41 @@ def test_no_exemption_excuses_text_the_cli_never_prints():
         assert phrase in haystack, (
             f"the guides are excused for quoting {phrase!r} as CLI output, and "
             f"nothing in src/magi prints it any more")
+
+
+#: Capabilities a person reaches for when something is wrong or irreversible.
+#: Each must be findable in prose, not only in `--help`: a flag nobody is told
+#: about is a flag nobody uses at the moment it would have helped.
+DOCUMENTED_CAPABILITIES = {
+    "--verbose": ("src/magi/docs/guide.zh.md", "src/magi/docs/guide.en.md"),
+    "MAGI_DEBUG": ("src/magi/docs/guide.zh.md", "src/magi/docs/guide.en.md"),
+    "migrate --dry-run": ("README.md", "README_en.md"),
+}
+
+
+def test_the_documents_mention_the_capabilities_that_matter_most():
+    """Three sweeps merged a noun across every surface and none of them asked
+    whether the documents had kept up with the *code*.
+
+    `--verbose` reached neither guide, in either language, and
+    `magi migrate --dry-run` reached neither README — while the migration
+    section went on promising that nothing in `wiki/` moves, next to a command
+    that moves `wiki/theses/`. These three are the ones worth a test: they are
+    what a person reaches for when a command failed without saying why, or
+    when they are about to run something irreversible over the only copy of
+    their notes.
+    """
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    missing = []
+    for capability, files in DOCUMENTED_CAPABILITIES.items():
+        needle = capability.split()[-1] if " " in capability else capability
+        for rel in files:
+            text = (root / rel).read_text(encoding="utf-8", errors="replace")
+            if needle not in text:
+                missing.append(f"{capability} is not mentioned in {rel}")
+
+    assert not missing, (
+        "these exist in the CLI and nowhere a reader would find them:\n  "
+        + "\n  ".join(missing))

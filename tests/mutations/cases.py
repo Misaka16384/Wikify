@@ -343,6 +343,24 @@ CASES: list[Case] = [
         target="tests/test_liquid_glass.py -k ledger_of_hardcoded",
     ),
 
+    # ------------------------------------------------------------------- docs
+    Case(
+        area="docs",
+        label="the README drifts back to a retired word, outside every sweep",
+        path="README.md",
+        fixed="### 项目成品",
+        broken="### 知识库成品",
+        target="tests/test_one_thing_one_word.py -k readme",
+    ),
+    Case(
+        area="docs",
+        label="migration stops telling people they can look before they leap",
+        path="README.md",
+        fixed="magi migrate --dry-run   # 说清会改什么，一个字节都不写\n",
+        broken="",
+        target="tests/test_docs_quote_real_output.py -k capabilities",
+    ),
+
     # ------------------------------------------------------------------ vocab
     Case(
         area="vocab",

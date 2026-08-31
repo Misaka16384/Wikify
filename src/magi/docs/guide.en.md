@@ -1667,6 +1667,19 @@ magi guide --symptoms              # look up an error message you actually saw
 
 `magi sync --fix` runs the deterministic repairs itself. Below: the symptoms that need a human.
 
+When a command fails and does not say enough, add `--verbose` (or set
+`MAGI_DEBUG=1`):
+
+```powershell
+magi sync --fix --verbose
+```
+
+It changes nothing you normally see. It opens a second channel carrying **each
+subprocess's full argv, exit code, duration and entire output**. `sync --fix`
+otherwise reports the last two lines of each step, and when a step fails the
+reason is usually in the part that got cut. The switch is inherited by child
+processes, so turning it on at the outermost command answers for the innermost.
+
 Look things up by symptom — you don't need to remember which command belongs where. The same table is available in the terminal:
 
 ```powershell

@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/magi-research)](https://pypi.org/project/magi-research/)
 [![License](https://img.shields.io/pypi/l/magi-research)](LICENSE)
 
-**MAGI** is an agent-native research workspace: the human pilots, the LLM agent is the mecha, and the deterministic `magi` CLI is the restraint armor — the higher the sync ratio, the faster the science. It ingests academic papers (PDF/LaTeX) into an Obsidian-compatible concept-card knowledge base and manages the full research state through a three-core architecture:
+**MAGI** is an agent-native research project environment: the human pilots, the LLM agent is the mecha, and the deterministic `magi` CLI is the restraint armor — the higher the sync ratio, the faster the science. It ingests academic papers (PDF/LaTeX) into Obsidian-compatible concept cards and manages the full research state through a three-core architecture:
 
 | Core | State | Carried by | Question answered |
 |---|---|---|---|
@@ -28,7 +28,7 @@ pipx upgrade --install magi-research           # install or upgrade — safe to 
 mkdir my-topic ; cd my-topic ; magi init ; magi install
 ```
 
-That is the whole setup. `magi init` scaffolds the workspace; `magi install` puts the skills, the protocol and the session hooks into **every** agent CLI it detects — it does not ask, because they do not conflict.
+That is the whole setup. `magi init` scaffolds the project; `magi install` puts the skills, the protocol and the session hooks into **every** agent CLI it detects — it does not ask, because they do not conflict.
 
 Now open your agent there and **say what you want** — "ingest the papers in inbox", "compile the backlog", "what should I work on?". The skills load themselves by description; you do not have to remember any of them.
 
@@ -100,7 +100,7 @@ these itself.
 - Backdrops are aspect-matched to your screen and rotate on tab switches with a smooth crossfade — or pin one (or a few) from the thumbnail picker in the ◐ tuner. Fully replaceable via `~/.config/magi/ui-backgrounds/{blue,red}/`
 - Every animation respects `prefers-reduced-motion`; the UI is bilingual (中 / EN) with one click
 
-### The knowledge base itself
+### The project itself
 
 ![Knowledge Graph Visualization](https://raw.githubusercontent.com/Misaka16384/magi/main/graph.png)
 *An automatically generated dense semantic graph of physics and math concepts.*
@@ -156,9 +156,9 @@ magi setup --check
 
 `magi setup` flags: `--no-beads` / `--no-models` / `--no-plugin` / `--no-skills` (skip the agent-CLI report) / `--remove-legacy` (delete detected legacy copies).
 
-The last four doctor rows are the agent CLIs on your machine (claude / codex / agy / opencode): whether each is installed, and how many skills the current workspace has for it. **`magi setup` does not install skills for you** — they go in per workspace, see §2.4.
+The last four doctor rows are the agent CLIs on your machine (claude / codex / agy / opencode): whether each is installed, and how many skills the current project has for it. **`magi setup` does not install skills for you** — they go in per project, see §2.4.
 
-**Want the classic Wikify experience (knowledge base only, no task management)?** Use `magi setup --kb-only`: skips the Beads install and `magi sync` stops suggesting task tracking (the BALTHASAR core shows disabled and is excluded from the sync ratio). Restore any time with `magi setup --full`. Everything else (radar etc.) is invoke-only — unused features stay invisible.
+**Want the classic Wikify experience (the compiled cards only, no task management)?** Use `magi setup --kb-only`: skips the Beads install and `magi sync` stops suggesting task tracking (the BALTHASAR core shows disabled and is excluded from the sync ratio). Restore any time with `magi setup --full`. Everything else (radar etc.) is invoke-only — unused features stay invisible.
 
 ### 2.2 Manual install (fallback)
 
@@ -200,24 +200,24 @@ Run `magi setup` and it asks about each one, with the official download link. Sa
 | **pdflatex** | deep math validation — checks a formula actually compiles; falls back to `pylatexenc` when absent | https://www.tug.org/texlive/ |
 | **MinerU** (a hosted service, not a binary) | cloud PDF conversion, strong on layout and formulas | https://mineru.net/ |
 
-`pandoc-crossref` is optional — without it cross-references degrade, nothing fails. If you installed from a source checkout, the Windows build is in `vendor/windows/`: add it to PATH or set `tools.pandoc_crossref_path` in config.yaml. A pipx or uv install does not carry it (a 19 MB Windows binary has no business shipping to every platform); get it from https://github.com/lierdakil/pandoc-crossref/releases when you want it. A MinerU token goes in your workspace's config.yaml under `ocr.mineru_api_token`.
+`pandoc-crossref` is optional — without it cross-references degrade, nothing fails. If you installed from a source checkout, the Windows build is in `vendor/windows/`: add it to PATH or set `tools.pandoc_crossref_path` in config.yaml. A pipx or uv install does not carry it (a 19 MB Windows binary has no business shipping to every platform); get it from https://github.com/lierdakil/pandoc-crossref/releases when you want it. A MinerU token goes in your project's config.yaml under `ocr.mineru_api_token`.
 
 (The historic ripgrep dependency is gone.)
 
 ### 2.4 Installing the skills (teaching your agent)
 
-All 8 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command inside your workspace** installs them into every agent CLI on your machine — no repo clone needed:
+All 8 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command inside your project** installs them into every agent CLI on your machine — no repo clone needed:
 
 ```powershell
-cd <your topic workspace>
-magi skills install                   # into this workspace; lists the CLIs it found and asks
+cd <your project>
+magi skills install                   # into this project; lists the CLIs it found and asks
 magi skills install --host codex      # name one and skip the question
 magi skills install --host auto       # every CLI it detects
 magi skills where                     # per CLI: where it reads, what is installed, how it fires
-magi skills install --scope global    # machine-wide (rarely useful — these are workspace skills)
+magi skills install --scope global    # machine-wide (rarely useful — these are project skills)
 ```
 
-**Not global by default**: these skills revolve around one research project, and installing into the workspace also lets them travel with the repo to collaborators.
+**Not global by default**: these skills revolve around one research project, and installing into the project also lets them travel with the repo to collaborators.
 
 | Host | Global | Project | How it fires |
 |---|---|---|---|
@@ -261,7 +261,7 @@ MAGI SYSTEM ONLINE — sync ratio 59.2%
 
 > **BALTHASAR reports research state, not chores.** `1 waiting on you` is a decision only a person can make; `1 unrecorded` is something that happened and nobody wrote down — that one is bookkeeping debt, and every number below it is computed from notes that are currently wrong, which is why `magi next` puts it first. The score is cleanliness, not progress: six open propositions with nothing unrecorded is perfectly healthy.
 >
-> The sync ratio moves with how many cores are ready. Follow the hints in order; a low number on a new library is not a misconfiguration.
+> The sync ratio moves with how many cores are ready. Follow the hints in order; a low number on a new project is not a misconfiguration.
 
 Then drop PDFs / LaTeX / notes into `inbox/` and tell your agent to ingest them (or invoke `/magi:ingest`).
 
@@ -274,7 +274,7 @@ Then drop PDFs / LaTeX / notes into `inbox/` and tell your agent to ingest them 
 > magi guide --symptoms                     # the symptom -> cause -> fix index
 > ```
 >
-> Or `magi ui` → **Docs & Help** → **User Guide** (with chapter navigation), or read [`guide.en.md`](./src/magi/docs/guide.en.md) directly. Twelve scenario chapters (get it running / install / migrate / build a library / ingest / compile / graph tuning / search / writing / radar / dashboard / troubleshooting), each stating what you should see and what to do when you don't. Stuck? Have your agent run `magi guide --search "<the error>"` — the manual ships with the CLI, no network needed.
+> Or `magi ui` → **Docs & Help** → **User Guide** (with chapter navigation), or read [`guide.en.md`](./src/magi/docs/guide.en.md) directly. Twelve scenario chapters (get it running / install / migrate / build a project / ingest / compile / graph tuning / search / writing / radar / dashboard / troubleshooting), each stating what you should see and what to do when you don't. Stuck? Have your agent run `magi guide --search "<the error>"` — the manual ships with the CLI, no network needed.
 
 ---
 
@@ -290,7 +290,7 @@ Trigger via slash commands in your agent (namespaced `magi:` under the Claude Co
 | Tidy | `tidy` | Repairs what the mechanical passes cannot: LaTeX broken by conversion, sprawling tags, two concept cards that are one concept |
 | Ask | `ask` | Hybrid retrieval + graph traversal + strict citation. When retrieval finds nothing it says so instead of filling the gap |
 | Research | `research` | Several angles at once, verified, landing as propositions in `threads/` plus at most one synthesis. Contradiction-hunting is the same skill with an adversarial brief, not a separate one |
-| Draft | `draft` | Write in `drafts/`: ground in the library, export citations with `magi bib`, check claims, formulas and links |
+| Draft | `draft` | Write in `drafts/`: ground in the project, export citations with `magi bib`, check claims, formulas and links |
 | Radar | `radar_review` | Triage a radar digest — the score is a rank, not a verdict; the judgement is yours |
 
 A single-command wrapper is not a skill any more: `magi init` scaffolds,
@@ -328,7 +328,7 @@ magi search "..." --kb <name>    # one, by name
 
 Searching stops at your own project, but the results name the others that are
 available, so nothing disappears. `magi kb register <path>` registers a project
-by hand; `unregister` removes the entry and never a file. In the WebUI, a hit tagged `[kb:name]` opens its card in place like any other — the preview request carries the source library along, so there is nothing to switch to first.
+by hand; `unregister` removes the entry and never a file. In the WebUI, a hit tagged `[kb:name]` opens its card in place like any other — the preview request carries the source project along, so there is nothing to switch to first.
 
 > Search tips: `--path 'raw/papers/2026-*<slug>*'` narrows semantic search to one paper; Chinese and English queries both work (CJK bigram tokenization feeds BM25, and the embedding model handles cross-lingual matching on the vector side).
 
@@ -348,11 +348,11 @@ magi bib pretko-2020 --fetch    # pull arXiv's official BibTeX when the card has
 
 ### The literature radar (`magi radar`)
 
-After configuring the `radar:` section of the workspace `config.yaml` (arXiv categories, seed papers, your own papers):
+After configuring the `radar:` section of the project `config.yaml` (arXiv categories, seed papers, your own papers):
 
 ```powershell
 magi radar harvest              # manual harvest: S2 recommendations ∪ new arXiv listings → inbox/radar/<date>-digest.md
-                                # (candidates sorted by cosine relevance to the library's embedding centroid,
+                                # (candidates sorted by cosine relevance to the project's embedding centroid,
                                 #  each annotated with a relevance score; set radar.min_relevance to filter)
 magi radar install-schedule     # daily scheduled harvest (Task Scheduler / launchd; --uninstall to remove)
 magi radar citation-gap         # scout recent papers that arguably should cite yours (four-layer funnel, human-review queue)
@@ -369,7 +369,7 @@ magi ui                       # launch and open the local dashboard (default htt
 magi ui --port 8080 --no-open # custom port without auto-opening the browser
 ```
 
-Features 7 functional panels: Dashboard (the two things you are supposed to look at — **decisions waiting on you** and **where each line stands** — plus a box that types straight into `inbox/notes.md` and a **looking back** line with your prediction record; below them the sync ratio, one-click hints, KB registry and config.yaml fields), Melchior (threads and the single-note forum view, the feed, epistemic state, claims, graph SQL, BibTeX copy, drafts; the graph now draws `threads/` too, filtered to the library, to the research state, or down to the skeleton), Balthasar (Beads tasks), Casper (hybrid search lab with federation/collection/path filters), Radar (digest reader + review actions: mark reviewed / accept to inbox / create reading task), Operations & Danger Zone (server-side ops whitelist, type-to-confirm, live SSE terminal, persisted job history), and Documentation. The API is field-identical to the CLI's `--json` contracts.
+Features 7 functional panels: Dashboard (the two things you are supposed to look at — **decisions waiting on you** and **where each line stands** — plus a box that types straight into `inbox/notes.md` and a **looking back** line with your prediction record; below them the sync ratio, one-click hints, KB registry and config.yaml fields), Melchior (threads and the single-note forum view, the feed, epistemic state, claims, graph SQL, BibTeX copy, drafts; the graph now draws `threads/` too, filtered to the knowledge, to the research state, or down to the skeleton), Balthasar (Beads tasks), Casper (hybrid search lab with federation/collection/path filters), Radar (digest reader + review actions: mark reviewed / accept to inbox / create reading task), Operations & Danger Zone (server-side ops whitelist, type-to-confirm, live SSE terminal, persisted job history), and Documentation. The API is field-identical to the CLI's `--json` contracts.
 
 The **⚡ MAGI MODE** toggle in the top bar switches to an EVA/NERV tactical theme: a live tri-monolith HUD (MELCHIOR·1 / BALTHASAR·2 / CASPER·3 core states + sync ratio), CRT scanlines, honeycomb field, hazard-striped Danger Zone, and a boot synchronization sequence. The dashboard binds to `127.0.0.1` only, enforces a trusted-Host allowlist, and emits no CORS headers.
 
@@ -392,16 +392,17 @@ magi setup --remove-legacy
 
 # 3. One command at the old hub root (non-destructive, and it finishes the job):
 cd <your-old-KnowledgeHub>
+magi migrate --dry-run   # says what would change and writes nothing
 magi migrate
-#    ↳ per topic: adds CLAUDE.md / AGENTS.md / config.yaml / scratch/ (reusing
+#    ↳ per project: adds CLAUDE.md / AGENTS.md / config.yaml / scratch/ (reusing
 #      the old title & scope from config.md), carries the old config.yaml's
 #      token/models/thresholds across, rebuilds graph.db (now with
 #      claims/evidence tables) and _index.md; raw/ and wiki/ untouched.
-#      Then runs magi pm init and a magi sync --fix per topic (index, backlog).
-#      --minimal migrates only; run it inside one topic to migrate just that one.
-#      Run inside a single topic dir to migrate just that topic.
+#      Then runs magi pm init and a magi sync --fix per project (index, backlog).
+#      --minimal migrates only; run it inside one project to migrate just that one.
+#      Run inside a single project dir to migrate just that one.
 
-# Finish up: `magi install` in each topic (skills + protocol + stop gate); `magi index`;
+# Finish up: `magi install` in each project (skills + protocol + stop gate); `magi index`;
 # `magi sync` to verify. The hub's own wikis.json / topics/ / log.md are inert afterwards.
 ```
 
@@ -409,7 +410,7 @@ magi migrate
 
 | Old (Wikify) | New (MAGI) |
 |---|---|
-| `install.ps1` / `install.sh` **copying** `skills/`+`bin/` into agent dirs | same filenames are now the **one-line bootstrap installer** (uv + CLI + `magi setup`, §2.1); skills ship inside the package and install per workspace with `magi skills install` (§2.4) |
+| `install.ps1` / `install.sh` **copying** `skills/`+`bin/` into agent dirs | same filenames are now the **one-line bootstrap installer** (uv + CLI + `magi setup`, §2.1); skills ship inside the package and install per project with `magi skills install` (§2.4) |
 | `python <BIN>/llm-wiki.py lint --fix <dir>` | `magi lint --fix <dir>` |
 | `python <BIN>/llm-wiki.py graph <dir>` | `magi graph build <dir>` |
 | `python <BIN>/query-graph.py "<SQL>"` | `magi graph query "<SQL>"` |
@@ -426,7 +427,7 @@ magi migrate
 
 ## 6. Obsidian integration
 
-Open the **specific topic workspace directory** in Obsidian (not the hub root). Under Settings → Files and links → Excluded files, add these two regexes so the graph shows only pure knowledge cards:
+Open the **specific project directory** in Obsidian (not the hub root). Under Settings → Files and links → Excluded files, add these two regexes so the graph shows only pure knowledge cards:
 
 ```regex
 /(?:^|/)(?:_index|log|config|uncompiled-source-coverage|CLAUDE|AGENTS)\.md$/
