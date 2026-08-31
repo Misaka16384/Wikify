@@ -572,3 +572,31 @@ def test_every_preset_carries_both_rims():
         value = m.group(1)
         assert "--glass-rim-top" in value and "--glass-rim-bottom" in value, (
             f"{preset} has one rim and not the other: {value.strip()[:70]}")
+
+
+def test_every_textarea_is_given_a_width():
+    """A textarea with no width falls back to `cols`, which defaults to 20.
+
+    `#dump-text` — the "say it here" box, the one surface whose whole job is
+    to be easy to type into — sat at about 194px inside a 1432px card,
+    because `.text-input` sets `min-width` and `max-width` and never `width`.
+    That works for an `<input>` in a flex row, where flex supplies the size,
+    and not at all for a textarea standing on its own: the fallback is a
+    character count from the 1990s that knows nothing about the layout.
+
+    Held on the stylesheet rather than on one id: either the shared rule gives
+    every textarea a width, or the row it sits in gives it a flex basis.
+    """
+    html = (STATIC_DIR / "index.html").read_text(encoding="utf-8", errors="replace")
+
+    shared = re.search(r"textarea\.text-input\s*\{([^}]*)\}", CSS_RULES)
+    assert shared and re.search(r"\bwidth:\s*100%", shared.group(1)), (
+        "textarea.text-input must set a width; without one every textarea "
+        "that is not a flex item falls back to cols=20")
+
+    for match in re.finditer(r"<textarea([^>]*)>", html):
+        attrs = match.group(1)
+        ident = re.search(r'id="([^"]+)"', attrs)
+        assert "class=" in attrs and "text-input" in attrs, (
+            f"textarea {ident.group(1) if ident else '?'} does not use "
+            ".text-input, so nothing gives it a width")

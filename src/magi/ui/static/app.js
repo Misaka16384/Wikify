@@ -64,7 +64,7 @@
       back_unknown_only: "条预测记为「不知道」——诚实的先验，不计分。",
       back_late: "条 bet 是答案出来之后才补的——不计分，那不算预测。",
       back_decisions: "最近的决定：",
-      threads_title: "Threads",
+      threads_title: "命题 · 问题 · 线",
       threads_subtitle: "命题、问题、线——正文归开它的人，讨论区只追加",
       threads_none: "还没有 note。",
       filter_all_kinds: "全部种类",

@@ -1711,6 +1711,13 @@ input[type="checkbox"] {
 textarea.text-input {
   resize: vertical;
   line-height: 1.5;
+  /* A textarea is a writing surface: it fills what it is given. Without this
+     it falls back to the HTML default `cols="20"` — about 194px — which is a
+     number from the 1990s and has nothing to do with the layout around it.
+     `#dump-text` sat that way in a 1432px card. Flex rows are unaffected:
+     `.sql-row textarea` sets an explicit `flex-basis`, which wins over
+     `width` for the main size. */
+  width: 100%;
 }
 
 .form-row {

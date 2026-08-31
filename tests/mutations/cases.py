@@ -343,6 +343,23 @@ CASES: list[Case] = [
         target="tests/test_liquid_glass.py -k ledger_of_hardcoded",
     ),
 
+    Case(
+        area="webui",
+        label="a textarea falls back to cols=20 inside a full-width card",
+        path="src/magi/ui/static/styles.css",
+        fixed="  width: 100%;\n}",
+        broken="}",
+        target="tests/test_liquid_glass.py -k textarea_is_given_a_width",
+    ),
+    Case(
+        area="webui",
+        label="a Chinese entry is the English one, so every key-exists check passes",
+        path="src/magi/ui/static/app.js",
+        fixed='      threads_title: "命题 · 问题 · 线",',
+        broken='      threads_title: "Threads",',
+        target="tests/test_one_thing_one_word.py -k nobody_translated",
+    ),
+
     # ------------------------------------------------------------------- docs
     Case(
         area="docs",

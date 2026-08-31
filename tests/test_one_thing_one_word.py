@@ -384,3 +384,40 @@ def test_the_readme_uses_one_word(lang):
     assert not offenders, (
         f"README ({lang}) still calls a project something else:\n  "
         + "\n  ".join(offenders[:16]))
+
+
+#: Entries that read the same in both languages on purpose. Each is a name
+#: rather than a sentence — a product, a brand-styled control, a document that
+#: really is in English, or a term this project borrows into Chinese prose
+#: (`note` appears untranslated in `guide.zh.md` and in `threads_none`).
+SAME_IN_BOTH_ON_PURPOSE = {
+    "glass_toggle_btn",       # a control labelled GLASS in both languages
+    "cfg_f_ocr_mineru_token", # MinerU is a product name
+    "doc_readme_en",          # the label of a document that is in English
+    "th_thread",              # `note` is a loanword here, not a gap
+}
+
+
+def test_no_chinese_entry_is_english_that_nobody_translated():
+    """A key wired to both dictionaries can still be untranslated.
+
+    `threads_title` existed in `zh` and in `en`, and both said "Threads" — so
+    every check of the shape "does each key exist in both languages" passed
+    while the card carried an English heading above a Chinese subtitle. The
+    gap is not a missing key; it is a key whose Chinese value is the English
+    one, and only comparing the values finds it.
+    """
+    zh, en = _dictionary("zh"), _dictionary("en")
+    english = re.compile(r"^[\"'][A-Za-z0-9 ,.'&/()\-—:!?%+]{4,}[\"'],?$")
+
+    offenders = sorted(
+        key for key, value in zh.items()
+        if key not in SAME_IN_BOTH_ON_PURPOSE
+        and en.get(key) == value
+        and english.match(value.strip())
+    )
+
+    assert not offenders, (
+        "these read as English in the Chinese dictionary — either translate "
+        "them or say in SAME_IN_BOTH_ON_PURPOSE why they stay:\n  "
+        + "\n  ".join(f"{k} = {zh[k]}" for k in offenders[:12]))
