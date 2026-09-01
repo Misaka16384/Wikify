@@ -591,7 +591,8 @@ def _score_candidates(topic: Path, cands: list[dict]) -> bool:
 # --------------------------------------------------------------------------
 
 def _apply_budget(cands: list[dict], max_c: int) -> list[dict]:
-    """Cut to the candidate cap while guaranteeing arXiv recency a share.
+    """Cut to the candidate cap while guaranteeing arXiv recency a share, and
+    every configured category a turn inside that share.
 
     The intent was always that Semantic Scholar recommendations must not crowd
     out new arXiv listings — but reserving the budget at *fetch* time did
@@ -600,15 +601,40 @@ def _apply_budget(cands: list[dict], max_c: int) -> list[dict]:
     the top 10 on the S2 side, which is exactly backwards for a tool whose job
     is to tell you what appeared this week.
 
-    So the split is enforced here, after scoring: each source keeps its own
-    best up to half the budget, and whichever source has spare capacity gives
-    it to the other. Order within the result is still by score.
+    Reserving for the *family* was still not enough. `harvest_arxiv` fetches
+    `per_cat` from each category and concatenates them in config order, so the
+    first category alone overflowed the reserved slots and every later one was
+    fetched and then dropped whole — silently, under a log line that named all
+    of them. Measured: three categories configured, twenty arXiv candidates in
+    the digest, all twenty from the first.
+
+    So the share is filled by rotating between categories: each gets a turn
+    before any gets a second, and a category with nothing left hands its turn
+    on. Whichever family has spare capacity still gives it to the other, and
+    order within the result is unchanged from the order that came in.
     """
     if len(cands) <= max_c:
         return cands
     recency = [c for c in cands if str(c.get("source", "")).startswith("arxiv-new")]
     rec_share = min(len(recency), max_c // 2)
-    keep_ids = {id(c) for c in recency[:rec_share]}
+
+    by_category: dict[str, list] = {}
+    for c in recency:
+        by_category.setdefault(str(c.get("source", "")), []).append(c)
+    queues = list(by_category.values())
+
+    keep_ids: set[int] = set()
+    while len(keep_ids) < rec_share:
+        took = False
+        for queue in queues:
+            if len(keep_ids) >= rec_share:
+                break
+            if queue:
+                keep_ids.add(id(queue.pop(0)))
+                took = True
+        if not took:                      # every category is exhausted
+            break
+
     for c in cands:                       # fill the rest in score order
         if len(keep_ids) >= max_c:
             break
@@ -678,6 +704,24 @@ def _triage_path(topic: Path) -> Path:
     return topic / "output" / "radar" / "triage.jsonl"
 
 
+#: Every decision that can appear in the triage ledger, and what it means.
+#: Both surfaces write here and both read here, so the words have to be one
+#: set — the comment on `--decision` used to say "the same three words the
+#: WebUI stores" while the panel stored four, and `task` was defined nowhere.
+#: `reset` is not in this table: it clears a decision rather than being one.
+TRIAGE_DECISIONS = {
+    "accept": "keep it — queued for ingest",
+    "dismiss": "not interested",
+    "task": "kept as a reading task (bd survey) — only the WebUI creates these",
+}
+
+#: The subset the CLI can produce. `task` is missing because making one means
+#: creating a `bd` issue, which is the panel's job; the CLI still reads and
+#: reports `task`, so the two surfaces agree about what the ledger says even
+#: where they differ about what they can write.
+TRIAGE_CLI_DECISIONS = ("accept", "dismiss", "reset")
+
+
 def load_triage(topic: Path, report: str) -> dict[str, str]:
     """`{candidate id: decision}` recorded so far for one report.
 
@@ -711,6 +755,23 @@ def load_triage(topic: Path, report: str) -> dict[str, str]:
                     out[rec["id"]] = decision
     except OSError:
         pass
+    return out
+
+
+def decisions_so_far(topic: Path) -> dict[str, tuple[str, str]]:
+    """`{candidate id: (decision, report it was decided in)}` across every
+    report in this project.
+
+    The citation-gap scout re-derives its candidates from Semantic Scholar and
+    has no idea that the morning's digest already put most of them in front of
+    the same person. Reading this does not change what it finds — it changes
+    whether the reader is told they are looking at something twice.
+    """
+    out: dict[str, tuple[str, str]] = {}
+    for report in scan_reports(topic):
+        for cand_id, decision in load_triage(topic, report["name"]).items():
+            if decision:
+                out[cand_id] = (decision, report["name"])
     return out
 
 
@@ -904,8 +965,13 @@ def cmd_harvest(args: argparse.Namespace) -> int:
             f"# Literature Radar — {today}",
             "",
             f"{len(fresh)} new candidates. Triage with the **radar_review** skill:",
-            "score each against the wiki, file `bd` issues (type: survey) for keepers,",
-            "then set `status: reviewed` in this file's frontmatter.",
+            "judge each against the project, then record it with",
+            "`magi radar triage --id <id> --decision accept|dismiss`.",
+            "Queue the keepers with `magi ingest url \"<id>\"`, and close this report",
+            "with `magi radar triage --done`.",
+            "",
+            "Do not edit this file to record anything. The triage ledger is what the",
+            "next run reads, and the WebUI's Literature Radar panel reads the same one.",
             "",
         ]
         if scored:
@@ -946,6 +1012,104 @@ def _s2_get(url: str, retries: int = 1, cfg: dict | None = None) -> dict:
                 continue
             raise
     return {}
+
+
+def citation_gap_report(today: str, own_ids: list, own_meta: dict,
+                        findings: list, min_shared: int,
+                        decided: dict | None = None) -> tuple[str, dict]:
+    """The report's text, and the papers it groups the findings into.
+
+    Kept apart from the fetching because this is the half that can be wrong:
+    each (our paper, their paper) pair used to get its own `## ` heading, so
+    one paper parsed as several candidates carrying the same id — and
+    `triage --id` records against the first, which left a decided paper
+    looking undecided. The header counted those pairs and called them
+    candidates. Neither was reachable by a test behind five minutes of
+    Semantic Scholar requests.
+    """
+    decided = decided or {}
+    papers: dict[str, list] = {}
+    for f_ in findings:
+        cid = str(f_.get("candidate_arxiv") or f_.get("candidate_s2") or "").replace("`", "'")
+        papers.setdefault(cid, []).append(f_)
+
+    lines = [
+        "---",
+        f"title: \"Citation-gap scout {today}\"",
+        "type: citation-gap-report",
+        "status: pending-review",
+        f"candidates: {len(papers)}",
+        f"pairs: {len(findings)}",
+        "---",
+        "",
+        f"# Citation-Gap Scout — {today}",
+        "",
+        "**This is a scout report, not a verdict.** Each candidate passed:",
+        "semantic-neighbor ∧ not-citing-us ∧ recent ∧ shares "
+        f">={min_shared} references with our paper. False positives are",
+        "expected (survey-citing, scope limits, independent lines). Triage",
+        "with the radar_review skill: judge the actual citation obligation",
+        "from both abstracts and our own claim cards, then record it with",
+        "`magi radar triage --id <id> --decision accept|dismiss` and close",
+        "this report with `magi radar triage --done`.",
+        "",
+        "Do not edit this file to record anything. The triage ledger is what the",
+        "next run reads, and the WebUI's Literature Radar panel reads the same one.",
+        "",
+    ]
+    for own in own_ids:
+        meta = own_meta.get(own) or {}
+        if meta.get("unavailable"):
+            # Said here rather than only in a warning five minutes
+            # upstream: this is where a reader notices the anchor is bare.
+            lines.append(f"## Our paper: arXiv:{own}")
+            lines.append("")
+            lines.append("Semantic Scholar did not answer for this paper "
+                         "(rate limit or outage), so its title and abstract "
+                         "are missing here. Its findings below are unaffected.")
+            lines.append("")
+            continue
+        if not (meta.get("title") or meta.get("abstract")):
+            continue
+        lines.append(f"## Our paper: {meta.get('title') or 'arXiv:' + own} (arXiv:{own})")
+        lines.append("")
+        if meta.get("abstract"):
+            lines.append(_ellipsize(meta["abstract"], 400))
+        lines.append("")
+    for cid, group in papers.items():
+        first = group[0]
+        title = re.sub(r"\s+", " ", str(first.get("candidate_title") or "")).strip() or "(untitled)"
+        lines.append(f"## {title}")
+        lines.append("")
+        # Same `- id:` shape the harvest digest uses, so one parser reads
+        # both and the WebUI can offer the same per-candidate actions here.
+        lines.append(f"- id: `{cid}` · {first.get('year', '?')} · source: citation-gap")
+        # One line per anchor, strongest first: the same paper is often
+        # flagged against several of ours, and which of ours it skipped is
+        # the question a person is actually being asked.
+        for f_ in sorted(group, key=lambda g: -int(g.get("shared_refs") or 0)):
+            lines.append(f"- should arguably cite: our arXiv:{f_['own_paper']} · "
+                         f"shared refs: {f_['shared_refs']}")
+            titles = f_.get("shared_ref_titles") or []
+            if titles:
+                lines.append("  - shared references include: " + "; ".join(titles))
+        already = decided.get(cid)
+        if already:
+            # Marked, not hidden. The shared-reference list is evidence the
+            # digest never carried, so a paper dismissed on its abstract
+            # can be worth reconsidering on its references — that was the
+            # strongest hit in a live run.
+            lines.append(f"- **already {already[0]}ed today** in {already[1]} — "
+                         "the shared references below are new evidence")
+        if first.get("candidate_arxiv"):
+            lines.append(f"- https://arxiv.org/abs/{first['candidate_arxiv']}")
+        if first.get("url"):
+            lines.append(f"- {first['url']}")
+        if first.get("abstract"):
+            flat = re.sub(r"\s+", " ", str(first["abstract"])).strip()
+            lines.append(f"- abstract: {_ellipsize(flat, 400)}")
+        lines.append("")
+    return "\n".join(lines), papers
 
 
 def cmd_citation_gap(args: argparse.Namespace) -> int:
@@ -995,7 +1159,11 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
             meta = {}
             meta_failed = True
         own_meta[own] = {"title": (meta.get("title") or "").strip(),
-                        "abstract": meta.get("abstract") or ""}
+                        "abstract": meta.get("abstract") or "",
+                        # Carried into the report: an anchor left bare
+                        # because S2 refused to answer looks exactly like
+                        # one we chose not to introduce.
+                        "unavailable": meta_failed}
         try:
             refs = _s2_get(f"{base}/{pid}/references?fields=paperId,title&limit=200", cfg=cfg)
             time.sleep(1.1)
@@ -1086,62 +1254,17 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
             encoding="utf-8")
 
     today = dt.date.today().isoformat()
+    decided = decisions_so_far(topic)
+    text, papers = citation_gap_report(today, own_ids, own_meta, findings,
+                                       min_shared, decided)
     if findings:
         digest_dir = topic / "inbox" / "radar"
         digest_dir.mkdir(parents=True, exist_ok=True)
         out = digest_dir / f"{today}-citation-gaps.md"
-        lines = [
-            "---",
-            f"title: \"Citation-gap scout {today}\"",
-            "type: citation-gap-report",
-            "status: pending-review",
-            f"candidates: {len(findings)}",
-            "---",
-            "",
-            f"# Citation-Gap Scout — {today}",
-            "",
-            "**This is a scout report, not a verdict.** Each candidate passed:",
-            "semantic-neighbor ∧ not-citing-us ∧ recent ∧ shares "
-            f">={min_shared} references with our paper. False positives are",
-            "expected (survey-citing, scope limits, independent lines). Triage",
-            "with the radar_review skill: judge the actual citation obligation",
-            "from both abstracts + our claim cards, then file `bd create -t review`",
-            "issues only for cases worth human follow-up.",
-            "",
-        ]
-        for own in own_ids:
-            meta = own_meta.get(own) or {}
-            if not (meta.get("title") or meta.get("abstract")):
-                continue
-            lines.append(f"## Our paper: {meta.get('title') or 'arXiv:' + own} (arXiv:{own})")
-            lines.append("")
-            if meta.get("abstract"):
-                lines.append(_ellipsize(meta["abstract"], 400))
-            lines.append("")
-        for f_ in findings:
-            title = re.sub(r"\s+", " ", str(f_.get("candidate_title") or "")).strip() or "(untitled)"
-            cid = str(f_.get("candidate_arxiv") or f_.get("candidate_s2") or "").replace("`", "'")
-            lines.append(f"## {title}")
-            lines.append("")
-            # Same `- id:` shape the harvest digest uses, so one parser reads
-            # both and the WebUI can offer the same per-candidate actions here.
-            lines.append(f"- id: `{cid}` · {f_.get('year', '?')} · source: citation-gap")
-            lines.append(f"- should arguably cite: our arXiv:{f_['own_paper']}")
-            lines.append(f"- candidate: {f_['year']} · arXiv:{f_['candidate_arxiv'] or '?'} · "
-                         f"shared refs: {f_['shared_refs']}")
-            titles = f_.get("shared_ref_titles") or []
-            if titles:
-                lines.append("- shared references include: " + "; ".join(titles))
-            if f_.get("candidate_arxiv"):
-                lines.append(f"- https://arxiv.org/abs/{f_['candidate_arxiv']}")
-            if f_.get("url"):
-                lines.append(f"- {f_['url']}")
-            if f_.get("abstract"):
-                flat = re.sub(r"\s+", " ", str(f_["abstract"])).strip()
-                lines.append(f"- abstract: {_ellipsize(flat, 400)}")
-            lines.append("")
-        out.write_text("\n".join(lines), encoding="utf-8")
-        print(f"citation-gap: {len(findings)} candidates -> {out}")
+        out.write_text(text, encoding="utf-8")
+        print(f"citation-gap: {len(papers)} paper(s) from {len(findings)} pairing(s)"
+              + (f", {seen_before} already decided today" if seen_before else "")
+              + f" -> {out}")
     else:
         print("citation-gap: no candidates survived the funnel")
     return 0
@@ -1308,6 +1431,11 @@ def cmd_triage(args: argparse.Namespace) -> int:
     if topic is None:
         return 1
 
+    if args.done and (args.decision or args.cand_id or args.index is not None):
+        print("--done closes the whole report; it does not take a candidate",
+              file=sys.stderr)
+        return 2
+
     reports = scan_reports(topic)
     if not reports:
         print("no radar reports under inbox/radar/", file=sys.stderr)
@@ -1327,6 +1455,35 @@ def cmd_triage(args: argparse.Namespace) -> int:
     cands = parse_digest_candidates(text)
     recorded = load_triage(topic, report["name"])
 
+    if args.done:
+        # Deliberately not a gate. Dismissing by omission is a real outcome —
+        # "I read the top fifteen, the rest was noise" — so this closes either
+        # way and says which of the two happened, because in the ledger alone
+        # a partial pass and a finished one look identical.
+        # Only sections that carry an id. A citation-gap report opens with
+        # `## Our paper: …` context sections, which the candidate parser reads
+        # as title-only entries — nothing can be recorded against them, so
+        # counting them would make every such report read "11 of 12" forever.
+        triageable = [c for c in cands if c["id"]]
+        decided = [c for c in triageable if recorded.get(c["id"])]
+        undecided = [c for c in triageable if not recorded.get(c["id"])]
+        closed = mark_report_reviewed(Path(report["path"]))
+        if args.json:
+            print(json.dumps({"report": report["name"], "closed": closed,
+                              "decided": len(decided), "candidates": len(triageable),
+                              "undecided": [c["id"] for c in undecided]},
+                             ensure_ascii=False))
+            return 0
+        if not closed:
+            print(f"{report['name']} was already reviewed — nothing to close")
+            return 0
+        print(f"reviewed {report['name']} — {len(decided)} of {len(triageable)} decided")
+        if undecided:
+            print(f"  {len(undecided)} left undecided, which reads as dismissed: "
+                  + ", ".join(c["id"] or "?" for c in undecided[:6])
+                  + (" …" if len(undecided) > 6 else ""))
+        return 0
+
     if not args.decision:
         rows = [{"index": c["index"], "id": c["id"], "title": c["title"],
                  "decision": recorded.get(c["id"] or "")} for c in cands]
@@ -1341,34 +1498,45 @@ def cmd_triage(args: argparse.Namespace) -> int:
         return 0
 
     if args.cand_id:
-        cand = next((c for c in cands if c["id"] == args.cand_id), None)
-        if cand is None:
-            print(f"no candidate with id {args.cand_id} in {report['name']}",
+        by_id = {c["id"]: c for c in cands if c["id"]}
+        missing = [i for i in args.cand_id if i not in by_id]
+        if missing:
+            # Named, and nothing written. A batch that half-applies is worse
+            # than one that refuses: the half that landed leaves no trace in
+            # the message and the caller retries the whole thing.
+            print(f"no candidate with id {', '.join(missing)} in {report['name']}",
                   file=sys.stderr)
             return 1
+        chosen = [by_id[i] for i in args.cand_id]
     elif args.index is not None:
         if not (0 <= args.index < len(cands)):
             print(f"no candidate #{args.index} in {report['name']} "
                   f"({len(cands)} present)", file=sys.stderr)
             return 1
-        cand = cands[args.index]
+        chosen = [cands[args.index]]
+        if not chosen[0]["id"]:
+            print("that candidate carries no id to record a decision against",
+                  file=sys.stderr)
+            return 1
     else:
         print("name a candidate with --id or --index", file=sys.stderr)
         return 2
 
-    if not cand["id"]:
-        print("that candidate carries no id to record a decision against",
-              file=sys.stderr)
-        return 1
-
-    record_triage(topic, report["name"], cand["id"], args.decision)
+    for cand in chosen:
+        record_triage(topic, report["name"], cand["id"], args.decision)
+    decision = None if args.decision == "reset" else args.decision
     if args.json:
-        print(json.dumps({"report": report["name"], "id": cand["id"],
-                          "decision": None if args.decision == "reset" else args.decision},
-                         ensure_ascii=False))
+        print(json.dumps({"report": report["name"],
+                          "ids": [c["id"] for c in chosen],
+                          "decision": decision}, ensure_ascii=False))
     else:
         verb = "cleared" if args.decision == "reset" else f"recorded {args.decision}"
-        print(f"{verb}: {cand['title']}")
+        if len(chosen) == 1:
+            print(f"{verb}: {chosen[0]['title']}")
+        else:
+            print(f"{verb} for {len(chosen)} candidates:")
+            for cand in chosen:
+                print(f"  {cand['id']}  {cand['title']}")
     return 0
 
 
@@ -1395,13 +1563,25 @@ def main(argv: list[str] | None = None) -> int:
     p_t = sub.add_parser("triage", help="Record or list review decisions on a report's candidates")
     p_t.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     p_t.add_argument("--report", help="Report file name under inbox/radar/ (default: newest pending)")
-    p_t.add_argument("--id", dest="cand_id", help="Candidate id (see the report, or --json)")
+    # Repeatable: a forty-candidate digest took forty invocations, so the only
+    # practical route through it was a shell loop written on the spot, and the
+    # decision is usually the same for a run of them.
+    p_t.add_argument("--id", dest="cand_id", action="append",
+                     help="Candidate id (see the report, or --json). Repeat it "
+                          "to give several candidates the same decision")
     p_t.add_argument("--index", type=int, help="Candidate position instead of its id")
-    # The same three words the WebUI stores. A CLI that wrote "keep" where the
-    # panel writes "accept" would put two vocabularies in one ledger, which is
-    # the shape of the bug this command exists to close.
-    p_t.add_argument("--decision", choices=["accept", "dismiss", "reset"],
-                     help="Omit to list what is recorded so far")
+    # Words the WebUI also stores, from one table, because a CLI that wrote
+    # "keep" where the panel writes "accept" would put two vocabularies in one
+    # ledger — the shape of the bug this command exists to close.
+    p_t.add_argument("--decision", choices=list(TRIAGE_CLI_DECISIONS),
+                     help="Omit to list what is recorded so far. The WebUI can "
+                          "also record 'task' (a bd reading task); this command "
+                          "reports those but cannot create one")
+    # Closing the report is the half that used to exist only in the WebUI, so
+    # a CLI-only operator had no way to stop `sync` reporting it forever.
+    p_t.add_argument("--done", action="store_true",
+                     help="Close this report: mark it reviewed and report how "
+                          "much of it was decided")
     p_t.add_argument("--json", action="store_true")
     p_t.set_defaults(func=cmd_triage)
 

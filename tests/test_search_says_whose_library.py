@@ -61,6 +61,39 @@ def test_a_lone_unindexed_workspace_refuses_rather_than_answering(tmp_path, caps
     assert "no index" in capsys.readouterr().err
 
 
+def test_a_project_with_nothing_in_it_answers_instead_of_refusing(tmp_path, capsys):
+    """The other half of the same distinction. "No index" was one error doing
+    duty for two answers: a project holding documents cannot answer, but a
+    project holding nothing has nothing to match, and zero is the true answer.
+
+    It cost something. `radar_review` is told to run `magi search "<title>"`
+    before keeping a candidate, so on a day-one project — the run where the
+    radar matters most — the step hard-errored and every agent improvised its
+    own way past it."""
+    root = _workspace(tmp_path / "fresh", "Fresh")
+
+    code = retrieval.cmd_search(_search(root, "fracton", scope="local"))
+
+    out = capsys.readouterr()
+    assert code == 0, out.err
+    assert "no results" in out.out
+    assert "nothing to search yet" in out.out
+    # The line about an index that holds no vectors describes one that exists.
+    assert "holds no vectors" not in out.out
+
+
+def test_a_directory_that_is_not_a_project_is_not_an_empty_one(tmp_path, capsys):
+    """A path that is not a project also walks to nothing. Calling that empty
+    would answer "no results" for a typo'd --project-dir."""
+    stray = tmp_path / "not-a-project"
+    stray.mkdir()
+
+    code = retrieval.cmd_search(_search(stray, "fracton", scope="local"))
+
+    assert code != 0
+    assert "no index" in capsys.readouterr().err
+
+
 def test_with_other_libraries_to_fall_back_on_it_says_so_at_the_end(tmp_path, capsys):
     """The reported case. Another library answers, this one cannot, and the
     person needs to know which of those they are reading."""

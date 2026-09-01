@@ -174,6 +174,39 @@ def test_arxiv_recency_keeps_its_share_of_the_budget():
     assert len(recency) == 10, f"arXiv kept only {len(recency)} of its 10 reserved slots"
 
 
+def test_every_configured_arxiv_category_gets_a_turn_in_the_budget():
+    """Reserving for the arXiv *family* was not enough. `harvest_arxiv` fetches
+    30 per category and concatenates them in config order, so with the default
+    cap of 40 the first category's 30 overflowed the 20 reserved slots and
+    every later category was fetched and dropped whole — under a log line that
+    named all of them. Measured on a live run: three categories configured,
+    twenty arXiv candidates, all twenty from the first."""
+    cands = [{"id": f"s{i}", "source": "s2-recommendation"} for i in range(20)]
+    for cat in ("cond-mat.str-el", "hep-th", "quant-ph"):
+        cands += [{"id": f"{cat}-{i}", "source": f"arxiv-new:{cat}"} for i in range(30)]
+
+    kept = radar._apply_budget(cands, 40)
+
+    seen = {c["source"] for c in kept if c["source"].startswith("arxiv-new")}
+    assert seen == {"arxiv-new:cond-mat.str-el", "arxiv-new:hep-th",
+                    "arxiv-new:quant-ph"}, f"categories crowded out: {seen}"
+    assert len(kept) == 40
+
+
+def test_a_category_with_little_to_give_hands_its_turn_on():
+    """Rotating must not leave the share unfilled: a quiet category costs the
+    digest nothing, it just stops taking turns."""
+    cands = [{"id": f"s{i}", "source": "s2-recommendation"} for i in range(20)]
+    cands += [{"id": f"q{i}", "source": "arxiv-new:quiet"} for i in range(2)]
+    cands += [{"id": f"b{i}", "source": "arxiv-new:busy"} for i in range(30)]
+
+    kept = radar._apply_budget(cands, 40)
+
+    recency = [c for c in kept if c["source"].startswith("arxiv-new")]
+    assert len(recency) == 20, "the arXiv share went unfilled"
+    assert sum(1 for c in recency if c["source"] == "arxiv-new:quiet") == 2
+
+
 def test_a_small_result_set_is_not_reshuffled():
     cands = [{"id": "a", "source": "s2-recommendation", "score": 0.9},
              {"id": "b", "source": "arxiv-new:hep-th", "score": 0.1}]
@@ -183,6 +216,105 @@ def test_a_small_result_set_is_not_reshuffled():
 # --------------------------------------------------------------------------
 # digest round trip
 # --------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------
+# the citation-gap report counts papers, not pairings
+# --------------------------------------------------------------------------
+
+def _pair(own, cand, refs, title="A Paper", **extra):
+    return {"own_paper": own, "candidate_arxiv": cand, "candidate_title": title,
+            "year": 2026, "shared_refs": refs, "abstract": "We study things.",
+            **extra}
+
+
+def test_one_paper_flagged_against_three_of_ours_is_still_one_candidate():
+    """Each pairing used to get its own `## ` heading, so one paper parsed as
+    several candidates carrying the same id — and `triage --id` records against
+    the first, which left a decided paper still listed as undecided. A live run
+    reported 18 candidates; there were 11 papers."""
+    findings = [_pair("2401.00505", "2607.12023", 15),
+                _pair("2512.06691", "2607.12023", 8),
+                _pair("2605.13379", "2607.12023", 3),
+                _pair("2401.00505", "2607.03762", 6, title="Another Paper")]
+
+    text, papers = radar.citation_gap_report("2026-09-01", [], {}, findings, 2)
+
+    assert len(papers) == 2
+    ids = [c["id"] for c in radar.parse_digest_candidates(text)]
+    assert ids == sorted(set(ids), key=ids.index), f"duplicate ids: {ids}"
+    assert sorted(ids) == ["2607.03762", "2607.12023"]
+
+
+def test_an_anchor_the_api_refused_to_describe_says_so_where_it_is_missing():
+    """Two of five own papers were rate-limited on a live run. Their references
+    came back and produced findings, but their context sections were skipped —
+    so the report introduced some anchors and not others, and the only
+    explanation was a warning five minutes upstream in another stream."""
+    findings = [_pair("2606.03582", "2607.12023", 9)]
+    own_meta = {"2606.03582": {"title": "", "abstract": "", "unavailable": True}}
+
+    text, _papers = radar.citation_gap_report(
+        "2026-09-01", ["2606.03582"], own_meta, findings, 2)
+
+    assert "## Our paper: arXiv:2606.03582" in text
+    assert "did not answer for this paper" in text
+    assert "findings below are unaffected" in text
+
+
+def test_an_anchor_we_simply_have_no_metadata_for_stays_quiet():
+    """The other direction: having nothing to introduce is not an outage, and
+    an alarm printed for the ordinary case trains people to ignore the alarm."""
+    findings = [_pair("2606.03582", "2607.12023", 9)]
+    own_meta = {"2606.03582": {"title": "", "abstract": "", "unavailable": False}}
+
+    text, _papers = radar.citation_gap_report(
+        "2026-09-01", ["2606.03582"], own_meta, findings, 2)
+
+    assert "did not answer" not in text
+    assert "## Our paper" not in text
+
+
+def test_the_header_counts_papers_and_says_how_many_pairings_made_them():
+    """`candidates: 18` counted pairings and called them candidates; only
+    reading the whole file corrected it."""
+    findings = [_pair("2401.00505", "2607.12023", 15),
+                _pair("2512.06691", "2607.12023", 8)]
+
+    text, _papers = radar.citation_gap_report("2026-09-01", [], {}, findings, 2)
+
+    assert "candidates: 1" in text
+    assert "pairs: 2" in text
+
+
+def test_a_paper_decided_this_morning_is_marked_not_hidden():
+    """Eight of eleven had been read and dismissed in the same day's digest,
+    minutes earlier, and nothing said so. Marked rather than suppressed: the
+    shared-reference list is evidence the digest never carried, and on a live
+    run the strongest hit was a paper dismissed on its abstract and worth
+    reconsidering on its references."""
+    findings = [_pair("2401.00505", "2607.12023", 15)]
+
+    text, _papers = radar.citation_gap_report(
+        "2026-09-01", [], {}, findings, 2,
+        decided={"2607.12023": ("dismiss", "2026-09-01-digest.md")})
+
+    assert "already dismissed today" in text
+    assert "2026-09-01-digest.md" in text
+    assert "2607.12023" in text, "the paper is still in the report"
+
+
+def test_the_anchors_are_listed_strongest_first():
+    """Which of ours it skipped is the question being asked, and the pairing
+    with fifteen shared references is not the one to bury."""
+    findings = [_pair("2605.13379", "2607.12023", 3),
+                _pair("2401.00505", "2607.12023", 15),
+                _pair("2512.06691", "2607.12023", 8)]
+
+    text, _papers = radar.citation_gap_report("2026-09-01", [], {}, findings, 2)
+
+    order = [line for line in text.splitlines() if "should arguably cite" in line]
+    assert ["15", "8", "3"] == [line.rsplit(": ", 1)[1] for line in order]
+
 
 def test_a_candidate_survives_a_write_read_round_trip():
     c = {"id": "2601.00001", "arxiv_id": "2601.00001", "title": "Fracton order in 3D",

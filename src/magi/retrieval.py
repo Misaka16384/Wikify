@@ -27,7 +27,7 @@ import time
 from pathlib import Path
 
 from magi.core.config_loader import load_config, get as cfg_get
-from magi.core.workspace import find_workspace_root
+from magi.core.workspace import find_workspace_root, is_topic_root
 
 MAX_CHUNK_LINES = 250
 RRF_K = 60
@@ -1038,6 +1038,21 @@ def _project_kbs(root) -> set:
     return {str(name).strip() for name in named if str(name).strip()}
 
 
+def _nothing_to_search(query: str, mode: str, scope: str) -> dict:
+    """The payload for a project that has nothing in it yet.
+
+    Same keys as a real search, because every caller — `cmd_search`, the WebUI,
+    an agent reading `--json` — already knows how to read no results, and a
+    second shape would be a second thing to get wrong.
+    """
+    return {"query": query, "mode": mode, "scope": scope,
+            "kbs_searched": [], "kbs_skipped": [],
+            "vector_available": False, "vector_degraded": False,
+            "bm25_hits": 0, "vector_hits": 0,
+            "best_distance": None, "weak_semantic_match": False,
+            "empty_project": True, "results": []}
+
+
 def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto",
                kb: str | None = None, collection: str | None = None,
                path: str | None = None, topic_dir: str | None = None,
@@ -1083,6 +1098,17 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
             o = open_db(dbp, want_vectors=mode != "bm25")
             if o is None:
                 if name == "local" and len(targets) == 1:
+                    here = dbp.parent.parent
+                    # `is_topic_root` first: a path that is not a project at
+                    # all also walks to nothing, and calling that "empty" would
+                    # answer "no results" for a typo'd --project-dir instead of
+                    # saying the directory is wrong.
+                    if is_topic_root(here) and next(_iter_corpus(here), None) is None:
+                        # Nothing here to index, so nothing here to match. Zero
+                        # results is the true answer and the shape every caller
+                        # already handles; raising made a day-one project the
+                        # one place `magi search` could not be used at all.
+                        return _nothing_to_search(query, mode, kb or scope)
                     raise SearchError("no index at output/index.db", "run 'magi index' first")
                 # Another KB with no index is housekeeping. *This* workspace
                 # with no index means the search never looked at what the
@@ -1211,6 +1237,11 @@ def cmd_search(args: argparse.Namespace) -> int:
         results = payload["results"]
         if not results:
             print("no results")
+            if payload.get("empty_project"):
+                # Said plainly, because zero from an empty project and zero
+                # from a real search look identical and mean different things.
+                print("(this project has nothing to search yet — no sources, "
+                      "no cards, so nothing can match)")
             if _CJK_RUN.search(args.query):
                 print("(tip: if this index was built before CJK-aware tokenization, "
                       "re-run 'magi index'; otherwise try shorter keywords or --mode vector)")
@@ -1252,7 +1283,10 @@ def cmd_search(args: argparse.Namespace) -> int:
             print(f"\nThis project is not searchable yet — it has no index. "
                   f"{where}.\nRun 'magi index' here, then search again.",
                   file=sys.stderr)
-        if not payload["vector_available"] and args.mode == "hybrid":
+        if (not payload["vector_available"] and args.mode == "hybrid"
+                and not payload.get("empty_project")):
+            # Not said for an empty project: there is no index at all there,
+            # and "this index holds no vectors" describes one that exists.
             print("(BM25-only: this index holds no vectors — run 'magi index' to add them)")
     return 0
 
