@@ -59,6 +59,13 @@ test = ["pytest>=8.0", "httpx2>=2.0"]
 # version: 10, max supported IR version: 9` on import, which is not an
 # ImportError and took `ingest auto` down with it. IR 10 is ONNX 1.16, and
 # onnxruntime 1.18.0 is the first release to bundle it.
+#
+# No upper bound, deliberately. onnxruntime 1.28 raised its own
+# `requires_python` to >=3.11 while this project's floor is 3.10, so a resolver
+# on 3.10 already declines it and settles on the newest 1.27.x — measured:
+# 1.23.2 on a fresh 3.10 environment. Capping would pin 3.11+ users to a
+# version nothing says is broken, on a guess. The floor is here because a
+# release was measured failing; there is no such measurement above.
 textlayer = ["pymupdf4llm>=0.0.17", "onnxruntime>=1.18"]
 
 [project.urls]
