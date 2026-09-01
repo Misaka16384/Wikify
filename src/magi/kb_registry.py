@@ -8,7 +8,8 @@ other KBs are opt-in via their ``enabled`` flag.
 
 Registration is automatic on ``magi index`` (and available manually via
 ``magi kb register``); automatic registrations default to enabled.
-Disable noisy KBs with ``magi kb disable <name>``.
+Disable noisy KBs with ``magi kb disable <name>``, and drop the ones whose
+directory no longer exists with ``magi kb prune``.
 """
 
 from __future__ import annotations
@@ -259,6 +260,41 @@ def _set_enabled(name: str, enabled: bool) -> int:
     return 0
 
 
+def _missing(kbs: dict) -> list:
+    """Registered names whose project directory is no longer there."""
+    return sorted(name for name, entry in kbs.items()
+                  if not Path(entry["path"]).is_dir())
+
+
+def cmd_prune(args: argparse.Namespace) -> int:
+    """Drop registrations whose project directory is gone.
+
+    `list` could always say MISSING and nothing could act on it, so a registry
+    grew one dead row per throwaway workspace. Gone is a property of the
+    filesystem; a KB under a temp directory that still exists is somebody's
+    work until they say so themselves.
+    """
+    if args.dry_run:
+        kbs = load_registry()["kbs"]
+        dead = _missing(kbs)
+        for name in dead:
+            print(f"  would unregister {name} -> {kbs[name]['path']}")
+        print(f"{len(dead)} of {len(kbs)} point at a directory that is gone")
+        return 0
+
+    with edit_registry() as data:
+        dead = _missing(data["kbs"])
+        for name in dead:
+            del data["kbs"][name]
+        remaining = len(data["kbs"])
+    if not dead:
+        print("nothing to prune — every registered project is still there")
+        return 0
+    print(f"unregistered {len(dead)} missing project(s), {remaining} remain "
+          f"(no files were deleted — they were already gone)")
+    return 0
+
+
 def cmd_unregister(args: argparse.Namespace) -> int:
     with edit_registry() as data:
         if args.name not in data["kbs"]:
@@ -295,6 +331,11 @@ def main(argv: list[str] | None = None) -> int:
     p_un = sub.add_parser("unregister", help="Remove a KB from the registry (files untouched)")
     p_un.add_argument("name")
     p_un.set_defaults(func=cmd_unregister)
+
+    p_pr = sub.add_parser("prune", help="Drop registrations whose project directory is gone")
+    p_pr.add_argument("--dry-run", action="store_true",
+                      help="Say what would go; change nothing")
+    p_pr.set_defaults(func=cmd_prune)
 
     args = parser.parse_args(argv)
     return args.func(args)

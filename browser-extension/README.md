@@ -16,9 +16,9 @@ Nothing enters your library from this button. It adds a line to a queue. You
 then run the pipeline and approve what came out:
 
 ```
-magi ingest batch-run      # fetch and convert, unattended
-magi ingest batch-list     # look at what came out
-magi ingest batch-commit   # only approved items land in raw/
+magi ingest batch-run          # fetch and convert, unattended
+magi ingest review             # look at what came out
+magi ingest review --commit    # only approved items land in raw/
 ```
 
 If you never install this, `magi ingest url "<URL>"` does exactly the same thing

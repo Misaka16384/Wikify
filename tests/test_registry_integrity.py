@@ -152,6 +152,70 @@ def test_a_feature_write_lands_atomically_and_completely(home):
 # structural: nobody goes back to the unlocked pair
 # --------------------------------------------------------------------------
 
+# --------------------------------------------------------------------------
+# prune drops what is gone, and only that
+# --------------------------------------------------------------------------
+
+def _registered(home, name, path, **extra):
+    with kb_registry.edit_registry() as data:
+        data["kbs"][name] = {"path": str(path), "enabled": True,
+                             "registered": "2026-09-01", **extra}
+
+
+def test_prune_drops_the_registration_whose_directory_is_gone(home, tmp_path,
+                                                              capsys):
+    """350 registrations, 4 of them somebody's work. `list` could always say
+    MISSING and nothing could act on it, so one dead row accumulated per
+    throwaway workspace until the real projects were a rounding error."""
+    alive = tmp_path / "alive"
+    alive.mkdir()
+    _registered(home, "alive", alive)
+    _registered(home, "gone", tmp_path / "never-existed")
+
+    assert kb_registry.main(["prune"]) == 0
+    assert set(kb_registry.load_registry()["kbs"]) == {"alive"}
+    assert "1 missing project" in capsys.readouterr().out
+
+
+def test_prune_keeps_a_living_project_wherever_it_lives(home, tmp_path):
+    """Gone is a property of the filesystem. A project under a temp directory
+    that is still there is somebody's work until they say otherwise, and its
+    name is not evidence of anything — a rule that read the path or the name
+    would delete the one workspace a person was in the middle of."""
+    for name in ("tmp.aBcDeF", "scratch", "ws-m0"):
+        (tmp_path / name).mkdir()
+        _registered(home, name, tmp_path / name)
+
+    assert kb_registry.main(["prune"]) == 0
+    assert set(kb_registry.load_registry()["kbs"]) == {"tmp.aBcDeF", "scratch",
+                                                       "ws-m0"}
+
+
+def test_a_dry_run_writes_nothing_at_all(home, tmp_path, capsys):
+    """The preview is the thing a person runs before trusting the real one, so
+    it has to be readable *and* inert — byte-identical, not merely equivalent."""
+    _registered(home, "gone", tmp_path / "never-existed")
+    before = kb_registry.registry_path().read_bytes()
+
+    assert kb_registry.main(["prune", "--dry-run"]) == 0
+
+    assert kb_registry.registry_path().read_bytes() == before
+    out = capsys.readouterr().out
+    assert "would unregister gone" in out
+    assert "1 of 1" in out
+
+
+def test_prune_on_a_healthy_registry_says_so_and_does_nothing(home, tmp_path,
+                                                             capsys):
+    alive = tmp_path / "alive"
+    alive.mkdir()
+    _registered(home, "alive", alive)
+
+    assert kb_registry.main(["prune"]) == 0
+    assert set(kb_registry.load_registry()["kbs"]) == {"alive"}
+    assert "nothing to prune" in capsys.readouterr().out
+
+
 def test_nothing_pairs_a_load_with_a_save_outside_the_transaction():
     """`load_settings()` … `save_settings(data)` is the lost-update pattern
     written out. Reading alone is fine; it is the pair that is the bug."""

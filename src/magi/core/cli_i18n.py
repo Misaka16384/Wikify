@@ -85,6 +85,7 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("kb", "enable"): "把某个 KB 纳入全局检索",
     ("kb", "disable"): "把某个 KB 移出全局检索",
     ("kb", "unregister"): "从注册表中移除一个 KB",
+    ("kb", "prune"): "清掉目录已经不存在的注册项",
     ("grep",): "对指定文件做正则搜索",
     ("link",): "基于向量的概念关联与去重",
     # 文献雷达

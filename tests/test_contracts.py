@@ -7,11 +7,12 @@ reshapes a payload, a lock here goes red before a user notices.
 from __future__ import annotations
 
 import argparse
+import re
 
 import pytest
 from fastapi.testclient import TestClient
 
-from magi import retrieval
+from magi import cli, retrieval
 from magi.radar import pending_names, scan_reports
 from magi.sync import build_report
 from magi.ui.api import create_app
@@ -183,6 +184,80 @@ def test_every_webui_op_is_a_command_the_cli_accepts(op):
         f"op '{op}' runs `magi {' '.join(argv)}` but the parser still requires "
         f"{leftover} — the job exits 2 before doing anything"
     )
+
+
+#: Verbs a module implements that `cli.py` deliberately does not route.
+#: `batch-list`, `batch-decide` and `batch-commit` were retired in favour of
+#: the single `magi ingest review`, which delegates to them (`cli.py:51`).
+_INTERNAL_ONLY = {
+    "magi.ingest.batch": {"list", "decide", "commit"},
+}
+
+#: Modules that advertise no verbs to ask for: `magi.state` dispatches on
+#: `argv[0]` with an if-chain (`state.py:1635`), so there is no parser to
+#: interrogate. Listed rather than skipped, so that a module which grows a
+#: real subparser has to be looked at instead of quietly falling out of the
+#: check.
+_ADVERTISES_NOTHING = {"magi.state"}
+
+_CHOICES_RE = re.compile(r"(?:choose from|expected one of) ([^)\n]*)")
+
+
+def _advertised_verbs(module: str) -> set[str]:
+    """The verbs this module's own front door names, asked of the module.
+
+    Reading `add_parser(...)` out of the source instead reports verbs nested
+    one level down — `wiki-summary` is under `stats`, not a top-level choice
+    of `magi.kb.llmwiki` — so the answer has to come from the dispatcher.
+    """
+    import contextlib
+    import importlib
+    import io
+
+    main = importlib.import_module(module).main
+    err, out = io.StringIO(), io.StringIO()
+    with contextlib.suppress(SystemExit), contextlib.redirect_stderr(err), \
+            contextlib.redirect_stdout(out):
+        main(["__no_such_verb__"])
+    found = _CHOICES_RE.search(err.getvalue() + out.getvalue())
+    if not found:
+        return set()
+    return {word.strip().strip("'\"") for word in found.group(1).split(",")
+            if word.strip()}
+
+
+@pytest.mark.parametrize("module", sorted({
+    module for (module, argv, _help) in cli._COMMANDS.values() if argv}))
+def test_every_verb_a_module_advertises_is_reachable_through_magi(module):
+    """`cli._COMMANDS` is a second, hand-written copy of every command, so a
+    verb added to a module's own dispatcher but not to that table is fully
+    implemented and unreachable — which is exactly how `magi kb prune` first
+    shipped, with its subparser wired and `magi kb prune` still unknown.
+
+    The other direction too: a route to a verb the module no longer has fails
+    only when somebody runs it.
+    """
+    routed = {argv[0] for (mod, argv, _help) in cli._COMMANDS.values()
+              if mod == module and argv}
+    advertised = _advertised_verbs(module)
+    if module in _ADVERTISES_NOTHING:
+        assert not advertised, (
+            f"{module} now advertises {sorted(advertised)} — take it out of "
+            "_ADVERTISES_NOTHING and let the check cover it")
+        return
+    assert advertised, f"{module} advertises nothing; _ADVERTISES_NOTHING?"
+    assert advertised == routed | _INTERNAL_ONLY.get(module, set())
+
+
+def test_no_module_is_excused_for_a_verb_it_no_longer_has():
+    """The ledgers are checked from their own side as well: an excuse that has
+    outlived the thing it excused is how a check quietly stops covering."""
+    for module, verbs in _INTERNAL_ONLY.items():
+        advertised = _advertised_verbs(module)
+        stale = verbs - advertised
+        assert not stale, f"{module} no longer has {sorted(stale)}"
+    for module in _ADVERTISES_NOTHING:
+        assert module in {m for (m, argv, _h) in cli._COMMANDS.values() if argv}
 
 
 def test_no_test_imports_the_repository_root_as_a_package():

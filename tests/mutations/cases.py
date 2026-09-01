@@ -93,6 +93,23 @@ CASES: list[Case] = [
         target="tests/test_cli_last_resort.py -k verbose_is_accepted",
     ),
 
+    Case(
+        area="cli",
+        label="a subcommand is implemented, wired and never routed",
+        path="src/magi/cli.py",
+        fixed='    ("kb", "prune"): ("magi.kb_registry", ["prune"], "Drop registrations whose project directory is gone"),\n',
+        broken="",
+        target="tests/test_contracts.py -k reachable",
+    ),
+    Case(
+        area="cli",
+        label="prune keeps the dead rows and deletes the living projects",
+        path="src/magi/kb_registry.py",
+        fixed='if not Path(entry["path"]).is_dir())',
+        broken='if Path(entry["path"]).is_dir())',
+        target="tests/test_registry_integrity.py -k prune",
+    ),
+
     # -------------------------------------------------------------- skills
     Case(
         area="skills",

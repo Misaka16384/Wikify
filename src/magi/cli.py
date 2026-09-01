@@ -104,6 +104,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("kb", "enable"): ("magi.kb_registry", ["enable"], "Include a KB in global search"),
     ("kb", "disable"): ("magi.kb_registry", ["disable"], "Exclude a KB from global search"),
     ("kb", "unregister"): ("magi.kb_registry", ["unregister"], "Remove a KB from the registry"),
+    ("kb", "prune"): ("magi.kb_registry", ["prune"], "Drop registrations whose project directory is gone"),
     ("grep",): ("magi.kb.grep", [], "Regex search over given files"),
     ("link",): ("magi.kb.semantic_link", [], "Embedding-based concept linking and dedup"),
     # literature radar
