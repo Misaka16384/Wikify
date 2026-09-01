@@ -100,7 +100,12 @@ jobs:
             *.zip)    unzip -o -q "$asset" -d "$HOME/.magi-bin" ;;
             *.tar.gz) tar -xzf "$asset" -C "$HOME/.magi-bin" ;;
           esac
-          echo "$HOME/.magi-bin" >> "$GITHUB_PATH"
+          # Git Bash writes POSIX paths and the suite's step is pwsh on
+          # Windows, where `/c/Users/...` on PATH resolves to nothing — and
+          # fifteen tests skipped there while this step's own check passed.
+          dir="$HOME/.magi-bin"
+          if command -v cygpath >/dev/null 2>&1; then dir="$(cygpath -w "$dir")"; fi
+          echo "$dir" >> "$GITHUB_PATH"
 
       - name: Check bd is on PATH
         shell: bash
@@ -112,4 +117,13 @@ jobs:
       # catches it.
       - run: uv venv --python 3.10
       - run: uv pip install -e ".[test,textlayer]"
+
+      # Asked of the interpreter that will do the looking. `bd version` above
+      # answers for Git Bash; `pytest` runs in the default shell, and the tests
+      # gate on `shutil.which("bd")`. The check has to be the same question the
+      # suite asks, from the same process, or it reports on something else —
+      # which it did, greenly, while fifteen tests skipped.
+      - name: Check the test process can see bd and pandoc
+        run: uv run python -c "import shutil, sys; missing = [n for n in ('bd', 'pandoc') if shutil.which(n) is None]; print('missing:', missing); sys.exit(1 if missing else 0)"
+
       - run: uv run pytest tests -q -rs
