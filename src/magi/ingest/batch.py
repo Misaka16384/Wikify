@@ -301,8 +301,17 @@ def _run_route(route: str, entry, staging: Path, topic: Path | None = None) -> C
         print(f"[textlayer] {verdict.why}")
         if not verdict.ok:
             return ConversionResult.failed(f"not a text-layer document: {verdict.why}")
+        if not verdict.available:
+            # `ok` and `available` are the two questions the verdict exists to
+            # keep apart: the document can be read for free, and this machine
+            # can do it. `ingest auto` checks both (`auto.py:74`); this checked
+            # only the first and imported anyway, so the sentence naming the
+            # package became `ImportError: No module named 'pymupdf4llm'` on
+            # every plain install. The line above promises a rung that cannot
+            # run falls to the next one *with a reason*; this is that reason.
+            return ConversionResult.failed(verdict.unavailable_why or verdict.why)
 
-        import pymupdf4llm  # the verdict above already proved this imports
+        import pymupdf4llm  # unavailability was handled above, so this imports
 
         staging.mkdir(parents=True, exist_ok=True)
         images_dir = staging / "images"

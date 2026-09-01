@@ -377,6 +377,23 @@ CASES: list[Case] = [
         target="tests/test_one_thing_one_word.py -k nobody_translated",
     ),
 
+    Case(
+        area="ingest",
+        label="the free PDF route asks if the document can be read, not if this machine can",
+        path="src/magi/ingest/batch.py",
+        fixed="        if not verdict.available:",
+        broken="        if verdict.available:",
+        target="tests/test_batch.py -k missing_extractor",
+    ),
+    Case(
+        area="ci",
+        label="a declared extra is installed nowhere the suite runs",
+        path=".github/workflows/tests.yml",
+        fixed='uv pip install -e ".[test,textlayer]"',
+        broken='uv pip install -e ".[test]"',
+        target="tests/test_packaging_matches_ci.py",
+    ),
+
     # ------------------------------------------------------------------- docs
     Case(
         area="docs",

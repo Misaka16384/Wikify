@@ -223,7 +223,7 @@ def test_the_converter_asks_pandoc_for_pipe_tables():
     (BS + "raisebox{-1ex}{" + INC + "{x}}", "second"),
 ])
 def test_the_figure_is_not_always_in_the_first_argument(call, note):
-    """Measured with pandoc 3.9: \resizebox, \scalebox, \makebox and
+    r"""Measured with pandoc 3.9: \resizebox, \scalebox, \makebox and
     \raisebox all drop the graphic. \parbox is the one that keeps it, which is
     why guessing from the macro's shape would have been wrong — the rule reads
     the arguments and takes whichever actually holds the figure."""

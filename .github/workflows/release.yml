@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
       - uses: astral-sh/setup-uv@v10.0.1
       - run: uv venv
-      - run: uv pip install -e ".[test]"
+      - run: uv pip install -e ".[test,textlayer]"
       - run: uv run pytest tests -q
 
   build:

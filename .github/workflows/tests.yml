@@ -18,6 +18,11 @@
 # option and the wrong one, because a stub tests our argv, not the integration.
 # `-rs` lists whatever still skips, so what CI did not run is on the page
 # instead of implied by a green tick.
+#
+# Every optional extra is installed for the same reason, and that is now a test
+# rather than this paragraph: `textlayer` was declared, never installed here,
+# and ten tests ran only on the author's machine — including the only coverage
+# of the free conversion route that a plain `pip install` sends prose PDFs to.
 name: tests
 
 on:
@@ -106,5 +111,5 @@ jobs:
       # failure is "this needs 3.12 and we claim 3.10", and only the floor
       # catches it.
       - run: uv venv --python 3.10
-      - run: uv pip install -e ".[test]"
+      - run: uv pip install -e ".[test,textlayer]"
       - run: uv run pytest tests -q -rs

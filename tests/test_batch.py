@@ -482,6 +482,42 @@ def _wants_images(ws, monkeypatch):
     monkeypatch.chdir(ws)
 
 
+def test_a_missing_extractor_reads_as_the_package_to_install(tmp_path, monkeypatch):
+    """The state every plain `pip install magi-research` is in, and the state
+    CI was in for every one of these tests.
+
+    `routing.text_layer_verdict` already composes the actionable sentence and
+    hands it over as `unavailable_why`; this route dropped it on the floor and
+    let the import raise instead, so the item's recorded reason was
+    `ImportError: No module named 'pymupdf4llm'` — a message about our
+    packaging, addressed to somebody who wanted a paper converted.
+
+    Deliberately not `importorskip`: the whole point is the machine *without*
+    the extractor.
+    """
+    from magi.ingest import routing
+
+    sentence = ("pymupdf4llm is not installed "
+                "(pip install 'magi-research[textlayer]')")
+    monkeypatch.setattr(
+        batch.routing, "text_layer_verdict",
+        lambda _source: routing.TextLayerVerdict(
+            True, f"born-digital, no mathematics, but {sentence}", 3,
+            available=False, unavailable_why=sentence))
+
+    pdf = tmp_path / "survey.pdf"
+    pdf.write_bytes(b"%PDF-1.4\n")
+    entry = types.SimpleNamespace(value=str(pdf), title="A Survey",
+                                  route="textlayer", source_type="file",
+                                  retry_of=None, req_id="r1")
+
+    result = batch._run_route("textlayer", entry, tmp_path / "staging")
+
+    assert not result.success
+    assert sentence in " ".join(result.errors)
+    assert "ImportError" not in " ".join(result.errors)
+
+
 def test_a_committed_textlayer_document_still_finds_its_figures(ws, tmp_path, monkeypatch):
     """The whole defect, end to end: convert, commit, delete staging, look again.
 
