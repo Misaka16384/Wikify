@@ -138,6 +138,39 @@ def test_max_candidates_zero_makes_no_network_calls(tmp_path, monkeypatch, capsy
     assert "max_candidates is 0" in capsys.readouterr().err
 
 
+def test_a_harvest_with_no_seeds_says_the_best_leg_is_off(tmp_path, monkeypatch, capsys):
+    """`harvest_s2([])` returns nothing and the log announced a harvest that
+    never happened. Not a rare configuration: the config comment says seeds may
+    stay empty, so a project that filled in only `own_arxiv_ids` silently gets
+    the arXiv listings alone — which on a measured run produced none of the
+    useful candidates."""
+    ws = _workspace(tmp_path, arxiv_categories=["hep-th"], seed_arxiv_ids=[])
+    monkeypatch.setattr(radar, "harvest_arxiv", lambda *a, **k: ([], []))
+
+    args = types.SimpleNamespace(topic_dir=str(ws), days=None)
+    assert radar.cmd_harvest(args) == 0
+
+    err = capsys.readouterr().err
+    assert "recommendations are off" in err
+    assert "harvesting S2 recommendations" not in err, (
+        "announced a harvest it did not run")
+
+
+def test_a_harvest_with_seeds_still_says_it_is_harvesting(tmp_path, monkeypatch, capsys):
+    """The other direction: the note must not replace the ordinary line."""
+    ws = _workspace(tmp_path, arxiv_categories=["hep-th"],
+                    seed_arxiv_ids=["2401.00505"])
+    monkeypatch.setattr(radar, "harvest_s2", lambda *a, **k: [])
+    monkeypatch.setattr(radar, "harvest_arxiv", lambda *a, **k: ([], []))
+
+    args = types.SimpleNamespace(topic_dir=str(ws), days=None)
+    assert radar.cmd_harvest(args) == 0
+
+    err = capsys.readouterr().err
+    assert "harvesting S2 recommendations" in err
+    assert "recommendations are off" not in err
+
+
 def test_days_zero_is_honoured_rather_than_treated_as_unset(tmp_path, monkeypatch):
     """`args.days or cfg(...)` silently replaced an explicit --days 0 with the
     default 7. Zero is a real request: only today's listings."""

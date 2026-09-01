@@ -1918,6 +1918,16 @@ textarea.text-input {
 
 .action-row .row-title { flex: 1 1 auto; min-width: 0; }
 
+/* A citation-gap report's `## Our paper:` sections. Context, not candidates:
+   nothing can be decided about them, so they get no border, no buttons and no
+   place in the triage denominator. */
+.radar-context {
+  padding: 0.35rem 0.75rem 0.15rem;
+  color: var(--text-muted);
+  font-size: 0.85em;
+}
+.radar-context .row-title { font-weight: 600; }
+
 .banner-pill {
   display: block;
   padding: 0.7rem 0.9rem;

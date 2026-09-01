@@ -444,6 +444,31 @@ CASES: list[Case] = [
         target="tests/test_radar_triage.py -k recorded_against_is_not_a_candidate",
     ),
 
+    Case(
+        area="radar",
+        label="the panel builds a triage row whose every button answers 409",
+        path="src/magi/ui/static/app.js",
+        fixed="    if (!c.id) return buildContextRow(c);\n",
+        broken="",
+        target="tests/test_radar_triage.py -k cannot_act_on",
+    ),
+    Case(
+        area="radar",
+        label="the panel and the CLI disagree on how many can be decided",
+        path="src/magi/ui/api.py",
+        fixed='            "triageable": sum(1 for c in cands if c.get("id")),',
+        broken='            "triageable": len(cands),',
+        target="tests/test_radar_triage.py -k agree_on_how_many",
+    ),
+    Case(
+        area="radar",
+        label="a harvest announces a leg it never ran",
+        path="src/magi/radar.py",
+        fixed="    if seeds:\n        print(\"[radar] harvesting S2 recommendations...\", file=sys.stderr)",
+        broken="    if True:\n        print(\"[radar] harvesting S2 recommendations...\", file=sys.stderr)",
+        target="tests/test_radar_contracts.py -k best_leg_is_off",
+    ),
+
     # ------------------------------------------------------------------- docs
     Case(
         area="docs",

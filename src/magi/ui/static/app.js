@@ -7388,8 +7388,24 @@
     return chip;
   }
 
+  // A citation-gap report opens with `## Our paper: ...` sections. The
+  // candidate parser reads them as title-only entries on purpose, and there is
+  // nothing to record a decision against — every action on one answers 409,
+  // and counting them left a real report reading "11 / 12" forever. Rendered
+  // as what they are: context above the candidates.
+  function buildContextRow(c) {
+    const row = document.createElement("div");
+    row.className = "radar-context";
+    const title = document.createElement("div");
+    title.className = "row-title";
+    title.textContent = c.title || "";
+    row.appendChild(title);
+    return row;
+  }
+
   function buildCandidateRow(data, c, applyFilter) {
     const cands = data.candidates || [];
+    if (!c.id) return buildContextRow(c);
     const row = document.createElement("div");
     row.className = "action-row";
     const authors = Array.isArray(c.authors) ? c.authors : [];

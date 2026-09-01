@@ -362,3 +362,44 @@ def test_every_defined_decision_is_one_some_surface_writes():
     orphans = set(radar.TRIAGE_DECISIONS) - written
     assert not orphans, f"defined but never recorded: {sorted(orphans)}"
 
+
+# --------------------------------------------------------------------------
+# the two surfaces count the same candidates
+# --------------------------------------------------------------------------
+
+def test_the_panel_and_the_cli_agree_on_how_many_can_be_decided(ws):
+    """A report whose sections are not all candidates is the case that made
+    them disagree, and it is the ordinary shape of a citation-gap report."""
+    import io
+    import json
+    import contextlib
+
+    report = ws / "inbox" / "radar" / "2026-08-27-citation-gaps.md"
+    report.write_text(CONTEXT_SECTION_REPORT, encoding="utf-8")
+
+    client = TestClient(create_app())
+    payload = client.get("/api/workspace/radar/digest",
+                         params={"workspace": str(ws), "file": report.name}).json()
+
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        _triage(ws, "--report", report.name, "--done", "--json")
+    cli = json.loads(out.getvalue())
+
+    assert payload["triageable"] == cli["candidates"] == 1
+    assert len(payload["candidates"]) == 2, "the context section is still readable"
+
+
+def test_the_panel_builds_no_triage_row_for_a_section_it_cannot_act_on():
+    """Read out of `app.js`: a row with buttons that all answer 409 is a row
+    that should not have been built, and its presence was what made the
+    progress counter unreachable."""
+    app_js = (Path(__file__).resolve().parents[1] / "src" / "magi" / "ui"
+              / "static" / "app.js").read_text(encoding="utf-8")
+
+    start = app_js.index("function buildCandidateRow(")
+    head = app_js[start:start + 400]
+    assert "if (!c.id) return buildContextRow(c);" in head, (
+        "buildCandidateRow no longer skips candidates that carry no id")
+    assert "function buildContextRow(" in app_js
+

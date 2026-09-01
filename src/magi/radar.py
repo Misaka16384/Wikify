@@ -874,7 +874,18 @@ def cmd_harvest(args: argparse.Namespace) -> int:
     bulk_queries = [str(q) for q in (cfg_get(cfg, "radar.bulk_queries", None) or [])]
     bulk_years = cfg_get(cfg, "radar.bulk_years", None)
 
-    print("[radar] harvesting S2 recommendations...", file=sys.stderr)
+    if seeds:
+        print("[radar] harvesting S2 recommendations...", file=sys.stderr)
+    else:
+        # `harvest_s2([])` returns nothing, and the line above used to announce
+        # a harvest that never happened. This is not a rare configuration: the
+        # config comment says seeds may stay empty, and a project that filled
+        # in only `own_arxiv_ids` gets the arXiv listings alone — which on a
+        # measured run produced none of the useful candidates.
+        print("note: no seeds, so Semantic Scholar recommendations are off — only "
+              "new arXiv listings will be scanned. Seeds come from "
+              "radar.seed_arxiv_ids and from arXiv ids on reference cards.",
+              file=sys.stderr)
     s2_cands = harvest_s2(seeds, limit=min(max(max_c // 2, 10), max_c), cfg=cfg)
     print(f"[radar] harvesting arXiv listings ({len(categories)} categories)...", file=sys.stderr)
     arxiv_cands, failed_sources = harvest_arxiv(categories, days)

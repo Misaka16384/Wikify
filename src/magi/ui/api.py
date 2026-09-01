@@ -889,6 +889,12 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             "status": report_status(content),
             "kind": "citation-gap" if file.endswith("-citation-gaps.md") else "digest",
             "candidates": cands,
+            # A citation-gap report opens with `## Our paper:` sections that
+            # the parser reads as title-only candidates. Nothing can be
+            # recorded against them, so the denominator has to exclude them or
+            # a finished report reads "11 of 12" forever — the CLI's `--done`
+            # counts the same way.
+            "triageable": sum(1 for c in cands if c.get("id")),
             "triaged": sum(1 for c in cands if c["decision"]),
         }
 
