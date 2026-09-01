@@ -49,18 +49,18 @@ What each step has to show:
 | `magi next` | the human decision above the agent work |
 | `magi sync --close` | the gate runs and the MAP is written |
 
-**Last run:** 2026-09-01, on Windows 11. `agy -p` with
-`gemini-3.7-flash-low`, 21.0 s, verdict `refuted`, citing all three files by
-line. The close gate refused the first `--close` and named the missing
-signature; `magi decide` cleared it.
+**Last run:** 2026-09-01 (v2.1.0), on Windows 11. `agy -p` with
+`gemini-3.7-flash-low`, 19.5 s, verdict `refuted`, citing the proposition and
+its derivation by line.
 
-Two things this run surfaced that the suite does not reach. `derivation:` is
-checked by the *prefix of the link text*, so `[[rrf-gain]]` is reported as
-"not under drafts/" while `drafts/rrf-gain.md` sits right there — the required
-form is `[[drafts/...]]` (`kb/threads.py`), but the message asserts something
-false. And `candidates()` puts rule violations (`cost="llm"`) above the human
-queue, while its own docstring says human items "should not queue up behind
-machine work" — debt-first is argued for, violations-first is not.
+Two things an earlier run surfaced that the suite does not reach, both still
+open. `derivation:` is checked by the *prefix of the link text*, so
+`[[rrf-gain]]` is reported as "not under drafts/" while `drafts/rrf-gain.md`
+sits right there — the required form is `[[drafts/...]]` (`kb/threads.py`), but
+the message asserts something false. And `candidates()` puts rule violations
+(`cost="llm"`) above the human queue, while its own docstring says human items
+"should not queue up behind machine work" — debt-first is argued for,
+violations-first is not.
 
 An earlier run found a bug the suite could not: the reason was being cut at 600
 characters, mid-URL, and the post is the record — `raw` survives only in
