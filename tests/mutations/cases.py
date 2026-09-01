@@ -399,8 +399,8 @@ CASES: list[Case] = [
         area="radar",
         label="the first arXiv category eats the whole recency share",
         path="src/magi/radar.py",
-        fixed="    by_category: dict[str, list] = {}",
-        broken="    keep_ids = {id(c) for c in recency[:rec_share]}\n    by_category: dict[str, list] = {}",
+        fixed="    keep_ids: set[int] = set()",
+        broken="    keep_ids = {id(c) for c in recency[:rec_share]}",
         target="tests/test_radar_contracts.py -k category",
     ),
     Case(
