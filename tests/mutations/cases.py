@@ -516,6 +516,22 @@ CASES: list[Case] = [
 
     Case(
         area="state",
+        label="sync never asks whether this workspace's skills are current",
+        path="src/magi/sync.py",
+        fixed="        _skills_hint(topic, _hint)",
+        broken="        pass",
+        target="tests/test_sync_skills_freshness.py -k sync_itself_asks",
+    ),
+    Case(
+        area="state",
+        label="a skill file install cannot replace is answered with 'run install'",
+        path="src/magi/sync.py",
+        fixed="                    (stale if skills_cmd.ORIGIN_MARK in current else frozen).append(",
+        broken="                    (stale if True else frozen).append(",
+        target="tests/test_sync_skills_freshness.py -k run_install",
+    ),
+    Case(
+        area="state",
         label="a note with no posts is dated from the year 1",
         path="src/magi/state.py",
         fixed="    return _created_at(note) or dt.datetime.min.replace(tzinfo=dt.timezone.utc)",

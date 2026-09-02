@@ -292,6 +292,72 @@ def _research_status(topic: Path | None):
     }
 
 
+def _skills_hint(topic: Path | None, hint) -> None:
+    """Are the skills in this workspace the ones this `magi` would write?
+
+    A skill file is documentation of the CLI's own command surface, so a copy
+    left behind by an older magi teaches commands that no longer exist. That
+    is not hypothetical: a plugin pinned at an old snapshot served v1 skills
+    for four months, and nothing ever said so — the drift is silent because
+    the stale file is perfectly valid, just wrong.
+
+    `skills_cmd` already computes this exactly, by comparing bytes against what
+    the current package would write rather than trusting a version stamp. What
+    was missing is that nothing running automatically ever asked. This is that
+    question, asked once per `magi sync`.
+
+    Names, not a count. `magi skills where` reports "1 outdated" and a bare
+    number is dismissible — it was dismissed, and the file behind it turned out
+    to be a v1 skill that had survived two cleanups.
+
+    A file with no `origin: magi` is reported separately: `magi install` treats
+    an unmarked file as the person's own and refuses to overwrite it, so
+    telling them to re-run install would be advice that cannot work.
+    """
+    if topic is None:
+        return
+    try:
+        from magi import skills_cmd
+    except Exception:
+        return
+    try:
+        skills = skills_cmd.load_skills()
+        stale, frozen = [], []
+        for host in skills_cmd.detected_hosts():
+            for target in host.drops:
+                dest = skills_cmd.target_dir(target, "project", topic)
+                if dest is None:
+                    continue
+                for sk in skills:
+                    path, text = skills_cmd.files_for(sk, target, dest)[0]
+                    if not path.exists():
+                        continue
+                    current = path.read_text(encoding="utf-8", errors="replace")
+                    if current == text:
+                        continue
+                    (stale if skills_cmd.ORIGIN_MARK in current else frozen).append(
+                        path.relative_to(topic).as_posix())
+    except Exception:
+        # Never let a convenience check take `sync` down: it is what the
+        # session-start hook and `--close` both run.
+        return
+
+    if stale:
+        hint("skills-stale",
+             f"magi install   # {len(stale)} skill file(s) were written by an "
+             f"older magi: {', '.join(sorted(stale)[:3])}"
+             + (" ..." if len(stale) > 3 else ""),
+             files=sorted(stale))
+    if frozen:
+        hint("skills-unmanaged",
+             f"{len(frozen)} skill file(s) differ from this magi and carry no "
+             f"'{skills_cmd.ORIGIN_MARK}', so install will not replace them: "
+             f"{', '.join(sorted(frozen)[:3])}"
+             + (" ..." if len(frozen) > 3 else "")
+             + " — delete one to have it rewritten",
+             files=sorted(frozen))
+
+
 def build_report(cwd: Path | None = None) -> dict:
     base = cwd or Path.cwd()
     topic = find_workspace_root(base)
@@ -301,6 +367,8 @@ def build_report(cwd: Path | None = None) -> dict:
     hints: list[str] = []
     hints_structured: list[dict] = []
 
+    # Defined here rather than inline so the walk is skippable and testable on
+    # its own; see `_skills_hint` for why this check exists at all.
     def _hint(code: str, text: str, **params) -> None:
         # Dual-track contract: `hints` (human text, frozen shape) stays exactly
         # as before; `hints_structured` adds a machine-readable code so UI/MCP
@@ -395,6 +463,8 @@ def build_report(cwd: Path | None = None) -> dict:
                   "magi index   # output/index.db is not a database; rebuild it")
         elif c["state"] == "stale":
             _hint("index-stale", "magi index   # refresh the retrieval index")
+
+        _skills_hint(topic, _hint)
         # Radar off means no radar hints at all — not a nag about a harvest
         # that is deliberately not happening.
         try:
