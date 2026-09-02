@@ -49,10 +49,16 @@ What each step has to show:
 | `magi next` | the human decision above the agent work |
 | `magi sync --close` | the gate runs and the MAP is written |
 
-**Last run:** 2026-09-02 (v2.2.0), on Windows 11. `agy -p` with
-`gemini-3.7-flash-low`, 20.2 s, verdict `refuted`, citing the proposition, the
-single-instance measurement it over-reaches, and the derivation that made the
-jump — each by line.
+**Last run:** 2026-09-02 (v2.3.0), on Windows 11. `agy -p` with
+`gemini-3.7-flash-low`, 18.8 s, verdict `refuted`, citing the proposition and
+the single-lattice measurement it over-reaches, each by line.
+
+Since v2.3.0 the close gate exists on three hosts rather than one, and only two
+of those are provable here: Claude Code and Codex are exercised by the suite,
+while Antigravity's `hooks.json` is written from its own bundled docs and
+**cannot be smoke tested** — `agy --print` fires no hooks, so the only way to
+confirm it is `/hooks` inside a real session. `magi install` says so in the
+line it prints; do not let a green release imply that gate was checked.
 
 Two things an earlier run surfaced that the suite does not reach, both still
 open. `derivation:` is checked by the *prefix of the link text*, so
