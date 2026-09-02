@@ -469,3 +469,79 @@ def test_harvest_age_comes_from_the_ledger(tmp_path):
         + "garbage\n", encoding="utf-8")
     assert radar.last_harvest_date(ws) == newer
     assert radar.harvest_age_days(ws) == 3
+
+
+# --------------------------------------------------------------------------
+# the scout's success path
+# --------------------------------------------------------------------------
+
+def test_finding_something_does_not_crash_the_scout(tmp_path, monkeypatch, capsys):
+    """`seen_before` was named in the summary line and assigned nowhere.
+
+    The whole failure lived on the *success* path: no findings meant the
+    `else` branch, which printed "no candidates survived the funnel" and
+    returned 0. Every test and every dry run took that branch, so 2780 tests
+    and 84 mutation guards went past a guaranteed NameError. It surfaced on
+    the first real run that actually found a candidate.
+
+    So this test is only worth anything if it makes the scout find one.
+    """
+    import argparse
+
+    from magi import radar as radar_mod
+
+    from magi import init_workspace
+
+    init_workspace.main(["--topic-dir", str(tmp_path), "--name", "T"])
+    (tmp_path / "output" / "radar").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "inbox" / "radar").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "config.yaml").write_text(
+        "radar:\n  own_arxiv_ids: ['2501.00001']\n", encoding="utf-8")
+
+    def fake_get(url, retries=1, cfg=None):
+        if "/references" in url:
+            return {"data": [{"citedPaper": {"paperId": f"ref{i}"}} for i in range(4)]}
+        if "/citations" in url:
+            return {"data": []}
+        if "/recommendations" in url:
+            return {"recommendedPapers": [
+                {"paperId": "cand1", "title": "A Competing Paper",
+                 "year": 2026, "externalIds": {"ArXiv": "2601.00002"}}]}
+        return {"paperId": "own", "title": "Our Paper", "year": 2025,
+                "externalIds": {"ArXiv": "2501.00001"}}
+
+    monkeypatch.setattr(radar_mod, "_s2_get", fake_get)
+
+    code = radar_mod.cmd_citation_gap(argparse.Namespace(
+        project_dir=str(tmp_path), topic_dir=str(tmp_path), paper=None, json=False))
+
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "citation-gap:" in out
+    assert "paper(s) from" in out
+    assert (tmp_path / "inbox" / "radar").glob("*-citation-gaps.md")
+
+
+def test_an_unquoted_arxiv_id_is_refused_not_quietly_changed():
+    """`own_arxiv_ids: [2606.03580]` is a float before any of our code runs.
+
+    YAML reads it as 2606.0358 — the trailing zero is gone — and `str()` of
+    that is a perfectly well-formed arXiv id belonging to a different paper.
+    Nothing downstream can tell the difference, which is the whole problem.
+    The digit cannot be recovered at this point, so the only honest move is to
+    stop and name the fix.
+    """
+    from magi import radar as radar_mod
+
+    with pytest.raises(SystemExit) as caught:
+        radar_mod._ids_from_config([2606.03580], "radar.own_arxiv_ids")
+    assert "2606.03580" in str(caught.value), "the message has to show the quoting"
+    assert "radar.own_arxiv_ids" in str(caught.value)
+
+
+def test_quoted_ids_pass_through_untouched():
+    from magi import radar as radar_mod
+
+    assert radar_mod._ids_from_config(["2606.03580", "2508.13961"], "x") == [
+        "2606.03580", "2508.13961"]
+    assert radar_mod._ids_from_config(None, "x") == []

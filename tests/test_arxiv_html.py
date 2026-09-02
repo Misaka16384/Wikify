@@ -391,3 +391,58 @@ def test_a_non_identifier_fails_before_any_request(monkeypatch):
     result = ah.convert("not-an-arxiv-id", "/tmp/whatever")
 
     assert result.success is False
+
+
+# --------------------------------------------------------------------------
+# titles: two silent failures, both measured on live pages
+# --------------------------------------------------------------------------
+
+def test_a_title_split_across_markup_keeps_its_spaces():
+    """2204.06023 arrived as "Homological invariants ofPauli stabilizer codes".
+
+    The pattern captured raw HTML and whitespace-collapsed it, so the words on
+    either side of a tag were welded together. Deleting tags is what does it;
+    they have to become spaces.
+    """
+    page = ('<html><head><title>Homological invariants of'
+            '<span class="x">Pauli</span> stabilizer codes</title></head>'
+            '<body>x</body></html>')
+    assert ah.page_title(page) == "Homological invariants of Pauli stabilizer codes"
+
+
+def test_the_document_title_wins_over_the_page_title():
+    """`<title>` is whatever the converter had to hand; the document title is
+    the paper's by construction."""
+    page = ('<html><head><title>Something Else</title></head><body>'
+            '<h1 class="ltx_title ltx_title_document">The Real Title</h1>'
+            '</body></html>')
+    assert ah.page_title(page) == "The Real Title"
+
+
+@pytest.mark.parametrize("heading", ["Abstract", "1Introduction", "2.1 Introduction",
+                                     "Zusammenfassung", "References"])
+def test_a_section_heading_is_refused_rather_than_returned_as_a_title(heading):
+    """1806.08679 came back as "Abstract" and 2406.12962 as "1Introduction" —
+    documents with no title element, where `<title>` holds the first heading.
+
+    None sends the caller to the arXiv id, which is obviously not a title and
+    gets noticed. A plausible wrong title does not: the session that found
+    this nearly filed a direct competitor under a truncated name.
+    """
+    page = f"<html><head><title>{heading}</title></head><body>x</body></html>"
+    assert ah.page_title(page) is None
+
+
+@pytest.mark.parametrize("real", ["2D materials and their defects",
+                                  "3-manifolds and their invariants"])
+def test_a_real_title_that_starts_with_a_number_survives(real):
+    """The number is stripped before the word is judged, so the check lands on
+    "D materials..." rather than on the digit. A false positive here costs a
+    real title."""
+    page = f"<html><head><title>{real}</title></head><body>x</body></html>"
+    assert ah.page_title(page) == real
+
+
+def test_the_arxiv_id_prefix_is_still_stripped():
+    page = "<html><head><title>[2608.20333] Real Title Here</title></head></html>"
+    assert ah.page_title(page) == "Real Title Here"

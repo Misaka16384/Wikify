@@ -135,13 +135,74 @@ def extract_tex_formulas(page: str) -> list[str]:
     return [html_module.unescape(a).strip() for a in _MATH_ALTTEXT_RE.findall(page)]
 
 
+#: The document title as ar5iv marks it. Preferred over `<title>` because it
+#: is the paper's title by construction, where `<title>` is whatever the
+#: converter had to hand — on a document with no title element that turns out
+#: to be the first heading.
+_DOC_TITLE_RE = re.compile(
+    r"<h1[^>]*class=\"[^\"]*ltx_title_document[^\"]*\"[^>]*>(.*?)</h1>",
+    re.IGNORECASE | re.DOTALL)
+
+#: What a section heading looks like when it has been mistaken for a title.
+#: Deliberately narrow: a false positive here costs a real title, and the
+#: fallback is the arXiv id, which is honest but useless to read.
+_SECTION_WORDS_RE = re.compile(
+    r"^(abstract|introduction|zusammenfassung|contents|references|summary"
+    r"|conclusions?|appendix|acknowledg(e)?ments)$", re.IGNORECASE)
+
+#: A leading section number, with or without the space the heading dropped:
+#: the observed value was "1Introduction", not "1 Introduction".
+_SECTION_NUMBER_RE = re.compile(r"^\d+(\.\d+)*\s*")
+
+
+def _is_a_heading(title: str) -> bool:
+    """Is this a section heading wearing a title's place?
+
+    The number is stripped before the word is judged so that "1Introduction"
+    and "2.1 Introduction" both reduce to "Introduction". Matching on the word
+    afterwards rather than on the number keeps a real title like "2D materials
+    and their defects" — strip its number and "D materials and their defects"
+    is not a section word.
+    """
+    return bool(_SECTION_WORDS_RE.match(_SECTION_NUMBER_RE.sub("", title).strip()))
+
+
+def _text_of(markup: str) -> str:
+    """Element text with tags turned into spaces, not deleted.
+
+    Deleting them welded words together — `invariants of<span>Pauli` became
+    `ofPauli` — which reads as a typo in the source rather than as damage the
+    converter did.
+    """
+    return html_module.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", markup))).strip()
+
+
 def page_title(page: str) -> str | None:
+    """The paper's title, or None rather than a section heading.
+
+    Measured on live pages: 2204.06023 came back as "Homological invariants
+    ofPauli stabilizer codes", 1806.08679 as "Abstract", 2406.12962 as
+    "1Introduction". The first is markup damage; the other two are documents
+    that carry no title element, where `<title>` holds the first heading.
+
+    Returning None sends the caller to the arXiv id, which is plainly not a
+    title and gets noticed. A plausible wrong title does not.
+    """
+    m = _DOC_TITLE_RE.search(page)
+    if m:
+        title = _text_of(m.group(1))
+        if title:
+            return title
+
     m = _TITLE_RE.search(page)
     if not m:
         return None
-    title = html_module.unescape(re.sub(r"\s+", " ", m.group(1))).strip()
+    title = _text_of(m.group(1))
     # arXiv prefixes the id: "[2608.20333] Real Title Here".
-    return re.sub(r"^\[[^\]]+\]\s*", "", title) or None
+    title = re.sub(r"^\[[^\]]+\]\s*", "", title)
+    if not title or _is_a_heading(title):
+        return None
+    return title
 
 
 def figure_slug(arxiv_id: str) -> str:

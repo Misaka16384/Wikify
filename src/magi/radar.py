@@ -158,7 +158,8 @@ def library_arxiv_ids(topic: Path) -> set[str]:
 
 
 def seed_ids(topic: Path, cfg: dict) -> list[str]:
-    seeds = [str(s) for s in (cfg_get(cfg, "radar.seed_arxiv_ids", None) or [])]
+    seeds = _ids_from_config(cfg_get(cfg, "radar.seed_arxiv_ids", None),
+                             "radar.seed_arxiv_ids")
     lib = sorted(library_arxiv_ids(topic))
     # config seeds first, then library papers; S2 caps positivePaperIds, keep it sane
     merged = list(dict.fromkeys(seeds + lib))
@@ -1123,6 +1124,26 @@ def citation_gap_report(today: str, own_ids: list, own_meta: dict,
     return "\n".join(lines), papers
 
 
+def _ids_from_config(raw, where: str) -> list[str]:
+    """arXiv ids out of config, refusing the ones YAML already damaged.
+
+    `own_arxiv_ids: [2606.03580]` is a *float* by the time it reaches here —
+    2606.0358, with the trailing zero gone — and `str()` of it is a perfectly
+    well-formed arXiv id for a different paper. Nothing downstream can notice.
+    The value cannot be recovered, so this refuses rather than guesses, and
+    names the fix: quote it.
+    """
+    out = []
+    for item in (raw or []):
+        if isinstance(item, float):
+            raise SystemExit(
+                f"{where} contains {item!r}, which YAML read as a number — an "
+                f"arXiv id like 2606.03580 loses its last digit that way and "
+                f"becomes a different paper. Quote them: [\"2606.03580\"]")
+        out.append(str(item))
+    return out
+
+
 def cmd_citation_gap(args: argparse.Namespace) -> int:
     """Four-layer funnel per own paper P (precision over recall — this is
     a SCOUT, its output is a human-review queue, not a verdict):
@@ -1137,9 +1158,11 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
     if topic is None:
         return 1
     cfg = load_config(start=topic)
-    own_ids = [str(s) for s in (cfg_get(cfg, "radar.own_arxiv_ids", None) or [])]
+    own_ids = _ids_from_config(cfg_get(cfg, "radar.own_arxiv_ids", None),
+                               "radar.own_arxiv_ids")
     if not own_ids:
-        own_ids = [str(s) for s in (cfg_get(cfg, "radar.seed_arxiv_ids", None) or [])]
+        own_ids = _ids_from_config(cfg_get(cfg, "radar.seed_arxiv_ids", None),
+                                   "radar.seed_arxiv_ids")
         if own_ids:
             # Seeds are "papers that describe what we care about" — often other
             # people's. This report calls them "our paper" and asks who failed
@@ -1273,6 +1296,12 @@ def cmd_citation_gap(args: argparse.Namespace) -> int:
         digest_dir.mkdir(parents=True, exist_ok=True)
         out = digest_dir / f"{today}-citation-gaps.md"
         out.write_text(text, encoding="utf-8")
+        # Counted here rather than named from nowhere: `seen_before` was a
+        # leftover of an earlier shape and had no value in this scope, so this
+        # line raised NameError every time the scout actually found something.
+        # The failure lived only on the success path — no findings meant the
+        # `else` below, which is what every test and every dry run took.
+        seen_before = sum(1 for cid in papers if cid in decided)
         print(f"citation-gap: {len(papers)} paper(s) from {len(findings)} pairing(s)"
               + (f", {seen_before} already decided today" if seen_before else "")
               + f" -> {out}")
