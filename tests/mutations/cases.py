@@ -663,8 +663,8 @@ CASES: list[Case] = [
         area="adopt",
         label="undo puts the files back but leaves the edited text",
         path="src/magi/adopt.py",
-        fixed='"rewrites": [] if args.no_rewrite else rewrites,',
-        broken='"rewrites": [],',
+        fixed="    recorded = [] if (args.no_rewrite or failure) else rewrites",
+        broken="    recorded = []",
         target="tests/test_adopt.py -k words_back",
     ),
     Case(

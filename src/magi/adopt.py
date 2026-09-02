@@ -504,9 +504,9 @@ def cmd_apply(args) -> int:
         print(f"  {d.relative_to(root).as_posix()}/ is empty now — "
               "left in place, yours to remove")
 
+    recorded = [] if (args.no_rewrite or failure) else rewrites
     man.write_text(json.dumps({"root": str(root), "moves": done,
-                               "rewrites": [] if (args.no_rewrite or failure)
-                                           else rewrites,
+                               "rewrites": recorded,
                                "prose": not args.no_prose}, indent=2,
                               ensure_ascii=False), encoding="utf-8")
     print(f"\n{len(done)} moved. Undo with: magi adopt undo "
