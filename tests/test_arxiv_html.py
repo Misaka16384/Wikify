@@ -446,3 +446,34 @@ def test_a_real_title_that_starts_with_a_number_survives(real):
 def test_the_arxiv_id_prefix_is_still_stripped():
     page = "<html><head><title>[2608.20333] Real Title Here</title></head></html>"
     assert ah.page_title(page) == "Real Title Here"
+
+
+def test_a_capped_page_title_loses_to_the_full_document_title():
+    """The third failure mode, reported from a real library: titles cut at
+    74–81 codepoints, always at the last space before the limit.
+
+    Every one read as a complete, grammatical title. 1812.11193 arrived as
+    "Classification of translation invariant topological Pauli stabilizer
+    codes" — citable without blinking, and silently missing its entire scope
+    qualifier (prime-dimensional qudits, two dimensions). For a project doing
+    literature delimitation that is a wrong answer, not a cosmetic one.
+
+    Both endpoints serve the full string today, so the instance cannot be
+    reproduced and this test is synthetic on purpose. What it pins is the
+    property that makes the class survivable: whatever `<title>` does, the
+    document title is the paper's by construction, so it wins.
+    """
+    full = ("Classification of translation invariant topological Pauli stabilizer "
+            "codes for prime dimensional qudits on two-dimensional lattices")
+    capped = "Classification of translation invariant topological Pauli stabilizer codes"
+    page = (f"<html><head><title>{capped}</title></head><body>"
+            f'<h1 class="ltx_title ltx_title_document">{full}</h1></body></html>')
+
+    assert ah.page_title(page) == full
+
+
+def test_the_page_title_is_still_used_when_there_is_no_document_title():
+    """The fallback has to keep working — most renderings have both, and a
+    document with only `<title>` is the ordinary case for older papers."""
+    page = "<html><head><title>A Perfectly Good Title</title></head><body>x</body></html>"
+    assert ah.page_title(page) == "A Perfectly Good Title"
