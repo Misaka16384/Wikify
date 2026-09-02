@@ -600,7 +600,7 @@ CASES: list[Case] = [
         path="src/magi/state.py",
         fixed="    return [p for p in changed if p not in _REGENERATED]",
         broken="    return changed",
-        target="tests/test_close_handoff.py -k regenerated",
+        target="tests/test_close_handoff.py -k regenerates",
     ),
     Case(
         area="state",
