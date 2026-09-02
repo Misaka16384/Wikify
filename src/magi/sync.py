@@ -650,6 +650,7 @@ def _close(args) -> int:
             "older": [{"slug": item.slug, "why": item.why} for item in report.older],
             "conflicts": report.conflicts,
             "unreviewed": report.unreviewed,
+            "handoff": report.handoff,
             "map": report.map_path,
         }, ensure_ascii=False))
         return 0 if report.ok else 1

@@ -36,6 +36,7 @@ not ranking.
 from __future__ import annotations
 
 import datetime as dt
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -1294,6 +1295,12 @@ class CloseReport:
     #: this session" beside a map saying "waiting on you" makes the reader
     #: reconcile two sentences that were never in conflict.
     waiting: list = field(default_factory=list)
+    #: What the next session — or another one running right now — would walk
+    #: into. Computed at render time from files that already exist, never
+    #: stored: `log.md` was retired in v2 precisely because writing the same
+    #: events to a second place is how two records start disagreeing, and a
+    #: handoff note kept beside `threads/` would be that second place.
+    handoff: list = field(default_factory=list)
     map_path: str | None = None
 
     @property
@@ -1418,6 +1425,7 @@ def close(root, window_hours: int = CLOSE_WINDOW_HOURS, write: bool = True,
     report.waiting = [f"{item.kind}: {item.slug} — {item.why}"
                       for item in state.queue if item.kind != "wip"]
     report.unreviewed = unreviewed(state)
+    report.handoff = handoff_lines(root)
 
     if write:
         report.map_path = str(write_map(state))
@@ -1488,6 +1496,93 @@ def _recent(item: DebtItem, cutoff) -> bool:
     return moved >= cutoff
 
 
+def handoff_lines(root) -> list[str]:
+    """In-flight work another session would walk into, as sentences.
+
+    Every line is a *query* over state that already exists — uncommitted
+    changes, a radar report left open, a queued acquisition, files sitting in
+    `inbox/`. Nothing is recorded. That is the whole design constraint: v2
+    retired `log.md` because "writing the same events to a second place is how
+    the two start disagreeing", so a handoff that stored anything would be
+    reintroducing exactly what was removed.
+
+    It never blocks. The close gate refuses on *bookkeeping debt* — work that
+    happened and was not written down. Leaving a batch staged or an inbox full
+    is not debt, it is a session that stopped somewhere reasonable, and a gate
+    that refused it would be one people turn off.
+    """
+    root = Path(root)
+    lines: list[str] = []
+
+    dirty = _uncommitted(root)
+    if dirty:
+        shown = ", ".join(dirty[:3]) + (" ..." if len(dirty) > 3 else "")
+        lines.append(f"{len(dirty)} uncommitted change(s) in this project: {shown}")
+
+    try:
+        from magi.radar import pending_names, scan_reports
+
+        reports = scan_reports(root)
+        for kind, label in (("digest", "radar digest"),
+                            ("citation-gaps", "citation-gap report")):
+            for name in pending_names(reports, kind):
+                lines.append(f"{label} still open: {name} "
+                             f"(`magi radar triage --report {name} --done`)")
+    except Exception:
+        pass
+
+    try:
+        from magi.ingest.ledger import pending as queued
+
+        n = len(queued(root))
+        if n:
+            lines.append(f"{n} source(s) queued for acquisition "
+                         f"(`magi ingest batch-run`)")
+    except Exception:
+        pass
+
+    try:
+        from magi.core.workspace import INBOX_NON_SOURCES
+
+        waiting = [p.name for p in (root / "inbox").iterdir()
+                   if p.is_file() and p.name not in INBOX_NON_SOURCES]
+        if waiting:
+            shown = ", ".join(sorted(waiting)[:3]) + (" ..." if len(waiting) > 3 else "")
+            lines.append(f"{len(waiting)} file(s) waiting in inbox/: {shown}")
+    except (OSError, ImportError):
+        pass
+
+    return lines
+
+
+def _uncommitted(root: Path) -> list[str]:
+    """Paths git reports as changed, or `[]` when this is not a repo.
+
+    Asked of git rather than guessed from mtimes: a `git clone` or a branch
+    switch rewrites every mtime in the tree, and a handoff line that fires on
+    a fresh checkout is one nobody reads twice.
+    """
+    if not (root / ".git").exists():
+        return []
+    try:
+        # A repo with no commits has nothing in flight — it is new, and every
+        # file in it is untracked including the scaffold. Reporting "12
+        # uncommitted changes" at a project's first close is the fresh-checkout
+        # noise this function exists to avoid, wearing a different hat.
+        head = subprocess.run(["git", "rev-parse", "--verify", "HEAD"], cwd=root,
+                              capture_output=True, text=True, timeout=10)
+        if head.returncode != 0:
+            return []
+        out = subprocess.run(["git", "status", "--porcelain"], cwd=root,
+                             capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if out.returncode != 0:
+        return []
+    return [line[3:].strip().strip('"') for line in out.stdout.splitlines()
+            if line.strip()]
+
+
 def render_close(report: CloseReport) -> str:
     out = []
     for slug in report.conflicts:
@@ -1532,6 +1627,13 @@ def render_close(report: CloseReport) -> str:
         out.append("")
         out.append(f"Older debt, not blocking ({len(report.older)}):")
         out.extend(f"  {item.slug}: {item.why}" for item in report.older[:5])
+    if report.handoff:
+        out.append("")
+        # Named for the reader who is not you. Everything above is what this
+        # session owes; this is what somebody else opening the project in ten
+        # minutes would find half-done and have no way to ask about.
+        out.append("Left in flight, for whoever is here next:")
+        out.extend(f"  {line}" for line in report.handoff)
     if report.map_path:
         out.append("")
         out.append(f"MAP written to {report.map_path}")

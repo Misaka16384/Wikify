@@ -516,6 +516,30 @@ CASES: list[Case] = [
 
     Case(
         area="state",
+        label="the close gate never says what it left in flight",
+        path="src/magi/state.py",
+        fixed="    report.handoff = handoff_lines(root)",
+        broken="    report.handoff = []",
+        target="tests/test_close_handoff.py -k puts_the_handoff",
+    ),
+    Case(
+        area="state",
+        label="a project with no commits reports its whole scaffold as in flight",
+        path="src/magi/state.py",
+        fixed="        if head.returncode != 0:\n            return []",
+        broken="        if head.returncode != 0:\n            pass",
+        target="tests/test_close_handoff.py -k no_commits_yet",
+    ),
+    Case(
+        area="state",
+        label="inbox furniture counts as a source waiting to be ingested",
+        path="src/magi/state.py",
+        fixed="                   if p.is_file() and p.name not in INBOX_NON_SOURCES]",
+        broken="                   if p.is_file()]",
+        target="tests/test_close_handoff.py -k inbox_furniture",
+    ),
+    Case(
+        area="state",
         label="sync never asks whether this workspace's skills are current",
         path="src/magi/sync.py",
         fixed="        _skills_hint(topic, _hint)",
