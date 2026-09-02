@@ -329,7 +329,7 @@ magi skills uninstall            # take them back out
 The skill files ship with the CLI — **no repo clone, no network**.
 
 > [!WARN]
-> **The default is this project, not your whole machine.** All 8 skills revolve around one research project — ingest into its `raw/`, compile into its `wiki/`, query its graph — so a machine-wide install makes every unrelated project carry them for nothing. If you really want that: `magi skills install --scope global` (it warns once).
+> **The default is this project, not your whole machine.** All 9 skills revolve around one research project — ingest into its `raw/`, compile into its `wiki/`, query its graph — so a machine-wide install makes every unrelated project carry them for nothing. If you really want that: `magi skills install --scope global` (it warns once).
 > Installing into the project has a second benefit: the files travel with the repo, so a collaborator who clones it gets them.
 
 | Host | Global | Project | How it fires |
@@ -380,7 +380,7 @@ The plugin and `magi skills install` coexist — one gives you `/magi:skill-name
 **Any other agent** — the project's `CLAUDE.md` and `AGENTS.md` (identical content, two copies) are the onboarding protocol: run `magi sync` on entry, which commands map to which core, use `magi guide --search` when stuck, and never answer research questions from memory. Any host that reads either file can work here; if it reads neither, pasting `magi --help` is enough.
 
 > [!EXPECT]
-> `magi skills where` shows 8/8 on the project rows. Start a fresh agent session **from that project directory** and the skills appear under `/` (Claude Code, opencode), or just say "ingest the papers in inbox" and watch it act. `magi setup --check` also shows the per-CLI count for the project you are in.
+> `magi skills where` shows 9/9 on the project rows. Start a fresh agent session **from that project directory** and the skills appear under `/` (Claude Code, opencode), or just say "ingest the papers in inbox" and watch it act. `magi setup --check` also shows the per-CLI count for the project you are in.
 
 > [!FIX]
 > - **Installed but not showing**: skills are scanned at startup — **start a new session from the project directory** (project skills are only visible when the CLI is launched there).
@@ -522,7 +522,7 @@ magi adopt apply plan.json
 ```
 
 Besides listing the folder, `survey` pulls every arXiv id and DOI written in the
-markdown. A references table is often half the project's library already, and
+markdown. A references table is often half the project's sources already, and
 extracting it is a regex; deciding what each one is worth is the reading. When
 the whole folder sits under one wrapper directory it descends and says so —
 otherwise a repo with everything under `research/` inventories as a single row

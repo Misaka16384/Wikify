@@ -206,7 +206,7 @@ Run `magi setup` and it asks about each one, with the official download link. Sa
 
 ### 2.4 Installing the skills (teaching your agent)
 
-All 8 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command inside your project** installs them into every agent CLI on your machine — no repo clone needed:
+All 9 skills ship inside the wheel (`magi/skills/*/SKILL.md`), so **one command inside your project** installs them into every agent CLI on your machine — no repo clone needed:
 
 ```powershell
 cd <your project>
@@ -292,6 +292,7 @@ Trigger via slash commands in your agent (namespaced `magi:` under the Claude Co
 | Research | `research` | Several angles at once, verified, landing as propositions in `threads/` plus at most one synthesis. Contradiction-hunting is the same skill with an adversarial brief, not a separate one |
 | Draft | `draft` | Write in `drafts/`: ground in the project, export citations with `magi bib`, check claims, formulas and links |
 | Radar | `radar_review` | Triage a radar digest — the score is a rank, not a verdict; the judgement is yours |
+| Adopt | `adopt` | Take a folder that already holds material: inventory, plan, move (references repaired), then open what the material already claims |
 
 A single-command wrapper is not a skill any more: `magi init` scaffolds,
 `magi lint --fix` repairs, `magi graph build` builds the graph, `magi link`

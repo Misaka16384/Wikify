@@ -201,7 +201,7 @@ uv tool install --force magi-research
 
 ### 2.4 Skills 安装（教 agent 用 MAGI）
 
-8 个 skill 随 CLI 一起分发（`magi/skills/*/SKILL.md`，在 wheel 里），**在项目里一条命令**装进你机器上所有 agent CLI，不需要 clone 仓库：
+9 个 skill 随 CLI 一起分发（`magi/skills/*/SKILL.md`，在 wheel 里），**在项目里一条命令**装进你机器上所有 agent CLI，不需要 clone 仓库：
 
 ```powershell
 cd <你的项目>
@@ -286,6 +286,7 @@ MAGI SYSTEM ONLINE — sync ratio 59.2%
 | 调研 | `research` | 多角度并行调研并核验，产物是 `threads/` 里的命题 +（至多）一篇综述。找茬式审计是同一个 skill 换一套提示词，不是另一个 skill |
 | 写作 | `draft` | 在 `drafts/` 里写：检索取证 → `magi bib` 导出引用 → 校验 claim / 公式 / 链接 |
 | 雷达 | `radar_review` | 对 radar 摘要做 triage：分数只是排序不是判据，判断在你 |
+| 接管 | `adopt` | 把已经堆了材料的文件夹接进来：盘点 → 计划 → 搬动（引用自动改对）→ 把材料已有的主张开成命题 |
 
 单命令的包装不再是 skill：建库是 `magi init`，修复是 `magi lint --fix`，建图是
 `magi graph build`，语义连边是 `magi link`，查手册是 `magi guide`。样板（工具能力、
