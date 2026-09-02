@@ -639,7 +639,8 @@ def _close(args) -> int:
     report = state_mod.close(root, window_hours=window)
 
     if args.hook:
-        print(json.dumps(state_mod.hook_payload(report), ensure_ascii=False))
+        print(json.dumps(state_mod.hook_payload(report, args.dialect),
+                         ensure_ascii=False))
         # A hook that exits non-zero is a hook that looks broken; the verdict
         # travels in the payload, not in the status code.
         return 0
@@ -677,6 +678,11 @@ def main(argv: list[str] | None = None) -> int:
                         help="With --close: hours of history that count as this "
                              "session's work (default 12). Older debt is listed, "
                              "not blocking.")
+    parser.add_argument("--dialect", default="claude",
+                        choices=("claude", "antigravity"),
+                        help="With --hook: whose vocabulary the refusal is "
+                             "spelled in. Antigravity blocks a stop with "
+                             "decision:continue where the others say block.")
     parser.add_argument("--hook", action="store_true",
                         help="With --close: emit the JSON a host's stop hook reads "
                              "instead of a report.")

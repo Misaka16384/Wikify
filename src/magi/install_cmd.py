@@ -54,8 +54,18 @@ STOP_COMMAND = "magi sync --close --hook"
 #: `SessionStart` is where background work goes, because §7 says there is no
 #: daemon — everything but the radar happens when a session begins.
 #:
-#: Claude Code only. It is the one host that documents any of this, and a hook
-#: guessed at is a hook that fails silently in somebody else's editor.
+#: Claude Code and Codex. Both take the same file shape — a top-level `hooks`
+#: key, each event an array of `{matcher, hooks: [{type, command}]}` — and both
+#: read `{"decision": "block", "reason": ...}` as "do not stop yet", so one
+#: writer serves them.
+#:
+#: Antigravity is deliberately not here even though it documents a `Stop`
+#: hook. Its file is shaped differently (top-level hook *name*, `Stop` a flat
+#: array with no matcher), it has no `SessionStart` at all, and blocking is
+#: spelled `{"decision": "continue"}` — our payload would be read as "any
+#: other value", which lets the session stop. Writing it would install a gate
+#: that is silently inert, which is worse than the honest line saying there
+#: is none. Checked 2026-09-02 against antigravity.google/docs/hooks/.
 from . import hook_cmd as _hook_cmd
 
 HOOKS = {
@@ -71,13 +81,36 @@ HOOKS = {
 #: host table: a record names its hook writer, the same way it names its
 #: transcript reader, because a hook is an entry in that host own settings
 #: schema and no template describes one.
-HOOKABLE = tuple(host.key for host in _hosts.BUILTIN if host.hook == "claude")
+#: Who can actually enforce the close gate. Was "whose hook field says
+#: claude", which stopped meaning the same thing the moment a second host
+#: got a writer of its own.
+HOOKABLE = tuple(host.key for host in _hosts.BUILTIN if host.hook)
+
+
+#: Where each host keeps the file, project-scoped. Claude Code folds hooks
+#: into its general settings; Codex gives them a file of their own.
+_HOOK_FILES = {
+    "claude": (".claude", "settings.json"),
+    "codex": (".codex", "hooks.json"),
+    "antigravity": (".agents", "hooks.json"),
+}
+
+#: What each host actually offers. Antigravity has no SessionStart, so the
+#: opening handover simply does not exist there — better to say that than to
+#: write an event its parser ignores.
+_HOOK_EVENTS = {
+    "claude": ("Stop", "PreToolUse", "SessionStart"),
+    "codex": ("Stop", "PreToolUse", "SessionStart"),
+    "antigravity": ("Stop", "PreToolUse"),
+}
+
+#: MAGI's own name for it, under Antigravity's one-object-per-hook-name layout.
+_AGY_HOOK_NAME = "magi"
 
 
 def _settings_path(root: Path, host: str) -> Path | None:
-    if host == "claude":
-        return root / ".claude" / "settings.json"
-    return None
+    where = _HOOK_FILES.get(host)
+    return root.joinpath(*where) if where else None
 
 
 def _load(path: Path) -> dict:
@@ -129,22 +162,88 @@ def merge_stop_hook(settings: dict, command: str = STOP_COMMAND) -> tuple[dict, 
     return merge_hook(settings, "Stop", command)
 
 
+#: Why a host gets no hook, in its own words. Dated, because these are claims
+#: about somebody else's product and the undated version of this sentence was
+#: wrong for a year: Antigravity and Codex both shipped hooks while the code
+#: still said Claude Code was "the one host that documents any of this".
+_NO_HOOK = {
+    "": "no documented stop hook as of 2026-09-02",
+    "antigravity": (
+        "documents a Stop hook, but its file is shaped differently, it has no "
+        "SessionStart, and blocking is spelled decision:continue where ours "
+        "says block — an untested file there would look installed and never "
+        "fire (checked 2026-09-02)"),
+    "opencode": (
+        "has no declarative hooks at all as of 2026-09-02 — only a plugin API, "
+        "whose session.idle cannot refuse a stop"),
+}
+
+
+def merge_agy_hook(config: dict, event: str, command: str,
+                   matcher: str = "") -> tuple[dict, bool]:
+    """Antigravity's layout, which is not Claude's with a different filename.
+
+    Everything MAGI installs lives under one hook name so a person can turn
+    the lot off with `"enabled": false`, the way that file is meant to be
+    used. `Stop` takes a flat array of handlers — its own docs say the matcher
+    is ignored there — while the tool events take matcher groups.
+    """
+    ours = config.setdefault(_AGY_HOOK_NAME, {})
+    if not isinstance(ours, dict):
+        raise SystemExit("hooks.json has a 'magi' entry that is not an object; "
+                         "fix it by hand rather than let this command guess")
+    entries = ours.setdefault(event, [])
+    if not isinstance(entries, list):
+        raise SystemExit(f"hooks.json has a 'magi.{event}' that is not a list")
+
+    flat = event in ("Stop", "PreInvocation", "PostInvocation")
+    handlers = entries if flat else [h for g in entries
+                                     if isinstance(g, dict)
+                                     for h in g.get("hooks", [])]
+    for handler in handlers:
+        if isinstance(handler, dict) and handler.get("command") == command:
+            return config, False
+
+    handler = {"type": "command", "command": command}
+    entries.append(handler if flat else {"matcher": matcher, "hooks": [handler]})
+    return config, True
+
+
 def install_hook(root: Path, host: str, dry_run: bool = False) -> str:
     """Write every hook MAGI has for one host. Returns a line for the report."""
     path = _settings_path(root, host)
     if path is None:
-        return (f"{host}: no documented stop hook — the rule is in AGENTS.md, "
+        reason = _NO_HOOK.get(host, _NO_HOOK[""])
+        return (f"{host}: {reason} — the rule stays in AGENTS.md, "
                 "which the agent can ignore")
 
+    merge = merge_agy_hook if host == "antigravity" else merge_hook
     settings = _load(path)
     written = []
-    for event, (command, matcher) in HOOKS.items():
-        settings, changed = merge_hook(settings, event, command, matcher)
+    for event in _HOOK_EVENTS.get(host, tuple(HOOKS)):
+        command, matcher = HOOKS[event]
+        if host == "antigravity" and command == STOP_COMMAND:
+            # Antigravity blocks a stop with `decision: continue`; the others
+            # say `block`. Same refusal, spelled the way this host reads.
+            command += " --dialect antigravity"
+        settings, changed = merge(settings, event, command, matcher)
         if changed:
             written.append(event)
     if not written:
         return f"{host}: hooks already installed ({path})"
     named = ", ".join(written)
+    if host == "antigravity":
+        # Said plainly rather than implied. The file shape and the blocking
+        # word both come from the CLI's own bundled documentation, which ships
+        # inside the install rather than being fetched:
+        # ~/.gemini/antigravity-cli/builtin/skills/agy-customizations/docs/
+        # But no hook could be made to fire through `agy --print`, its only
+        # non-interactive entry, and that same doc gives the location as
+        # "e.g. .agents/hooks.json" rather than stating it. Written on good
+        # evidence, unproven in practice — and a gate somebody believes in is
+        # worse than one they know to go and check.
+        named += (" (unverified: no hook fires under `agy --print`, so this "
+                  "could not be tested here — check /hooks in a real session)")
     if dry_run:
         return f"{host}: would install {named} ({path})"
 

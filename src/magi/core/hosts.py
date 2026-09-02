@@ -214,6 +214,13 @@ BUILTIN: Tuple[Host, ...] = (
     Host(
         key="codex", label="Codex CLI", bin="codex", tier=TIER_VERIFIED,
         marker="{home}/.codex",
+        # Same hook file shape as Claude Code and the same `decision: block`
+        # meaning, so one writer serves both (checked 2026-09-02 against
+        # learn.chatgpt.com/docs/hooks). Antigravity documents a Stop hook too
+        # and is still blank here: its file shape, its event list and its
+        # blocking word all differ, and a hook written to the wrong shape is
+        # one that never fires while looking installed.
+        hook="claude",
         drops=(
             Drop(kind="skill",
                  global_dir="{home}/" + AGENTS_SKILLS,
@@ -238,6 +245,7 @@ BUILTIN: Tuple[Host, ...] = (
     ),
     Host(
         key="antigravity", label="Antigravity CLI (agy)", bin="agy",
+        hook="antigravity",
         tier=TIER_VERIFIED,
         marker="{home}/.gemini/config",
         drops=(

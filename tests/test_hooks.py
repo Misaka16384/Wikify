@@ -216,9 +216,10 @@ def test_somebody_else_s_hook_on_the_same_event_is_left_alone(ws):
 
 
 def test_a_host_with_no_documented_hooks_is_told_so_plainly(ws):
-    line = install_cmd.install_hook(ws, "codex")
-    assert "no documented stop hook" in line
-    assert not (ws / ".codex").exists()
+    """opencode, not codex — codex grew hooks and MAGI writes them now."""
+    line = install_cmd.install_hook(ws, "opencode")
+    assert "no declarative hooks" in line
+    assert not (ws / ".opencode").exists()
 
 
 def test_the_count_is_derived_and_ignored(tmp_path):
@@ -351,3 +352,25 @@ def test_a_broken_helper_cannot_take_the_session_down(ws, monkeypatch):
     (ws / "inbox" / "paper.md").write_text("x", encoding="utf-8")
 
     assert hook_cmd.session_start({}, root=ws) == {}
+
+
+def test_the_refusal_is_spelled_the_way_each_host_reads_it(ws):
+    """Antigravity blocks a stop with `decision: continue`; Claude Code and
+    Codex say `block`. Its own bundled docs add that any other value lets the
+    agent stop — so sending ours would install a gate that never refuses."""
+    from magi import state as state_mod
+
+    report = state_mod.CloseReport()
+    report.blocking = [state_mod.DebtItem(slug="p-x", why="no post explains it")]
+
+    assert state_mod.hook_payload(report)["decision"] == "block"
+    assert state_mod.hook_payload(report, "antigravity")["decision"] == "continue"
+    assert "p-x" in state_mod.hook_payload(report, "antigravity")["reason"]
+
+
+def test_a_clean_report_says_nothing_in_either_dialect(ws):
+    from magi import state as state_mod
+
+    clean = state_mod.CloseReport()
+    assert state_mod.hook_payload(clean) == {}
+    assert state_mod.hook_payload(clean, "antigravity") == {}

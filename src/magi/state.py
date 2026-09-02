@@ -1657,7 +1657,7 @@ def render_close(report: CloseReport) -> str:
     return "\n".join(out)
 
 
-def hook_payload(report: CloseReport) -> dict:
+def hook_payload(report: CloseReport, dialect: str = "claude") -> dict:
     """What a Claude Code Stop hook returns to keep a session from ending.
 
     The reason is read by the agent, not by a person, so it says what to do
@@ -1683,7 +1683,15 @@ def hook_payload(report: CloseReport) -> dict:
                      "a person's call and is already on the decision queue — say "
                      "so, and do not resolve it yourself:\n"
                      + "\n".join(f"- {slug}" for slug in report.conflicts))
-    return {"decision": "block", "reason": "\n\n".join(parts)}
+    reason = "\n\n".join(parts)
+    # Same intent, two vocabularies. Claude Code and Codex both read
+    # `decision: "block"` as "do not stop yet". Antigravity spells it
+    # `decision: "continue"`, and its own bundled docs say "any other
+    # value allows the agent to stop" — so handing it ours would install
+    # a gate that looks present and never refuses anything.
+    if dialect == "antigravity":
+        return {"decision": "continue", "reason": reason}
+    return {"decision": "block", "reason": reason}
 
 
 # ---------------------------------------------------------------- command

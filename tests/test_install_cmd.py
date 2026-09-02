@@ -105,10 +105,17 @@ def test_a_dry_run_changes_nothing(ws):
 
 
 def test_a_host_with_no_stop_hook_says_so_instead_of_pretending(ws):
-    """Three of the four hosts have no equivalent. Reporting an install that
-    did nothing is worse than reporting the asymmetry."""
-    line = install_cmd.install_hook(ws, "codex")
-    assert "no documented stop hook" in line
+    """Reporting an install that did nothing is worse than reporting the
+    asymmetry.
+
+    The example moved from codex to opencode, and that is the point rather
+    than an edit of convenience: codex documented a Stop hook and MAGI now
+    writes one, so using it here would have been asserting something false
+    about somebody else's product. opencode still has no declarative hooks at
+    all — only a plugin API whose session.idle cannot refuse a stop.
+    """
+    line = install_cmd.install_hook(ws, "opencode")
+    assert "no declarative hooks" in line
     assert "AGENTS.md" in line
 
 
@@ -217,3 +224,81 @@ def test_a_pointer_that_is_already_a_pointer_is_left_alone(tmp_path):
     install_cmd.install_protocol(root, "light")
 
     assert not (root / ".backup").exists(), "nothing to keep, nothing kept"
+
+
+# --------------------------------------------------------------------------
+# three hosts, three shapes
+# --------------------------------------------------------------------------
+
+def test_codex_gets_the_same_shape_in_a_file_of_its_own(ws):
+    """Codex's hooks.json is Claude's `hooks` wrapper under a different name,
+    confirmed against two real installed Codex plugins on the machine this was
+    written on, so one writer serves both."""
+    import json
+
+    install_cmd.install_hook(ws, "codex")
+    got = json.loads((ws / ".codex" / "hooks.json").read_text(encoding="utf-8"))
+
+    assert set(got["hooks"]) == {"Stop", "PreToolUse", "SessionStart"}
+    stop = got["hooks"]["Stop"][0]["hooks"][0]
+    assert stop["command"] == install_cmd.STOP_COMMAND
+    assert stop["type"] == "command"
+
+
+def test_antigravity_gets_its_own_shape_not_a_copy_of_claudes(ws):
+    """Its own bundled docs, which ship inside the CLI: the top-level key is a
+    hook *name*, `Stop` is a flat array with no matcher, and there is no
+    SessionStart event at all. Writing Claude's shape here would produce a
+    file that parses and never fires."""
+    import json
+
+    install_cmd.install_hook(ws, "antigravity")
+    got = json.loads((ws / ".agents" / "hooks.json").read_text(encoding="utf-8"))
+
+    assert "hooks" not in got, "that is Claude's wrapper, not this one's"
+    ours = got["magi"]
+    assert set(ours) == {"Stop", "PreToolUse"}, "antigravity has no SessionStart"
+    assert ours["Stop"][0]["command"].startswith(install_cmd.STOP_COMMAND)
+    assert "matcher" not in ours["Stop"][0], "Stop takes a flat array"
+    assert "matcher" in ours["PreToolUse"][0], "tool events do take groups"
+
+
+def test_antigravity_is_told_to_refuse_in_its_own_word(ws):
+    """It blocks a stop with `decision: continue`; the others say `block`, and
+    its docs say any other value lets the agent stop. The command has to carry
+    the dialect or the gate is installed and inert."""
+    import json
+
+    install_cmd.install_hook(ws, "antigravity")
+    got = json.loads((ws / ".agents" / "hooks.json").read_text(encoding="utf-8"))
+
+    assert "--dialect antigravity" in got["magi"]["Stop"][0]["command"]
+
+
+def test_installing_twice_adds_nothing(ws):
+    import json
+
+    install_cmd.install_hook(ws, "antigravity")
+    first = (ws / ".agents" / "hooks.json").read_text(encoding="utf-8")
+    line = install_cmd.install_hook(ws, "antigravity")
+
+    assert "already installed" in line
+    assert (ws / ".agents" / "hooks.json").read_text(encoding="utf-8") == first
+
+
+def test_a_hook_somebody_else_put_there_survives(ws):
+    """The file is theirs. Ours goes under its own name beside whatever is
+    already in it."""
+    import json
+
+    (ws / ".agents").mkdir(parents=True, exist_ok=True)
+    (ws / ".agents" / "hooks.json").write_text(json.dumps(
+        {"their-linter": {"PostToolUse": [{"matcher": "run_command",
+                                           "hooks": [{"command": "./lint.sh"}]}]}}),
+        encoding="utf-8")
+
+    install_cmd.install_hook(ws, "antigravity")
+    got = json.loads((ws / ".agents" / "hooks.json").read_text(encoding="utf-8"))
+
+    assert "their-linter" in got
+    assert "magi" in got
