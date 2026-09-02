@@ -112,6 +112,7 @@ GROUP_HELP_ZH: dict[str, str] = {
     "pm": "对接 Beads (bd) 的任务状态桥",
     "claims": "命题与证据溯源",
     "radar": "文献雷达（定时发现）",
+    "adopt": "把已有材料的文件夹接进一个项目",
     "tags": "标签本体规范化",
     "skills": "按 CLI 宿主安装 agent 技能",
 }

@@ -162,6 +162,21 @@ def _last_post_time(note):
     return max(stamps) if stamps else None
 
 
+def _waiting_since(note):
+    """When this note started waiting.
+
+    A note nobody has posted on yet has been waiting since it was opened, not
+    since the year 1. The epoch floor is what `magi next` used to print at a
+    project on its first day — `open since 0001-01-01`, on the very first
+    sentence a freshly adopted project says to anyone.
+    """
+    posted = _last_post_time(note)
+    if posted is not None:
+        return posted
+    created = parse_at(note.frontmatter.get("created"))
+    return created or dt.datetime.min.replace(tzinfo=dt.timezone.utc)
+
+
 # ---------------------------------------------------------------- loading
 
 
@@ -700,8 +715,7 @@ def candidates(state: State) -> list:
         oldest = _oldest_open(state.notes, view.slug)
         if oldest is None:
             continue
-        since = (_last_post_time(oldest) or dt.datetime.min.replace(
-            tzinfo=dt.timezone.utc)).date().isoformat()
+        since = _waiting_since(oldest).date().isoformat()
         actions.append(Action(
             key="work", slug=oldest.slug, line=view.slug, cost="llm",
             why=f"{oldest.slug} has been {oldest.status} since {since} — "
@@ -723,8 +737,9 @@ def _oldest_open(notes, line: str):
              and line in (note.lines or [UNLINED])]
     if not owned:
         return None
-    floor = dt.datetime.min.replace(tzinfo=dt.timezone.utc)
-    return min(owned, key=lambda note: _last_post_time(note) or floor)
+    # Same clock as the sentence this ranking feeds: a note with no posts
+    # sorts by when it was opened, so two of them do not tie at the floor.
+    return min(owned, key=_waiting_since)
 
 
 # ---------------------------------------------------------------- rendering

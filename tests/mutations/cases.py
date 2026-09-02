@@ -514,6 +514,22 @@ CASES: list[Case] = [
         target="tests/test_one_thing_one_word.py -k cli_prints",
     ),
 
+    Case(
+        area="state",
+        label="a note with no posts is dated from the year 1",
+        path="src/magi/state.py",
+        fixed='    created = parse_at(note.frontmatter.get("created"))',
+        broken="    created = None",
+        target="tests/test_state.py -k waits_since",
+    ),
+    Case(
+        area="state",
+        label="two note-less threads tie at the floor and rank by chance",
+        path="src/magi/state.py",
+        fixed="    return min(owned, key=_waiting_since)",
+        broken="    return min(owned, key=lambda n: _last_post_time(n) or dt.datetime.min.replace(tzinfo=dt.timezone.utc))",
+        target="tests/test_state.py -k ranked_by_when",
+    ),
     # ----------------------------------------------------------------- adopt
     Case(
         area="adopt",

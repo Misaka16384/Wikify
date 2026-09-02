@@ -1485,3 +1485,38 @@ def test_the_remedy_only_names_things_that_clear_it(ws):
     assert "magi decide" in text
     assert "magi thread status" not in text, (
         "it still offers the remedy whose legal target it does not name")
+
+
+# --------------------------------------------------------------------------
+# when a note started waiting
+# --------------------------------------------------------------------------
+
+def test_a_note_nobody_has_posted_on_waits_since_it_was_opened(ws):
+    """Found on a project's first day: `magi next` said `open since
+    0001-01-01`. The fallback was the epoch floor, and a proposition with no
+    posts hits it every time — so the very first sentence a newly adopted
+    project says to anyone carried a date from the year 1."""
+    line(ws)
+    proposition(ws, "p-fresh")
+
+    work = [a for a in state.candidates(load(ws)) if a.key == "work"]
+    assert work, "a line with an open proposition offers work"
+    assert "0001-01-01" not in work[0].why
+    assert dt.date.today().isoformat() in work[0].why
+
+
+def test_two_notes_with_no_posts_are_ranked_by_when_they_opened(ws):
+    """The same clock as the sentence it feeds. On the floor they tie, and
+    which one `next` names becomes whichever the filesystem listed first."""
+    line(ws)
+    proposition(ws, "p-old")
+    threads.create(ws / "threads" / "p-new.md", vocab.PROPOSITION, "P-NEW",
+                   "Why p-new.", lines=["qec"])
+    older = ws / "threads" / "p-old.md"
+    older.write_text(older.read_text(encoding="utf-8").replace(
+        f"created: '{dt.date.today().isoformat()}'", "created: '2020-01-01'"),
+        encoding="utf-8")
+
+    work = [a for a in state.candidates(load(ws)) if a.key == "work"]
+    assert work[0].slug == "p-old"
+    assert "2020-01-01" in work[0].why

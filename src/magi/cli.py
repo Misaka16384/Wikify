@@ -131,6 +131,7 @@ _GROUP_HELP = {
     "pm": "Work-state bridge to Beads (bd)",
     "claims": "Claim/evidence provenance",
     "radar": "Literature radar (scheduled discovery)",
+    "adopt": "Take a folder of existing material into a project",
     "tags": "Tag ontology normalization",
     "skills": "Agent skills, installed per CLI host",
 }
