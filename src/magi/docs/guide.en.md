@@ -462,7 +462,7 @@ magi migrate
 **Your old settings come with you.** It looks for the previous `config.yaml` in `<project>/.agents/`, `<hub>/.agents/`, `~/.claude` and `~/.gemini`, and copies values — MinerU token, model names, dpi, semantic-link thresholds — into the new config. Only settings still at their default are filled, so an edit you made after migrating is never overwritten, and it prints which keys it carried (key names only, never the token itself).
 
 > [!NOTE]
-> `magi migrate` has **no** `--dry-run` and **no** `--force`. Non-destructiveness isn't guaranteed by a flag — it's hard-coded into the implementation: when it calls the scaffolding, it never passes `--force`, so all it can ever do is create missing files. Running it again is safe; the second run just takes the "refresh index" branch.
+> `magi migrate` has **no** `--force`. Non-destructiveness isn't guaranteed by a flag — it's hard-coded into the implementation: when it calls the scaffolding, it never passes `--force`, so all it can ever do is create missing files. Running it again is safe; the second run just takes the "refresh index" branch. There *is* a `--dry-run`, which prints what each project would get without touching anything.
 
 One step is left, because it needs a project to install into:
 
@@ -507,6 +507,75 @@ and you did not name one.
 | Requires ripgrep | No longer needed |
 
 ---
+
+## Adopting a folder you already have {#adopt}
+
+`magi migrate` is for a project Wikify built. A folder that has never been near
+MAGI but already holds half a year of work — papers, your own drafts, code and
+data, arranged however they ended up — goes this way instead:
+
+```powershell
+magi adopt survey .                     # read-only inventory; nothing moves
+magi init --name "..." --scope "..."    # scaffold in place: only adds files
+magi adopt apply plan.json --dry-run    # what would move, what gets repointed
+magi adopt apply plan.json
+```
+
+Besides listing the folder, `survey` pulls every arXiv id and DOI written in the
+markdown. A references table is often half the project's library already, and
+extracting it is a regex; deciding what each one is worth is the reading. When
+the whole folder sits under one wrapper directory it descends and says so —
+otherwise a repo with everything under `research/` inventories as a single row
+reading "112 files", which tells nobody anything.
+
+The plan is JSON, written by the agent and read by a person:
+
+```json
+{"moves": [{"from": "gate0", "to": "drafts/gate0"},
+           {"from": "notes", "to": "drafts/notes"}]}
+```
+
+### The references get repaired {#adopt-links}
+
+A research folder is held together by ordinary relative paths. Moving whole
+directories happens to preserve them — two subtrees moved under one new parent
+still reach each other through `../` — but a folder messy enough to be worth
+adopting cannot be fitted to MAGI's shape that way: sooner or later a file has
+to go somewhere its neighbours do not.
+
+`apply` does not stop there; it repairs them. **The arithmetic that proves a
+link is about to break is the same arithmetic that says where it should point
+instead.** That includes paths written inside code spans — nothing renders
+those, so nothing else would ever notice they stopped matching. On one real
+repository, all 28 references needing repair were of exactly that kind.
+
+```powershell
+magi adopt apply plan.json --no-rewrite  # move only (refuses unless --break-links)
+magi adopt apply plan.json --no-prose    # real links only, leave code spans alone
+```
+
+### Undo {#adopt-undo}
+
+Every apply writes a manifest under `output/adopt/` recording each move **and
+each edit**:
+
+```powershell
+magi adopt undo                                  # the most recent one
+magi adopt undo output/adopt/2026-09-02-021152.json
+```
+
+The words go back with the files — verified byte-for-byte against two real
+repositories.
+
+> [!NOTE]
+> `apply` never deletes, never overwrites, never moves anything out of the
+> project, and never touches MAGI's own scaffold. One invalid entry means the
+> whole plan is refused: a half-adopted folder is worse than an untouched one.
+
+The matching skill is `adopt` — an operating manual for the agent, so a person
+only reads the plan and says yes. Its last step is not "the files are in place"
+but `magi next` saying something real: a project still answering "no
+propositions" was tidied, not adopted.
 
 ## Setting up your project {#workspace}
 
