@@ -784,3 +784,69 @@ def test_a_call_that_failed_still_says_what_it_cost(ws, monkeypatch, capsys):
     review.main(["--topic-dir", str(ws), "--host", "codex", "p-gap"])
 
     assert "model calls this week" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------
+# a batch wrapper would keep only the first line of the prompt
+# --------------------------------------------------------------------------
+
+def test_a_cmd_wrapper_with_a_multiline_prompt_is_refused(monkeypatch):
+    """Measured, not reasoned about.
+
+    A `.cmd` echoing its first argument, given "line one\nline two\nline
+    three" through `subprocess.run` with no shell, prints `ARG1=[line one]`
+    and exits 0. Windows ends the argument at the newline. So a host installed
+    by npm — `gemini.CMD` and `opencode.CMD` on the machine this was found on —
+    would be handed one line of a review prompt and answer confidently about
+    it, with nothing reporting a problem.
+
+    Raising is what this can honestly do. Feeding the prompt on stdin is the
+    real fix and has to be settled per host, because each vendor's headless
+    flag reads its prompt differently.
+    """
+    monkeypatch.setattr(review.os, "name", "nt")
+    with pytest.raises(RuntimeError) as caught:
+        review._refuse_truncating_wrapper([r"C:\npm\claude.CMD", "line one\nline two"])
+    assert "first line" in str(caught.value)
+
+
+def test_a_real_executable_takes_a_multiline_prompt(monkeypatch):
+    monkeypatch.setattr(review.os, "name", "nt")
+    review._refuse_truncating_wrapper([r"C:\bin\claude.EXE", "line one\nline two"])
+
+
+def test_a_wrapper_is_fine_when_nothing_is_multiline(monkeypatch):
+    """The truncation needs a newline. A one-line argument survives cmd.exe."""
+    monkeypatch.setattr(review.os, "name", "nt")
+    review._refuse_truncating_wrapper([r"C:\npm\claude.CMD", "one line only"])
+
+
+def test_posix_has_no_batch_wrappers_to_refuse(monkeypatch):
+    monkeypatch.setattr(review.os, "name", "posix")
+    review._refuse_truncating_wrapper(["/usr/bin/claude.cmd", "line one\nline two"])
+
+
+def test_ask_itself_refuses_before_it_spawns_anything(monkeypatch):
+    """Through `ask`, not by calling the guard.
+
+    The three tests above hand argv straight to `_refuse_truncating_wrapper`,
+    which proves the guard is right and proves nothing about whether `ask`
+    calls it — delete the one line and they all stay green. It happened: the
+    mutation case reported MISSED until this test existed.
+    """
+    class _Entry:
+        def headless(self, prompt, model, effort):
+            return ["claude", prompt]
+
+    monkeypatch.setattr(review.os, "name", "nt")
+    monkeypatch.setattr(review, "plan", lambda *a, **k: (_Entry(), "m", None))
+    monkeypatch.setattr(review.shutil, "which", lambda *a, **k: r"C:\npm\claude.CMD")
+
+    def _never(*a, **k):
+        raise AssertionError("a truncated prompt was handed to the host")
+
+    monkeypatch.setattr(review.subprocess, "run", _never)
+
+    with pytest.raises(RuntimeError) as caught:
+        review.ask("claude", "line one\nline two", cwd=".")
+    assert "first line" in str(caught.value)

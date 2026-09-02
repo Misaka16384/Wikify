@@ -515,6 +515,22 @@ CASES: list[Case] = [
     ),
 
     Case(
+        area="review",
+        label="a batch wrapper silently keeps only the first line of the prompt",
+        path="src/magi/review.py",
+        fixed="    _refuse_truncating_wrapper(argv)",
+        broken="    pass",
+        target="tests/test_review.py -k ask_itself_refuses",
+    ),
+    Case(
+        area="reflect",
+        label="a duplicate filed during the model call crashes the run",
+        path="src/magi/reflect/propose.py",
+        fixed='            skipped.append((row["pattern"],\n                            "this exact change has been proposed before"))',
+        broken="            skipped += 1",
+        target="tests/test_reflect_propose.py -k during_the_model_call",
+    ),
+    Case(
         area="skills",
         label="uninstall deletes a skill the person wrote themselves",
         path="src/magi/skills_cmd.py",

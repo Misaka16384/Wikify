@@ -288,7 +288,12 @@ def run(root, *, host=None, model=None, effort=None, timeout: int = TIMEOUT,
     seen = proposals.already_proposed(root)
     for row in rows:
         if proposals.fingerprint(row["kind"], row["target"], row["text"]) in seen:
-            skipped += 1
+            # `skipped` is the list `parse()` returned, holding (slug, why)
+            # pairs; `+= 1` on it raises TypeError and takes the whole run
+            # down at exactly the moment this branch exists to handle — a
+            # second run started inside the first one's model call.
+            skipped.append((row["pattern"],
+                            "this exact change has been proposed before"))
             report.skipped = skipped
             continue
         made = proposals.propose(root, kind=row["kind"], target=row["target"],

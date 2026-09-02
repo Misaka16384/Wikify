@@ -318,3 +318,39 @@ def test_a_host_the_workspace_declares_reaches_the_thinking_stage(ws, monkeypatc
     assert report.host == "mycli", (
         "a CLI the workspace declares is a host like any other; the stage "
         f"chose {report.host!r} instead. note: {report.note!r}")
+
+
+def test_a_duplicate_filed_during_the_model_call_is_skipped_not_crashed(ws, monkeypatch):
+    """The race the re-read exists for, which had never been exercised.
+
+    `parse()` checks against the proposals that existed before the call, and
+    the model can take a quarter of an hour, so the code re-reads afterwards.
+    That second branch did `skipped += 1` on the list `parse()` returned —
+    `TypeError: 'int' object is not iterable` — so the one path written to
+    survive a concurrent run was the one that took the run down.
+
+    Simulated by answering the first read empty and the second with the row's
+    own fingerprint, which is exactly what a second run filing it mid-call
+    would produce.
+    """
+    recurring(ws)
+    monkeypatch.setattr("magi.reflect.propose.ask", answering(a_row()))
+
+    calls = {"n": 0}
+    real = proposals.already_proposed
+
+    def racing(root):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return real(root)          # parse() sees nothing yet
+        return {proposals.fingerprint(
+            proposals.RULE, "AGENTS.md",
+            "Check the boundary condition before starting a sweep.")}
+
+    monkeypatch.setattr("magi.reflect.propose.proposals.already_proposed", racing)
+
+    report = propose.run(ws, host="codex", now=TODAY)
+
+    assert report.made == [], "the duplicate was filed anyway"
+    assert report.skipped, "the skip was not recorded"
+    assert "proposed before" in report.skipped[-1][1]

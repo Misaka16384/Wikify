@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -299,6 +300,35 @@ def plan(host: str, model=None, effort=None, settings: "Settings | None" = None,
             entry.pick_effort(effort or "", (settings.effort if settings else "") or ""))
 
 
+def _refuse_truncating_wrapper(argv: list[str]) -> None:
+    """A batch wrapper silently keeps the first line of a multiline argument.
+
+    Windows runs `.cmd`/`.bat` through the command processor, which ends an
+    argument at the newline. Measured, not reasoned: a wrapper echoing its
+    first argument given "line one\\nline two\\nline three" prints
+    `ARG1=[line one]` and exits 0. So a host installed by npm — `gemini.CMD`,
+    `opencode.CMD`, and Claude Code or Codex too if installed that way — would
+    be asked to review one line of a prompt and answer confidently about it,
+    with nothing anywhere reporting a problem.
+
+    Raising is the fix this can honestly make. Feeding the prompt on stdin is
+    the real one, and it has to be settled per host — each vendor's headless
+    flag reads its prompt differently, and guessing would trade a loud failure
+    for a quiet one again.
+    """
+    if os.name != "nt" or not argv:
+        return
+    if not argv[0].lower().endswith((".cmd", ".bat")):
+        return
+    if not any("\n" in str(a) for a in argv[1:]):
+        return
+    raise RuntimeError(
+        f"{Path(argv[0]).name} is a batch wrapper, and Windows would cut the "
+        "prompt at its first line without saying so. Install this host as a "
+        "real executable (its native installer rather than npm), or review "
+        "with a host that is one — `magi review --host <other>`.")
+
+
 def ask(host: str, prompt: str, cwd, model: str | None = None,
         timeout: int = TIMEOUT, effort: str | None = None,
         settings: "Settings | None" = None) -> str:
@@ -312,6 +342,7 @@ def ask(host: str, prompt: str, cwd, model: str | None = None,
     found = shutil.which(argv[0])
     if found:
         argv = [found] + argv[1:]
+    _refuse_truncating_wrapper(argv)
     proc = subprocess.run(argv, cwd=str(cwd), capture_output=True, text=True,
                           encoding="utf-8", errors="replace", timeout=timeout)
     if proc.returncode != 0 and not (proc.stdout or "").strip():
