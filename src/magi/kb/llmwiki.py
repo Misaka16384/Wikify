@@ -2270,15 +2270,17 @@ def run_graph(args: argparse.Namespace) -> int:
         );
         """)
 
-        # Clear existing data to do a full rebuild
-        cursor.executescript("""
-        DELETE FROM nodes;
-        DELETE FROM edges;
-        DELETE FROM tags;
-        DELETE FROM aliases;
-        DELETE FROM claims;
-        DELETE FROM evidence;
-        """)
+        # Clear existing data to do a full rebuild.
+        #
+        # `execute` per table, not one `executescript`. Measured: executescript
+        # commits before it runs and performs no transaction control of its
+        # own, so the deletes were durable the moment they ran — and everything
+        # between here and the commit ~200 lines below is a scan of the wiki
+        # that can raise. One unreadable card and the graph was left empty,
+        # with nothing rolled back and nothing said. Plain `execute` joins the
+        # implicit transaction, so the same crash now puts every row back.
+        for table in ("nodes", "edges", "tags", "aliases", "claims", "evidence"):
+            cursor.execute(f"DELETE FROM {table}")
         
         # Collect all data for batch insert
         node_rows: list[tuple] = []

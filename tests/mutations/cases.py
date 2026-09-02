@@ -515,6 +515,14 @@ CASES: list[Case] = [
     ),
 
     Case(
+        area="storage",
+        label="a failed graph rebuild leaves the graph empty",
+        path="src/magi/kb/llmwiki.py",
+        fixed='            cursor.execute(f"DELETE FROM {table}")',
+        broken='            cursor.executescript(f"DELETE FROM {table};")',
+        target="tests/test_graph_rebuild_rollback.py -k dies_mid_scan",
+    ),
+    Case(
         area="review",
         label="a batch wrapper silently keeps only the first line of the prompt",
         path="src/magi/review.py",
