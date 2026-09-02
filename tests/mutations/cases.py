@@ -540,6 +540,14 @@ CASES: list[Case] = [
     ),
     Case(
         area="skills",
+        label="a flat command file is rendered without the origin mark",
+        path="src/magi/skills_cmd.py",
+        fixed='    origin = f"{ORIGIN_MARK}\\n" if skill.official else ""',
+        broken='    origin = ""',
+        target="tests/test_skills_origin.py -k rendered_command_keeps_the_mark",
+    ),
+    Case(
+        area="skills",
         label="uninstall deletes a skill the person wrote themselves",
         path="src/magi/skills_cmd.py",
         fixed="            if not _ours(path):",

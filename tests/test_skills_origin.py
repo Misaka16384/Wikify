@@ -244,3 +244,56 @@ def test_what_was_kept_is_said_out_loud(home, tmp_path, capsys):
 
     out = capsys.readouterr().out
     assert "kept" in out and "research" in out
+
+
+# --------------------------------------------------------------------------
+# flat command files carry the mark too
+# --------------------------------------------------------------------------
+
+def test_a_rendered_command_keeps_the_mark(home):
+    """`render_command` rebuilds the frontmatter, and it used to rebuild it
+    without `origin: magi`.
+
+    The mark is what tells install a file is ours to replace and — since
+    uninstall started asking the same question — ours to remove. A command
+    file without it is indistinguishable from one the person wrote, so it can
+    never be upgraded and never be cleaned up. Found in the field: a v1
+    `radar_review.md` sat in `.opencode/commands/` through two upgrades,
+    naming commands the CLI no longer had, because every install looked at it
+    and decided it was somebody's own work.
+    """
+    skill = next(s for s in skills_cmd.load_skills() if s.name == "adopt")
+    assert skills_cmd.ORIGIN_MARK in skills_cmd.render_command(skill)
+
+
+def test_a_command_file_from_an_older_magi_gets_replaced(home, tmp_path):
+    dest = tmp_path / "commands"
+    dest.mkdir()
+    target = next(t for t in skills_cmd.catalog(None)["opencode"].drops
+                  if t.kind == "command")
+    skill = next(s for s in skills_cmd.load_skills() if s.name == "adopt")
+    path, text = skills_cmd.files_for(skill, target, dest)[0]
+
+    path.write_text("---\ndescription: STALE V1\n%s\n---\n\n# old\n"
+                    % skills_cmd.ORIGIN_MARK, encoding="utf-8")
+    skills_cmd.install_host(skills_cmd.catalog(None)["opencode"],
+                            [skill], "project", dry_run=False, force=False,
+                            override_dir=dest)
+
+    assert "STALE V1" not in path.read_text(encoding="utf-8")
+
+
+def test_a_command_file_the_person_wrote_is_still_left_alone(home, tmp_path):
+    """The mark going back in must not cost the protection it exists for."""
+    dest = tmp_path / "commands"
+    dest.mkdir()
+    mine = dest / "adopt.md"
+    mine.write_text("---\ndescription: mine\n---\n\n# my own command\n",
+                    encoding="utf-8")
+    skill = next(s for s in skills_cmd.load_skills() if s.name == "adopt")
+
+    skills_cmd.install_host(skills_cmd.catalog(None)["opencode"],
+                            [skill], "project", dry_run=False, force=False,
+                            override_dir=dest)
+
+    assert "my own command" in mine.read_text(encoding="utf-8")

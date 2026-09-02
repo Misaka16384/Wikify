@@ -221,9 +221,18 @@ def render_command(skill: Skill) -> str:
     """
     _, body = _split_frontmatter(skill.text)
     desc = skill.description.replace("\n", " ").strip()
+    origin = f"{ORIGIN_MARK}\n" if skill.official else ""
     return (
         "---\n"
         f"description: {desc}\n"
+        # The mark has to survive the rewrite. Without it a command file is
+        # indistinguishable from one the person wrote, so install refuses to
+        # replace it and — since uninstall started asking the same question —
+        # nothing can remove it either. That is not theoretical: a v1
+        # `radar_review.md` sat in `.opencode/commands/` through two upgrades,
+        # teaching commands that no longer existed, because every install
+        # looked at it and decided it was somebody's own.
+        f"{origin}"
         "---\n\n"
         f"{body.rstrip()}\n\n"
         "---\n\n"
