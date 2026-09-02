@@ -2067,9 +2067,27 @@ def extract_wikilinks(text: str) -> list[str]:
     return re.findall(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]", text)
 
 
+#: What each `magi stats` subcommand answers, for the bare invocation.
+_STATS_SUBCOMMANDS = (
+    ("concept-density", "how densely one card links to concepts"),
+    ("verify-refs", "which [[wikilinks]] point at nothing"),
+    ("wiki-summary", "counts and structure of the wiki directory"),
+)
+
+
 def run_stats(args: argparse.Namespace) -> int:
+    subcmd = getattr(args, "stats_command", None)
+    if not subcmd:
+        # Every other group here answers a bare invocation by saying what it
+        # can do. This one fell through to argparse, which reports what is
+        # missing without saying what the options mean.
+        print("magi stats — deterministic wiki statistics\n")
+        for name, what in _STATS_SUBCOMMANDS:
+            print(f"  magi stats {name:<17} {what}")
+        print("\nSyntax: magi stats <subcommand> --help")
+        return 2
+
     root = resolve_wiki_root(args)
-    subcmd = args.stats_command
 
     if subcmd == "concept-density":
         target = (root / args.file).resolve()
@@ -2634,7 +2652,7 @@ def build_parser() -> argparse.ArgumentParser:
     stats.add_argument("--local", action="store_true", help="Use .wiki/ in the current directory.")
     stats.add_argument("--wiki", help=argparse.SUPPRESS)
     stats.add_argument("path", nargs="?", help="Wiki root path.")
-    stats_sub = stats.add_subparsers(dest="stats_command", required=True)
+    stats_sub = stats.add_subparsers(dest="stats_command", required=False)
 
     stats_density = stats_sub.add_parser(
         "concept-density",

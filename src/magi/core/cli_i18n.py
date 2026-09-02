@@ -52,6 +52,7 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("ingest", "zotero-dirs"): "列出本机的 Zotero 库并选定一个",
     ("ingest", "zotero"): "把某个 Zotero 分类排进队列（优先 arXiv 源码而非本地 PDF）",
     ("ingest", "batch-run"): "跑队列：获取、转换、跑验收检查，产物进暂存区待审",
+    ("ingest", "audit-titles"): "哪些卡片的标题和当初摄入时记下的不一样了",
     ("ingest", "review"): "审批这一步：列出待审、给某一条下判断、把通过的落进 raw/",
     ("ingest", "arxiv-html"): "抓 arXiv 官方 LaTeXML HTML 转 Markdown（保真度最高）",
     ("ingest", "tex"): "用 pandoc 把 LaTeX / arXiv 源码转成 Markdown",

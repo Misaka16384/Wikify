@@ -1077,7 +1077,11 @@ def run_search(query: str, mode: str = "hybrid", k: int = 8, scope: str = "auto"
             targets = [(kb, Path(entry["path"]) / "output" / "index.db")]
     else:
         if scope == "auto":
-            scope = "all"
+            # Named companions mean "search them"; naming none means this
+            # project only. Resolving `auto` to `all` regardless made the
+            # default either too narrow (as `local`) or too broad (every
+            # enabled registration), and the config key inert in both.
+            scope = "all" if _project_kbs(root) else "local"
         if root is not None and scope in ("all", "local"):
             targets.append(("local", root / "output" / "index.db"))
         if scope in ("all", "global"):
@@ -1337,8 +1341,10 @@ def build_parser() -> argparse.ArgumentParser:
     # and nobody ever chose it. Reaching past your own library is now something
     # you ask for.
     p_search.add_argument("--scope", choices=["local", "all", "global", "auto"],
-                          default="local",
-                          help="local = this project only (default); "
+                          default="auto",
+                          help="auto = this project, plus the ones "
+                               "`research.search_projects` names (default); "
+                               "local = this project only; "
                                "all = this project plus the ones "
                                "`research.search_projects` names, or every enabled "
                                "one when it names none; global = those others "

@@ -166,12 +166,18 @@ def test_searching_stops_at_your_own_library_by_default(tmp_path, capsys):
     subprocess.run([sys.executable, "-m", "magi", "index", "--topic-dir",
                     str(mine), "--no-vectors", "--quiet"], capture_output=True)
 
-    # Parsed, not constructed: passing `scope="local"` by hand would test the
-    # branch and not the default, and the default is the entire finding.
+    # Parsed, not constructed: passing a scope by hand would test the branch
+    # and not the default, and the default is the entire finding.
+    #
+    # The assertion is on what gets searched, not on the flag's spelling. The
+    # default is `auto`, which resolves to this library alone unless the
+    # project names companions in `research.search_projects` — and this
+    # workspace names none. Asserting `scope == "local"` pinned the label
+    # rather than the behaviour, and the behaviour is what the incident was
+    # about: a search that quietly reached past the library you were in.
     parsed = retrieval.build_parser().parse_args(
         ["search", "impurity", "--mode", "bm25", "--json",
          "--topic-dir", str(mine)])
-    assert parsed.scope == "local", "the default reaches past this library again"
 
     retrieval.cmd_search(parsed)
 
@@ -235,3 +241,30 @@ def test_a_project_can_name_which_others_it_reads(tmp_path, capsys):
     searched = set(json.loads(capsys.readouterr().out)["kbs_searched"])
     assert "alpha" in searched
     assert "beta" not in searched, "it read a library this project did not name"
+
+
+def test_naming_companion_projects_makes_the_default_use_them(tmp_path):
+    """`research.search_projects` was configured and never consulted.
+
+    The flag defaulted to `local` and only `all`/`global` read the key, so a
+    person who listed three companion libraries got the same single-project
+    search as before with nothing saying why — while the config comment
+    ("empty = just this one") promises the opposite.
+    """
+    from magi import retrieval as r
+
+    mine = _workspace(tmp_path / "mine", "Mine")
+    assert r._project_kbs(mine) == set(), "a fresh project names nobody"
+
+    (mine / "config.yaml").write_text(
+        "research:\n  search_projects: ['Other Library']\n", encoding="utf-8")
+    assert r._project_kbs(mine) == {"Other Library"}
+
+
+def test_the_default_flag_is_auto_not_a_fixed_scope():
+    """Pinned because the resolution lives in one place: if the default goes
+    back to a literal scope, naming companions stops meaning anything again."""
+    from magi import retrieval as r
+
+    parsed = r.build_parser().parse_args(["search", "x"])
+    assert parsed.scope == "auto"

@@ -49,6 +49,7 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("ingest", "zotero-dirs"): ("magi.ingest.zotero", [], "List Zotero libraries and choose one"),
     ("ingest", "zotero"): ("magi.ingest.zotero_import", [], "Queue a Zotero collection for ingest"),
     ("ingest", "batch-run"): ("magi.ingest.batch", ["run"], "Acquire, convert and gate-check the queue"),
+    ("ingest", "audit-titles"): ("magi.ingest.audit_titles", [], "Which cards no longer match the title they were filed with"),
     ("ingest", "review"): ("magi.ingest.batch", ["review"],
                            "The approval step: list, decide one item, or commit"),
     # `batch-list`, `batch-decide` and `batch-commit` were here. They are the

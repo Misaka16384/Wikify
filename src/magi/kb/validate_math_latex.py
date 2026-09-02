@@ -165,6 +165,24 @@ def parse_latex_log(log_lines):
         i += 1
     return issues
 
+#: Characters pdflatex has no font for but KaTeX and MathJax render fine.
+#: CJK, kana, Hangul and the fullwidth forms — the ranges a Chinese-language
+#: research project actually writes in.
+_NO_PDFLATEX_FONT = re.compile(
+    r"Unicode character\s+[\u3000-\u303f\u3040-\u30ff\u3400-\u4dbf"
+    r"\u4e00-\u9fff\uac00-\ud7af\uff00-\uffef]")
+
+
+def _is_a_pdflatex_font_limit(error: str) -> bool:
+    """Is this the checker's limitation rather than the formula's defect?
+
+    pdflatex is a proxy for "is this well formed". When it reports a character
+    it has no font for, it is answering a different question than the one
+    asked, and on a Chinese-language project it answers it 957 times.
+    """
+    return bool(_NO_PDFLATEX_FONT.search(error or ""))
+
+
 def validate_math_pdflatex(valid_blocks, valid_inlines):
     issues = []
     # Physics/math literature leans on more than the ams trio (\bm, \mathscr,
@@ -323,6 +341,8 @@ def validate_math_pdflatex(valid_blocks, valid_inlines):
     seen = set()
     unique_issues = []
     for issue in issues:
+        if _is_a_pdflatex_font_limit(issue["error"]):
+            continue
         key = (issue["md_line"], issue["md_end_line"], issue["error"], issue["context"])
         if key not in seen:
             seen.add(key)
