@@ -172,7 +172,16 @@ def test_a_path_written_in_prose_is_repaired_too(tmp_path):
 
 def test_a_command_in_a_code_span_is_not_a_path(tmp_path):
     """`python ../results/REPORT.md` is a code span that contains a path.
-    Rewriting inside it would corrupt the command."""
+    Rewriting inside it would corrupt the command.
+
+    There is no mutation case behind this one, deliberately: loosening the
+    pattern to match commands does not change the outcome, because a span with
+    a space in it resolves to a path whose first component is `python ..` and
+    no such file exists. What protects a command is the `exists()` check in
+    `_retarget`, not the shape of `_TEXT_PATH` — and that check has a case of
+    its own. Keeping a case here would have read like a guard while testing
+    nothing.
+    """
     _project(_repo(tmp_path))
     (tmp_path / "plans" / "INDEX.md").write_text(
         "Run `python ../results/REPORT.md` to see.\n", encoding="utf-8")
@@ -237,15 +246,16 @@ def test_repointing_a_link_does_not_touch_the_line_endings(tmp_path):
     into a modification. A person diffing their own repo afterwards would see
     the whole file changed and no way to tell what actually did."""
     _project(_repo(tmp_path))
-    crlf = "# Plans\r\n\r\n[WMIN](../results/WMIN.md)\r\n"
+    crlf = "# Plans\r\n\r\n[WMIN](../results/WMIN.md)\r\n[one](01.md)\r\n"
     (tmp_path / "plans" / "INDEX.md").write_bytes(crlf.encode("utf-8"))
 
     plan = _plan(tmp_path, [("plans/INDEX.md", "drafts/INDEX.md")])
     _apply(tmp_path, plan)
 
-    out = (tmp_path / "drafts" / "INDEX.md").read_bytes()
-    assert out.count(b"\r\n") == 3, "line endings were rewritten"
-    assert b"results/WMIN.md" in out
+    # Byte equality, not a count of "\r\n": the defect writes "\r\r\n", which
+    # still contains one "\r\n" per line and counts the same.
+    want = crlf.replace("(01.md)", "(../plans/01.md)").encode("utf-8")
+    assert (tmp_path / "drafts" / "INDEX.md").read_bytes() == want
 
 
 def test_a_dry_run_changes_nothing(tmp_path):

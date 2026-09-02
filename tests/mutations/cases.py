@@ -549,14 +549,6 @@ CASES: list[Case] = [
     ),
     Case(
         area="adopt",
-        label="a shell command in a code span is treated as a path",
-        path="src/magi/adopt.py",
-        fixed=r'_TEXT_PATH = re.compile(r"`([^`\s]+\.[A-Za-z0-9]{1,6})`")',
-        broken=r'_TEXT_PATH = re.compile(r"`([^`\n]*?[./][^`\n]*?\.(?:md|py))`")',
-        target="tests/test_adopt.py -k code_span_is_not_a_path",
-    ),
-    Case(
-        area="adopt",
         label="undo puts the files back but leaves the edited text",
         path="src/magi/adopt.py",
         fixed='"rewrites": [] if args.no_rewrite else rewrites,',
