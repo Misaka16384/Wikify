@@ -518,8 +518,8 @@ CASES: list[Case] = [
         area="state",
         label="a note with no posts is dated from the year 1",
         path="src/magi/state.py",
-        fixed='    created = parse_at(note.frontmatter.get("created"))',
-        broken="    created = None",
+        fixed="    return _created_at(note) or dt.datetime.min.replace(tzinfo=dt.timezone.utc)",
+        broken="    return dt.datetime.min.replace(tzinfo=dt.timezone.utc)",
         target="tests/test_state.py -k waits_since",
     ),
     Case(
