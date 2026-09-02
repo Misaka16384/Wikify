@@ -291,6 +291,12 @@ def _min_period(s: str) -> int:
     return n - fail[-1] if n else 0
 
 
+#: Routes whose output is *recognised* rather than converted. Only these can
+#: restate a page: there is a model reading pixels and it can lose its place.
+#: A LaTeXML rendering repeats its own markup and always will.
+RECOGNITION_ROUTES = frozenset({"ocr", "mineru"})
+
+
 def check_repetition(md: str) -> Finding | None:
     """A substantial passage emitted more than once.
 
@@ -315,6 +321,43 @@ def check_repetition(md: str) -> Finding | None:
     return None
 
 
+#: How much of a passage must be letters or digits before a repeat of it means
+#: anything. Measured on a real 37-paper library where this check fired on 36
+#: of them: the worst offender repeated 1718 times and was 200 characters of
+#: whitespace with one stray character in it — technically "varied" by period,
+#: entirely wordless. Table rules and fenced-div markers land the same way.
+_MIN_WORD_FRACTION = 0.25
+
+
+#: Base64 payloads ar5iv inlines for figures. They are 100%% alphanumeric and
+#: highly varied, so they pass both the period test and the word test, and a
+#: 3 MB paper carries megabytes of them — which is how the check came to fire
+#: on 36 of 37 real papers and to take 107 seconds on the largest.
+_DATA_URI_RE = re.compile(r"data:[^\s)\"']*;base64,[A-Za-z0-9+/=]+")
+
+
+def _strip_embedded_blobs(md: str) -> str:
+    """Drop inlined binary before looking for restatement.
+
+    A repeated run inside an embedded image is not a converter losing its
+    place; it is a picture. Removing them is also most of this check's cost.
+    """
+    return _DATA_URI_RE.sub(" ", md)
+
+
+def _carries_words(chunk: str) -> bool:
+    """Is there enough text here for a repeat to be a restatement?
+
+    A converter that loses its place restates *prose*. Layout does not count:
+    a run of spaces, a pandoc table rule, a row of colons all recur for
+    reasons that have nothing to do with the model, and flagging them made the
+    check fire on 36 of 37 papers — a signal that is on for everything is off.
+    """
+    if not chunk:
+        return False
+    return sum(ch.isalnum() for ch in chunk) / len(chunk) >= _MIN_WORD_FRACTION
+
+
 def repetition_runs(md: str) -> int:
     """How many times the most-repeated varied passage appears; 1 means clean.
 
@@ -324,12 +367,14 @@ def repetition_runs(md: str) -> int:
     repair has to change a parameter and then something has to judge which of
     the two results to keep.
     """
-    body = _body_of(md).strip()
+    body = _strip_embedded_blobs(_body_of(md)).strip()
     if len(body) < _REPEAT_WINDOW * 2:
         return 1
     worst = 1
     for start in range(0, len(body) - _REPEAT_WINDOW, _REPEAT_STRIDE):
         chunk = body[start:start + _REPEAT_WINDOW]
+        if not _carries_words(chunk):
+            continue
         if _min_period(chunk) < _MIN_VARIED_PERIOD:
             continue
         worst = max(worst, body.count(chunk))
@@ -382,7 +427,7 @@ def run_all(md: str, *, payload: bytes | None = None, tex_source: str | None = N
             figures_referenced: int = 0, figures_resolved: int = 0,
             images_dir=None, expected_arxiv_id: str | None = None,
             source_chars: int = 0, source_tables: int = 0,
-            source_rows: int = 0) -> list[Finding]:
+            source_rows: int = 0, route: str | None = None) -> list[Finding]:
     """Every applicable check, in the order a reviewer would care about them.
 
     The ``source_*`` counts come from ``textlayer.census`` and are zero when
@@ -398,7 +443,7 @@ def run_all(md: str, *, payload: bytes | None = None, tex_source: str | None = N
         check_image_refs(md),
         check_broken_image_links(md, images_dir) if images_dir else None,
         check_environments_closed(md),
-        check_repetition(md),
+        check_repetition(md) if route in RECOGNITION_ROUTES else None,
         check_tables_survived(md, source_tables, source_rows),
         check_text_coverage(md, source_chars),
         check_output_inflation(md, source_chars),

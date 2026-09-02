@@ -175,7 +175,9 @@ Run `magi next` first — it reads the notes and says what to do, and never acts
 `magi --help` is the command surface; `magi guide --search "<error>"` is the manual.
 
 ## Where things live
-- `raw/` — sources. Immutable: re-ingest, never edit.
+- `raw/` — sources. Never edit by hand: re-ingest instead. The pipeline does
+  repair them (`magi math format` fixes OCR math artifacts here) — that is
+  tooling, not you.
 - `wiki/references/` — compiled from `raw/`. Rebuild, never hand-edit.
 - `wiki/concepts/`, `wiki/topics/` — shared knowledge. Edit freely.
 - `drafts/` — the working out. `threads/` — propositions, questions, lines.

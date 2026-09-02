@@ -14,11 +14,43 @@ from magi.core.arxiv_id import ARXIV_ID_RE, abs_url, normalize_arxiv_id
 from magi.core.config_loader import load_config, get as cfg_get
 from magi.ingest.convert_result import ConversionResult
 
-def extract_title(tex_content):
-    match = re.search(r'\\title\{([^}]+)\}', tex_content)
-    if match:
-        return match.group(1).strip()
+#: `\title`, with the optional short-title argument LaTeX allows and which
+#: the old pattern could not see past: `\title[Short]{Long}` matched nothing,
+#: so the paper was filed under its arXiv id.
+_TITLE_START_RE = re.compile(r"\\title\s*(?:\[[^\]]*\]\s*)?\{")
+
+
+def _balanced(text: str, open_at: int) -> str | None:
+    """The contents of the brace group starting at `open_at`.
+
+    Counted rather than matched to the first `}`: a title with any markup in
+    it — `\title{A \textbf{B} C}` — was truncated at the inner brace, which
+    produced a title that looked deliberate and was half a sentence.
+    """
+    depth = 0
+    for i in range(open_at, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[open_at + 1:i]
     return None
+
+
+def extract_title(tex_content):
+    m = _TITLE_START_RE.search(tex_content)
+    if not m:
+        return None
+    body = _balanced(tex_content, m.end() - 1)
+    if body is None:
+        return None
+    # Drop the commands, keep their arguments: `\textbf{Foo}` is "Foo", and a
+    # line break in a two-line title is a space rather than nothing.
+    body = re.sub(r"\\\\", " ", body)
+    body = re.sub(r"\\[a-zA-Z]+\s*", " ", body)
+    body = body.replace("{", " ").replace("}", " ")
+    return " ".join(body.split()) or None
 
 # Archive suffixes arXiv actually serves. Kept as one predicate used at every
 # decision point: this used to be tested twice with two different expressions
@@ -676,7 +708,13 @@ def convert(input_path, output_dir) -> ConversionResult:
             md_content, tex_content, tex_dir, output_dir, slug)
         print(f"Figures: {n_fig_ok} embedded into images/, {n_fig_missing} unresolved")
 
-        fm_data = {"title": title, "source": input_path, "type": doc_type, "ingested": today, "tags": [], "summary": "Converted from LaTeX/arXiv source."}
+        # `source:` has to outlive staging. `input_path` is the downloaded
+        # tarball under output/ingest/staging/…, which is deleted when the
+        # batch is committed, so the committed card pointed at nothing. When
+        # the identity is known the arXiv page is the honest source; the HTML
+        # rung already writes the URL it fetched.
+        source = abs_url(normalize_arxiv_id(base_name) or "") or input_path
+        fm_data = {"title": title, "source": source, "type": doc_type, "ingested": today, "tags": [], "summary": "Converted from LaTeX/arXiv source."}
         # Preserve the arXiv identity (usually in the downloaded filename) so
         # the literature radar can recognize this paper as library-owned.
         # Legacy ids (cond-mat/0506438) matter here: a real physics library has

@@ -200,7 +200,8 @@ def _local_pdf(entry, staging: Path) -> Path | None:
     return dest
 
 
-def _run_route(route: str, entry, staging: Path, topic: Path | None = None) -> ConversionResult:
+def _run_route(route: str, entry, staging: Path, topic: Path | None = None,
+               fetch_figures: bool = True) -> ConversionResult:
     """Convert one queued item on one rung.
 
     Each rung is a function call returning a ConversionResult, which is what the
@@ -211,7 +212,8 @@ def _run_route(route: str, entry, staging: Path, topic: Path | None = None) -> C
 
     if route == "arxiv-html":
         from magi.ingest import arxiv_html
-        return arxiv_html.convert(entry.value, staging)
+        return arxiv_html.convert(entry.value, staging,
+                                  fetch_figures=fetch_figures)
 
     if route == "tex":
         from magi.core.http import http_download
@@ -463,7 +465,8 @@ def cmd_run(args) -> int:
         print(f"[batch] {n}/{len(queued)} {entry.value} via {route} — {why}")
         staging = ledger.staging_dir(topic, batch_id) / entry.req_id
         try:
-            result = _run_route(route, entry, staging, topic)
+            result = _run_route(route, entry, staging, topic,
+                                fetch_figures=not getattr(args, "no_figures", False))
         except Exception as exc:  # noqa: BLE001 — one bad item must not end the run
             result = ConversionResult.failed(f"{type(exc).__name__}: {exc}")
 
@@ -488,7 +491,7 @@ def cmd_run(args) -> int:
                 md, images_dir=result.images_dir or None,
                 expected_arxiv_id=entry.value if "/" in entry.value or "." in entry.value else None,
                 source_chars=census.chars, source_tables=census.tables,
-                source_rows=census.table_rows)
+                source_rows=census.table_rows, route=route)
             import re
             m = re.search(r"^arxiv_id:\s*['\"]?([^'\"\n]+)", md, re.MULTILINE)
             arxiv_id = m.group(1).strip() if m else None
@@ -828,6 +831,11 @@ def main(argv=None) -> int:
     parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project root (default: discovered)")
     parser.add_argument("--json", action="store_true", help="Machine-readable output")
     if verb == "run":
+        parser.add_argument("--no-figures", action="store_true",
+                            help="Skip figure downloads. Each figure is a "
+                                 "separate request behind arXiv's 15 s "
+                                 "crawl delay, so this is most of the wall "
+                                 "clock on a figure-heavy batch.")
         parser.add_argument("--limit", type=int,
                             help="Process at most N queued items")
     if verb in ("list", "review"):

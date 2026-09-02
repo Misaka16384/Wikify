@@ -228,3 +228,29 @@ def test_both_archive_forms_extract_and_resolve(tmp_path, suffix):
         tar.extractall(path=extract)
 
     assert os.path.basename(tex2md.find_main_tex(str(extract), slug="2608.16520")) == "main.tex"
+
+
+# --------------------------------------------------------------------------
+# the title, and where `source:` points afterwards
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("tex,want", [
+    (r"\title{Simple Title}", "Simple Title"),
+    (r"\title[Short]{The Long Real Title}", "The Long Real Title"),
+    (r"\title{A \textbf{Bold} Ending}", "A Bold Ending"),
+    (r"\title {Spaced Brace}", "Spaced Brace"),
+    (r"\title{Two Lines \\ Of Title}", "Two Lines Of Title"),
+    ("no title anywhere", None),
+])
+def test_the_title_survives_the_shapes_latex_actually_uses(tex, want):
+    """Reported from a real ingest: a paper arrived as `title: '2605.12601'`.
+
+    The old pattern required `{` immediately after `\title`, so the very
+    common `\title[Short]{Long}` matched nothing at all and the paper was
+    filed under its arXiv id. `[^}]+` also stopped at the first nested brace,
+    so any markup inside a title truncated it — which is the worse failure,
+    because half a title still reads like a title.
+    """
+    from magi.ingest.tex2md import extract_title
+
+    assert extract_title(tex) == want

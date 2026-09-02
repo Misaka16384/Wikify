@@ -37,7 +37,7 @@ def _args(**kw):
 
 def _stub_route(monkeypatch, ws, *, success=True, findings=(), error="boom"):
     """Replace conversion with something that writes a plausible document."""
-    def fake(route, entry, staging, topic=None):
+    def fake(route, entry, staging, topic=None, **kw):
         if not success:
             return ConversionResult.failed(error)
         staging.mkdir(parents=True, exist_ok=True)
@@ -88,7 +88,7 @@ def test_a_failing_item_does_not_end_the_run(ws, monkeypatch):
     """One bad paper must not cost the other ninety-nine."""
     calls = {"n": 0}
 
-    def fake(route, entry, staging, topic=None):
+    def fake(route, entry, staging, topic=None, **kw):
         calls["n"] += 1
         if entry.value == "bad":
             raise RuntimeError("network exploded")
@@ -232,7 +232,7 @@ def test_committing_a_batch_that_is_not_there_says_so(ws, monkeypatch):
 
 def test_staged_images_travel_with_the_document(ws, monkeypatch):
     """A committed page whose figures stayed in staging is a page of broken links."""
-    def fake(route, entry, staging, topic=None):
+    def fake(route, entry, staging, topic=None, **kw):
         staging.mkdir(parents=True, exist_ok=True)
         (staging / "images").mkdir()
         (staging / "images" / "fig.png").write_bytes(b"PNG")
@@ -268,7 +268,7 @@ def test_two_documents_cannot_overwrite_each_others_figures(ws, monkeypatch, cap
     each route."""
     bodies = {"a": b"PICTURE-A", "b": b"PICTURE-B"}
 
-    def fake(route, entry, staging, topic=None):
+    def fake(route, entry, staging, topic=None, **kw):
         staging.mkdir(parents=True, exist_ok=True)
         (staging / "images").mkdir()
         (staging / "images" / "fig1.png").write_bytes(bodies[entry.value])
@@ -299,7 +299,7 @@ def test_two_documents_cannot_overwrite_each_others_figures(ws, monkeypatch, cap
 def test_an_identical_image_from_two_documents_is_not_a_collision(ws, monkeypatch, capsys):
     """Same bytes under the same name is two documents sharing a figure, which
     is fine and must not be reported as a problem."""
-    def fake(route, entry, staging, topic=None):
+    def fake(route, entry, staging, topic=None, **kw):
         staging.mkdir(parents=True, exist_ok=True)
         (staging / "images").mkdir()
         (staging / "images" / "shared.png").write_bytes(b"SAME")
@@ -331,7 +331,7 @@ def test_an_identical_image_from_two_documents_is_not_a_collision(ws, monkeypatc
 
 def _two_docs_one_name(ws, monkeypatch, bodies):
     """Two queued sources whose conversions land on the same filename."""
-    def fake(route, entry, staging, topic=None):
+    def fake(route, entry, staging, topic=None, **kw):
         staging.mkdir(parents=True, exist_ok=True)
         md = staging / "a-paper.md"
         md.write_text(f"---\ntitle: T\n---\n\n{bodies[entry.value]}\n" + "word " * 300,
@@ -712,7 +712,7 @@ def test_the_requeued_item_runs_on_the_new_route(ws, monkeypatch):
     """End to end: reject, run again, and it really is on the next rung."""
     seen = []
 
-    def fake(route, entry, staging, topic=None):
+    def fake(route, entry, staging, topic=None, **kw):
         seen.append(route)
         staging.mkdir(parents=True, exist_ok=True)
         md = staging / "d.md"

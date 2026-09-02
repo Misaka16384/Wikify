@@ -300,3 +300,52 @@ def test_findings_are_ordered_most_alarming_first(tmp_path):
                              expected_arxiv_id="2608.16520")
     assert findings[0].code == "identity-mismatch"
 
+
+# --------------------------------------------------------------------------
+# repetition: the check belongs to the routes that can actually loop
+# --------------------------------------------------------------------------
+
+def test_a_latexml_conversion_is_not_asked_whether_it_looped():
+    r"""Measured on a real 37-paper library, all converted from LaTeX: this
+    fired on 36 of them. Three things were repeating — inlined base64
+    figures, 200-character runs of whitespace, and LaTeXML's own PGF
+    internals (`\lx@inpgf@ignorespaces`, 181 times in one paper).
+
+    None is a converter restating a page. A flag that is on for everything is
+    off, and worse, it desensitises the reader to the real conversion failures
+    beside it in the same list.
+    """
+    looped = ("Some varied prose about stabilizer codes and their invariants. " * 40)
+    for route in ("arxiv-html", "tex", "textlayer"):
+        codes = {f.code for f in gates.run_all(looped, route=route)}
+        assert "repetition-loop" not in codes, route
+
+
+def test_a_recognition_route_is_still_asked():
+    """The failure it was built for is real: glm-ocr returned a page twice."""
+    looped = ("Some varied prose about stabilizer codes and their invariants. " * 40)
+    for route in sorted(gates.RECOGNITION_ROUTES):
+        codes = {f.code for f in gates.run_all(looped, route=route)}
+        assert "repetition-loop" in codes, route
+
+
+def test_an_inlined_figure_is_not_a_restatement():
+    """ar5iv inlines figures as base64. Those runs are entirely alphanumeric
+    and highly varied, so they pass every test meant to spot filler — and a
+    3 MB paper carries megabytes of them."""
+    import hashlib
+
+    varied = "".join(hashlib.sha256(str(i).encode()).hexdigest() for i in range(40))
+    blob = "data:image/png;base64," + varied
+    # The same figure inlined twice, which is ordinary in a paper — and enough
+    # for every 200-character window inside it to occur more than once.
+    doc = f"---\ntitle: x\n---\n\n![a]({blob})\n\nprose\n\n![a again]({blob})\n"
+    assert gates.repetition_runs(doc) == 1
+
+
+def test_a_wall_of_whitespace_is_not_a_restatement():
+    """The worst offender in the real corpus repeated 1718 times and was 200
+    characters of whitespace with one stray character in it — "varied" by
+    period, and entirely wordless."""
+    body = ((" " * 199 + ".") * 12)
+    assert gates.repetition_runs(f"---\ntitle: x\n---\n\n{body}\n") == 1
