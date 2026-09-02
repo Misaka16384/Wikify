@@ -49,9 +49,9 @@ What each step has to show:
 | `magi next` | the human decision above the agent work |
 | `magi sync --close` | the gate runs and the MAP is written |
 
-**Last run:** 2026-09-02 (v2.3.0), on Windows 11. `agy -p` with
-`gemini-3.7-flash-low`, 18.8 s, verdict `refuted`, citing the proposition and
-the single-lattice measurement it over-reaches, each by line.
+**Last run:** 2026-09-02 (v2.4.0), on Windows 11. `agy -p` with
+`gemini-3.7-flash-low`, 19.8 s, verdict `refuted`, citing the proposition and
+the single-family measurement it over-reaches, each by line.
 
 Since v2.3.0 the close gate exists on three hosts rather than one, and only two
 of those are provable here: Claude Code and Codex are exercised by the suite,
