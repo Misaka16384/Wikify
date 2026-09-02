@@ -241,7 +241,19 @@ def test_an_empty_answer_takes_the_default(bare, monkeypatch):
     assert chosen["mineru"] is False
 
 
-def test_ctrl_c_at_the_prompt_does_not_crash_setup(bare, monkeypatch):
+def test_ctrl_c_at_the_prompt_stops_instead_of_agreeing(bare, monkeypatch):
+    """It used to return the defaults, and the defaults are yes.
+
+    This test was called "does not crash setup" and asserted a dict came back,
+    which was a proxy for "no traceback" rather than a decision that an
+    interrupt should answer the question. Read next to the test above — where
+    `chosen["ollama"] is True` by default — the old behaviour meant Ctrl+C
+    consented to installing Ollama and moved on to the next prompt.
+
+    `SystemExit(130)` still satisfies what the old name asked for: it is the
+    conventional clean abort, not a crash. What changed is that stopping now
+    means stopping.
+    """
     def interrupted(prompt=""):
         raise KeyboardInterrupt
 
@@ -249,8 +261,9 @@ def test_ctrl_c_at_the_prompt_does_not_crash_setup(bare, monkeypatch):
     monkeypatch.setattr("magi.kb_registry.save_settings", lambda s: None)
     monkeypatch.setattr("builtins.input", interrupted)
 
-    chosen = setup.choose_optionals(interactive=True)
-    assert isinstance(chosen, dict)
+    with pytest.raises(SystemExit) as caught:
+        setup.choose_optionals(interactive=True)
+    assert caught.value.code == 130
 
 
 def test_the_prompt_shows_the_official_url(bare, monkeypatch, capsys):
