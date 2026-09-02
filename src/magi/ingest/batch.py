@@ -702,7 +702,7 @@ def cmd_commit(args) -> int:
             continue
         undecided = ledger.blocking_commit(items)
         if undecided:
-            skipped_batches.append((batch_id, len(undecided)))
+            skipped_batches.append((batch_id, undecided))
             continue
 
         for item in items:
@@ -785,8 +785,16 @@ def cmd_commit(args) -> int:
               "magi:compile skill to turn them into reference cards.")
     else:
         print("nothing to commit.")
-    for batch_id, n in skipped_batches:
-        print(f"  {batch_id}: left alone, {n} item(s) still undecided")
+    for batch_id, undecided in skipped_batches:
+        print(f"  {batch_id}: left alone, {len(undecided)} item(s) still undecided")
+        # Named, not counted. A batch of 37 with one row blocking it sent the
+        # reader back to the listing to find out which one.
+        for item in undecided[:5]:
+            what = getattr(item, "title", None) or item.source_value
+            print(f"      {item.item_id}  {str(what)[:56]}")
+        if len(undecided) > 5:
+            print(f"      ... and {len(undecided) - 5} more "
+                  f"(magi ingest review --batch {batch_id})")
     return 0
 
 

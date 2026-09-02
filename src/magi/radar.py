@@ -971,6 +971,20 @@ def cmd_harvest(args: argparse.Namespace) -> int:
         ]
         if failed_sources:
             lines.append(f"sources_failed: [{', '.join(failed_sources)}]")
+        # What the harvest said on stderr, kept where the reader will be. A
+        # digest is read later, by somebody who did not watch it run, and
+        # forty candidates ordered by nothing look exactly like forty ordered
+        # by relevance.
+        weak = []
+        if len(seeds) <= 1:
+            weak.append(f"only {len(seeds)} seed — S2 recommendations, the leg "
+                        "that finds the useful ones, had almost nothing to go on")
+        if not scored:
+            weak.append("no relevance scoring (needs a vectorized index and "
+                        "Ollama) — the order below carries no signal")
+        if weak:
+            lines.append("harvest_was_weak:")
+            lines.extend(f"  - {w}" for w in weak)
         lines += [
             "---",
             "",

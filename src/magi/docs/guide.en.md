@@ -687,6 +687,50 @@ Every command locates the project by **walking up from the current directory** (
 
 ---
 
+## Where it is slow, and why {#slow}
+
+Two things look like a hang and are not.
+
+### 15 seconds per figure
+
+Figures are fetched one at a time with a 15-second wait between them. Measured
+across 37 papers: the time tracks the figure count almost perfectly and does
+not track body size at all — 692 KB of text took 20 s, 113 KB took 16 s, and a
+23-figure paper took 356 s of which about 345 was waiting.
+
+That is arXiv's `robots.txt` (`Crawl-delay: 15` for a default user agent), not
+a performance problem. To skip them:
+
+```powershell
+magi ingest batch-run --no-figures
+```
+
+Parallelising does not help: the throttle is one lock shared across threads, so
+a thread pool moves the waiting rather than removing it. Only sending fewer
+requests helps.
+
+### Do not pipe a long command to `tail`
+
+```powershell
+magi index | tail -20        # shows nothing at all until it finishes
+magi ingest batch-run | tail -60
+```
+
+`magi index` prints a flushed progress line every 3 seconds, but `tail` cannot
+know which lines are the last twenty until the stream ends. **A perfectly
+healthy 50-minute index looks completely silent**, which is enough to conclude
+it has wedged.
+
+For the same reason, never pipe the mutation suite to `tail`: it edits source
+files and restores them, and SIGPIPE killing it mid-restore leaves those edits
+behind — its own docstring warns that an interrupted run is indistinguishable
+from your unsaved work. Redirect instead:
+
+```powershell
+magi index > index.log 2>&1
+python -m tests.mutations > mut.log 2>&1
+```
+
 ## Ingesting literature {#ingest}
 
 Ingesting is one command:
