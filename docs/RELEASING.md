@@ -49,9 +49,10 @@ What each step has to show:
 | `magi next` | the human decision above the agent work |
 | `magi sync --close` | the gate runs and the MAP is written |
 
-**Last run:** 2026-09-01 (v2.1.0), on Windows 11. `agy -p` with
-`gemini-3.7-flash-low`, 19.5 s, verdict `refuted`, citing the proposition and
-its derivation by line.
+**Last run:** 2026-09-02 (v2.2.0), on Windows 11. `agy -p` with
+`gemini-3.7-flash-low`, 20.2 s, verdict `refuted`, citing the proposition, the
+single-instance measurement it over-reaches, and the derivation that made the
+jump — each by line.
 
 Two things an earlier run surfaced that the suite does not reach, both still
 open. `derivation:` is checked by the *prefix of the link text*, so
