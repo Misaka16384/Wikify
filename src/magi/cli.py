@@ -34,6 +34,9 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
     ("setup",): ("magi.setup_cmd", [], "Provision the environment (beads, models, plugin) + doctor"),
     ("update",): ("magi.update", [], "Check for a newer release and install it"),
     ("migrate",): ("magi.migrate", [], "Upgrade a pre-magi (Wikify) directory — one project, or a hub of them"),
+    ("adopt", "survey"): ("magi.adopt", ["survey"], "Inventory a folder of existing research material"),
+    ("adopt", "apply"): ("magi.adopt", ["apply"], "Move what a plan says to move, and record it"),
+    ("adopt", "undo"): ("magi.adopt", ["undo"], "Put back what the last adopt apply moved"),
     # work state (Beads bridge)
     ("pm", "init"): ("magi.pm", ["init"], "Initialize beads with research issue types"),
     ("pm", "backlog-sync"): ("magi.pm", ["backlog-sync"], "Uncompiled raw sources -> bd issues"),

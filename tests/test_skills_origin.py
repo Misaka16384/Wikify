@@ -111,8 +111,12 @@ def test_a_name_in_both_places_is_the_persons(home):
 
 
 def test_no_such_directory_is_not_an_error(home):
+    """With no user directory, what loads is exactly what ships — counted from
+    the package rather than written down here, so adding a skill does not mean
+    editing a number in a test that was never about the number."""
     assert not skills_cmd.user_skills_dir().exists()
-    assert len(skills_cmd.load_skills()) == 8
+    packaged = list(skills_cmd.skills_dir().glob("*/SKILL.md"))
+    assert len(skills_cmd.load_skills()) == len(packaged)
 
 
 # --------------------------------------------------------------------------

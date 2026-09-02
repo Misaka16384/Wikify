@@ -24,6 +24,9 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("setup",): "一键配置环境（beads、模型、插件）并做体检",
     ("update",): "检查有没有新版本，并升级",
     ("migrate",): "升级 magi 之前的 Wikify 目录：单个项目，或一整个中枢",
+    ("adopt", "survey"): "盘点一个已有研究材料的文件夹",
+    ("adopt", "apply"): "按计划搬动材料，并记下每一次搬动",
+    ("adopt", "undo"): "把上一次 adopt apply 搬动的东西放回去",
     # 任务状态（Beads 桥接）
     ("pm", "init"): "初始化 beads 并写入科研专用的议题类型",
     ("pm", "backlog-sync"): "把尚未编译的原始文献转成 bd 议题",
