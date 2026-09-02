@@ -557,6 +557,14 @@ CASES: list[Case] = [
     ),
     Case(
         area="adopt",
+        label="a directory the moves emptied is left there unmentioned",
+        path="src/magi/adopt.py",
+        fixed="                      and not any(src.parent.iterdir())})",
+        broken="                      and False})",
+        target="tests/test_adopt.py -k emptied_by_the_moves",
+    ),
+    Case(
+        area="adopt",
         label="a plan with one bad entry half-adopts the folder",
         path="src/magi/adopt.py",
         fixed="    errs = _validate(root, moves)",

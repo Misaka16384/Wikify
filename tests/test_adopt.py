@@ -258,6 +258,18 @@ def test_repointing_a_link_does_not_touch_the_line_endings(tmp_path):
     assert (tmp_path / "drafts" / "INDEX.md").read_bytes() == want
 
 
+def test_a_directory_emptied_by_the_moves_is_named_not_removed(tmp_path, capsys):
+    """Moving everything out of `plans/` leaves `plans/` there. Deleting it is
+    not this module's business; leaving it unmentioned is how a person finds it
+    later and wonders whether the adoption half-failed."""
+    _project(_repo(tmp_path))
+    _apply(tmp_path, _plan(tmp_path, [("plans/INDEX.md", "drafts/INDEX.md"),
+                                      ("plans/01.md", "drafts/01.md")]))
+
+    assert "plans/ is empty now" in capsys.readouterr().out
+    assert (tmp_path / "plans").is_dir(), "nothing in adopt deletes"
+
+
 def test_a_dry_run_changes_nothing(tmp_path):
     _project(_repo(tmp_path))
     before = (tmp_path / "plans" / "INDEX.md").read_bytes()

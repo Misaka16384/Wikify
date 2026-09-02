@@ -478,6 +478,17 @@ def cmd_apply(args) -> int:
     if edited:
         print(f"  repointed {edited} reference(s)")
 
+    # Moving everything out of `research/` leaves `research/` sitting there.
+    # Nothing in this module deletes, so it is named rather than removed —
+    # an empty directory nobody mentions is one the person finds later and
+    # wonders whether the adoption half-failed.
+    emptied = sorted({src.parent for src, _ in moves
+                      if src.parent != root and src.parent.is_dir()
+                      and not any(src.parent.iterdir())})
+    for d in emptied:
+        print(f"  {d.relative_to(root).as_posix()}/ is empty now — "
+              "left in place, yours to remove")
+
     man.write_text(json.dumps({"root": str(root), "moves": done,
                                "rewrites": [] if args.no_rewrite else rewrites,
                                "prose": not args.no_prose}, indent=2,
