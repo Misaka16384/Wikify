@@ -395,6 +395,9 @@ SAME_IN_BOTH_ON_PURPOSE = {
     "cfg_f_ocr_mineru_token", # MinerU is a product name
     "doc_readme_en",          # the label of a document that is in English
     "th_thread",              # `note` is a loanword here, not a gap
+    "tab_melchior_eva",       # MAGI MODE names the sections after the cores: proper nouns
+    "tab_balthasar_eva",
+    "tab_casper_eva",
 }
 
 

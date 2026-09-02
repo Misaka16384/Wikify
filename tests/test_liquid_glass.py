@@ -81,9 +81,10 @@ def test_specular_position_is_never_published_on_the_root_element():
     assert "--specular-x, -999px" in layer.group(1), "specular must default off-canvas"
     assert "--specular-y, -999px" in layer.group(1)
 
-    card = re.search(r"\n\.card \{(.+?)\n\}", CSS, re.S)
-    assert card, ".card rule not found"
-    assert "var(--glass-specular-layer)" in card.group(1)
+    # Both .card and .topbar paint the layer, matching SPECULAR_SURFACES.
+    bar = re.search(r"\n\.topbar \{(.+?)\n\}", CSS, re.S)
+    assert bar, ".topbar rule not found"
+    assert "var(--glass-specular-layer)" in bar.group(1)
 
 
 def test_every_tracked_surface_actually_paints_a_specular():
@@ -132,23 +133,28 @@ def test_card_does_not_clip_its_own_accent_rule():
     assert "overflow: hidden" not in card.group(1)
 
 
-def test_accent_rule_clears_the_corner_radius():
-    """At top/left -1px against a 14px radius the bar floated detached above
-    the card. It has to start past the corner arc."""
-    before = re.search(r"\n\.card::before \{(.+?)\n\}", CSS, re.S)
-    assert before, ".card::before rule not found"
-    body = before.group(1)
-    assert "left: var(--radius-glass" in body, "accent rule must start past the corner arc"
-    assert "top: -1px" not in body
+def test_cards_participate_in_glass_material():
+    """Cards participate in the liquid-glass material so that the opacity
+    and blur sliders control them alongside the shell. They keep the calmer
+    layout: no accent tick, no hover jump, no refracting rim.
+    """
+    card = re.search(r"\n\.card \{(.+?)\n\}", CSS_RULES, re.S)
+    assert card, ".card rule not found"
+    body = card.group(1)
+    assert "backdrop-filter" in body, "cards participate in the glass material"
+    assert "var(--glass-bg)" in body, "cards use glass-bg so opacity knob reaches them"
+    assert "\n.card::before {" not in CSS_RULES, "the accent tick was removed"
+    assert "\n.card:hover {" not in CSS_RULES, "a container does not react to the pointer"
+    assert 'html:not([data-theme="eva"]) .card::after {' not in CSS_RULES, "no refracting rim on paper"
 
 
 def test_refracting_rim_exists_and_is_scoped_off_magi_mode():
-    """The rim is a masked band carrying its own backdrop-filter. MAGI MODE
-    reuses .card::after for a corner bracket, so the rim must not land on it."""
-    assert 'html:not([data-theme="eva"]) .card::after {' in CSS
+    """The rim is a masked band carrying its own backdrop-filter. It belongs
+    to the floating glass layers (modals), and MAGI MODE reuses ::after for a
+    corner bracket, so the rim must not land on that theme's boxes."""
     assert 'html:not([data-theme="eva"]) .modal-window::after,' in CSS
 
-    rim = re.search(r'html:not\(\[data-theme="eva"\]\) \.card::after \{(.+?)\n\}', CSS, re.S)
+    rim = re.search(r'html:not\(\[data-theme="eva"\]\) \.modal-window::after,[^{]*\{(.+?)\n\}', CSS, re.S)
     assert rim, "rim rule not found"
     body = rim.group(1)
     assert "backdrop-filter: var(--glass-edge-filter)" in body

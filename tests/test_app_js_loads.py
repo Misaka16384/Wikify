@@ -15,6 +15,7 @@ whose only event-binding idiom is addEventListener. Both shipped past
 
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -66,3 +67,33 @@ def test_the_harness_actually_catches_an_undefined_helper(tmp_path):
                             capture_output=True, text=True, timeout=120)
     assert result.returncode != 0
     assert "is not defined" in (result.stderr + result.stdout)
+
+
+PROBE = Path(__file__).with_name("mark_match_probe.js")
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_the_search_highlight_does_not_cut_an_html_entity():
+    """`markMatch` measured the index in the escaped string and the length in
+    the raw one.
+
+    Searching the graph for `&` found `&amp;` at the right offset and then cut
+    it after one character, so `<mark>` landed inside the entity and the title
+    rendered as a literal "Kitaev &amp;amp; Haah". Any of & < > " ' in the
+    query did it. Not an injection — everything is escaped either way — but
+    the one thing the highlight exists to do, it did wrong.
+
+    Run through the shipped function rather than a copy: a reimplementation
+    here would keep passing after app.js changed.
+    """
+    cases = [["Kitaev & Haah model", "&"], ["a <b> tag", "<b>"],
+             ["plain text", "text"]]
+    done = subprocess.run(
+        ["node", str(PROBE), str(APP), json.dumps(cases)],
+        capture_output=True, text=True, timeout=60)
+    assert done.returncode == 0, done.stderr
+    got = json.loads(done.stdout)
+
+    assert got[0] == "Kitaev <mark>&amp;</mark> Haah model"
+    assert got[1] == "a <mark>&lt;b&gt;</mark> tag"
+    assert got[2] == "plain <mark>text</mark>"

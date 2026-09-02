@@ -38,7 +38,12 @@
   </div>
 
   <!-- Top Bar -->
-  <header class="topbar">
+  <!-- App shell. One sticky row: brand · sections · project · three-core
+       status · appearance. Everything that used to stack under it (the core
+       band, the sync rail, the explainer) now opens from the status cluster on
+       demand, so the page starts where the work starts. -->
+  <div class="topbar-shell" id="topbar-shell">
+  <header class="topbar" id="topbar">
     <div class="brand">
       <!-- Tri-sage emblem: three cores in one hex shell — the whole product
            in one mark. Node colors ride the per-core accent tokens, so the
@@ -54,7 +59,7 @@
           <circle class="bm-core bm-mel" cx="24" cy="33" r="3.4"/>
         </svg>
       </div>
-      <div>
+      <div class="brand-text">
         <span class="brand-title">MAGI</span>
         <span class="brand-badge" id="app-version">v2.2.0</span>
         <button class="update-badge" id="update-badge" type="button" hidden></button>
@@ -62,51 +67,137 @@
       <span class="eva-clock" id="eva-clock" aria-hidden="true"></span>
     </div>
 
+    <!-- Sections. Short names on purpose: the three cores are the product's
+         proper nouns, and what each one does is one hover (or one click on
+         the status cluster) away. -->
+    <nav class="tabs-nav" aria-label="Sections">
+      <div class="tabs-capsule" role="tablist">
+      <button class="tab-btn active" data-tab="dashboard" data-ch="00" data-i18n="tab_dashboard">Overview</button>
+      <button class="tab-btn" data-tab="melchior" data-ch="01" data-i18n="tab_melchior" title="" data-i18n-title="tab_melchior_title">Knowledge</button>
+      <button class="tab-btn" data-tab="balthasar" data-ch="02" data-i18n="tab_balthasar" title="" data-i18n-title="tab_balthasar_title">Tasks</button>
+      <button class="tab-btn" data-tab="casper" data-ch="03" data-i18n="tab_casper" title="" data-i18n-title="tab_casper_title">Search</button>
+      <button class="tab-btn" data-tab="radar" data-ch="04" data-i18n="tab_radar">Radar</button>
+      <button class="tab-btn" data-tab="ingest" data-ch="05" data-i18n="tab_ingest">Ingest</button>
+      <button class="tab-btn" data-tab="operations" data-ch="06" data-i18n="tab_operations">Operations</button>
+      <button class="tab-btn" data-tab="docs" data-ch="07" data-i18n="tab_docs">Docs</button>
+      </div>
+    </nav>
+
     <div class="topbar-controls">
       <div class="workspace-select-group">
         <label for="workspace-select" class="control-label" data-i18n="workspace_label">Viewing:</label>
         <select id="workspace-select" class="select-input">
           <option value="" data-i18n="loading_workspaces">Loading projects...</option>
         </select>
-        <span class="stat-pill warning" id="browsing-badge" style="display: none;"
+        <span class="browsing-badge" id="browsing-badge" style="display: none;"
               data-i18n="browsing_badge" title="" data-i18n-title="browsing_badge_title">Browsing</span>
       </div>
 
       <div class="topbar-stats">
-        <div class="stat-pill success" id="sync-ratio-badge" title="Three-core sync ratio" data-i18n-title="sync_ratio_tooltip">
-          <span data-i18n="sync_label">Sync:</span> <strong id="sync-ratio-val">--%</strong>
-        </div>
+        <!-- Three pips and one number. Click for the full three-core read-out. -->
+        <button type="button" class="core-cluster" id="core-cluster-btn"
+                aria-expanded="false" aria-controls="core-band"
+                title="" data-i18n-title="sync_ratio_tooltip">
+          <span class="core-pips" aria-hidden="true">
+            <i class="core-dot" id="core-pip-mel"></i>
+            <i class="core-dot" id="core-pip-bal"></i>
+            <i class="core-dot" id="core-pip-cas"></i>
+          </span>
+          <span class="stat-pill success" id="sync-ratio-badge">
+            <span data-i18n="sync_label">Sync:</span> <strong id="sync-ratio-val">--%</strong>
+          </span>
+        </button>
         <div class="stat-pill info" id="active-jobs-badge" style="display: none;">
           <span data-i18n="running_jobs_label">Running Jobs:</span> <strong id="active-jobs-count">0</strong>
         </div>
       </div>
 
-      <!-- Language Switcher -->
-      <div class="lang-toggle" id="lang-toggle" title="Switch Language / 切换语言">
-        <button type="button" class="lang-pill" data-lang="zh" id="lang-btn-zh">中</button>
-        <button type="button" class="lang-pill" data-lang="en" id="lang-btn-en">EN</button>
+      <!-- Appearance & environment. Theme, MAGI MODE, the glass material and
+           its knobs, language, backdrop, doctor — none of it is daily work, so
+           none of it takes a slot in the bar. -->
+      <div class="glass-tuner" id="glass-tuner">
+        <button class="icon-btn glass-tuner-btn" id="glass-tuner-btn" type="button"
+                aria-expanded="false" aria-controls="glass-tuner-panel"
+                title="Appearance" data-i18n-title="glass_btn_title">◐</button>
       </div>
-
-      <!-- Liquid-glass material on/off. Defaults from the OS reduce-transparency
-           setting; an explicit click here wins and is remembered. -->
-      <button class="icon-btn glass-toggle-btn active" id="glass-toggle-btn" title="Toggle Liquid Glass Material" data-i18n-title="glass_toggle_title">
-        <span class="glass-btn-text" data-i18n="glass_toggle_btn">GLASS</span>
-      </button>
-
-      <!-- MAGI MODE Toggle Button -->
-      <button class="icon-btn magi-mode-btn" id="magi-mode-btn" title="Toggle EVA NERV MAGI Command Theme" data-i18n-title="magi_mode_btn_title" data-i18n="magi_mode_btn">MAGI MODE</button>
-
-      <button class="icon-btn" id="doctor-btn" title="Environment Doctor Check" data-i18n-title="doctor_btn_title" data-i18n="doctor_btn">Doctor</button>
-      <button class="icon-btn" id="theme-toggle-btn" title="Toggle Light/Dark Theme" data-i18n-title="theme_btn_title">☾</button>
     </div>
+
   </header>
 
-  <!-- Three-core status band.
-       The product is three cores over one project; this band says so on
-       every tab instead of burying it in one dashboard tile. Values are filled
-       by updateCoreBand() from the same /api/workspace/sync report that drives
-       the EVA HUD, so it stays live regardless of which tab is open. -->
-  <section class="core-band" id="core-band">
+  <div class="glass-tuner-panel" id="glass-tuner-panel">
+    <div class="glass-tuner-row">
+      <label data-i18n="theme_label">Theme</label>
+      <div class="seg" id="theme-seg" role="group">
+        <button type="button" class="seg-btn" data-theme-pick="light" data-i18n="theme_light">Light</button>
+        <button type="button" class="seg-btn" data-theme-pick="dark" data-i18n="theme_dark">Dark</button>
+      </div>
+    </div>
+    <div class="glass-tuner-row">
+      <label data-i18n="lang_label">Language</label>
+      <div class="seg lang-toggle" id="lang-toggle" title="Switch Language / 切换语言">
+        <button type="button" class="seg-btn lang-pill" data-lang="zh" id="lang-btn-zh">中</button>
+        <button type="button" class="seg-btn lang-pill" data-lang="en" id="lang-btn-en">EN</button>
+      </div>
+    </div>
+    <!-- MAGI MODE Toggle Button -->
+    <div class="glass-tuner-row glass-tuner-row-switch">
+      <label for="magi-mode-btn" data-i18n="magi_mode_label">MAGI MODE</label>
+      <button class="switch-btn magi-mode-btn" id="magi-mode-btn" type="button" role="switch" aria-checked="false"
+              title="Toggle EVA NERV MAGI Command Theme" data-i18n-title="magi_mode_btn_title" data-i18n="magi_mode_btn">MAGI MODE</button>
+    </div>
+    <!-- Liquid-glass material on/off. Defaults from the OS reduce-transparency
+         setting; an explicit click here wins and is remembered. -->
+    <div class="glass-tuner-row glass-tuner-row-switch">
+      <label for="glass-toggle-btn" data-i18n="glass_label">Glass</label>
+      <button class="switch-btn glass-toggle-btn" id="glass-toggle-btn" type="button" role="switch" aria-checked="false"
+              title="Toggle Liquid Glass Material" data-i18n-title="glass_toggle_title">
+        <span class="glass-btn-text" data-i18n="glass_toggle_btn">GLASS</span>
+      </button>
+    </div>
+    <div class="glass-tuner-row glass-tuner-row-blur">
+      <label for="glass-blur-range" data-i18n="glass_blur_label">Blur</label>
+      <input type="range" id="glass-blur-range" min="0" max="30" step="1">
+      <span class="glass-tuner-val" id="glass-blur-val">10px</span>
+    </div>
+    <div class="glass-tuner-row glass-tuner-row-alpha">
+      <label for="glass-alpha-range" data-i18n="glass_alpha_label">Opacity</label>
+      <input type="range" id="glass-alpha-range" min="10" max="170" step="5">
+      <span class="glass-tuner-val" id="glass-alpha-val">100%</span>
+    </div>
+    <div class="glass-tuner-row glass-tuner-row-bg-bright">
+      <label for="bg-bright-range" data-i18n="bg_bright_label">Backdrop</label>
+      <input type="range" id="bg-bright-range" min="50" max="160" step="5">
+      <span class="glass-tuner-val" id="bg-bright-val">100%</span>
+    </div>
+    <div class="glass-tuner-row glass-tuner-row-toggle">
+      <label for="glass-crt-toggle" data-i18n="glass_crt_label">CRT scanlines</label>
+      <input type="checkbox" id="glass-crt-toggle">
+    </div>
+
+    <div class="glass-tuner-sep"></div>
+    <div class="bg-picker" id="bg-picker">
+      <div class="bg-picker-head">
+        <span data-i18n="bg_pick_label">Backdrop</span>
+        <button type="button" class="bg-picker-shuffle" id="bg-shuffle-btn"
+                data-i18n="bg_shuffle" data-i18n-title="bg_shuffle_title">Shuffle</button>
+      </div>
+      <div class="bg-thumbs" id="bg-thumbs"></div>
+      <div class="bg-picker-note" id="bg-picker-note" data-i18n="bg_pick_auto">
+        Nothing picked — rotating automatically.
+      </div>
+    </div>
+
+    <div class="glass-tuner-sep"></div>
+    <div class="glass-tuner-foot">
+      <button class="btn btn-secondary btn-sm" id="doctor-btn" type="button" title="Environment Doctor Check" data-i18n-title="doctor_btn_title" data-i18n="doctor_btn">Doctor</button>
+      <button class="btn btn-quiet btn-sm" id="glass-reset-btn" type="button" data-i18n="glass_reset">Reset</button>
+    </div>
+  </div>
+
+  <!-- Three-core read-out. Opens from the status cluster; the same ids
+       updateCoreBand() has always written to, from the same
+       /api/workspace/sync report that drives the EVA HUD. -->
+  <section class="core-band" id="core-band" hidden>
     <div class="core-cell" data-core="melchior">
       <div class="core-cell-top">
         <span class="core-dot" id="core-dot-mel"></span>
@@ -134,31 +225,16 @@
       <div class="core-stat" id="core-stat-cas">--</div>
       <div class="core-detail" id="core-detail-cas">--</div>
     </div>
-    <!-- The tooltip belongs on the big element, not only the small pill: this
-         is the most-asked-about number on the page. -->
     <div class="core-sync" title="" data-i18n-title="sync_ratio_tooltip">
       <span class="core-sync-label" data-i18n="core_sync_label">Three-core sync</span>
       <div class="core-sync-rail"><i id="core-sync-fill"></i></div>
       <span class="core-sync-val" id="dash-sync-ratio">--%</span>
     </div>
-    <!-- On the page, not in a tooltip. The comment above calls this the
-         most-asked-about number here, and it was answered only on hover —
-         which somebody who came to the browser to avoid a terminal will not
-         necessarily do, and a phone never can. -->
+    <!-- On the page, not only in a tooltip: this is the most-asked-about
+         number here, and a phone cannot hover. -->
     <p class="core-sync-note" data-i18n="core_sync_note"></p>
   </section>
-
-  <!-- Navigation Tabs -->
-  <nav class="tabs-nav">
-    <button class="tab-btn active" data-tab="dashboard" data-ch="00" data-i18n="tab_dashboard">Dashboard</button>
-    <button class="tab-btn" data-tab="melchior" data-ch="01" data-i18n="tab_melchior">Melchior (Cognitive)</button>
-    <button class="tab-btn" data-tab="balthasar" data-ch="02" data-i18n="tab_balthasar">Balthasar (Tasks)</button>
-    <button class="tab-btn" data-tab="casper" data-ch="03" data-i18n="tab_casper">Casper (Retrieval)</button>
-    <button class="tab-btn" data-tab="radar" data-ch="04" data-i18n="tab_radar">Literature Radar</button>
-    <button class="tab-btn" data-tab="ingest" data-ch="05" data-i18n="tab_ingest">Ingest Queue</button>
-    <button class="tab-btn" data-tab="operations" data-ch="06" data-i18n="tab_operations">Operations &amp; Danger Zone</button>
-    <button class="tab-btn" data-tab="docs" data-ch="07" data-i18n="tab_docs">Docs &amp; Help</button>
-  </nav>
+  </div>
 
   <!-- Main Container -->
   <main class="main-content">
@@ -235,19 +311,25 @@
            are allowed to be untidy in. All of it is derived from `threads/` on
            every load; `output/MAP.md` is a rendering of the same numbers, so
            editing that file changes nothing. -->
+      <!-- Two columns at desk width: what you do today on the left, the
+           state of the lines on the right. Registry, settings and
+           maintenance live on the Operations tab: they are about the
+           machine, not about today. -->
+      <div class="dash-grid">
+        <div class="dash-col">
       <div class="card" id="dump-card">
         <div class="card-header">
           <div>
-            <h3 class="card-title" data-i18n="dump_title">Say it here</h3>
-            <p class="card-subtitle" data-i18n="dump_subtitle">No format and no category — deciding where a thought goes at the moment you have it is the cost this box removes. Filing is the agent's job.</p>
+            <h3 class="card-title" data-i18n="dump_title">Quick note</h3>
+            <p class="card-subtitle" data-i18n="dump_subtitle">Any format, no filing required; the agent sorts it.</p>
           </div>
           <span class="badge badge-muted" id="dump-unfiled" title="unfiled lines">0</span>
         </div>
         <textarea id="dump-text" class="text-input" rows="3"
                   data-i18n-placeholder="dump_ph"
-                  placeholder="the disorder angle is probably a dead end"></textarea>
+                  placeholder="e.g. the disorder angle is probably a dead end"></textarea>
         <div class="form-row">
-          <button class="btn btn-primary" id="dump-btn" data-i18n="dump_btn">Add to the pile</button>
+          <button class="btn btn-primary" id="dump-btn" data-i18n="dump_btn">Add</button>
         </div>
       </div>
 
@@ -255,7 +337,7 @@
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="queue_title">Decisions waiting on you</h3>
-            <p class="card-subtitle" data-i18n="queue_subtitle">The only events allowed to interrupt you</p>
+            <p class="card-subtitle" data-i18n="queue_subtitle">Items waiting on your decision</p>
           </div>
           <button class="btn btn-secondary btn-sm" id="map-refresh-btn" data-i18n="btn_refresh">Refresh</button>
         </div>
@@ -264,11 +346,24 @@
         </div>
       </div>
 
+      <!-- Actionable sync hints (populated from the sync report) -->
+      <div class="card" id="sync-hints-card" style="display: none;">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="hints_title">Suggested Actions</h3>
+            <p class="card-subtitle" data-i18n="hints_subtitle">From the sync report; runs on click</p>
+          </div>
+        </div>
+        <div id="sync-hints-list" class="stack-list"></div>
+      </div>
+
+        </div>
+        <div class="dash-col">
       <div class="card" id="lines-card">
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="lines_title">Research lines</h3>
-            <p class="card-subtitle" data-i18n="lines_subtitle">Phase, what is open on it, and when it last moved</p>
+            <p class="card-subtitle" data-i18n="lines_subtitle">Phase, open items and latest activity per line</p>
           </div>
         </div>
         <div class="table-scroll">
@@ -291,23 +386,11 @@
         <div id="spending" class="stack-list"></div>
       </div>
 
-      <!-- Actionable sync hints (populated from the sync report) -->
-      <div class="card" id="sync-hints-card" style="display: none;">
-        <div class="card-header">
-          <div>
-            <h3 class="card-title" data-i18n="hints_title">Suggested Actions</h3>
-            <p class="card-subtitle" data-i18n="hints_subtitle">What the sync report recommends doing next</p>
-          </div>
-        </div>
-        <div id="sync-hints-list" class="stack-list"></div>
-      </div>
-
-      <!-- Sync ratio lives in the global core band now, so it is not repeated here. -->
       <div class="grid-3">
         <div class="card metric-box">
           <span class="metric-label" data-i18n="dash_kb_label">Registered KBs</span>
           <span class="metric-value" id="dash-kb-count">0</span>
-          <span class="card-subtitle" data-i18n="dash_kb_subtitle">Global federation</span>
+          <span class="card-subtitle" data-i18n="dash_kb_subtitle">Registered and searchable on this machine</span>
         </div>
         <div class="card metric-box">
           <span class="metric-label" data-i18n="dash_radar_label">Pending Digests</span>
@@ -317,84 +400,83 @@
         <div class="card metric-box">
           <span class="metric-label" data-i18n="dash_task_label">Active Task State</span>
           <span class="metric-value" id="dash-task-ready">--</span>
-          <span class="card-subtitle" data-i18n="dash_task_subtitle">Actionable tasks</span>
+          <span class="card-subtitle" data-i18n="dash_task_subtitle">Tasks with no blocking dependency (counted across the hub)</span>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h3 class="card-title" data-i18n="dash_kb_table_title">Registered projects</h3>
-            <p class="card-subtitle" data-i18n="dash_kb_table_subtitle">Global registry located at ~/.config/magi/registry.json</p>
-          </div>
-          <button class="btn btn-secondary btn-sm" id="refresh-kb-btn" data-i18n="btn_refresh">Refresh</button>
-        </div>
-        <label class="kb-filter" id="kb-hide-gone-wrap" hidden>
-          <input type="checkbox" id="kb-hide-gone" checked>
-          <span id="kb-hide-gone-label"></span>
-        </label>
-        <div class="table-scroll">
-          <table class="data-table" id="kb-table">
-            <thead>
-              <tr>
-                <th data-i18n="th_kb_name">Project</th>
-                <th data-i18n="th_path">Path</th>
-                <th data-i18n="th_searchable">Searchable</th>
-                <th data-i18n="th_indexed">Indexed</th>
-                <th data-i18n="th_graph">Graph</th>
-                <th data-i18n="th_sync_ratio">Sync Ratio</th>
-                <th data-i18n="th_actions">Actions</th>
-              </tr>
-            </thead>
-            <tbody id="kb-table-body">
-              <tr><td colspan="7" class="empty-cell" data-i18n="loading_kbs">Loading projects...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title" data-i18n="reg_kb_title">Register a project</h3>
-          <span class="card-subtitle" data-i18n="reg_kb_subtitle">Add a topic directory to the global registry</span>
-        </div>
-        <form id="register-kb-form" class="form-row">
-          <input type="text" id="reg-kb-path" class="text-input grow-2" placeholder="Absolute or relative path..." data-i18n-placeholder="reg_kb_path_ph" required>
-          <input type="text" id="reg-kb-name" class="text-input grow-1" placeholder="Custom name (optional)..." data-i18n-placeholder="reg_kb_name_ph">
-          <label class="check-label">
-            <input type="checkbox" id="reg-kb-enabled" checked> <span data-i18n="reg_kb_enable_label">Enable in search</span>
-          </label>
-          <button type="submit" class="btn btn-primary" data-i18n="btn_reg_kb">Register KB</button>
-        </form>
-      </div>
-
-      <!-- Project settings (whitelisted fields; writes are surgical) -->
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h3 class="card-title" data-i18n="cfg_title">Project settings</h3>
-            <p class="card-subtitle" data-i18n="cfg_subtitle">Research knobs from config.yaml — edits preserve the rest of the file</p>
-          </div>
-        </div>
-        <div id="config-fields" class="stack-list">
-          <p class="empty-note" data-i18n="cfg_loading">Loading config...</p>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-header">
-          <h3 class="card-title" data-i18n="ops_here_dashboard">Project maintenance</h3>
-          <span class="card-subtitle" data-i18n="ops_here_dashboard_sub">Reports about this project</span>
-        </div>
-        <!-- Buttons come from GET /api/ops. The catalog's `home` field decides
-             which panel each one lands on, so this file names no operation. -->
-        <div class="ops-grid" id="ops-mount-dashboard">
-          <span class="empty-note" data-i18n="ops_loading">Loading operations…</span>
         </div>
       </div>
     </section>
 
     <!-- Tab 2: Melchior -->
     <section id="tab-melchior" class="tab-panel">
+      <!-- The library, drawn. First on the page because it is what the
+           rest of the panel is about. -->
+      <!-- Knowledge graph browser (primary graph surface) -->
+      <div class="card card-hero">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="graph_card_title">Knowledge Graph</h3>
+            <p class="card-subtitle" data-i18n="graph_card_subtitle">Structured views over entries, links, claims and tags</p>
+          </div>
+          <!-- The panel's own navigation, so it reads as one. -->
+          <div class="seg" role="group">
+            <button type="button" class="seg-btn graph-view-btn active" data-view="map" data-i18n="graph_view_map">Graph</button>
+            <button type="button" class="seg-btn graph-view-btn" data-view="overview" data-i18n="graph_view_overview">Overview</button>
+            <button type="button" class="seg-btn graph-view-btn" data-view="nodes" data-i18n="graph_view_nodes">Entries</button>
+            <button type="button" class="seg-btn graph-view-btn" data-view="links" data-i18n="graph_view_links">Links</button>
+            <button type="button" class="seg-btn graph-view-btn" data-view="claims" data-i18n="graph_view_claims">Claims</button>
+            <button type="button" class="seg-btn graph-view-btn" data-view="tags" data-i18n="graph_view_tags">Tags</button>
+            <button type="button" class="seg-btn graph-view-btn" data-view="broken" data-i18n="graph_view_broken">Broken links</button>
+          </div>
+        </div>
+        <div class="form-row" id="graph-filter-row" style="display: none;">
+          <input type="text" id="graph-q" class="text-input" placeholder="Filter by title or id…" data-i18n-placeholder="graph_q_ph">
+          <select id="graph-type" class="select-input">
+            <option value="" data-i18n="graph_type_all">All types</option>
+            <option value="concept" data-i18n="graph_type_concept">Concept</option>
+            <option value="reference" data-i18n="graph_type_reference">Reference</option>
+            <option value="topic" data-i18n="graph_type_topic">Topic</option>
+            <option value="thesis" data-i18n="graph_type_thesis">Thesis</option>
+            <option value="claim" data-i18n="graph_type_claim">Claim</option>
+            <option value="tag" data-i18n="graph_type_tag">Tag</option>
+          </select>
+        </div>
+        <div id="graph-map-wrap" class="graph-map-wrap" style="display: none;">
+          <canvas id="graph-map-canvas"></canvas>
+          <!-- Find a node by title at once, by what its card says a beat later.
+               Candidates light up on the canvas; a click opens the card. -->
+          <div class="graph-map-search" id="graph-map-search">
+            <input type="search" id="graph-map-q" class="text-input graph-map-q" autocomplete="off" spellcheck="false"
+                   placeholder="Search the graph" data-i18n-placeholder="graph_search_ph"
+                   aria-label="Search the graph" data-i18n-title="graph_search_ph" title="">
+            <ul class="graph-map-results" id="graph-map-results" role="listbox" hidden></ul>
+          </div>
+          <label class="graph-map-toggle"><input type="checkbox" id="graph-map-tags">
+            <span data-i18n="graph_map_tags">Show tag nodes</span></label>
+          <!-- What to show, and how much of it. Both are decided by the
+               server: which nodes are the skeleton is a judgement about the
+               graph, and one made here as well would be a second judgement. -->
+          <div class="graph-map-controls">
+            <select id="graph-map-kinds" class="select-input">
+              <option value="" data-i18n="map_kinds_all">Everything</option>
+              <option value="concept,reference,topic,thesis,claim" data-i18n="map_kinds_library">The library</option>
+              <option value="proposition,question,line" data-i18n="map_kinds_research">The research state</option>
+            </select>
+            <label class="graph-map-toggle"><input type="checkbox" id="graph-map-skeleton">
+              <span data-i18n="map_skeleton">Skeleton only</span></label>
+          </div>
+          <!-- Node colour was the only type signal in the map and nothing on
+               screen said what any colour meant. -->
+          <div class="graph-map-legend" id="graph-map-legend"></div>
+          <div class="graph-map-note" id="graph-map-note" style="display: none;"></div>
+          <div class="graph-map-hint" data-i18n="graph_map_hint">Drag nodes · scroll to zoom · click a node to inspect its links</div>
+        </div>
+        <div id="graph-browse-container" class="table-scroll vh-300">
+          <p class="empty-note" data-i18n="graph_loading">Loading graph view…</p>
+        </div>
+      </div>
+
       <div class="grid-4">
         <div class="card metric-box">
           <span class="metric-label" data-i18n="mel_concepts_label">Concepts</span>
@@ -425,7 +507,7 @@
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="threads_title">Threads</h3>
-            <p class="card-subtitle" data-i18n="threads_subtitle">Propositions, questions and lines — body owned by whoever opened it, discussion append-only</p>
+            <p class="card-subtitle" data-i18n="threads_subtitle">Propositions, questions and lines; the body belongs to its author, discussion is append-only.</p>
           </div>
           <div class="form-row">
             <select id="threads-kind" class="text-input"></select>
@@ -479,7 +561,7 @@
              they are one form: `set_status` writes both under one lock. -->
         <div class="form-row">
           <input type="text" id="thread-say" class="text-input grow-2"
-                 data-i18n-placeholder="thread_say_ph" placeholder="what happened, in your words">
+                 data-i18n-placeholder="thread_say_ph" placeholder="Record what happened">
           <button class="btn btn-primary btn-sm" id="thread-post-btn" data-i18n="btn_post">Post</button>
         </div>
         <div class="form-row" id="thread-moves"></div>
@@ -508,7 +590,7 @@
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="feed_title">Feed</h3>
-            <p class="card-subtitle" data-i18n="feed_subtitle">Every post, newest first — a view over the notes, not a second log</p>
+            <p class="card-subtitle" data-i18n="feed_subtitle">Every post, newest first</p>
           </div>
           <div class="form-row">
             <select id="feed-window" class="text-input"></select>
@@ -560,62 +642,6 @@
         </ul>
       </div>
 
-      <!-- Knowledge graph browser (primary graph surface) -->
-      <div class="card">
-        <div class="card-header">
-          <div>
-            <h3 class="card-title" data-i18n="graph_card_title">Knowledge Graph</h3>
-            <p class="card-subtitle" data-i18n="graph_card_subtitle">Structured views over entries, links, claims and tags</p>
-          </div>
-          <div class="card-actions">
-            <button class="btn btn-secondary btn-sm graph-view-btn active" data-view="map" data-i18n="graph_view_map">Graph</button>
-            <button class="btn btn-secondary btn-sm graph-view-btn" data-view="overview" data-i18n="graph_view_overview">Overview</button>
-            <button class="btn btn-secondary btn-sm graph-view-btn" data-view="nodes" data-i18n="graph_view_nodes">Entries</button>
-            <button class="btn btn-secondary btn-sm graph-view-btn" data-view="links" data-i18n="graph_view_links">Links</button>
-            <button class="btn btn-secondary btn-sm graph-view-btn" data-view="claims" data-i18n="graph_view_claims">Claims</button>
-            <button class="btn btn-secondary btn-sm graph-view-btn" data-view="tags" data-i18n="graph_view_tags">Tags</button>
-            <button class="btn btn-secondary btn-sm graph-view-btn" data-view="broken" data-i18n="graph_view_broken">Broken links</button>
-          </div>
-        </div>
-        <div class="form-row" id="graph-filter-row" style="display: none;">
-          <input type="text" id="graph-q" class="text-input" placeholder="Filter by title or id…" data-i18n-placeholder="graph_q_ph">
-          <select id="graph-type" class="select-input">
-            <option value="" data-i18n="graph_type_all">All types</option>
-            <option value="concept" data-i18n="graph_type_concept">Concept</option>
-            <option value="reference" data-i18n="graph_type_reference">Reference</option>
-            <option value="topic" data-i18n="graph_type_topic">Topic</option>
-            <option value="thesis" data-i18n="graph_type_thesis">Thesis</option>
-            <option value="claim" data-i18n="graph_type_claim">Claim</option>
-            <option value="tag" data-i18n="graph_type_tag">Tag</option>
-          </select>
-        </div>
-        <div id="graph-map-wrap" class="graph-map-wrap" style="display: none;">
-          <canvas id="graph-map-canvas"></canvas>
-          <label class="graph-map-toggle"><input type="checkbox" id="graph-map-tags">
-            <span data-i18n="graph_map_tags">Show tag nodes</span></label>
-          <!-- What to show, and how much of it. Both are decided by the
-               server: which nodes are the skeleton is a judgement about the
-               graph, and one made here as well would be a second judgement. -->
-          <div class="graph-map-controls">
-            <select id="graph-map-kinds" class="select-input">
-              <option value="" data-i18n="map_kinds_all">Everything</option>
-              <option value="concept,reference,topic,thesis,claim" data-i18n="map_kinds_library">The library</option>
-              <option value="proposition,question,line" data-i18n="map_kinds_research">The research state</option>
-            </select>
-            <label class="graph-map-toggle"><input type="checkbox" id="graph-map-skeleton">
-              <span data-i18n="map_skeleton">Skeleton only</span></label>
-          </div>
-          <!-- Node colour was the only type signal in the map and nothing on
-               screen said what any colour meant. -->
-          <div class="graph-map-legend" id="graph-map-legend"></div>
-          <div class="graph-map-note" id="graph-map-note" style="display: none;"></div>
-          <div class="graph-map-hint" data-i18n="graph_map_hint">Drag nodes · scroll to zoom · click a node to inspect its links</div>
-        </div>
-        <div id="graph-browse-container" class="table-scroll vh-300">
-          <p class="empty-note" data-i18n="graph_loading">Loading graph view…</p>
-        </div>
-      </div>
-
       <!-- Knowledge Graph SQL Console -->
       <details class="advanced-sql">
       <summary data-i18n="adv_sql_title">Advanced: read-only SQL console</summary>
@@ -660,16 +686,16 @@
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="mel_drafts_title">Drafts</h3>
-            <p class="card-subtitle" data-i18n="mel_drafts_subtitle">Paper drafts under drafts/ — indexed for search, outside the graph (wiki_draft skill)</p>
+            <p class="card-subtitle" data-i18n="mel_drafts_subtitle">Drafts under drafts/; indexed for search, outside the graph</p>
           </div>
         </div>
         <ul id="drafts-list" class="file-list">
-          <li class="file-li muted" data-i18n="drafts_none">No drafts yet — the wiki_draft skill sets up the writing workflow.</li>
+          <li class="file-li muted" data-i18n="drafts_none">No drafts yet.</li>
         </ul>
       </div>
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title" data-i18n="ops_here_melchior">Rebuild what this panel reads</h3>
+          <h3 class="card-title" data-i18n="ops_here_melchior">Rebuild graph and indexes</h3>
           <span class="card-subtitle" data-i18n="ops_here_melchior_sub">The graph, the concept links and the wiki tables</span>
         </div>
         <!-- Buttons come from GET /api/ops. The catalog's `home` field decides
@@ -908,13 +934,13 @@
           <button class="btn btn-primary" id="btn-ingest-run"
                   data-i18n-title="ingest_run_caption"
                   data-i18n="btn_ingest_run">Run the Queue</button>
-          <span class="btn-caption" data-i18n="ingest_run_caption">Fetches and converts everything queued, then gate-checks it · nothing reaches the library yet</span>
+          <span class="btn-caption" data-i18n="ingest_run_caption">Fetches, converts and checks everything queued; nothing is written to the project</span>
           <div class="radar-actions-row">
             <button class="btn btn-secondary btn-sm" id="btn-ingest-commit"
                     data-i18n-title="ingest_commit_caption"
                     data-i18n="btn_ingest_commit">Commit Approved</button>
           </div>
-          <span class="btn-caption" data-i18n="ingest_commit_caption">Moves approved items into raw/ and compiles them · this is the step that writes to the library</span>
+          <span class="btn-caption" data-i18n="ingest_commit_caption">Moves approved items into raw/ and refreshes tables and graph; compiling and indexing are separate steps</span>
         </div>
       </div>
 
@@ -929,41 +955,56 @@
         <div class="stack-list" id="inbox-files"></div>
       </div>
 
-      <div class="card">
-        <label class="field-label" for="ingest-add-url" data-i18n="ingest_add_label">Add a paper by link, DOI, or arXiv id</label>
-        <div class="ingest-add-row">
-          <input type="text" id="ingest-add-url" class="text-input" placeholder="https://arxiv.org/abs/2608.16520">
-          <button class="btn btn-secondary btn-sm" id="btn-ingest-add" data-i18n="btn_ingest_add">Queue it</button>
+      <!-- One card, three doors. Link, file and Zotero all end in the same
+           queue, so they are one form with a switch, not three cards. -->
+      <div class="card" id="ingest-add-card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="ingest_add_title">Add a paper</h3>
+            <p class="card-subtitle" data-i18n="ingest_add_hint">Queuing fetches nothing; run the queue, then approve the results.</p>
+          </div>
+          <div class="seg" id="ingest-source-seg" role="group">
+            <button type="button" class="seg-btn active" data-source="link" data-i18n="ingest_src_link">Link / DOI / arXiv</button>
+            <button type="button" class="seg-btn" data-source="file" data-i18n="ingest_src_file">Upload a file</button>
+            <button type="button" class="seg-btn" data-source="zotero" data-i18n="ingest_src_zotero">From Zotero</button>
+          </div>
         </div>
-        <p class="card-subtitle" data-i18n="ingest_add_hint">Queuing fetches nothing. Run the queue, then approve what came out.</p>
-      </div>
 
-      <div class="card">
-        <label class="field-label" for="ingest-upload-file" data-i18n="ingest_upload_label">Or upload a file from this computer</label>
-        <div class="ingest-add-row">
-          <input type="file" id="ingest-upload-file" class="text-input"
-                 accept=".pdf,.md,.markdown,.txt,.tex,.tar.gz,.tgz">
-          <button class="btn btn-secondary btn-sm" id="btn-ingest-upload" data-i18n="btn_ingest_upload">Upload</button>
+        <div class="ingest-source" data-source="link">
+          <label class="field-label visually-hidden" for="ingest-add-url" data-i18n="ingest_add_label">Add a paper by link, DOI, or arXiv id</label>
+          <div class="ingest-add-row">
+            <input type="text" id="ingest-add-url" class="text-input" placeholder="https://arxiv.org/abs/2608.16520">
+            <button class="btn btn-primary btn-sm" id="btn-ingest-add" data-i18n="btn_ingest_add">Queue it</button>
+          </div>
         </div>
-        <p class="card-subtitle" data-i18n="ingest_upload_hint">Lands in inbox/ and joins the queue below, so it goes through the same review as everything else.</p>
-        <p class="card-subtitle" id="ingest-upload-status"></p>
-      </div>
 
-      <!-- Zotero. For most researchers this is where the papers already are,
-           and it was the one source the dashboard could not reach. -->
-      <div class="card" id="zotero-card">
-        <label class="field-label" for="zotero-collection" data-i18n="zotero_label">Or import from Zotero</label>
-        <div class="ingest-add-row">
-          <select id="zotero-collection" class="select-input grow-1">
-            <option value="" data-i18n="zotero_loading">Reading your Zotero library…</option>
-          </select>
-          <input type="text" id="zotero-tag" class="text-input"
-                 placeholder="tag (optional)" data-i18n-placeholder="zotero_tag_ph">
-          <button class="btn btn-secondary btn-sm" id="btn-zotero-import"
-                  data-i18n="btn_zotero_import" disabled>Queue them</button>
+        <div class="ingest-source" data-source="file" hidden>
+          <label class="field-label visually-hidden" for="ingest-upload-file" data-i18n="ingest_upload_label">Or upload a file from this computer</label>
+          <div class="ingest-add-row">
+            <input type="file" id="ingest-upload-file" class="text-input"
+                   accept=".pdf,.md,.markdown,.txt,.tex,.tar.gz,.tgz">
+            <button class="btn btn-primary btn-sm" id="btn-ingest-upload" data-i18n="btn_ingest_upload">Upload</button>
+          </div>
+          <p class="card-subtitle" data-i18n="ingest_upload_hint">Saved to inbox/ and queued for the same review as every other source.</p>
+          <p class="card-subtitle" id="ingest-upload-status"></p>
         </div>
-        <p class="card-subtitle" data-i18n="zotero_hint">A folder includes everything filed beneath it. Queuing fetches nothing — the queue below converts, and you approve.</p>
-        <p class="card-subtitle" id="zotero-status"></p>
+
+        <!-- Zotero. For most researchers this is where the papers already are,
+             and it was the one source the dashboard could not reach. -->
+        <div class="ingest-source" data-source="zotero" id="zotero-card" hidden>
+          <label class="field-label visually-hidden" for="zotero-collection" data-i18n="zotero_label">Or import from Zotero</label>
+          <div class="ingest-add-row">
+            <select id="zotero-collection" class="select-input grow-1">
+              <option value="" data-i18n="zotero_loading">Reading your Zotero library…</option>
+            </select>
+            <input type="text" id="zotero-tag" class="text-input"
+                   placeholder="tag (optional)" data-i18n-placeholder="zotero_tag_ph">
+            <button class="btn btn-primary btn-sm" id="btn-zotero-import"
+                    data-i18n="btn_zotero_import" disabled>Queue them</button>
+          </div>
+          <p class="card-subtitle" data-i18n="zotero_hint">Includes the collection and everything beneath it. Queuing fetches nothing; run the queue, then approve.</p>
+          <p class="card-subtitle" id="zotero-status"></p>
+        </div>
       </div>
 
       <div class="card">
@@ -986,8 +1027,9 @@
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="opt_title">Optional components</h3>
-            <p class="card-subtitle" data-i18n="opt_sub">Everything here is machine-wide, and MAGI runs without all of it. Untick anything you do not want and it stops being mentioned.</p>
+            <p class="card-subtitle" data-i18n="opt_sub">Machine-wide. A missing component only disables its capability; untick it to stop the reminders.</p>
           </div>
+          <button class="btn btn-secondary btn-sm doctor-open-btn" type="button" data-i18n="doctor_btn">Doctor</button>
         </div>
         <div id="optional-list"></div>
       </div>
@@ -996,12 +1038,84 @@
         <div class="card-header">
           <div>
             <h3 class="card-title" data-i18n="ops_setup_title">Project setup</h3>
-            <p class="card-subtitle" data-i18n="ops_setup_sub">Re-runnable, and none of it deletes anything</p>
+            <p class="card-subtitle" data-i18n="ops_setup_sub">Re-runnable; nothing is deleted</p>
           </div>
         </div>
         <!-- Buttons come from GET /api/ops. The catalog's `home` field decides
              which panel each one lands on, so this file names no operation. -->
         <div class="ops-grid" id="ops-mount-operations">
+          <span class="empty-note" data-i18n="ops_loading">Loading operations…</span>
+        </div>
+      </div>
+
+      <!-- Registry, settings, maintenance. Moved here from the overview:
+           the daily page is for today, this one is for the machine. -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="dash_kb_table_title">Registered projects</h3>
+            <p class="card-subtitle" data-i18n="dash_kb_table_subtitle">Every project registered on this machine. Switching changes every panel.</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="refresh-kb-btn" data-i18n="btn_refresh">Refresh</button>
+        </div>
+        <label class="kb-filter" id="kb-hide-gone-wrap" hidden>
+          <input type="checkbox" id="kb-hide-gone" checked>
+          <span id="kb-hide-gone-label"></span>
+        </label>
+        <div class="table-scroll">
+          <table class="data-table" id="kb-table">
+            <thead>
+              <tr>
+                <th data-i18n="th_kb_name">Project</th>
+                <th data-i18n="th_searchable">Searchable</th>
+                <th data-i18n="th_indexed">Indexed</th>
+                <th data-i18n="th_graph">Graph</th>
+                <th data-i18n="th_sync_ratio">Sync Ratio</th>
+                <th data-i18n="th_actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="kb-table-body">
+              <tr><td colspan="6" class="empty-cell" data-i18n="loading_kbs">Loading projects...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title" data-i18n="reg_kb_title">Register a project</h3>
+          <span class="card-subtitle" data-i18n="reg_kb_subtitle">Add a topic directory to the global registry</span>
+        </div>
+        <form id="register-kb-form" class="form-row">
+          <input type="text" id="reg-kb-path" class="text-input grow-2" placeholder="Absolute or relative path..." data-i18n-placeholder="reg_kb_path_ph" required>
+          <input type="text" id="reg-kb-name" class="text-input grow-1" placeholder="Custom name (optional)..." data-i18n-placeholder="reg_kb_name_ph">
+          <label class="check-label">
+            <input type="checkbox" id="reg-kb-enabled" checked> <span data-i18n="reg_kb_enable_label">Enable in search</span>
+          </label>
+          <button type="submit" class="btn btn-primary" data-i18n="btn_reg_kb">Register KB</button>
+        </form>
+      </div>
+
+      <!-- Project settings (whitelisted fields; writes are surgical) -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <h3 class="card-title" data-i18n="cfg_title">Project settings</h3>
+            <p class="card-subtitle" data-i18n="cfg_subtitle">Research settings from config.yaml; only the target line is changed</p>
+          </div>
+        </div>
+        <div id="config-fields" class="stack-list">
+          <p class="empty-note" data-i18n="cfg_loading">Loading config...</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title" data-i18n="ops_here_dashboard">Project maintenance</h3>
+          <span class="card-subtitle" data-i18n="ops_here_dashboard_sub">Reports about this project</span>
+        </div>
+        <!-- Buttons come from GET /api/ops. The catalog's `home` field decides
+             which panel each one lands on, so this file names no operation. -->
+        <div class="ops-grid" id="ops-mount-dashboard">
           <span class="empty-note" data-i18n="ops_loading">Loading operations…</span>
         </div>
       </div>
@@ -1042,11 +1156,11 @@
     <section id="tab-docs" class="tab-panel">
       <div class="card">
         <div class="card-header">
-          <div class="card-actions">
-            <button class="btn btn-secondary btn-sm doc-switch-btn active" data-doc="guide" data-i18n="doc_guide">User Guide</button>
-            <button class="btn btn-secondary btn-sm doc-switch-btn" data-doc="readme-zh" data-i18n="doc_readme_zh">README (中文)</button>
-            <button class="btn btn-secondary btn-sm doc-switch-btn" data-doc="readme-en" data-i18n="doc_readme_en">README (English)</button>
-            <button class="btn btn-secondary btn-sm doc-switch-btn" data-doc="commands" data-i18n="doc_commands">CLI Commands Reference</button>
+          <div class="seg" role="group">
+            <button type="button" class="seg-btn doc-switch-btn active" data-doc="guide" data-i18n="doc_guide">User Guide</button>
+            <button type="button" class="seg-btn doc-switch-btn" data-doc="readme-zh" data-i18n="doc_readme_zh">README (中文)</button>
+            <button type="button" class="seg-btn doc-switch-btn" data-doc="readme-en" data-i18n="doc_readme_en">README (English)</button>
+            <button type="button" class="seg-btn doc-switch-btn" data-doc="commands" data-i18n="doc_commands">CLI Commands Reference</button>
           </div>
         </div>
         <div class="docs-shell" id="docs-shell">
@@ -1164,42 +1278,6 @@
   </div>
 
   <!-- Toast Container -->
-  <!-- Liquid-glass tuner (MAGI MODE only; hidden elsewhere by CSS) -->
-  <div class="glass-tuner" id="glass-tuner">
-    <button class="glass-tuner-btn" id="glass-tuner-btn" title="Glass material tuning"
-            data-i18n-title="glass_btn_title">◐</button>
-    <div class="glass-tuner-panel" id="glass-tuner-panel">
-      <div class="glass-tuner-row glass-tuner-row-blur">
-        <label for="glass-blur-range" data-i18n="glass_blur_label">Blur</label>
-        <input type="range" id="glass-blur-range" min="0" max="30" step="1">
-        <span class="glass-tuner-val" id="glass-blur-val">10px</span>
-      </div>
-      <div class="glass-tuner-row glass-tuner-row-alpha">
-        <label for="glass-alpha-range" data-i18n="glass_alpha_label">Opacity</label>
-        <input type="range" id="glass-alpha-range" min="40" max="170" step="5">
-        <span class="glass-tuner-val" id="glass-alpha-val">100%</span>
-      </div>
-      <div class="glass-tuner-row glass-tuner-row-toggle">
-        <label for="glass-crt-toggle" data-i18n="glass_crt_label">CRT scanlines</label>
-        <input type="checkbox" id="glass-crt-toggle">
-      </div>
-      <button class="btn btn-secondary btn-sm" id="glass-reset-btn" data-i18n="glass_reset">Reset</button>
-
-      <div class="glass-tuner-sep"></div>
-      <div class="bg-picker">
-        <div class="bg-picker-head">
-          <span data-i18n="bg_pick_label">Backdrop</span>
-          <button type="button" class="bg-picker-shuffle" id="bg-shuffle-btn"
-                  data-i18n="bg_shuffle" data-i18n-title="bg_shuffle_title">Shuffle</button>
-        </div>
-        <div class="bg-thumbs" id="bg-thumbs"></div>
-        <div class="bg-picker-note" id="bg-picker-note" data-i18n="bg_pick_auto">
-          Nothing picked — rotating automatically.
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="toast-container" id="toast-container"></div>
 
   <script src="/app.js"></script>

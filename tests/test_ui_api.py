@@ -1520,10 +1520,18 @@ def test_magi_mode_cuts_the_same_corner_off_every_box(client):
 
     for sel in (".card", ".eva-hud-frame", ".modal-window", ".danger-card",
                 ".btn", ".icon-btn", ".text-input", ".select-input", ".action-row",
-                ".badge", ".stat-pill", ".eva-clock", ".lang-toggle", ".brand-badge"):
+                ".badge", ".stat-pill", ".eva-clock", ".brand-badge"):
         assert f'[data-theme="eva"] {sel},' in eva or f'[data-theme="eva"] {sel} {{' in eva, (
             f"{sel} is still a plain rectangle in MAGI mode"
         )
+
+    # The one deliberate exception: segmented controls (.seg, which the
+    # language switch now shares) stay uncut in MAGI MODE, because the theme
+    # switch never carried the bevel and the two were unified on its shape.
+    # Asserted rather than merely omitted, so giving .seg an eva rule later
+    # has to come back through here.
+    assert '[data-theme="eva"] .seg' not in css, "segmented controls are deliberately uncut in MAGI MODE"
+    assert '[data-theme="eva"] .lang-toggle' not in css, ".lang-toggle shares .seg's shape; no MAGI rule of its own"
 
 
 def test_magi_mode_has_no_rounded_corners_left(client):

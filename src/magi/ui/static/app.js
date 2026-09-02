@@ -18,9 +18,9 @@
       browsing_badge: "浏览中",
       browsing_badge_title: "面板正在浏览另一个项目（会话级选择，服务器启动位置不变）",
       term_retention_note: "任务历史跨重启保留（最近 40 条，magi 配置目录下 ui-jobs.jsonl）。",
-      sync_label: "三核同步:",
+      sync_label: "同步",
       running_jobs_label: "运行中任务:",
-      core_sync_note: "这是就绪度,不是「你有多少知识」的分数。新项目起步就低,把上面三核里标红标黄的项清掉它就涨。",
+      core_sync_note: "项目就绪度，由知识、任务、检索三项加权得出。处理三核中标红、标黄的项即可提高。",
       sync_ratio_tooltip: "项目就绪度：知识（图谱是否最新、待编译源、断言覆盖）、任务追踪、检索索引三块的加权平均。把上方三核里标红/标黄的项处理掉，这个数就会涨。",
       doctor_btn: "环境体检",
       doctor_btn_title: "环境依赖与规范体检",
@@ -29,30 +29,42 @@
       magi_mode_btn_title: "开启/关闭 EVA NERV MAGI 战术主题",
 
       // Navigation Tabs
-      tab_dashboard: "项目总览",
-      tab_melchior: "Melchior (认知状态)",
-      tab_balthasar: "Balthasar (任务追踪)",
-      tab_casper: "Casper (文献检索)",
-      tab_radar: "文献雷达",
-      tab_operations: "运维与操作",
-      tab_docs: "文档与指引",
+      tab_dashboard: "总览",
+      tab_melchior: "知识",
+      tab_balthasar: "任务",
+      tab_casper: "检索",
+      tab_radar: "雷达",
+      tab_melchior_eva: "Melchior",
+      tab_balthasar_eva: "Balthasar",
+      tab_casper_eva: "Casper",
+      tab_operations: "运维",
+      tab_docs: "文档",
+      tab_melchior_title: "知识：图谱、词条、命题与研究线（Melchior）",
+      tab_balthasar_title: "任务追踪（Balthasar）",
+      tab_casper_title: "文献检索（Casper）",
+      theme_label: "主题",
+      theme_light: "浅色",
+      theme_dark: "深色",
+      lang_label: "语言",
+      magi_mode_label: "MAGI 模式",
+      glass_label: "玻璃材质",
 
       // v2: the map, the dump box, threads, the feed
-      dump_title: "想到什么就写在这",
-      dump_subtitle: "不用管格式，也不用想它属于哪条线——在想到的那一刻决定归属，正是这个框要省掉的成本。分类是 agent 的活。",
-      dump_ph: "无序那条路大概是死胡同",
-      dump_btn: "扔进堆放区",
+      dump_title: "随手记",
+      dump_subtitle: "不限格式，不必归类；归档由 agent 完成。",
+      dump_ph: "例：无序那条路大概是死胡同",
+      dump_btn: "记下",
       dump_saved: "记下了（还有 {n} 条没分类）",
       queue_title: "等你拍板的决定",
-      queue_subtitle: "只有这几类事允许打断你",
-      queue_none: "没有。每个开着的问题都轮到别人了。",
+      queue_subtitle: "需要你拍板的事项",
+      queue_none: "暂无待决定事项。",
       proposal_accept: "采纳",
       proposal_reject: "否掉",
       proposal_promote: "变成代码",
       proposal_retire: "退掉这条规则",
       proposal_done: "已{verb}",
       lines_title: "研究线",
-      lines_subtitle: "相位、线上开着几条、上次动是什么时候",
+      lines_subtitle: "各线的相位、未完成事项与最近活动",
       lines_none: "还没有线。",
       map_loading: "正在读 threads/…",
       flag_over_wip: "超 WIP",
@@ -61,11 +73,11 @@
       back_right: "条预测猜对",
       back_bet_line: "你赌 {bet}，结果是 {outcome}",
       back_unknown: "条记为「不知道」",
-      back_unknown_only: "条预测记为「不知道」——诚实的先验，不计分。",
-      back_late: "条 bet 是答案出来之后才补的——不计分，那不算预测。",
+      back_unknown_only: "条预测为「不知道」，不计分。",
+      back_late: "条 bet 在结果已知后补记，不计分。",
       back_decisions: "最近的决定：",
       threads_title: "命题 · 问题 · 线",
-      threads_subtitle: "命题、问题、线——正文归开它的人，讨论区只追加",
+      threads_subtitle: "命题、问题与研究线；正文由创建者维护，讨论只追加。",
       threads_none: "还没有 note。",
       filter_all_kinds: "全部种类",
       filter_all_statuses: "全部状态",
@@ -78,29 +90,29 @@
       th_open: "开着",
       th_last_move: "上次动",
       th_flags: "标记",
-      thread_say_ph: "发生了什么，用你自己的话",
+      thread_say_ph: "记录进展",
       btn_post: "发帖",
       btn_close: "收起",
-      need_words: "先写点什么——空帖子记不下任何事",
+      need_words: "请先输入内容。",
       need_reason: "改状态要写理由：翻状态和说明为什么是一件事，不是两件",
-      moves_need_reason_first: "先在上面写一句为什么,这些才能按——翻状态和说明理由是一件事。",
-      need_workspace: "先在顶栏选一个项目——不然这行字会写进服务器启动的那个目录",
+      moves_need_reason_first: "先在上方写明理由，再变更状态。",
+      need_workspace: "请先在顶栏选择项目。",
       badge_kb_gone: "目录不在了",
       btn_review: "找人复核这条",
       btn_cancel: "算了",
       btn_save_draft: "存成草稿",
       draft_title_ph: "这篇写的是什么",
-      draft_body_ph: "把正文粘进来——存进 drafts/,然后就能发表了",
+      draft_body_ph: "粘贴正文（保存到 drafts/）",
       draft_needs_both: "标题和正文都要有",
       draft_saved: "草稿存好了",
       btn_publish_preview: "看看会埋掉什么",
       close_why_ph: "为什么结束这条线（会记进结案帖）",
-      review_only_when_supported: "这条还没有声称被解决,所以还没到找人复核的时候。等它走到 supported 再说。",
+      review_only_when_supported: "该命题尚未标记为 supported，暂不能提交复核。",
       line_set: "所属的线改好了",
       line_needs_reason: "先在上面那栏写一句为什么它属于这条线",
       btn_thread_new: "开一条新的",
-      btn_decide: "记下这是我的决定",
-      decide_needs_words: "先在上面写下你的原话——decisions.md 记的是你说的,不是摘要",
+      btn_decide: "记为决定",
+      decide_needs_words: "请先在上方写下你的决定。",
       decided: "已写进 decisions.md",
       bet_none: "不带预测",
       bet_supported: "我赌它成立",
@@ -110,7 +122,7 @@
       kind_proposition: "命题（一个可以被证伪的说法）",
       kind_question: "问题（还不知道答案）",
       kind_line: "研究线（一组相关的命题）",
-      new_title_ph: "标题——它到底主张什么",
+      new_title_ph: "标题（主张是什么）",
       new_purpose_ph: "为什么现在值得开这一条",
       new_line_ph: "属于哪条线（可留空）",
       new_hint: "标题会变成它的永久 id。命题是能被证伪的说法;问题是还不知道答案;线是一组相关命题的视图。",
@@ -120,49 +132,49 @@
       btn_set_line: "改所属的线",
       btn_close_line: "结束这条线",
       btn_publish: "发表并归档",
-      close_would_silence: "关掉之后这 {n} 条会永远没人再提起：",
-      close_nothing_open: "这条线上没有还开着的东西。",
-      close_why_prompt: "结束 {line}——为什么？（这句会记进结案帖）",
+      close_would_silence: "结束后，以下 {n} 条将不再跟进：",
+      close_nothing_open: "该线上没有未完成事项。",
+      close_why_prompt: "结束 {line} 的原因（将写入结案记录）",
       closed_line: "{line} 已结束",
       publish_no_papers: "drafts/ 和 output/ 里没有 .md,先把稿子放进去。",
       publish_which: "发表哪一篇？",
       publish_would_bury: "这 {n} 条会被标成「已被论文取代」：",
       publish_why: "这篇论文报告的是什么？（这句会记进归档帖）",
-      publish_loose_ends: "还有没收尾的：{slugs}。仍要发表就说明为什么——这句会写进记录。",
+      publish_loose_ends: "尚有未收尾事项：{slugs}。如仍要发表，请说明原因（将写入记录）。",
       published: "已归档,相关工作已退役",
       btn_review_running: "正在问…",
-      review_hint: "让另一个厂商的 CLI 读这条命题——它没有你这段对话的上下文。要花一次周预算。",
+      review_hint: "由另一家厂商的 CLI 独立复核该命题（不含本对话上下文），消耗一次周预算。",
       review_confirm: "要问 {host}（模型 {model}）复核这条命题吗？\n\n这会花掉本周预算的一次:还剩 {left}/{limit}。\n一般十几秒。",
       review_running: "已经在问 {host} 了,通常十几秒。",
-      review_switched_off: "MAGI 自己的模型调用被关掉了(research.llm_calls)。开了才能复核。",
+      review_switched_off: "模型调用已关闭（research.llm_calls）。开启后才能复核。",
       review_by: "{host} 判的（{model}）",
-      review_unclear: "「说不清」既不是通过也不是否决——复核方说它按现有证据判不了。命题还在待复核队列里。",
+      review_unclear: "「说不清」：复核方认为按现有证据无法判定。命题仍在待复核队列中。",
       review_budget_left: "本周还剩 {left}/{limit} 次调用。",
-      dash_spending: "本周 MAGI 自己发起的调用",
+      dash_spending: "本周自动调用",
       dash_spending_line: "{spent}/{limit} 次,还剩 {left}",
       kb_hide_gone: "隐藏目录已不存在的 ({n})",
       cfg_review_host_auto: "自动（探测 PATH，选一个不是作者的）",
-      cfg_f_review_host: "复核跑在哪个 CLI 上。留空 = 自动挑一个不是作者的——跨厂商是「独立」最便宜的近似。",
+      cfg_f_review_host: "执行复核的 CLI。留空则自动选择非作者的宿主。",
       cfg_f_coaching: "结束会话时这道门推得多紧。off = 不拦；light = 缺记账就提醒；strict = 没写下预测就不许开始推导。",
       cfg_f_wip_limit: "一条线上同时开着几个命题算多。七是工作记忆的数字,不是测量值:再多人就抓不住这条线上到底有什么没结。",
       cfg_f_stall_days: "多少天没动静就把一条线标成安静。久到休一周不算,短到被忘掉的线一个月内会浮上来。",
-      cfg_f_weekly_calls: "MAGI 自己每周能发起多少次模型调用(复核、慢环、堆放区分类)。数的是次数不是钱——无头 CLI 不告诉我们一次要多少。失败的也算:超时同样花了墙钟时间。用完就拒绝启动,不会偷偷少做。",
-      cfg_f_llm_calls: "MAGI 自己那些调用的总开关。关掉之后它一次也不发起,而不是安静地少做几次。你自己让 agent 干的活不受这个影响。",
-      cfg_f_rule_budget: "AGENTS.md 里规则那一节最多几行。每次会话、每个宿主都要读这一段,所以一条规则进去,后面每一次会话都在为读它付钱。",
-      cfg_f_rules: "这个项目自己挣来的规则,用一套封闭词汇写成,每次运行都真的被检查。`magi reflect promote` 往里加,这里可以退役。",
-      cfg_f_search_projects: "这个项目的搜索还会读哪几个已注册的项目。留空 = 只搜本项目。注册表里的「可搜索」勾是全机的,说的是某个库允不允许被别处读到;这里说的是本项目实际读哪几个。",
-      cfg_f_hosts: "内建那几个之外,这个项目还认识哪些 agent CLI。世界上的 CLI 太多了,所以宿主是一条记录:二进制名、skill 装到哪、怎么无头调用。",
+      cfg_f_weekly_calls: "MAGI 每周可自动发起的模型调用次数（复核、慢环、随手记归档）。按次计数，失败的调用也计入。",
+      cfg_f_llm_calls: "MAGI 自动调用的总开关。关闭后不再发起任何调用；你直接指派 agent 的工作不受影响。",
+      cfg_f_rule_budget: "AGENTS.md 规则段的最大行数。每次会话都会读取该段。",
+      cfg_f_rules: "本项目的规则，使用封闭词汇，每次运行都会检查。由 `magi reflect promote` 添加，可在此退役。",
+      cfg_f_search_projects: "本项目的检索额外覆盖哪些已注册项目。留空则只搜本项目。",
+      cfg_f_hosts: "内建之外，本项目可用的 agent CLI：二进制名、skill 位置、无头调用方式。",
       cfg_f_review_model: "复核用哪个模型。留空 = 那个宿主的便宜档。",
-      cfg_f_review_effort: "推理档位。留空 = 那个宿主自己的默认；模型 id 往往已经带了档位。",
+      cfg_f_review_effort: "推理档位。留空使用宿主默认；模型 id 通常已包含档位。",
       cfg_model_cheap: "便宜档（{id}）",
-      cfg_model_default: "那个宿主自己的默认",
-      cfg_model_pin_host: "先钉住 review_host 才能挑模型——模型名各家不通用",
-      cfg_model_typed: "这个宿主不列出模型，自己填",
+      cfg_model_default: "宿主默认",
+      cfg_model_pin_host: "先指定 review_host 再选模型；模型名因厂商而异",
+      cfg_model_typed: "该宿主不列出模型，请手动填写",
       cfg_model_stale: "列表来自缓存（最多一天前）",
-      cfg_effort_default: "那个宿主自己的默认",
-      moves_human_only: "带 * 的只有人能做",
+      cfg_effort_default: "宿主默认",
+      moves_human_only: "带 * 的操作仅限人工",
       feed_title: "时间线",
-      feed_subtitle: "所有跟帖，最新在前——它是 note 的一个视图，不是第二份日志",
+      feed_subtitle: "全部跟帖，最新在前",
       feed_none: "这段时间没有跟帖。",
       feed_window_24: "最近 24 小时",
       feed_window_72: "最近 3 天",
@@ -173,11 +185,11 @@
       dash_sync_label: "三核同步率",
       dash_sync_subtitle: "认知 + 任务 + 检索协同",
       dash_kb_label: "项目",
-      dash_kb_subtitle: "本机可检索的项目；当前正在看的那个见顶栏",
+      dash_kb_subtitle: "本机已注册且可检索的项目",
       dash_radar_label: "待分流文献",
       dash_radar_subtitle: "文献雷达 · 仅本项目",
       dash_task_label: "可开始的任务",
-      dash_task_subtitle: "没有被依赖挡住的任务 · 统计范围是所属 Hub，非单个项目",
+      dash_task_subtitle: "无前置依赖的任务（统计范围：所属 Hub）",
 
       // Three-core status band
       core_role_mel: "认知状态",
@@ -198,7 +210,7 @@
       graph_legend_other: "未分类（{kinds}）",
       graph_legend_size: "点越大 = 连接越多",
       graph_needs_build: "这个项目还没建知识图谱。建完之后才能浏览概念之间的连接。",
-      running_jobs_tooltip: "正在运行的后台任务（本机全部项目）——点击查看实时日志。",
+      running_jobs_tooltip: "运行中的后台任务（本机全部项目）。点击查看日志。",
       claims_none_yet: "还没有断言",
       btn_hint_howto: "怎么做",
       kb_table_sub: "本机上 magi 知道的所有项目；切换后所有面板都会指向它。",
@@ -217,7 +229,7 @@
 
       // Dashboard KB Table
       dash_kb_table_title: "已注册项目",
-      dash_kb_table_subtitle: "本机上 magi 知道的所有项目；切换之后所有面板都指向它。",
+      dash_kb_table_subtitle: "本机注册的全部项目；切换后所有面板随之切换。",
       btn_refresh: "刷新",
       th_kb_name: "项目名称",
       th_path: "路径",
@@ -288,10 +300,10 @@
       bal_subtitle: "确定性工作流与任务图谱",
       btn_backlog_sync: "待办文献转任务",
       bal_engine_not_ready: "科研任务追踪引擎未就绪或未安装。请运行 <code>magi setup</code> 初始化工作流引擎。",
-      bal_no_db_initialized: "本项目（或所属 Hub）还没有任务追踪库。这一步是可选的——不想用任务追踪就不必初始化。",
+      bal_no_db_initialized: "尚未初始化任务追踪库（可选）。",
       bal_backlog_sync_desc: "扫描 raw/ 里还没编译成参考卡片的原始文献，为每一篇建一条任务",
       bal_store_at: "任务库文件位于 {root}（该 Hub 下各课题共用一份；下面的数字只算当前项目）。",
-      bal_store_shared: "任务库位于 Hub：{root} —— 下面这四个数字属于该 Hub 下的全部课题，不只是当前项目。",
+      bal_store_shared: "任务库位于 Hub：{root}。以下计数包含该 Hub 下全部项目。",
       bal_store_local: "任务库位于本项目：{root}",
       scope_badge_hub: "Hub 级",
       bal_init_writes_hub: "在 Hub 根目录建库，该 Hub 下所有课题共用",
@@ -326,12 +338,12 @@
       close_strong: "高度契合",
       close_related: "相关",
       close_weak: "较远",
-      badge_close_tip: "语义距离 {d}（越小越接近）。这只是提示，不会因此丢结果。",
+      badge_close_tip: "语义距离 {d}，越小越接近。仅供参考。",
       search_scope_searched: "检索范围：{names}",
-      search_scope_skipped_here: "当前项目「{name}」未被检索：它还没有建索引，下面没有一条结果来自这里。",
+      search_scope_skipped_here: "当前项目「{name}」尚未建索引，未参与检索。",
       search_scope_skipped: "已跳过：{names}",
       search_scope_this_one: "当前项目",
-      search_all_weak: "这次查询没有语义上贴近的内容——下面的结果都只是相对最接近的，未必真的相关。换个说法或用项目里的术语再试试。",
+      search_all_weak: "没有语义上贴近的结果；以下为相对最接近的条目。可换用项目内术语重试。",
       badge_rrf_tip: "综合排名分：把关键词排名和语义排名融合后的结果，越大越靠前。",
       badge_bm25_tip: "按关键词匹配，这条排第 {n}",
       badge_vec_tip: "按语义相近，这条排第 {n}",
@@ -358,9 +370,9 @@
       btn_radar_settings: "设置…",
       btn_dismiss: "跳过",
       tip_dismiss: "只记一条「不感兴趣」的决定，不动任何文件。可用 Undo 撤销。",
-      tip_accept_inbox: "把这篇加进本项目的摄入队列。此刻不下载任何东西——跑一次队列才会抓取和转换，进库前仍要你审批。",
+      tip_accept_inbox: "加入本项目的摄入队列。运行队列后抓取并转换，入库前需审批。",
       tip_create_issue: "在 Hub 的任务库里建一条 survey 任务（该 Hub 下所有项目共用）。不下载、也不写 inbox/。",
-      tip_create_issue_no_store: "本项目所属 Hub 还没有任务库——先到 Balthasar 标签页初始化。",
+      tip_create_issue_no_store: "所属 Hub 尚无任务库，请先在任务页初始化。",
       btn_undo: "撤销",
       digest_source_title: "查看原始简报（{file}）",
       btn_radar_schedule: "定时扫描…",
@@ -381,7 +393,16 @@
 
       // Operations & Danger Zone
       op_rebuild_index: "让搜索找得到新内容",
-      tab_ingest: "摄入队列",
+      tab_ingest: "摄入",
+      ingest_add_title: "加一篇",
+      ingest_src_link: "链接 / DOI / arXiv",
+      ingest_src_file: "上传文件",
+      ingest_src_zotero: "从 Zotero 导入",
+      bal_store_short: "任务库由这个 Hub 下的项目共用；下面的数字只算当前项目。",
+      cfg_unsaved: "{n} 项改动未保存",
+      cfg_save_all: "保存改动",
+      cfg_discard: "放弃",
+      cfg_all_saved: "已写入 {n} 项",
       loading: "加载中…",
       ingest_waiting_label: "队列中等待",
       ingest_waiting_sub: "已排队，尚未抓取",
@@ -395,19 +416,19 @@
       zotero_pick: "选一个分类",
       zotero_whole_library: "整个库",
       zotero_tag_ph: "标签(可选)",
-      zotero_hint: "选中一个分类会连同它下面的所有子分类一起。入队不抓取任何东西——下面的队列负责转换,你负责审批。",
+      zotero_hint: "包含所选分类及其子分类。入队不抓取；运行队列后审批。",
       zotero_pick_something: "先选一个分类,或者填一个标签。",
       zotero_working: "正在读取并入队……",
-      zotero_queued: "已入队 {n} 篇（{already} 篇本来就在队列里,{skipped} 篇没有可抓取的标识符）",
+      zotero_queued: "已入队 {n} 篇（{already} 篇已在队列，{skipped} 篇缺少可抓取标识符）",
       btn_zotero_import: "加入队列",
       ingest_upload_label: "或者,从这台电脑上传一个文件",
-      ingest_upload_hint: "先落进 inbox/,再汇入下面的队列——和其他来源走同一道审批。",
+      ingest_upload_hint: "文件存入 inbox/ 并进入队列，与其他来源一同审批。",
       ingest_upload_working: "正在上传 {name}……",
       ingest_upload_queued: "{name} 已上传并入队,跑一次队列就会转换。",
-      ingest_upload_text_done: "{name} 已放进 inbox/。它已经是文本,不用转换——下次 magi ingest auto 会把它归档。",
+      ingest_upload_text_done: "{name} 已存入 inbox/。已是文本格式，无需转换；下次 magi ingest auto 归档。",
       btn_ingest_add: "排队",
       ingest_add_label: "按链接 / DOI / arXiv 号加一篇",
-      ingest_add_hint: "排队不会抓任何东西。跑完队列，再审批转出来的结果。",
+      ingest_add_hint: "入队不抓取；运行队列后审批结果。",
       ingest_batches_title: "批次",
       ingest_hide_decided: "隐藏已决定的",
       ingest_empty: "队列里还没有东西。",
@@ -418,7 +439,7 @@
       cfg_get_one: "去哪儿拿 ↗",
       cfg_secret_set: "已保存（不回显；填新的可覆盖）",
       cfg_secret_unset: "尚未设置",
-      cfg_secret_empty: "空的不保存——留空不会清除已存的 key。",
+      cfg_secret_empty: "留空不会清除已保存的 key。",
       cfg_provider_ollama: "Ollama（本机）",
       cfg_provider_openai: "云端（OpenAI 兼容接口）",
       cfg_f_s2_api_key: "Semantic Scholar 的 key(免费,可不填)。不带 key 是和所有人共享一个匿名配额。环境变量 SEMANTIC_SCHOLAR_API_KEY 优先",
@@ -426,7 +447,7 @@
       cfg_f_embedding_provider: "向量从哪儿来：本机 Ollama，还是任何 OpenAI 兼容的云端接口",
       cfg_f_embedding_base_url: "云端接口地址，要带 /v1（例：https://api.siliconflow.com/v1）",
       cfg_f_embedding_model: "云端的模型名（例：BAAI/bge-m3）。留空则沿用 models.embedding",
-      cfg_f_embedding_api_key: "云端接口的 key。也可以放进环境变量 MAGI_EMBEDDING_API_KEY——环境变量优先",
+      cfg_f_embedding_api_key: "云端接口 key；也可使用环境变量 MAGI_EMBEDDING_API_KEY（优先）",
       embed_help_open: "不想装 Ollama？",
       embed_help_title: "不装 Ollama 也能做语义检索",
       embed_help_body: "语义检索需要一个「嵌入模型」把文字变成向量。默认走本机 Ollama，但任何**OpenAI 兼容**的 `/v1/embeddings` 接口都可以，改 `embedding.provider` 为 `openai` 即可。\n\n下面几家都实测过接口形状，也都有免费额度或极低价格。具体额度以各家页面为准——它们变得很勤。\n\n| 服务 | base_url | 模型 | 备注 |\n|---|---|---|---|\n| 硅基流动 SiliconFlow | `https://api.siliconflow.com/v1` | `BAAI/bge-m3`、`Qwen/Qwen3-Embedding-0.6B` | 中英都强，有免费模型；注册可能需要国内手机号 |\n| Jina AI | `https://api.jina.ai/v1` | `jina-embeddings-v3` | 接口就是照 OpenAI 抄的，多语言，注册送额度 |\n| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-embedding-001` | 用 Google 账号，免费额度在 AI Studio 里看 |\n| DeepInfra | `https://api.deepinfra.com/v1/openai` | `BAAI/bge-m3` | 没有免费额度，但每百万 token 只要几分钱 |\n\n**Cohere、Voyage、智谱**的接口不是 OpenAI 形状，现在还接不了。\n\n> 换模型会改变向量维度，旧索引装不下。换完要跑 `magi index --rebuild`。",
@@ -439,7 +460,7 @@
       tasks_all_here: "{here} 条任务，全部属于「{name}」。",
       tasks_split: "「{name}」有 {here} 条；同一个任务库里另有 {elsewhere} 条属于 {root} 下的其它项目。",
       tasks_none: "没有待办任务。",
-      tasks_none_here: "这个项目没有任务。勾上上面那个可以看其它项目的。",
+      tasks_none_here: "本项目暂无任务。勾选上方选项可查看其他项目。",
       task_status_open: "待办",
       task_status_in_progress: "进行中",
       task_status_blocked: "被阻塞",
@@ -456,17 +477,17 @@
       task_done_close: "已关闭 {id}。",
       task_done_reopen: "已重新打开 {id}。",
       scope_help_open: "这三个词是什么关系？",
-      scope_help_title: "项目、注册表——到底是什么关系",
+      scope_help_title: "项目与注册表",
       scope_help_body: "一个**项目**就是一个研究方向的目录，里面有 wiki/、raw/、output/，用 `magi init` 建。这个面板上说的「项目」「库」「工作区」都是它，只是以前有好几个叫法。\n\n**注册表**（`~/.config/magi/registry.json`）记着这台机器上都有哪些项目。注册进去有两个用处：顶栏的下拉框能切到它，以及别的项目可以搜到它——后者还要那个项目自己在 `research.search_projects` 里点名，默认谁也不读谁。\n\n注销一个项目只是把它从这张表里拿掉，目录和文件一个字不动。",
       opt_title: "可选组件",
-      opt_sub: "这一整块都是全机生效的，缺哪个 MAGI 都能跑，只是少一项能力。不想要的取消勾选，它就不再被提起。",
+      opt_sub: "全机生效。缺少的组件只影响对应能力；取消勾选后不再提示。",
       opt_unknown: "读不到组件状态。",
       feature_label_radar: "文献雷达",
       feature_label_tasks: "任务追踪",
       opt_unlocks_ollama: "语义（向量）检索，以及本地离线 PDF OCR",
-      opt_unlocks_pandoc: "LaTeX 与 arXiv-HTML 摄入路线——保真度最高的入库方式",
+      opt_unlocks_pandoc: "LaTeX 与 arXiv-HTML 摄入（保真度最高）",
       opt_unlocks_poppler: "本地 OCR 的页面渲染（要和 Ollama 一起用）",
-      opt_unlocks_latex: "深度数学校验——真去编译一遍公式看它成不成立",
+      opt_unlocks_latex: "数学校验（实际编译公式）",
       opt_unlocks_mineru: "云端 PDF 转换，公式和版面都很强",
       opt_hint_ollama: "装好之后，magi setup 会帮你把嵌入模型拉下来",
       opt_hint_poppler: "Windows 构建：https://github.com/oschwartz10612/poppler-windows/releases",
@@ -486,11 +507,11 @@
       feature_turn_on: "打开{name}",
       feature_turn_on_plain: "只改一个全机开关，不装任何东西，也不动项目里的文件。",
       feature_turn_on_installs: "打开开关，并安装它依赖的 {needs}（联网，约一分钟）。",
-      feature_will_install: "需要 {needs}——MAGI 会自己装，不用你操心。",
+      feature_will_install: "需要 {needs}，将自动安装。",
       feature_on_toast: "「{name}」已打开。",
       tool_open_site: "打开 {name} 官网 ↗",
       tool_recheck: "我装好了，重新检测",
-      tool_recheck_tip: "重新在这台机器上找 {name}。MAGI 装不了它——它是另一个项目的安装器。",
+      tool_recheck_tip: "重新检测 {name}。需自行安装。",
       tool_found: "找到 {name} 了。",
       tool_still_missing: "还是没找到 {name}。装完可能要开一个新终端，或者重启 MAGI 服务。",
       op_install_tasks: "安装任务库",
@@ -499,14 +520,14 @@
       op_desc_pull_models: "拉取 MAGI 用到的 Ollama 模型（需要先装好 Ollama）",
       btn_install_tasks: "安装任务库",
       btn_pull_models: "拉取 Ollama 模型",
-      ingest_run_caption: "把队列里的全部抓下来、转换、跑校验 · 此步不会写入项目",
-      ingest_commit_caption: "把已批准的条目移入 raw/,刷新目录表和图谱 · 编译成参考卡片、以及让搜索找得到,是之后各自独立的一步",
+      ingest_run_caption: "抓取、转换并校验队列中的全部条目；不写入项目",
+      ingest_commit_caption: "将已批准条目移入 raw/ 并刷新目录与图谱；编译与建索引另行执行",
       doctor_scope: "工具与路径是全机的；「本项目」相关的几行说的是：{name}",
       metric_not_applicable: "未建库",
       hint_dest_tab: "点击跳转到「{name}」标签页 · 不执行任何命令",
       hint_dest_docs: "点击跳转到「{name}」中对应的章节 · 不执行任何命令",
       op_desc_index: "重建搜索索引 · 要向量化,全量几分钟(没有 Ollama 则退化为关键词)",
-      op_desc_graph_build: "重扫 wikilink 和标签 · 很快,不用模型",
+      op_desc_graph_build: "重扫 wikilink 与标签；无需模型",
       op_desc_wiki_reindex: "重新生成各 wiki 目录的 _index.md 清单 · 秒级",
       op_desc_link: "用向量相似度给概念卡片之间建语义双链（需要 Ollama）",
       op_desc_lint_fix: "就地修复死链和 frontmatter 问题",
@@ -519,10 +540,10 @@
       radar_gap_caption: "引用缺口：找那些理应引用你却没引的新论文 · 设置：改雷达盯的关键词和作者",
       radar_settings_tip: "编辑本项目 config.yaml 里的 radar 配置",
       op_desc_radar_citation_gap: "侦察那些理应引用你却没引的新论文",
-      op_desc_ingest_batch_run: "抓取并转换队列里的所有条目——转完等你审批，不会进库",
-      op_desc_ingest_batch_commit: "把已批准的文档移进 raw/；只要还有没决定的就拒绝执行",
+      op_desc_ingest_batch_run: "抓取并转换队列中的全部条目，转换后等待审批",
+      op_desc_ingest_batch_commit: "将已批准的文档移入 raw/；存在未决定条目时不执行",
       ingest_preview: "看看转出来的内容",
-      ingest_cannot_approve: "这条转换失败了，没有产物可批准——拒绝它，会自动改走下一档路线。",
+      ingest_cannot_approve: "转换失败，无可批准产物。拒绝后自动尝试下一档转换路线。",
       ingest_approve: "通过",
       ingest_reject: "拒绝",
       ingest_undo: "撤销",
@@ -534,7 +555,7 @@
       op_ingest_auto: "收下 inbox/ 里的文件",
       op_desc_ingest_auto: "把 inbox/ 里散着的文件各自送去合适的摄入路线并归档。",
       inbox_title: "inbox/ 里还躺着 {n} 个文件",
-      inbox_sub: "面板上那句「把 PDF 丢进 inbox/」说的就是这里。它们还没有进队列——队列只装从上面几个框加进来的东西。",
+      inbox_sub: "inbox/ 中尚未入队的文件。",
       inbox_pickup: "收下这些",
       op_ingest_batch_commit: "提交已审批批次",
       op_build_graph: "重建概念图谱",
@@ -619,7 +640,7 @@
       badge_missing: "缺失",
       badge_optional: "可选",
       badge_declined: "已跳过",
-      doctor_all_good: "没有任何问题。{count} 个可选组件未安装 —— MAGI 不装它们也能用。",
+      doctor_all_good: "未发现问题。{count} 个可选组件未安装。",
       doctor_get_it: "下载",
       doctor_legacy_found: "检测到旧版冲突文件 ({count}):",
       doctor_legacy_hint: "您可在「运维与操作」>「危险操作区」>「清理旧版历史文件」中安全清理。",
@@ -640,19 +661,19 @@
 
       // Sync Hints (actionable)
       hints_title: "建议操作",
-      hints_subtitle: "同步报告给出的下一步建议——点按钮直接执行",
+      hints_subtitle: "来自同步报告的建议，可直接执行",
       hint_graph_build: "知识图谱落后于卡片内容，需要重建",
       hint_index: "检索索引缺失或已过期，需要重建",
-      hint_index_unreadable: "output/index.db 不是数据库文件——已损坏，重建会先把它挪到 .corrupt",
+      hint_index_unreadable: "output/index.db 已损坏；重建时先移到 .corrupt",
       hint_backlog_sync: "有未编译文献尚未纳入任务追踪",
-      hint_pm_init: "还没有任务追踪库（可选，不用任务追踪就可以忽略）",
+      hint_pm_init: "尚未初始化任务追踪库（可选）",
       hint_radar_review: "{pending} 份文献雷达简报等待审阅",
       hint_radar_gaps: "{pending} 份引用缺口报告等待审阅",
-      hint_radar_overdue: "文献雷达上次收割是 {days} 天前（窗口 {window} 天）——跑一次,或检查定时任务",
+      hint_radar_overdue: "文献雷达上次收割于 {days} 天前（窗口 {window} 天）；运行一次或检查定时任务",
       hint_compile_pending: "{backlog} 篇原始文献还没编译成参考卡片",
       hint_claims_unverified: "有学术命题尚未验证（到 Melchior 面板查看）",
       hint_bd_ready: "有可直接开工的任务（到 Balthasar 面板查看）",
-      hint_install_beads: "任务引擎 (beads) 未安装——见安装指引",
+      hint_install_beads: "任务引擎 (beads) 未安装；见安装指引",
       hint_ingest_start: "把论文 PDF / 源文件放进 inbox/，用 ingest 技能开始建库",
       btn_hint_run: "执行",
       btn_hint_goto: "前往",
@@ -675,12 +696,12 @@
       bib_no_entry: "缺少可引用的 frontmatter（title/authors/year）",
       toast_bib_copied: "BibTeX 已复制到剪贴板（{n} 条）",
       mel_drafts_title: "论文草稿",
-      mel_drafts_subtitle: "drafts/ 下的草稿——进检索、不进图谱（draft skill）",
-      drafts_none: "还没有草稿——用 draft skill 开始写作流程。",
+      mel_drafts_subtitle: "drafts/ 下的草稿；进入检索，不进入图谱",
+      drafts_none: "暂无草稿。",
 
       // Workspace config
       cfg_title: "项目配置",
-      cfg_subtitle: "config.yaml 的科研旋钮——修改只动对应行，注释与其余内容原样保留",
+      cfg_subtitle: "config.yaml 的研究参数；只修改对应行，其余内容保持不变",
       cfg_loading: "正在加载配置...",
       btn_cfg_save: "保存",
       toast_cfg_saved: "已写入 {key}",
@@ -689,8 +710,8 @@
       cfg_f_radar_days: "雷达回溯天数（只影响 arXiv 那条腿；Semantic Scholar 的推荐固定只覆盖最近 60 天）",
       cfg_f_radar_max_candidates: "每次收割的候选上限",
       cfg_f_radar_arxiv_categories: "arXiv 分类（如 cond-mat.str-el）",
-      cfg_f_radar_seed_arxiv_ids: "口味样本 arXiv ID（可留空 —— 文库里参考卡片上的会自动并入）",
-      cfg_f_radar_own_arxiv_ids: "我方论文 arXiv ID（留空会退回用上面那组,可能把别人的论文当成你的）",
+      cfg_f_radar_seed_arxiv_ids: "口味样本 arXiv ID（可留空；自动并入参考卡片）",
+      cfg_f_radar_own_arxiv_ids: "我方论文 arXiv ID（留空则使用上一组）",
       cfg_f_ocr_use_mineru: "使用 MinerU 云端 OCR（需在 config 中配 token）",
       cfg_f_models_embedding: "语义模型（Ollama 模型名）",
 
@@ -744,12 +765,12 @@
       update_cannot_apply: "这个安装方式不能自动升级。",
       update_checking: "正在检查…",
       update_latest_already: "已经是最新版本 {v}。",
-      update_unreachable: "连不上 PyPI，查不到版本。这是网络问题，不是\"没有新版本\"。",
+      update_unreachable: "无法连接 PyPI，未能检查版本。",
       // Ops catalog & danger confirm
-      ops_none_here: "这个面板的操作都在别处了。",
+      ops_none_here: "此面板没有可用操作。",
       ops_here_dashboard: "项目维护",
       ops_here_dashboard_sub: "关于这个项目的报表",
-      ops_here_melchior: "重建这个面板读的东西",
+      ops_here_melchior: "重建图谱与索引",
       ops_here_melchior_sub: "图谱、概念链接,以及 wiki 目录表",
       ops_here_casper: "重建搜索读的东西",
       ops_here_casper_sub: "刚加的东西搜不到时,跑这个",
@@ -758,7 +779,7 @@
       ops_loading: "正在加载操作目录...",
       op_stats: "项目统计",
       ops_setup_title: "项目安装",
-      ops_setup_sub: "都可以重复运行，也都不删任何东西",
+      ops_setup_sub: "可重复运行，不删除任何内容",
       op_close: "收工检查",
       op_install: "装进 agent CLI",
       btn_danger_install_schedule: "注册/卸载定时收割",
@@ -792,13 +813,16 @@
       graph_hubs_hint: "连接最多的词条，点击阅读卡片",
       graph_broken_empty: "没有断链，链接网络完整。",
       graph_view_map: "图谱",
+      graph_search_ph: "搜索图谱：标题或全文关键词",
+      graph_search_none: "没有匹配的节点",
+      graph_search_by_text: "全文",
       graph_map_tags: "显示标签节点",
       map_kinds_all: "全部",
       map_kinds_library: "只看库",
       map_kinds_research: "只看研究状态",
       map_skeleton: "只看骨架",
       graph_map_hint: "拖拽节点 · 滚轮缩放 · 点击节点阅读卡片",
-      graph_map_empty: "图谱为空——先运行 magi graph build 构建知识图谱。",
+      graph_map_empty: "图谱为空。请先运行 magi graph build。",
       graph_map_truncated: "节点较多，已按连接度显示前 {n} 个",
       graph_map_no_d3: "图谱物理引擎未加载——请检查 /vendor/d3-*.min.js 是否可访问",
 
@@ -807,9 +831,10 @@
       glass_toggle_title: "切换苹果液态玻璃效果 (VisionOS 空间拟态材质)",
       glass_enabled_toast: "💎 苹果液态玻璃效果已开启",
       glass_disabled_toast: "⚪ 经典无透光实体卡片模式已切换",
-      glass_btn_title: "玻璃材质调节（模糊 / 不透明度）",
+      glass_btn_title: "外观与环境：主题、MAGI 模式、玻璃材质、语言、环境体检",
       glass_blur_label: "模糊",
       glass_alpha_label: "不透明",
+      bg_bright_label: "背景明暗",
       glass_crt_label: "CRT 扫描线",
       glass_reset: "重置",
       graph_th_title: "标题",
@@ -859,9 +884,9 @@
       browsing_badge: "Browsing",
       browsing_badge_title: "The panel is browsing a different project (session-level choice; the server's launch location is unchanged)",
       term_retention_note: "Job history persists across restarts (last 40 records, ui-jobs.jsonl in the magi config directory).",
-      sync_label: "Sync:",
+      sync_label: "Sync",
       running_jobs_label: "Running Jobs:",
-      core_sync_note: "Readiness, not a score for how much you know. A new project starts low; it rises as you clear what the three cores flag.",
+      core_sync_note: "Project readiness, a weighted average over knowledge, tasks and retrieval. Clearing what the three cores flag raises it.",
       sync_ratio_tooltip: "How ready this project is: a weighted average over knowledge (graph freshness, uncompiled backlog, claim coverage), task tracking, and the retrieval index. Clear whatever the three cores above flag and this goes up.",
       doctor_btn: "Doctor",
       doctor_btn_title: "Environment Doctor Check",
@@ -870,30 +895,42 @@
       magi_mode_btn_title: "Toggle EVA NERV MAGI Command Theme",
 
       // Navigation Tabs
-      tab_dashboard: "Dashboard",
-      tab_melchior: "Melchior (Cognitive)",
-      tab_balthasar: "Balthasar (Tasks)",
-      tab_casper: "Casper (Retrieval)",
-      tab_radar: "Literature Radar",
-      tab_operations: "Operations & Danger Zone",
-      tab_docs: "Docs & Help",
+      tab_dashboard: "Overview",
+      tab_melchior: "Knowledge",
+      tab_balthasar: "Tasks",
+      tab_casper: "Search",
+      tab_radar: "Radar",
+      tab_melchior_eva: "Melchior",
+      tab_balthasar_eva: "Balthasar",
+      tab_casper_eva: "Casper",
+      tab_operations: "Operations",
+      tab_docs: "Docs",
+      tab_melchior_title: "Knowledge: graph, entries, propositions and lines (Melchior)",
+      tab_balthasar_title: "Task tracking (Balthasar)",
+      tab_casper_title: "Search (Casper)",
+      theme_label: "Theme",
+      theme_light: "Light",
+      theme_dark: "Dark",
+      lang_label: "Language",
+      magi_mode_label: "MAGI MODE",
+      glass_label: "Glass material",
 
       // v2: the map, the dump box, threads, the feed
-      dump_title: "Say it here",
-      dump_subtitle: "No format and no category — deciding where a thought goes at the moment you have it is the cost this box removes. Filing is the agent's job.",
-      dump_ph: "the disorder angle is probably a dead end",
-      dump_btn: "Add to the pile",
+      dump_title: "Quick note",
+      dump_subtitle: "Any format, no filing required; the agent sorts it.",
+      dump_ph: "e.g. the disorder angle is probably a dead end",
+      dump_btn: "Add",
       dump_saved: "Written down ({n} still unfiled)",
       queue_title: "Decisions waiting on you",
-      queue_subtitle: "The only events allowed to interrupt you",
-      queue_none: "Nothing. Every open question is somebody else's turn.",
+      queue_subtitle: "Items waiting on your decision",
+      queue_none: "Nothing is waiting on you.",
       proposal_accept: "Accept",
       proposal_reject: "Turn down",
       proposal_promote: "Make it code",
       proposal_retire: "Retire this rule",
       proposal_done: "Done: {verb}",
       lines_title: "Research lines",
-      lines_subtitle: "Phase, what is open on it, and when it last moved",
+      lines_subtitle: "Phase, open items and latest activity per line",
       lines_none: "No lines yet.",
       map_loading: "Reading the notes…",
       flag_over_wip: "over WIP",
@@ -902,11 +939,11 @@
       back_right: "predictions right",
       back_bet_line: "you said {bet}, it came out {outcome}",
       back_unknown: "recorded as \"don't know\"",
-      back_unknown_only: "prediction(s) recorded as \"don't know\" — an honest prior, and not scored.",
-      back_late: "bet(s) written down after the answer was already in — not scored, and not a prediction.",
+      back_unknown_only: "prediction(s) recorded as \"don't know\"; not scored.",
+      back_late: "bet(s) recorded after the outcome was known; not scored.",
       back_decisions: "Decisions, most recent last:",
       threads_title: "Threads",
-      threads_subtitle: "Propositions, questions and lines — body owned by whoever opened it, discussion append-only",
+      threads_subtitle: "Propositions, questions and lines; the body belongs to its author, discussion is append-only.",
       threads_none: "No notes yet.",
       filter_all_kinds: "All kinds",
       filter_all_statuses: "All statuses",
@@ -919,29 +956,29 @@
       th_open: "Open",
       th_last_move: "Last move",
       th_flags: "Flags",
-      thread_say_ph: "what happened, in your words",
+      thread_say_ph: "Record what happened",
       btn_post: "Post",
       btn_close: "Close",
-      need_words: "Write something first — an empty post records nothing",
+      need_words: "Enter some text first.",
       need_reason: "A status change needs a reason: the flip and the sentence saying why are one action, not two",
-      moves_need_reason_first: "Write a sentence above first — the flip and the reason are one action.",
-      need_workspace: "Pick a project in the top bar first — otherwise this lands in whichever directory the server was started in",
+      moves_need_reason_first: "Write the reason above before changing the status.",
+      need_workspace: "Select a project in the top bar first.",
       badge_kb_gone: "directory gone",
       btn_review: "Have this reviewed",
       btn_cancel: "Never mind",
       btn_save_draft: "Save as a draft",
       draft_title_ph: "What this write-up is about",
-      draft_body_ph: "Paste the text — it lands in drafts/, and then it can be published",
+      draft_body_ph: "Paste the text (saved under drafts/)",
       draft_needs_both: "A title and some text are both needed",
       draft_saved: "Draft saved",
       btn_publish_preview: "Show me what it buries",
       close_why_ph: "Why this line is ending (goes into the closing post)",
-      review_only_when_supported: "This does not claim to be solved yet, so there is nothing for a second reader to check. It becomes reviewable at `supported`.",
+      review_only_when_supported: "Not reviewable until the proposition reaches `supported`.",
       line_set: "Its lines are set",
       line_needs_reason: "Write a sentence above saying why it belongs there",
       btn_thread_new: "Open a new one",
-      btn_decide: "Record this as my decision",
-      decide_needs_words: "Write it in your own words above — decisions.md keeps what you said, not a summary",
+      btn_decide: "Record decision",
+      decide_needs_words: "Write the decision above first.",
       decided: "Written into decisions.md",
       bet_none: "no prediction",
       bet_supported: "I bet it holds",
@@ -951,7 +988,7 @@
       kind_proposition: "Proposition (a claim that could be wrong)",
       kind_question: "Question (nobody knows yet)",
       kind_line: "Research line (a view over related claims)",
-      new_title_ph: "Title — what it actually claims",
+      new_title_ph: "Title (what it claims)",
       new_purpose_ph: "Why this is worth opening now",
       new_line_ph: "Which line it belongs to (optional)",
       new_hint: "The title becomes its permanent id. A proposition is a claim that could be wrong; a question is one nobody has answered; a line is a view over related claims.",
@@ -961,49 +998,49 @@
       btn_set_line: "Set its lines",
       btn_close_line: "End this line",
       btn_publish: "Publish and file",
-      close_would_silence: "Closing it means these {n} are never mentioned again:",
-      close_nothing_open: "Nothing is still open on this line.",
-      close_why_prompt: "Ending {line} — why? (this goes into the closing post)",
+      close_would_silence: "After closing, these {n} items will no longer be followed up:",
+      close_nothing_open: "No open items on this line.",
+      close_why_prompt: "Reason for ending {line} (recorded in the closing post)",
       closed_line: "{line} is closed",
       publish_no_papers: "No .md in drafts/ or output/ — put the write-up there first.",
       publish_which: "Which paper?",
       publish_would_bury: "These {n} will be marked superseded by the paper:",
       publish_why: "What does this paper report? (this goes into the record)",
-      publish_loose_ends: "Loose ends: {slugs}. Publishing anyway — say why; it goes into the record.",
+      publish_loose_ends: "Open items remain: {slugs}. To publish anyway, give a reason (it is recorded).",
       published: "Filed, and the work it reports is retired",
       btn_review_running: "asking…",
-      review_hint: "Asks another vendor's CLI to read this claim — one that does not share your conversation. Costs one call from the week's budget.",
+      review_hint: "An independent review by another vendor's CLI, without this conversation's context. Uses one call from the weekly budget.",
       review_confirm: "Ask {host} (model {model}) to review this claim?\n\nThis spends one call from this week's budget: {left}/{limit} left.\nUsually about fifteen seconds.",
       review_running: "Asking {host} — usually about fifteen seconds.",
-      review_switched_off: "MAGI's own model calls are switched off (research.llm_calls). Turn them on to review.",
+      review_switched_off: "Model calls are off (research.llm_calls). Turn them on to review.",
       review_by: "{host} decided ({model})",
-      review_unclear: "\"Unclear\" is neither a pass nor a rejection — the reviewer is saying it could not tell from the evidence it was given. The claim stays on the list.",
+      review_unclear: "\"Unclear\": the reviewer could not decide on the available evidence. The proposition stays in the review queue.",
       review_budget_left: "{left}/{limit} calls left this week.",
-      dash_spending: "MAGI's own calls this week",
+      dash_spending: "Automatic calls this week",
       dash_spending_line: "{spent}/{limit} used, {left} left",
       kb_hide_gone: "Hide the {n} whose directory is gone",
       cfg_review_host_auto: "auto (probe PATH for one that is not the author)",
-      cfg_f_review_host: "Which CLI reviews a claim. Empty picks one that is not the author — a different vendor is the cheapest approximation of independence.",
+      cfg_f_review_host: "Which CLI runs reviews. Empty picks a host other than the author.",
       cfg_f_coaching: "How hard the end-of-session gate pushes. off = never blocks; light = asks for missing bookkeeping; strict = no derivation starts without a written prediction.",
       cfg_f_wip_limit: "How many propositions may be open on one line at once. Seven is a working-memory number, not a measurement: past it nobody can hold what is still unsettled on that line.",
       cfg_f_stall_days: "Days of silence before a line is called quiet. Long enough that a week off is not a flag, short enough that a forgotten line surfaces within a month.",
-      cfg_f_weekly_calls: "How many model calls MAGI may make on its own initiative each week (review, the slow loop, sorting the pile). Counted in calls, not money — a headless CLI does not say what a request cost. Failed ones count: a timeout spent the wall clock too. Once spent it refuses to start rather than quietly doing less.",
-      cfg_f_llm_calls: "The master switch for MAGI's own calls. Off means it makes none at all, rather than silently making fewer. Work you ask your agent to do is unaffected.",
-      cfg_f_rule_budget: "How many lines the rules section in AGENTS.md may hold. Every session on every host reads that block, so a rule that goes in is paid for by every session afterwards.",
-      cfg_f_rules: "The rules this project has earned, written in a closed vocabulary so that each one is actually checked on every run. `magi reflect promote` adds them; this is where one is retired.",
-      cfg_f_search_projects: "Which other registered projects this project's searches reach. Empty means just this one. The registry's Searchable tick is machine-wide and says whether a library may be read at all; this says which ones this project actually reads.",
-      cfg_f_hosts: "Agent CLIs this project knows about beyond the built-in ones. There are too many CLIs in the world to enumerate, so a host is a record: its binary, where its skills go, how to call it headless.",
+      cfg_f_weekly_calls: "Model calls MAGI may make on its own per week (review, slow loop, note filing). Counted per call; failed calls count.",
+      cfg_f_llm_calls: "Master switch for MAGI's automatic calls. Off makes none; work you assign to your agent is unaffected.",
+      cfg_f_rule_budget: "Maximum lines in the AGENTS.md rules section. Every session reads it.",
+      cfg_f_rules: "This project's rules, in a closed vocabulary, checked on every run. Added by `magi reflect promote`; retire them here.",
+      cfg_f_search_projects: "Other registered projects this project's searches include. Empty means this project only.",
+      cfg_f_hosts: "Agent CLIs available beyond the built-in ones: binary, skill location, headless invocation.",
       cfg_f_review_model: "Which model reviews. Empty means that host's cheap tier.",
-      cfg_f_review_effort: "How hard it thinks. Empty means that host's own default; the model id often carries the level already.",
+      cfg_f_review_effort: "Reasoning effort. Empty uses the host default; the model id often carries it.",
       cfg_model_cheap: "the cheap tier ({id})",
-      cfg_model_default: "that host's own default",
-      cfg_model_pin_host: "pin review_host first — model names are not portable between vendors",
-      cfg_model_typed: "this host does not list its models; type one",
+      cfg_model_default: "host default",
+      cfg_model_pin_host: "Set review_host first; model names differ by vendor",
+      cfg_model_typed: "This host does not list models; enter one",
       cfg_model_stale: "listed from cache (up to a day old)",
-      cfg_effort_default: "that host's own default",
-      moves_human_only: "* only a person can make this move",
+      cfg_effort_default: "host default",
+      moves_human_only: "* requires a person",
       feed_title: "Feed",
-      feed_subtitle: "Every post, newest first — a view over the notes, not a second log",
+      feed_subtitle: "Every post, newest first",
       feed_none: "Nothing posted in this window.",
       feed_window_24: "Last 24 hours",
       feed_window_72: "Last 3 days",
@@ -1014,11 +1051,11 @@
       dash_sync_label: "Sync Ratio",
       dash_sync_subtitle: "Melchior + Balthasar + Casper",
       dash_kb_label: "Projects",
-      dash_kb_subtitle: "Searchable on this machine — the one you are viewing is named in the topbar",
+      dash_kb_subtitle: "Registered and searchable on this machine",
       dash_radar_label: "Papers to Triage",
       dash_radar_subtitle: "Literature radar · this project only",
       dash_task_label: "Tasks Ready",
-      dash_task_subtitle: "Not blocked by anything else · counted across the hub, not this project alone",
+      dash_task_subtitle: "Tasks with no blocking dependency (counted across the hub)",
 
       // Three-core status band
       core_role_mel: "Cognitive state",
@@ -1039,7 +1076,7 @@
       graph_legend_other: "unclassified ({kinds})",
       graph_legend_size: "bigger dot = more links",
       graph_needs_build: "No knowledge graph for this project yet. Build it to browse how concepts connect.",
-      running_jobs_tooltip: "Background jobs running right now, across every project on this machine. Click to watch the log.",
+      running_jobs_tooltip: "Background jobs running now, across all projects. Click to view the log.",
       claims_none_yet: "No claims recorded yet",
       btn_hint_howto: "How",
       kb_table_sub: "Every project magi knows about on this machine. Switching points every panel at it.",
@@ -1058,7 +1095,7 @@
 
       // Dashboard KB Table
       dash_kb_table_title: "Registered Projects",
-      dash_kb_table_subtitle: "Every project magi knows about on this machine. Switching points every panel at it.",
+      dash_kb_table_subtitle: "Every project registered on this machine. Switching changes every panel.",
       btn_refresh: "Refresh",
       th_kb_name: "Project",
       th_path: "Path",
@@ -1129,10 +1166,10 @@
       bal_subtitle: "Deterministic work graph and issue tracker",
       btn_backlog_sync: "Sync Backlog to Tasks",
       bal_engine_not_ready: "Task tracking engine is not ready or not installed. Run <code>magi setup</code> to initialize workflow engine.",
-      bal_no_db_initialized: "No task-tracking database in this project or its hub. This step is optional — skip it if you do not want task tracking.",
+      bal_no_db_initialized: "No task-tracking database yet (optional).",
       bal_backlog_sync_desc: "Scan raw/ for sources with no compiled reference card yet, and open one task per source",
       bal_store_at: "The task store file lives at {root}, shared by the topics under it — the counts and list below are just this project's.",
-      bal_store_shared: "Task store lives at the hub: {root} — the four numbers below cover every topic under it, not just this project.",
+      bal_store_shared: "Task store at the hub: {root}. The counts below cover every project under it.",
       bal_store_local: "Task store lives in this project: {root}",
       scope_badge_hub: "hub-level",
       bal_init_writes_hub: "Creates the store at the hub root, shared by every topic under it",
@@ -1167,12 +1204,12 @@
       close_strong: "close",
       close_related: "related",
       close_weak: "distant",
-      badge_close_tip: "Semantic distance {d} — lower is closer. This is a hint, not a filter; nothing is dropped.",
+      badge_close_tip: "Semantic distance {d}; lower is closer. For reference only.",
       search_scope_searched: "Searched: {names}",
-      search_scope_skipped_here: "The project you are viewing, {name}, was NOT searched — it has no retrieval index, so none of these hits come from it.",
+      search_scope_skipped_here: "The current project, {name}, has no index and was not searched.",
       search_scope_skipped: "Skipped: {names}",
       search_scope_this_one: "this project",
-      search_all_weak: "Nothing in this project is semantically close to that query. The results below are only the nearest available, and may not be relevant — try different wording, or a term the library actually uses.",
+      search_all_weak: "No semantically close results; the items below are only the nearest available. Try the library's own terms.",
       badge_rrf_tip: "Combined rank score: the keyword ranking and the meaning ranking fused into one. Higher is more relevant.",
       badge_bm25_tip: "Ranked #{n} by keyword match",
       badge_vec_tip: "Ranked #{n} by meaning similarity",
@@ -1199,9 +1236,9 @@
       btn_radar_settings: "Settings…",
       btn_dismiss: "Skip",
       tip_dismiss: "Records a 'not interested' decision. Touches no files, and Undo reverses it.",
-      tip_accept_inbox: "Adds this paper to the project's ingest queue. Downloads nothing now — running the queue fetches and converts it, and it still needs your approval before entering the library.",
+      tip_accept_inbox: "Adds to this project's ingest queue. Running the queue fetches and converts it; approval is required before it enters the library.",
       tip_create_issue: "Opens a survey task in the task store at the hub, shared by every topic under it. No download, nothing written to inbox/.",
-      tip_create_issue_no_store: "The hub for this project has no task store yet — initialize it on the Balthasar tab.",
+      tip_create_issue_no_store: "The hub has no task store yet. Initialize it on the Tasks tab.",
       btn_undo: "Undo",
       digest_source_title: "View digest source ({file})",
       btn_radar_schedule: "Schedule…",
@@ -1222,7 +1259,16 @@
 
       // Operations & Danger Zone
       op_rebuild_index: "Make search find new content",
-      tab_ingest: "Ingest Queue",
+      tab_ingest: "Ingest",
+      ingest_add_title: "Add a paper",
+      ingest_src_link: "Link / DOI / arXiv",
+      ingest_src_file: "Upload a file",
+      ingest_src_zotero: "From Zotero",
+      bal_store_short: "The task store is shared by the projects under this hub; the counts below are this project's.",
+      cfg_unsaved: "{n} unsaved change(s)",
+      cfg_save_all: "Save changes",
+      cfg_discard: "Discard",
+      cfg_all_saved: "Saved {n} setting(s)",
       loading: "Loading…",
       ingest_waiting_label: "Waiting in Queue",
       ingest_waiting_sub: "Queued, not yet fetched",
@@ -1236,19 +1282,19 @@
       zotero_pick: "Pick a collection",
       zotero_whole_library: "The whole library",
       zotero_tag_ph: "tag (optional)",
-      zotero_hint: "A folder includes everything filed beneath it. Queuing fetches nothing — the queue below converts, and you approve.",
+      zotero_hint: "Includes the collection and everything beneath it. Queuing fetches nothing; run the queue, then approve.",
       zotero_pick_something: "Pick a collection, or type a tag.",
       zotero_working: "Reading and queuing…",
-      zotero_queued: "Queued {n} ({already} were already waiting, {skipped} had nothing to fetch them by)",
+      zotero_queued: "Queued {n} ({already} already queued, {skipped} without a fetchable identifier)",
       btn_zotero_import: "Queue them",
       ingest_upload_label: "Or upload a file from this computer",
-      ingest_upload_hint: "Lands in inbox/ and joins the queue below, so it goes through the same review as everything else.",
+      ingest_upload_hint: "Saved to inbox/ and queued for the same review as every other source.",
       ingest_upload_working: "Uploading {name}…",
       ingest_upload_queued: "{name} uploaded and queued — run the queue to convert it.",
-      ingest_upload_text_done: "{name} is in inbox/. It is already text, so there is nothing to convert — the next 'magi ingest auto' files it.",
+      ingest_upload_text_done: "{name} saved to inbox/. Already text, no conversion needed; the next magi ingest auto files it.",
       btn_ingest_add: "Queue it",
       ingest_add_label: "Add a paper by link, DOI, or arXiv id",
-      ingest_add_hint: "Queuing fetches nothing. Run the queue, then approve what came out.",
+      ingest_add_hint: "Queuing fetches nothing; run the queue, then approve the results.",
       ingest_batches_title: "Batches",
       ingest_hide_decided: "Hide decided",
       ingest_empty: "Nothing queued yet.",
@@ -1259,7 +1305,7 @@
       cfg_get_one: "where to get one \u2197",
       cfg_secret_set: "saved (never shown again; type a new one to replace)",
       cfg_secret_unset: "not set",
-      cfg_secret_empty: "Nothing to save — leaving it blank does not clear a stored key.",
+      cfg_secret_empty: "Leaving it blank does not clear the stored key.",
       cfg_provider_ollama: "Ollama (this machine)",
       cfg_provider_openai: "Cloud (any OpenAI-compatible endpoint)",
       cfg_f_s2_api_key: "Semantic Scholar key (free, optional). Without one the radar shares an anonymous quota with everybody. $SEMANTIC_SCHOLAR_API_KEY wins over this",
@@ -1267,7 +1313,7 @@
       cfg_f_embedding_provider: "Where vectors come from: local Ollama, or any OpenAI-compatible cloud endpoint",
       cfg_f_embedding_base_url: "Cloud endpoint, including /v1 (e.g. https://api.siliconflow.com/v1)",
       cfg_f_embedding_model: "Model id at that endpoint (e.g. BAAI/bge-m3). Blank falls back to models.embedding",
-      cfg_f_embedding_api_key: "Key for the cloud endpoint. $MAGI_EMBEDDING_API_KEY works too and wins over this",
+      cfg_f_embedding_api_key: "Key for the cloud endpoint; the MAGI_EMBEDDING_API_KEY environment variable takes precedence",
       embed_help_open: "Would rather not install Ollama?",
       embed_help_title: "Semantic search without installing Ollama",
       embed_help_body: "Semantic search needs an embedding model to turn text into vectors. The default is a local Ollama, but any **OpenAI-compatible** `/v1/embeddings` endpoint works — set `embedding.provider` to `openai`.\n\nThese four were checked against their own live docs for endpoint shape, and each has a free tier or is very cheap. Treat the specific allowances as provisional; providers change them often.\n\n| Service | base_url | Model | Notes |\n|---|---|---|---|\n| SiliconFlow | `https://api.siliconflow.com/v1` | `BAAI/bge-m3`, `Qwen/Qwen3-Embedding-0.6B` | Strong on both English and Chinese, several free models; signup may want a Chinese phone number |\n| Jina AI | `https://api.jina.ai/v1` | `jina-embeddings-v3` | Schema is modelled on OpenAI's, multilingual, free trial tokens |\n| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-embedding-001` | Ordinary Google account; free allowance shown in AI Studio |\n| DeepInfra | `https://api.deepinfra.com/v1/openai` | `BAAI/bge-m3` | No free tier, but cents per million tokens |\n\n**Cohere, Voyage and Zhipu** are not OpenAI-shaped and are not supported yet.\n\n> Changing model changes the vector width, which an existing index cannot hold. Run `magi index --rebuild` afterwards.",
@@ -1280,7 +1326,7 @@
       tasks_all_here: "{here} task(s), all of them in {name}.",
       tasks_split: "{here} in {name}; the same store holds {elsewhere} more belonging to other topics under {root}.",
       tasks_none: "No open tasks.",
-      tasks_none_here: "No tasks in this project. Tick the box above to see the other topics'.",
+      tasks_none_here: "No tasks in this project. Tick the box above to include other projects.",
       task_status_open: "open",
       task_status_in_progress: "in progress",
       task_status_blocked: "blocked",
@@ -1297,17 +1343,17 @@
       task_done_close: "Closed {id}.",
       task_done_reopen: "Reopened {id}.",
       scope_help_open: "What are these three words?",
-      scope_help_title: "Projects and the registry — how they relate",
+      scope_help_title: "Projects and the registry",
       scope_help_body: "A **project** is one research subject's directory, holding wiki/, raw/ and output/. You make one with `magi init`. Everything this dashboard calls a project — it used to also say workspace, topic and knowledge base — is this.\n\nThe **registry** (`~/.config/magi/registry.json`) is the list of projects on this machine. Registering one does two things: the picker in the top bar can switch to it, and other projects are allowed to search it — which they still only do if they name it in `research.search_projects`, since by default a search stops at its own project.\n\nUnregistering removes a project from that list and touches no files.",
       opt_title: "Optional components",
-      opt_sub: "All of this is machine-wide, and MAGI runs without any of it — each one just turns on a specific capability. Untick what you do not want and it stops being mentioned.",
+      opt_sub: "Machine-wide. A missing component only disables its capability; untick it to stop the reminders.",
       opt_unknown: "Could not read component status.",
       feature_label_radar: "Literature radar",
       feature_label_tasks: "Task tracking",
       opt_unlocks_ollama: "semantic (vector) search, and local offline OCR for PDFs",
-      opt_unlocks_pandoc: "the LaTeX and arXiv-HTML ingest routes — the best-fidelity way in",
+      opt_unlocks_pandoc: "LaTeX and arXiv-HTML ingest (highest fidelity)",
       opt_unlocks_poppler: "local OCR page rendering (needed alongside Ollama)",
-      opt_unlocks_latex: "deep math validation — checks a formula actually compiles",
+      opt_unlocks_latex: "Math validation (formulas are compiled)",
       opt_unlocks_mineru: "cloud PDF conversion, strong on formulas and layout",
       opt_hint_ollama: "after installing, magi setup pulls the embedding model for you",
       opt_hint_poppler: "Windows builds: https://github.com/oschwartz10612/poppler-windows/releases",
@@ -1327,11 +1373,11 @@
       feature_turn_on: "Turn on {name}",
       feature_turn_on_plain: "Flips one machine-wide switch. Installs nothing and touches no project files.",
       feature_turn_on_installs: "Flips the switch and installs {needs}, which it needs (network, about a minute).",
-      feature_will_install: "Needs {needs} — MAGI installs that one itself.",
+      feature_will_install: "Needs {needs}; installed automatically.",
       feature_on_toast: "{name} is on.",
       tool_open_site: "Open the {name} site \u2197",
       tool_recheck: "I installed it — check again",
-      tool_recheck_tip: "Look for {name} on this machine again. MAGI cannot install it — it is another project's installer.",
+      tool_recheck_tip: "Check for {name} again. It has to be installed separately.",
       tool_found: "Found {name}.",
       tool_still_missing: "Still cannot find {name}. A fresh install may need a new terminal, or a restart of the MAGI server.",
       op_install_tasks: "Install the task store",
@@ -1340,14 +1386,14 @@
       op_desc_pull_models: "Pull the Ollama models MAGI uses (needs Ollama installed first)",
       btn_install_tasks: "Install the task store",
       btn_pull_models: "Pull Ollama models",
-      ingest_run_caption: "Fetches and converts everything queued, then gate-checks it · nothing reaches the project yet",
-      ingest_commit_caption: "Moves approved items into raw/ and refreshes the tables and graph · compiling them into reference cards, and making them searchable, are separate steps after this",
+      ingest_run_caption: "Fetches, converts and checks everything queued; nothing is written to the project",
+      ingest_commit_caption: "Moves approved items into raw/ and refreshes tables and graph; compiling and indexing are separate steps",
       doctor_scope: "Tools and paths are machine-wide. Rows that say \"this project\" mean: {name}",
       metric_not_applicable: "no store",
       hint_dest_tab: "Opens the {name} tab · runs nothing",
       hint_dest_docs: "Opens the matching chapter in {name} · runs nothing",
       op_desc_index: "Rebuilds the search index · embeds every changed document, minutes for a full pass (keyword-only without Ollama)",
-      op_desc_graph_build: "Re-scans wikilinks and tags · fast, no model involved",
+      op_desc_graph_build: "Re-scans wikilinks and tags; no model needed",
       op_desc_wiki_reindex: "Regenerates the _index.md list in each wiki folder · seconds",
       op_desc_link: "Link semantically related concept cards by vector similarity (needs Ollama)",
       op_desc_lint_fix: "Repair broken links and frontmatter in place",
@@ -1360,10 +1406,10 @@
       radar_gap_caption: "Citation Gaps: recent papers that arguably should cite yours · Settings: which queries and authors the radar watches",
       radar_settings_tip: "Edit this project's radar block in config.yaml",
       op_desc_radar_citation_gap: "Scout recent papers that arguably should cite yours",
-      op_desc_ingest_batch_run: "Fetch and convert everything queued — output waits for your approval, nothing enters the library",
-      op_desc_ingest_batch_commit: "Move approved documents into raw/; refuses while anything is still undecided",
+      op_desc_ingest_batch_run: "Fetches and converts everything queued; output waits for approval",
+      op_desc_ingest_batch_commit: "Moves approved documents into raw/; does not run while items are undecided",
       ingest_preview: "Look at what came out",
-      ingest_cannot_approve: "This conversion failed — there is nothing to approve. Reject it and it retries on the next route down.",
+      ingest_cannot_approve: "Conversion failed; nothing to approve. Rejecting retries on the next route.",
       ingest_approve: "Approve",
       ingest_reject: "Reject",
       ingest_undo: "Undo",
@@ -1375,7 +1421,7 @@
       op_ingest_auto: "Pick up what is in inbox/",
       op_desc_ingest_auto: "Routes each loose file in inbox/ to the right ingester and files it.",
       inbox_title: "{n} file(s) sitting in inbox/",
-      inbox_sub: "This is where the dashboard's \"drop paper PDFs into inbox/\" puts them. They are not in the queue — the queue only holds what was added through the boxes below.",
+      inbox_sub: "Files in inbox/ that are not queued yet.",
       inbox_pickup: "Pick these up",
       op_ingest_batch_commit: "Commit approved batches",
       op_build_graph: "Rebuild the concept graph",
@@ -1460,7 +1506,7 @@
       badge_missing: "Missing",
       badge_optional: "Optional",
       badge_declined: "Skipped",
-      doctor_all_good: "Nothing is broken. {count} optional component(s) are not installed — MAGI works without them.",
+      doctor_all_good: "No problems found. {count} optional component(s) not installed.",
       doctor_get_it: "Get it",
       doctor_legacy_found: "Legacy copies detected ({count}):",
       doctor_legacy_hint: "You can safely remove them in Operations > Danger Zone > Remove Legacy Copies.",
@@ -1481,19 +1527,19 @@
 
       // Sync Hints (actionable)
       hints_title: "Suggested Actions",
-      hints_subtitle: "What the sync report recommends next — click to run",
+      hints_subtitle: "From the sync report; runs on click",
       hint_graph_build: "Knowledge graph is behind the cards and needs a rebuild",
       hint_index: "Retrieval index is missing or stale and needs a rebuild",
-      hint_index_unreadable: "output/index.db is not a database — rebuilding moves it aside as .corrupt",
+      hint_index_unreadable: "output/index.db is corrupt; rebuilding moves it aside as .corrupt",
       hint_backlog_sync: "Uncompiled sources are not yet tracked as tasks",
-      hint_pm_init: "No task-tracking database yet (optional — skip it if you do not want task tracking)",
+      hint_pm_init: "No task-tracking database yet (optional)",
       hint_radar_review: "{pending} literature radar digest(s) waiting for review",
       hint_radar_gaps: "{pending} citation-gap report(s) waiting for review",
-      hint_radar_overdue: "Last radar harvest was {days}d ago (the window is {window}d) — run one, or check the scheduled task",
+      hint_radar_overdue: "Last radar harvest {days}d ago (window {window}d); run one or check the schedule",
       hint_compile_pending: "{backlog} raw source(s) are not compiled into reference cards yet",
       hint_claims_unverified: "Some claims are still unverified (see Melchior)",
       hint_bd_ready: "There is actionable work ready (see Balthasar)",
-      hint_install_beads: "Task engine (beads) is not installed — see install guide",
+      hint_install_beads: "Task engine (beads) not installed; see the install guide",
       hint_ingest_start: "Drop paper PDFs / sources into inbox/ and run the ingest skill",
       btn_hint_run: "Run",
       btn_hint_goto: "Open",
@@ -1516,12 +1562,12 @@
       bib_no_entry: "missing citable frontmatter (title/authors/year)",
       toast_bib_copied: "BibTeX copied to clipboard ({n} entrie(s))",
       mel_drafts_title: "Drafts",
-      mel_drafts_subtitle: "Paper drafts under drafts/ — indexed for search, outside the graph (draft skill)",
-      drafts_none: "No drafts yet — the draft skill sets up the writing workflow.",
+      mel_drafts_subtitle: "Drafts under drafts/; indexed for search, outside the graph",
+      drafts_none: "No drafts yet.",
 
       // Workspace config
       cfg_title: "Project Config",
-      cfg_subtitle: "Research knobs from config.yaml — edits touch only the target line, comments preserved",
+      cfg_subtitle: "Research settings from config.yaml; only the target line is changed",
       cfg_loading: "Loading config...",
       btn_cfg_save: "Save",
       toast_cfg_saved: "Saved {key}",
@@ -1530,8 +1576,8 @@
       cfg_f_radar_days: "Radar lookback in days (the arXiv leg only — Semantic Scholar recommends within a fixed 60-day window)",
       cfg_f_radar_max_candidates: "Max candidates per harvest",
       cfg_f_radar_arxiv_categories: "arXiv categories (e.g. cond-mat.str-el)",
-      cfg_f_radar_seed_arxiv_ids: "Papers that describe what you care about (may be empty — the ones on your reference cards are merged in automatically)",
-      cfg_f_radar_own_arxiv_ids: "Your own papers' arXiv IDs (empty falls back to the list above, which may not be yours)",
+      cfg_f_radar_seed_arxiv_ids: "Seed arXiv IDs (may be empty; reference cards are merged in)",
+      cfg_f_radar_own_arxiv_ids: "Your own papers' arXiv IDs (empty falls back to the list above)",
       cfg_f_ocr_use_mineru: "Use MinerU cloud OCR (token configured in config)",
       cfg_f_models_embedding: "Semantic model (Ollama model name)",
 
@@ -1588,12 +1634,12 @@
       update_cannot_apply: "This install cannot be upgraded automatically.",
       update_checking: "Checking…",
       update_latest_already: "You are on the latest release ({v}).",
-      update_unreachable: "Could not reach PyPI. That is a network problem, not an answer about versions.",
+      update_unreachable: "Could not reach PyPI; version check unavailable.",
       // Ops catalog & danger confirm
-      ops_none_here: "Everything this panel used to hold now lives where it belongs.",
+      ops_none_here: "No operations on this panel.",
       ops_here_dashboard: "Project maintenance",
       ops_here_dashboard_sub: "Reports about this project",
-      ops_here_melchior: "Rebuild what this panel reads",
+      ops_here_melchior: "Rebuild graph and indexes",
       ops_here_melchior_sub: "The graph, the concept links and the wiki tables",
       ops_here_casper: "Rebuild what search reads",
       ops_here_casper_sub: "Run this when something you just added cannot be found",
@@ -1602,7 +1648,7 @@
       ops_loading: "Loading operations…",
       op_stats: "Project Stats",
       ops_setup_title: "Project setup",
-      ops_setup_sub: "Re-runnable, and none of it deletes anything",
+      ops_setup_sub: "Re-runnable; nothing is deleted",
       op_close: "Close the session",
       op_install: "Install into your agent CLIs",
       btn_danger_install_schedule: "Install/Remove Schedule",
@@ -1636,13 +1682,16 @@
       graph_hubs_hint: "Most-connected entries — click one to read its card",
       graph_broken_empty: "No broken links — the link network is intact.",
       graph_view_map: "Graph",
+      graph_search_ph: "Search the graph: title or full-text keyword",
+      graph_search_none: "No matching node",
+      graph_search_by_text: "text",
       graph_map_tags: "Show tag nodes",
       map_kinds_all: "Everything",
       map_kinds_library: "The project",
       map_kinds_research: "The research state",
       map_skeleton: "Skeleton only",
       graph_map_hint: "Drag nodes · scroll to zoom · click a node to read its card",
-      graph_map_empty: "The graph is empty — run magi graph build first.",
+      graph_map_empty: "The graph is empty. Run magi graph build first.",
       graph_map_truncated: "Large graph — showing the top {n} nodes by degree",
       graph_map_no_d3: "Graph physics library failed to load — check /vendor/d3-*.min.js",
 
@@ -1651,9 +1700,10 @@
       glass_toggle_title: "Toggle Apple Liquid Glass Material (VisionOS optical texture)",
       glass_enabled_toast: "💎 Apple Liquid Glass Enabled",
       glass_disabled_toast: "⚪ Classical Solid Card Mode Enabled",
-      glass_btn_title: "Glass material tuning (blur / opacity)",
+      glass_btn_title: "Appearance & environment: theme, MAGI MODE, glass, language, doctor",
       glass_blur_label: "Blur",
       glass_alpha_label: "Opacity",
+      bg_bright_label: "Backdrop",
       glass_crt_label: "CRT scanlines",
       glass_reset: "Reset",
       graph_th_title: "Title",
@@ -1847,7 +1897,9 @@
   // ------------------------------------------------------------------------
 
   const els = {
-    themeToggleBtn: document.getElementById("theme-toggle-btn"),
+    themeSeg: document.getElementById("theme-seg"),
+    coreClusterBtn: document.getElementById("core-cluster-btn"),
+    coreBand: document.getElementById("core-band"),
     magiModeBtn: document.getElementById("magi-mode-btn"),
     glassToggleBtn: document.getElementById("glass-toggle-btn"),
     evaClock: document.getElementById("eva-clock"),
@@ -1913,8 +1965,10 @@
     glassTunerPanel: document.getElementById("glass-tuner-panel"),
     glassBlurRange: document.getElementById("glass-blur-range"),
     glassAlphaRange: document.getElementById("glass-alpha-range"),
+    bgBrightRange: document.getElementById("bg-bright-range"),
     glassBlurVal: document.getElementById("glass-blur-val"),
     glassAlphaVal: document.getElementById("glass-alpha-val"),
+    bgBrightVal: document.getElementById("bg-bright-val"),
     glassCrtToggle: document.getElementById("glass-crt-toggle"),
     glassResetBtn: document.getElementById("glass-reset-btn"),
     graphQ: document.getElementById("graph-q"),
@@ -2120,9 +2174,8 @@
       // the theme toggle keeps working inside the mode instead of exiting it.
       const base = safeStorageGet("magi-base-theme") || "dark";
       document.documentElement.setAttribute("data-eva", base === "light" ? "blue" : "red");
-      if (els.themeToggleBtn) {
-        els.themeToggleBtn.textContent = base === "dark" ? "☀︎" : "☽";
-      }
+      syncThemeSeg(base);
+      if (els.magiModeBtn) els.magiModeBtn.setAttribute("aria-checked", "true");
       startEvaClock();
     } else {
       document.documentElement.removeAttribute("data-eva");
@@ -2130,10 +2183,9 @@
       safeStorageSet("magi-base-theme", theme);
       if (els.magiModeBtn) {
         els.magiModeBtn.classList.remove("active");
+        els.magiModeBtn.setAttribute("aria-checked", "false");
       }
-      if (els.themeToggleBtn) {
-        els.themeToggleBtn.textContent = theme === "dark" ? "☀︎" : "☽";
-      }
+      syncThemeSeg(theme);
       stopEvaClock();
       if (evaBootTimer) {
         clearTimeout(evaBootTimer);
@@ -2144,12 +2196,22 @@
       }
     }
     applyBackground("state");
+    applyTabLabels();
     // With nothing stored the tuner reports the theme's own --glass-blur, so a
     // theme flip has to refresh it or it keeps showing the previous theme's.
     applyGlassSettings();
     // A settled graph map never re-ticks on its own, so a theme flip must
     // trigger one repaint to resample the token colours.
     scheduleGraphMapDraw();
+  }
+
+  // Which of the two base themes the appearance panel shows as chosen. Inside
+  // MAGI MODE that is the alert state (light base = blue, dark base = red).
+  function syncThemeSeg(base) {
+    if (!els.themeSeg) return;
+    els.themeSeg.querySelectorAll("[data-theme-pick]").forEach((b) => {
+      b.classList.toggle("active", b.dataset.themePick === base);
+    });
   }
 
   function applyLiquidGlass(enabled) {
@@ -2159,6 +2221,7 @@
     document.documentElement.classList.toggle("no-glass", !state.liquidGlass);
     if (els.glassToggleBtn) {
       els.glassToggleBtn.classList.toggle("active", state.liquidGlass);
+      els.glassToggleBtn.setAttribute("aria-checked", state.liquidGlass ? "true" : "false");
     }
     // Blur and opacity tune a material that is switched off in this mode, so
     // the knobs are disabled rather than left live-looking and inert. CRT
@@ -2193,6 +2256,10 @@
     const variant = currentEvaVariant();
     const entries = (variant && bgEngine.manifest && bgEngine.manifest[variant]) || [];
     wrap.innerHTML = "";
+    // A picker with nothing to pick is not a control; it disappears rather
+    // than explaining itself.
+    const picker = document.getElementById("bg-picker");
+    if (picker) picker.hidden = !entries.length;
     if (!entries.length) {
       note.textContent = t("bg_pick_none");
       return;
@@ -2396,9 +2463,17 @@
     return Number.isFinite(v) ? v : GLASS_DEFAULTS.blur;
   }
 
+  function themeBgBright() {
+    const v = parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue("--bg-photo-brightness")
+    );
+    return Number.isFinite(v) ? Math.round(v * 100) : 100;
+  }
+
   function applyGlassSettings() {
     const blur = glassSetting("magi-glass-blur", 0, 30);
-    const alpha = glassSetting("magi-glass-alpha", 40, 170);
+    const alpha = glassSetting("magi-glass-alpha", 10, 170);
+    const bright = glassSetting("magi-bg-bright", 50, 160);
     const crt = safeStorageGet("magi-crt") === "on";
     const root = document.documentElement.style;
 
@@ -2409,25 +2484,64 @@
     else root.setProperty("--glass-blur", `${blur}px`);
     if (alpha === null) root.removeProperty("--glass-alpha");
     else root.setProperty("--glass-alpha", String(alpha / 100));
+    if (bright === null) root.removeProperty("--bg-photo-brightness");
+    else root.setProperty("--bg-photo-brightness", String(bright / 100));
     document.documentElement.classList.toggle("crt-on", crt);
 
     // Read the inline override back through the computed value so the readout
     // reports what is actually in force in this theme.
     const shownBlur = blur === null ? themeGlassBlur() : blur;
     const shownAlpha = alpha === null ? GLASS_DEFAULTS.alpha : alpha;
+    const shownBright = bright === null ? themeBgBright() : bright;
     if (els.glassBlurRange) els.glassBlurRange.value = shownBlur;
     if (els.glassAlphaRange) els.glassAlphaRange.value = shownAlpha;
+    if (els.bgBrightRange) els.bgBrightRange.value = shownBright;
     if (els.glassBlurVal) els.glassBlurVal.textContent = `${shownBlur}px`;
     if (els.glassAlphaVal) els.glassAlphaVal.textContent = `${shownAlpha}%`;
+    if (els.bgBrightVal) els.bgBrightVal.textContent = `${shownBright}%`;
     if (els.glassCrtToggle) els.glassCrtToggle.checked = crt;
+  }
+
+  function setTunerOpen(open) {
+    if (!els.glassTunerPanel) return;
+    els.glassTunerPanel.classList.toggle("open", open);
+    if (els.glassTunerBtn) els.glassTunerBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) renderBgPicker();
+  }
+
+  // The three-core read-out opens from the status cluster. Both popovers
+  // close on Escape or on a click anywhere outside them.
+  function setCoreBandOpen(open) {
+    if (!els.coreBand) return;
+    els.coreBand.hidden = !open;
+    if (els.coreClusterBtn) els.coreClusterBtn.setAttribute("aria-expanded", open ? "true" : "false");
   }
 
   if (els.glassTunerBtn) {
     els.glassTunerBtn.addEventListener("click", () => {
-      const opened = els.glassTunerPanel.classList.toggle("open");
-      if (opened) renderBgPicker();
+      setTunerOpen(!els.glassTunerPanel.classList.contains("open"));
     });
   }
+  if (els.coreClusterBtn) {
+    els.coreClusterBtn.addEventListener("click", () => {
+      setCoreBandOpen(!!(els.coreBand && els.coreBand.hidden));
+    });
+  }
+  document.addEventListener("click", (ev) => {
+    const inside = (el, btn) => (el && el.contains(ev.target)) || (btn && btn.contains(ev.target));
+    if (els.glassTunerPanel && els.glassTunerPanel.classList.contains("open") &&
+        !inside(els.glassTunerPanel, els.glassTunerBtn)) {
+      setTunerOpen(false);
+    }
+    if (els.coreBand && !els.coreBand.hidden && !inside(els.coreBand, els.coreClusterBtn)) {
+      setCoreBandOpen(false);
+    }
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key !== "Escape") return;
+    setTunerOpen(false);
+    setCoreBandOpen(false);
+  });
   const bgShuffleBtn = document.getElementById("bg-shuffle-btn");
   if (bgShuffleBtn) {
     bgShuffleBtn.addEventListener("click", () => {
@@ -2447,6 +2561,12 @@
       applyGlassSettings();
     });
   }
+  if (els.bgBrightRange) {
+    els.bgBrightRange.addEventListener("input", () => {
+      safeStorageSet("magi-bg-bright", els.bgBrightRange.value);
+      applyGlassSettings();
+    });
+  }
   if (els.glassCrtToggle) {
     els.glassCrtToggle.addEventListener("change", () => {
       safeStorageSet("magi-crt", els.glassCrtToggle.checked ? "on" : "off");
@@ -2458,6 +2578,7 @@
       safeStorageRemove("magi-glass-blur");
       safeStorageRemove("magi-glass-alpha");
       safeStorageRemove("magi-crt");
+      safeStorageRemove("magi-bg-bright");
       applyGlassSettings();
       ["blue", "red"].forEach((v) => setBgPicks(v, null));
       applyBackground("state");
@@ -2634,9 +2755,11 @@
     for (const [short, full] of Object.entries(mapping)) {
       const v = coreBandVitals(short, cores[full] || null);
       const dot = document.getElementById(`core-dot-${short}`);
+      const pip = document.getElementById(`core-pip-${short}`);
       const statEl = document.getElementById(`core-stat-${short}`);
       const detEl = document.getElementById(`core-detail-${short}`);
       if (dot) dot.className = `core-dot ${v.cls}`;
+      if (pip) pip.className = `core-dot ${v.cls}`;
       if (statEl) statEl.textContent = v.stat;
       if (detEl) detEl.textContent = v.detail;
     }
@@ -2672,6 +2795,7 @@
         el.innerHTML = t(key);
       }
     });
+    applyTabLabels();
 
     document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
       const key = el.getAttribute("data-i18n-placeholder");
@@ -2721,6 +2845,19 @@
   // Tab Management
   // ------------------------------------------------------------------------
 
+  // The sections are named for what they do. MAGI MODE names them for the
+  // cores instead — the fiction is the point of that skin — so the labels
+  // follow the theme as well as the language.
+  function applyTabLabels() {
+    const dict = I18N[state.lang] || {};
+    els.tabBtns.forEach((btn) => {
+      const key = btn.getAttribute("data-i18n");
+      if (!key) return;
+      const evaKey = `${key}_eva`;
+      btn.textContent = state.theme === "eva" && dict[evaKey] ? t(evaKey) : t(key);
+    });
+  }
+
   function switchTab(tabName) {
     state.activeTab = tabName;
     // Lets CSS react to the active tab (the EVA dashboard suppresses the
@@ -2765,9 +2902,11 @@
         loadIngest();
         break;
       case "operations":
-        // Terminal stays persistent; the scope line is not — it has to follow
-        // the picker like everything else.
-            renderOptionalComponents();
+        // Terminal stays persistent; everything else on the tab follows the
+        // picker: the registry, the settings form and the component list.
+        renderOptionalComponents();
+        loadKBRegistry();
+        if (state.workspace) loadConfigCard(null, "general");
         break;
       case "docs":
         loadDocs(currentDocKey());
@@ -3309,8 +3448,6 @@
           els.dashTaskReady.textContent = engineReady ? "0" : t("task_engine_offline");
         }
       } catch (_) {}
-
-      loadConfigCard(null, "general");
     }
   }
 
@@ -4245,7 +4382,7 @@
       : allKbs;
 
     if (!kbs.length) {
-      els.kbTableBody.innerHTML = `<tr><td colspan="7" class="empty-cell">${t("no_kbs_registered")}</td></tr>`;
+      els.kbTableBody.innerHTML = `<tr><td colspan="6" class="empty-cell">${t("no_kbs_registered")}</td></tr>`;
       return;
     }
 
@@ -4272,11 +4409,11 @@
         return `
           <tr${gone ? ` class="kb-row-gone"` : ""}>
             <td>
-              <strong>${escapeHtml(kb.name)}</strong>
-              ${gone ? `<span class="badge badge-danger" style="margin-left: 0.4rem;">${t("badge_kb_gone")}</span>` : ""}
-              ${kb.current ? `<span class="badge badge-terracotta" style="margin-left: 0.4rem;">${t("badge_current")}</span>` : ""}
+              <span class="cell-name">${escapeHtml(kb.name)}
+              ${gone ? `<span class="badge badge-danger">${t("badge_kb_gone")}</span>` : ""}
+              ${kb.current ? `<span class="badge badge-terracotta">${t("badge_current")}</span>` : ""}</span>
+              <code class="cell-path" title="${escapeHtml(kb.path)}">${escapeHtml(kb.path)}</code>
             </td>
-            <td><code style="font-size: 0.8rem;">${escapeHtml(kb.path)}</code></td>
             <td>
               <input type="checkbox" class="kb-toggle-cb" data-name="${escapeHtml(kb.name)}" ${kb.enabled ? "checked" : ""}>
             </td>
@@ -4917,11 +5054,13 @@
       dpr * (w / 2 + graphMap.tx), dpr * (h / 2 + graphMap.ty));
     const hover = graphMap.hover;
     const neigh = hover && graphMap.adj ? graphMap.adj.get(hover.id) : null;
+    const matches = (graphMap.search && graphMap.search.matches) || new Set();
+    const searching = matches.size > 0;
 
     ctx.lineWidth = 1 / graphMap.k;
     for (const e of graphMap.edges) {
       const active = hover && (e.source.id === hover.id || e.target.id === hover.id);
-      ctx.globalAlpha = hover ? (active ? 0.75 : 0.06) : e.type === "has_tag" ? 0.22 : 0.4;
+      ctx.globalAlpha = hover ? (active ? 0.75 : 0.06) : searching ? 0.08 : e.type === "has_tag" ? 0.22 : 0.4;
       ctx.strokeStyle = col.edge;
       ctx.beginPath();
       ctx.moveTo(e.source.x, e.source.y);
@@ -4933,7 +5072,10 @@
       const r = graphNodeRadius(n);
       const isHover = hover && n.id === hover.id;
       const isNeigh = neigh && neigh.has(n.id);
-      ctx.globalAlpha = hover ? (isHover || isNeigh ? 1 : 0.14) : n.type === "ghost" ? 0.55 : 0.92;
+      const isMatch = searching && matches.has(n.id);
+      ctx.globalAlpha = hover ? (isHover || isNeigh ? 1 : 0.14)
+        : searching ? (isMatch ? 1 : 0.16)
+        : n.type === "ghost" ? 0.55 : 0.92;
       ctx.fillStyle = col[n.type] || col.other;
       ctx.beginPath();
       ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
@@ -4945,8 +5087,8 @@
       } else {
         ctx.fill();
       }
-      if (isHover) {
-        ctx.lineWidth = 2 / graphMap.k;
+      if (isHover || isMatch) {
+        ctx.lineWidth = (isHover ? 2 : 1.5) / graphMap.k;
         ctx.strokeStyle = col[n.type] || col.other;
         ctx.beginPath();
         ctx.arc(n.x, n.y, r + 3 / graphMap.k, 0, Math.PI * 2);
@@ -4967,16 +5109,20 @@
     const placed = [];
     const pad = 2 / graphMap.k;
     const lineH = 12 / graphMap.k;
+    const rank = (n) => hover && n.id === hover.id ? 3
+      : (neigh && neigh.has(n.id) ? 2 : (searching && matches.has(n.id) ? 1 : 0));
     const ordered = graphMap.nodes.slice().sort((a, b) => {
-      const ah = hover && a.id === hover.id ? 2 : (neigh && neigh.has(a.id) ? 1 : 0);
-      const bh = hover && b.id === hover.id ? 2 : (neigh && neigh.has(b.id) ? 1 : 0);
+      const ah = rank(a);
+      const bh = rank(b);
       if (ah !== bh) return bh - ah;
       return (b.degree || 0) - (a.degree || 0);
     });
     for (const n of ordered) {
       const isHover = hover && n.id === hover.id;
       const isNeigh = neigh && neigh.has(n.id);
-      const show = isHover || isNeigh || (!hover && (graphMap.k >= 1.25 || (n.degree || 0) >= 4));
+      const isMatch = searching && matches.has(n.id);
+      const show = isHover || isNeigh || isMatch ||
+        (!hover && !searching && (graphMap.k >= 1.25 || (n.degree || 0) >= (graphMap.labelMin || 4)));
       if (!show) continue;
       const label = (n.title || n.id).length > 30
         ? (n.title || n.id).slice(0, 29) + "…" : (n.title || n.id);
@@ -4984,7 +5130,7 @@
       const x = n.x - w / 2;
       const y = n.y + graphNodeRadius(n) + 3 / graphMap.k;
       // The hovered neighbourhood is what you asked to see — it always wins.
-      const priority = isHover || isNeigh;
+      const priority = isHover || isNeigh || isMatch;
       if (!priority) {
         const clash = placed.some((b) =>
           x < b.x + b.w + pad && x + w + pad > b.x && y < b.y + b.h + pad && y + lineH + pad > b.y);
@@ -5111,7 +5257,16 @@
     graphMap.ty = 0;
     graphMap.k = 1;
     graphMap.hover = null;
+    graphMap.fitted = false;
     graphMap.truncated = !!res.truncated;
+    if (graphMap.search) resetGraphSearch();
+    // How well-connected a node has to be to carry a label at rest. Forty
+    // labels is about what a canvas this size can hold without them landing
+    // on each other; on a small graph everything with a link qualifies.
+    const degrees = graphMap.nodes.map((n) => n.degree || 0).sort((x, y) => y - x);
+    graphMap.labelMin = graphMap.nodes.length > 80
+      ? Math.max(4, degrees[Math.min(39, degrees.length - 1)] || 0)
+      : 2;
     renderGraphMapChrome();
     if (!graphMap.nodes.length) {
       scheduleGraphMapDraw();
@@ -5133,7 +5288,34 @@
       .force("center", d3.forceCenter(0, 0))
       .force("collide", d3.forceCollide().radius((d) => graphNodeRadius(d) + 2.5))
       .alphaDecay(0.028)
-      .on("tick", scheduleGraphMapDraw);
+      .on("tick", () => {
+        // Once the layout has mostly settled, zoom so the whole graph fills
+        // the canvas. Only once, and never after the reader has taken the
+        // wheel or dragged: their framing wins.
+        if (!graphMap.fitted && graphMap.sim && graphMap.sim.alpha() < 0.25) {
+          graphMap.fitted = true;
+          fitGraphMap();
+        }
+        scheduleGraphMapDraw();
+      });
+  }
+
+  function fitGraphMap() {
+    if (!graphMap.nodes.length || !els.graphMapCanvas) return;
+    const { w, h } = graphMapDPRSize();
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const n of graphMap.nodes) {
+      if (n.x < x0) x0 = n.x;
+      if (n.x > x1) x1 = n.x;
+      if (n.y < y0) y0 = n.y;
+      if (n.y > y1) y1 = n.y;
+    }
+    const pad = 48;
+    const bw = Math.max(1, x1 - x0), bh = Math.max(1, y1 - y0);
+    const k = Math.max(0.35, Math.min(2.2, Math.min((w - pad * 2) / bw, (h - pad * 2) / bh)));
+    graphMap.k = k;
+    graphMap.tx = -((x0 + x1) / 2) * k;
+    graphMap.ty = -((y0 + y1) / 2) * k;
   }
 
   function graphMapPoint(ev) {
@@ -5167,6 +5349,7 @@
     const c = els.graphMapCanvas;
     if (!c) return;
     c.addEventListener("mousedown", (ev) => {
+      graphMap.fitted = true;
       if (!graphMap.nodes.length) return;
       const p = graphMapPoint(ev);
       const n = graphMapHit(p);
@@ -5226,6 +5409,7 @@
       }
     });
     c.addEventListener("wheel", (ev) => {
+      graphMap.fitted = true;
       if (!graphMap.nodes.length) return;
       ev.preventDefault();
       const p = graphMapPoint(ev);
@@ -5248,6 +5432,220 @@
   }
 
   bindGraphMapEvents();
+
+  // ------------------------------------------------------------------------
+  // Search over the map. Titles match as you type; the library's full text
+  // (keyword index, no model) is asked a beat later and its hits are mapped
+  // back onto nodes by path. Every candidate stays lit on the canvas while
+  // the query is live; hovering one is the same as hovering its node.
+  // ------------------------------------------------------------------------
+
+  graphMap.search = { q: "", matches: new Set(), results: [], active: -1, req: 0, timer: null };
+
+  function resetGraphSearch() {
+    const st = graphMap.search;
+    graphMap.byId = null;
+    st.q = "";
+    st.matches = new Set();
+    st.results = [];
+    st.active = -1;
+    st.req += 1;
+    const input = document.getElementById("graph-map-q");
+    if (input) input.value = "";
+    renderGraphSearchResults();
+  }
+
+  // A search hit is a file; a node is a file without its extension. A hit in
+  // raw/ maps onto the reference card compiled from it by stem.
+  function graphNodeForPath(path) {
+    const noExt = String(path || "").replace(/\.(md|markdown|txt)$/i, "");
+    const byId = graphMap.byId || (graphMap.byId = new Map(graphMap.nodes.map((n) => [n.id, n])));
+    if (byId.has(noExt)) return byId.get(noExt);
+    const stem = noExt.split("/").pop().toLowerCase();
+    return graphMap.nodes.find((n) => n.type !== "ghost" && n.id.split("/").pop().toLowerCase() === stem) || null;
+  }
+
+  function runGraphSearch(q) {
+    const st = graphMap.search;
+    st.q = q;
+    const token = ++st.req;
+    if (!q) {
+      st.matches = new Set();
+      st.results = [];
+      st.active = -1;
+      renderGraphSearchResults();
+      scheduleGraphMapDraw();
+      return;
+    }
+    const needle = q.toLowerCase();
+    const seen = new Set();
+    const results = [];
+    graphMap.nodes
+      .filter((n) => n.type !== "ghost" && ((n.title || "").toLowerCase().includes(needle) || n.id.toLowerCase().includes(needle)))
+      .sort((a, b) => (b.degree || 0) - (a.degree || 0))
+      // Title matches fill at most eight rows, so a word that is common in
+      // titles still leaves room for what only the full text knows.
+      .slice(0, 8)
+      .forEach((n) => { seen.add(n.id); results.push({ node: n, by: "title" }); });
+    st.results = results.slice(0, 12);
+    st.matches = new Set(results.map((r) => r.node.id));
+    st.active = -1;
+    renderGraphSearchResults();
+    scheduleGraphMapDraw();
+
+    if (q.length < 2 || !state.workspace) return;
+    const qs = new URLSearchParams({ q, mode: "bm25", limit: "24", workspace: state.workspace, scope: "local" });
+    apiFetch(`/api/workspace/search?${qs.toString()}`).then((data) => {
+      if (token !== st.req) return;
+      const hits = (data && data.results) || [];
+      hits.forEach((hit) => {
+        if (hit.kb && hit.kb !== "local") return;
+        const node = graphNodeForPath(hit.path);
+        if (!node || seen.has(node.id)) return;
+        seen.add(node.id);
+        // The snippet is a slice of markdown; the list is not a place for
+        // heading marks, emphasis stars or math fences.
+        const snippet = String(hit.snippet || hit.heading || "")
+          .replace(/\$\$?/g, " ").replace(/[#*_`>]+/g, " ").replace(/\s+/g, " ").trim();
+        results.push({ node, by: "text", snippet });
+      });
+      st.results = results.slice(0, 12);
+      st.matches = new Set(results.map((r) => r.node.id));
+      renderGraphSearchResults();
+      scheduleGraphMapDraw();
+    }).catch(() => {});
+  }
+
+  function markMatch(text, q) {
+    const safe = escapeHtml(text);
+    if (!q) return safe;
+    // Both the index and the length have to be measured in the escaped
+    // string. Searching for "&" found `&amp;` at the right offset and then
+    // cut it after one character, so the highlight landed mid-entity and the
+    // title rendered as "Kitaev &amp; Haah". Any of & < > " ' in the query
+    // did it.
+    const needle = escapeHtml(q);
+    const idx = safe.toLowerCase().indexOf(needle.toLowerCase());
+    if (idx === -1) return safe;
+    const end = idx + needle.length;
+    return safe.slice(0, idx) + "<mark>" + safe.slice(idx, end) + "</mark>" + safe.slice(end);
+  }
+
+  function renderGraphSearchResults() {
+    const list = document.getElementById("graph-map-results");
+    if (!list) return;
+    const st = graphMap.search;
+    if (!st.q) {
+      list.hidden = true;
+      list.innerHTML = "";
+      return;
+    }
+    list.hidden = false;
+    if (!st.results.length) {
+      list.innerHTML = `<li class="empty-note">${escapeHtml(t("graph_search_none"))}</li>`;
+      return;
+    }
+    const col = graphMapColors();
+    list.innerHTML = st.results.map((r, i) => `
+      <li class="graph-map-result${i === st.active ? " active" : ""}" role="option" data-index="${i}" aria-selected="${i === st.active}">
+        <i style="background:${col[r.node.type] || col.other}"></i>
+        <div class="graph-map-result-body">
+          <div class="graph-map-result-title">${markMatch(r.node.title || r.node.id, st.q)}</div>
+          ${r.by === "text" ? `<div class="graph-map-result-snippet">${markMatch(r.snippet, st.q)}</div>` : ""}
+        </div>
+        <span class="graph-map-result-kind">${escapeHtml(r.by === "text" ? t("graph_search_by_text") : t(`graph_legend_${r.node.type}`) || r.node.type)}</span>
+      </li>`).join("");
+  }
+
+  // Bring a node on screen if the pointer is on its row but it is off-canvas.
+  function revealGraphNode(n) {
+    if (!n || !els.graphMapCanvas) return;
+    const { w, h } = graphMapDPRSize();
+    const sx = w / 2 + graphMap.tx + graphMap.k * n.x;
+    const sy = h / 2 + graphMap.ty + graphMap.k * n.y;
+    const m = 48;
+    if (sx < m || sx > w - m || sy < m || sy > h - m) {
+      graphMap.fitted = true;
+      graphMap.tx = -graphMap.k * n.x;
+      graphMap.ty = -graphMap.k * n.y;
+    }
+  }
+
+  function setGraphSearchActive(i, reveal) {
+    const st = graphMap.search;
+    st.active = i;
+    const r = i >= 0 ? st.results[i] : null;
+    graphMap.hover = r ? r.node : null;
+    if (r && reveal) revealGraphNode(r.node);
+    const list = document.getElementById("graph-map-results");
+    if (list) {
+      list.querySelectorAll(".graph-map-result").forEach((li) => {
+        const on = Number(li.dataset.index) === i;
+        li.classList.toggle("active", on);
+        li.setAttribute("aria-selected", on ? "true" : "false");
+      });
+    }
+    scheduleGraphMapDraw();
+  }
+
+  function bindGraphSearch() {
+    const input = document.getElementById("graph-map-q");
+    const list = document.getElementById("graph-map-results");
+    if (!input || !list) return;
+    input.addEventListener("input", () => {
+      const st = graphMap.search;
+      if (st.timer) clearTimeout(st.timer);
+      st.timer = setTimeout(() => runGraphSearch(input.value.trim()), 160);
+    });
+    input.addEventListener("focus", () => {
+      if (graphMap.search.q) renderGraphSearchResults();
+    });
+    input.addEventListener("keydown", (ev) => {
+      const st = graphMap.search;
+      if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+        if (!st.results.length) return;
+        ev.preventDefault();
+        const step = ev.key === "ArrowDown" ? 1 : -1;
+        setGraphSearchActive((st.active + step + st.results.length) % st.results.length, true);
+      } else if (ev.key === "Enter") {
+        const r = st.results[st.active >= 0 ? st.active : 0];
+        if (r) openGraphSearchResult(r);
+      } else if (ev.key === "Escape") {
+        if (input.value) {
+          ev.stopPropagation();
+          runGraphSearch("");
+          input.value = "";
+        }
+      }
+    });
+    list.addEventListener("mousemove", (ev) => {
+      const li = ev.target && typeof ev.target.closest === "function" ? ev.target.closest(".graph-map-result") : null;
+      if (!li) return;
+      const i = Number(li.dataset.index);
+      if (i !== graphMap.search.active) setGraphSearchActive(i, true);
+    });
+    list.addEventListener("mouseleave", () => setGraphSearchActive(-1, false));
+    list.addEventListener("click", (ev) => {
+      const li = ev.target && typeof ev.target.closest === "function" ? ev.target.closest(".graph-map-result") : null;
+      if (!li) return;
+      const r = graphMap.search.results[Number(li.dataset.index)];
+      if (r) openGraphSearchResult(r);
+    });
+    // The list closes when the pointer goes elsewhere; the query and the
+    // highlights on the canvas stay until the box is cleared.
+    document.addEventListener("click", (ev) => {
+      const box = document.getElementById("graph-map-search");
+      if (box && !box.contains(ev.target) && !list.hidden) list.hidden = true;
+    });
+  }
+
+  function openGraphSearchResult(r) {
+    const list = document.getElementById("graph-map-results");
+    if (list) list.hidden = true;
+    openDocPreview({ node: r.node.id }, { title: r.node.title });
+  }
+
+  bindGraphSearch();
 
   // ------------------------------------------------------------------------
   // References & citations (magi bib), drafts, workspace config
@@ -5436,6 +5834,86 @@
       // Remember the lookback window so the radar tab can say "overdue".
       const daysField = (data.fields || []).find((f) => f.key === "radar.days");
       if (daysField && daysField.value) state.radarDays = daysField.value;
+      // One form, one save. Every row used to carry its own button — 22 of
+      // them on one card. Now an edit marks its row, the footer counts them,
+      // and one click writes them all (the API takes one key per call, so it
+      // is one call per dirty key, in order).
+      const dirty = new Map();
+      const footer = document.createElement("div");
+      footer.className = "cfg-footer";
+      footer.hidden = true;
+      const unsaved = document.createElement("span");
+      unsaved.className = "cfg-unsaved";
+      const discardBtn = document.createElement("button");
+      discardBtn.type = "button";
+      discardBtn.className = "btn btn-quiet btn-sm";
+      discardBtn.textContent = t("cfg_discard");
+      const saveAllBtn = document.createElement("button");
+      saveAllBtn.type = "button";
+      saveAllBtn.className = "btn btn-primary btn-sm";
+      saveAllBtn.textContent = t("cfg_save_all");
+      footer.appendChild(unsaved);
+      footer.appendChild(discardBtn);
+      footer.appendChild(saveAllBtn);
+      const updateFooter = () => {
+        footer.hidden = dirty.size === 0;
+        unsaved.textContent = t("cfg_unsaved", { n: dirty.size });
+      };
+      discardBtn.addEventListener("click", () => loadConfigCard(box, only));
+
+      // What a row holds, validated the way the old per-row button did it.
+      // Returns undefined when the value must not be written.
+      function readField(f, input) {
+        if (f.type === "bool") return input.checked;
+        if (f.type === "list") return input.value.split(",").map((x) => x.trim()).filter(Boolean);
+        if (f.type === "int") {
+          const v = parseInt(input.value, 10);
+          if (isNaN(v)) { showToast(`${f.key}: invalid integer`, "error"); return undefined; }
+          return v;
+        }
+        if (f.type === "number") {
+          const v = input.value.trim() === "" ? null : parseFloat(input.value);
+          if (v !== null && isNaN(v)) { showToast(`${f.key}: invalid number`, "error"); return undefined; }
+          return v;
+        }
+        const v = input.value.trim();
+        // Saving an untouched password box would blank a stored key.
+        if (f.type === "secret" && v === "") { showToast(t("cfg_secret_empty"), "warn"); return undefined; }
+        return v;
+      }
+
+      saveAllBtn.addEventListener("click", async () => {
+        let written = 0;
+        let reload = false;
+        for (const [key, entry] of Array.from(dirty.entries())) {
+          const input = entry.input();
+          const value = readField(entry.f, input);
+          if (value === undefined) continue;
+          try {
+            await apiFetch("/api/workspace/config", {
+              method: "POST",
+              body: JSON.stringify({ key, value, workspace: state.workspace }),
+            });
+          } catch (_) {
+            continue;
+          }
+          written += 1;
+          dirty.delete(key);
+          entry.row.classList.remove("is-dirty");
+          if (entry.f.type === "secret") {
+            input.value = "";
+            input.placeholder = t("cfg_secret_set");
+          }
+          // Both of these change what the rows below them may contain: the
+          // provider decides which embedding fields apply, and the host
+          // decides which model names are even valid.
+          if (key === "embedding.provider" || key === "research.review_host") reload = true;
+        }
+        if (written) showToast(t("cfg_all_saved", { n: written }), "success");
+        updateFooter();
+        if (reload) loadConfigCard(box, only);
+      });
+
       fields.forEach((f) => {
         const row = document.createElement("div");
         row.className = "cfg-row";
@@ -5516,56 +5994,27 @@
             (x) => x.key === "research.review_host");
           const pinned = hostField && hostField.value ? String(hostField.value) : "";
           fillModelChoices(input, note, pinned).then((select) => {
-            // Reassign, or the save button below would still be reading the
-            // text box this replaced.
-            if (select) input = select;
+            // Reassign, or the save below would still be reading the text
+            // box this replaced — and watch the new control for edits.
+            if (select) { input = select; watch(select); }
           });
         }
 
-        const save = document.createElement("button");
-        save.className = "btn btn-secondary btn-sm";
-        save.textContent = t("btn_cfg_save");
-        save.addEventListener("click", async () => {
-          let value;
-          if (f.type === "bool") {
-            value = input.checked;
-          } else if (f.type === "list") {
-            value = input.value.split(",").map((s) => s.trim()).filter(Boolean);
-          } else if (f.type === "int") {
-            value = parseInt(input.value, 10);
-            if (isNaN(value)) { showToast(`${f.key}: invalid integer`, "error"); return; }
-          } else if (f.type === "number") {
-            value = input.value.trim() === "" ? null : parseFloat(input.value);
-            if (value !== null && isNaN(value)) { showToast(`${f.key}: invalid number`, "error"); return; }
-          } else {
-            value = input.value.trim();
-            // Saving an untouched password box would blank a stored key.
-            if (f.type === "secret" && value === "") {
-              showToast(t("cfg_secret_empty"), "warn");
-              return;
-            }
-          }
-          try {
-            await apiFetch("/api/workspace/config", {
-              method: "POST",
-              body: JSON.stringify({ key: f.key, value, workspace: state.workspace }),
-            });
-            showToast(t("toast_cfg_saved", { key: f.key }), "success");
-            if (f.type === "secret") {
-              input.value = "";
-              input.placeholder = t("cfg_secret_set");
-            }
-            // Both of these change what the rows below them may contain:
-            // the provider decides which embedding fields apply, and the host
-            // decides which model names are even valid.
-            if (f.key === "embedding.provider" || f.key === "research.review_host") {
-              loadConfigCard(box, only);
-            }
-          } catch (_) {}
-        });
-        row.appendChild(save);
+        // An edit marks the row and joins the footer's count. `input` is read
+        // through a closure because fillModelChoices may swap the control.
+        const watch = (el) => {
+          const mark = () => {
+            dirty.set(f.key, { f, row, input: () => input });
+            row.classList.add("is-dirty");
+            updateFooter();
+          };
+          el.addEventListener("input", mark);
+          el.addEventListener("change", mark);
+        };
+        watch(input);
         box.appendChild(row);
       });
+      box.appendChild(footer);
     } catch (_) {}
   }
 
@@ -5586,7 +6035,9 @@
       note.classList.remove("scope-shared");
       return;
     }
-    note.textContent = t("bal_store_at", { root: pm.store_root });
+    // The sentence says what matters; the path is one hover away.
+    note.textContent = t("bal_store_short");
+    note.title = t("bal_store_at", { root: pm.store_root });
     // Not a warning any more. The counts and the list below are both scoped
     // to this workspace, so there is nothing to warn about — only a fact
     // about where the file lives, and three words worth explaining.
@@ -8380,17 +8831,20 @@
   // Event Listeners
   // ------------------------------------------------------------------------
 
-  // Theme Toggle (Light / Dark)
-  if (els.themeToggleBtn) {
-    els.themeToggleBtn.addEventListener("click", () => {
+  // Theme (Light / Dark)
+  if (els.themeSeg) {
+    els.themeSeg.addEventListener("click", (ev) => {
+      const btn = ev.target && typeof ev.target.closest === "function"
+        ? ev.target.closest("[data-theme-pick]") : null;
+      if (!btn) return;
+      const pick = btn.dataset.themePick === "dark" ? "dark" : "light";
       if (state.theme === "eva") {
-        // Inside MAGI MODE the toggle switches the alert state (blue/red)
-        // by flipping the remembered base theme — it does not exit the mode.
-        const currentBase = safeStorageGet("magi-base-theme") || "dark";
-        safeStorageSet("magi-base-theme", currentBase === "dark" ? "light" : "dark");
+        // Inside MAGI MODE the choice is the alert state (blue/red): it flips
+        // the remembered base theme and does not exit the mode.
+        safeStorageSet("magi-base-theme", pick);
         applyTheme("eva");
       } else {
-        applyTheme(state.theme === "dark" ? "light" : "dark");
+        applyTheme(pick);
       }
     });
   }
@@ -8434,6 +8888,24 @@
   // Ingest tab actions. Both long operations go through the job machinery, so
   // they stream into the terminal like every other one; `stay: true` keeps the
   // user on this tab, because the thing they are about to review is here.
+  // The add card's three doors. Only the switch moves; every input keeps
+  // its id and its handler.
+  const ingestSourceSeg = document.getElementById("ingest-source-seg");
+  if (ingestSourceSeg) {
+    ingestSourceSeg.addEventListener("click", (ev) => {
+      const btn = ev.target && typeof ev.target.closest === "function"
+        ? ev.target.closest("[data-source]") : null;
+      if (!btn) return;
+      const pick = btn.dataset.source;
+      ingestSourceSeg.querySelectorAll("[data-source]").forEach((b) => {
+        b.classList.toggle("active", b.dataset.source === pick);
+      });
+      document.querySelectorAll("#ingest-add-card .ingest-source").forEach((panel) => {
+        panel.hidden = panel.dataset.source !== pick;
+      });
+    });
+  }
+
   els.ingestAdd = document.getElementById("btn-ingest-add");
   if (els.ingestAdd) {
     els.ingestAdd.addEventListener("click", async () => {
@@ -8804,6 +9276,7 @@
 
   // Doctor check modal
   els.doctorBtn.addEventListener("click", openDoctorModal);
+  document.querySelectorAll(".doctor-open-btn").forEach((b) => b.addEventListener("click", openDoctorModal));
   if (els.updateBadge) els.updateBadge.addEventListener("click", openUpdateModal);
   const updateClose = document.getElementById("update-modal-close");
   if (updateClose) {
@@ -8868,8 +9341,7 @@
   // .toast is deliberately absent -- it is small, transient and auto-dismisses,
   // so it keeps the fixed sheen and nothing tracks it.
   const SPECULAR_SURFACES =
-    ".card, .modal-window, .modal-content, .glass-tuner-panel, .doc-preview-side, " +
-    ".pane-list, .pane-view, .topbar, .core-band, .eva-hud-frame";
+    ".card, .modal-window, .modal-content, .doc-preview-side, .topbar, .eva-hud-frame";
 
   function initLiquidGlassEngine() {
     if (typeof window === "undefined" || typeof document === "undefined") return;
