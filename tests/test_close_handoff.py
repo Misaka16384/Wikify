@@ -162,3 +162,21 @@ def test_nothing_is_written_to_record_the_handoff(project):
 
     after = {p: p.stat().st_mtime_ns for p in project.rglob("*") if p.is_file()}
     assert after == before, "close(write=False) wrote something"
+
+
+def test_a_non_ascii_filename_reads_as_itself(project):
+    r"""git escapes non-ASCII bytes as octal unless told not to.
+
+    These projects live under `D:\文档\`, so the default would have printed
+    `\344\270\255\346\226\207.md` in the one line whose whole job is to tell a
+    person which file is unfinished. Raw docstring on purpose: without the `r`
+    those escapes are real bytes, which is its own bug and one this repo has
+    already had once.
+    """
+    _git(project, "init", "-q")
+    _commit_everything(project)
+    (project / "wiki" / "中文笔记.md").write_text("x", encoding="utf-8")
+
+    got = _lines(project)
+    assert "中文笔记.md" in got
+    assert "\344" not in got

@@ -461,19 +461,34 @@ def cmd_apply(args) -> int:
               f"{'left to dangle' if args.no_rewrite else 'repointed'}")
         return 0
 
+    # A move can fail halfway — a file open in an editor is enough on Windows.
+    # `_validate` made the *plan* all-or-nothing, but carrying it out was not:
+    # the manifest was written after the loop, so a failure on move three left
+    # two moves done and nothing able to undo them. Whatever completed gets
+    # recorded even when the loop dies, because the manifest is the only route
+    # back.
     done = []
-    for src, dst in moves:
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        src.rename(dst)
-        done.append({"from": src.relative_to(root).as_posix(),
-                     "to": dst.relative_to(root).as_posix()})
-        print(f"  moved  {done[-1]['from']}  ->  {done[-1]['to']}")
+    failure: Exception | None = None
+    try:
+        for src, dst in moves:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            src.rename(dst)
+            done.append({"from": src.relative_to(root).as_posix(),
+                         "to": dst.relative_to(root).as_posix()})
+            print(f"  moved  {done[-1]['from']}  ->  {done[-1]['to']}")
+    except OSError as exc:
+        failure = exc
+        print(f"\nerror: stopped after {len(done)} of {len(moves)} move(s): {exc}",
+              file=sys.stderr)
 
     stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
     man_dir = root / "output" / "adopt"
     man_dir.mkdir(parents=True, exist_ok=True)
     man = man_dir / f"{stamp}.json"
-    edited = 0 if args.no_rewrite else apply_rewrites(
+    # Not after a partial move: the rewrites were computed for the whole plan,
+    # so repointing links at files that never moved would break the ones that
+    # still work. The manifest below still records what did move.
+    edited = 0 if (args.no_rewrite or failure) else apply_rewrites(
         root, rewrites, prose=not args.no_prose)
     if edited:
         print(f"  repointed {edited} reference(s)")
@@ -490,12 +505,13 @@ def cmd_apply(args) -> int:
               "left in place, yours to remove")
 
     man.write_text(json.dumps({"root": str(root), "moves": done,
-                               "rewrites": [] if args.no_rewrite else rewrites,
+                               "rewrites": [] if (args.no_rewrite or failure)
+                                           else rewrites,
                                "prose": not args.no_prose}, indent=2,
                               ensure_ascii=False), encoding="utf-8")
     print(f"\n{len(done)} moved. Undo with: magi adopt undo "
           f"{man.relative_to(root).as_posix()}")
-    return 0
+    return 1 if failure else 0
 
 
 def _latest_manifest(root: Path) -> Path | None:

@@ -1573,8 +1573,16 @@ def _uncommitted(root: Path) -> list[str]:
                               capture_output=True, text=True, timeout=10)
         if head.returncode != 0:
             return []
-        out = subprocess.run(["git", "status", "--porcelain"], cwd=root,
-                             capture_output=True, text=True, timeout=10)
+        # `-c core.quotepath=false`, or git escapes every non-ASCII byte as
+        # octal and the line reads `\344\270\255\346\226\207.md` instead of
+        # the filename. Not hypothetical here: these projects live under
+        # `D:\文档\`. `encoding="utf-8"` for the same reason — `text=True`
+        # alone decodes with the console codepage, which is not UTF-8 on most
+        # Windows machines.
+        out = subprocess.run(["git", "-c", "core.quotepath=false",
+                              "status", "--porcelain"], cwd=root,
+                             capture_output=True, text=True, timeout=10,
+                             encoding="utf-8", errors="replace")
     except (OSError, subprocess.SubprocessError):
         return []
     if out.returncode != 0:

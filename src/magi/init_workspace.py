@@ -154,7 +154,7 @@ created: {today}
 |-----------|---------|
 | [raw/](raw/) | Raw source materials |
 | [wiki/](wiki/) | Compiled knowledge base |
-| [output/](output/) | Generated artifacts — except `output/ingest/`, `output/radar/`, `output/reflect/` and `output/llm-ledger.jsonl`, which record decisions you made or what they cost, and cannot be rebuilt |
+| [output/](output/) | Generated artifacts — except `output/ingest/`, `output/radar/`, `output/reflect/`, `output/adopt/` and `output/llm-ledger.jsonl`, which record decisions you made, what they cost, or how to undo a move, and cannot be rebuilt |
 | [inbox/](inbox/) | Pending ingestion |
 
 ## Statistics

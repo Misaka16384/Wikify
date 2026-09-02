@@ -180,7 +180,9 @@ Run `magi next` first — it reads the notes and says what to do, and never acts
 - `wiki/concepts/`, `wiki/topics/` — shared knowledge. Edit freely.
 - `drafts/` — the working out. `threads/` — propositions, questions, lines.
 - `inbox/notes.md` — anything, unsorted. `decisions.md` — what a person decided.
-- `output/` — derived. Safe to delete and rebuild; never the source of anything.
+- `output/` — derived and rebuildable, **except** `ingest/ radar/ reflect/
+  adopt/ llm-ledger.jsonl`: those record what a person decided, what it cost,
+  and how to undo a move. Nothing rebuilds those.
 
 ## Invariants
 1. Evidence points at `raw/`, never at a card compiled from it.
