@@ -295,9 +295,18 @@ def _ask_yes_no(question: str, default: bool = True) -> bool:
     suffix = "[Y/n]" if default else "[y/N]"
     try:
         answer = input(f"  {question} {suffix} ").strip().lower()
-    except (EOFError, KeyboardInterrupt):
+    except EOFError:
+        # Nothing on stdin — piped, or no terminal. Taking the default is the
+        # whole point of having one.
         print()
         return default
+    except KeyboardInterrupt:
+        # Ctrl+C is not an answer, and it is certainly not "yes". These
+        # questions default to True, so catching the interrupt alongside
+        # EOFError turned "stop" into consent for whatever was being asked —
+        # turn this feature on, install this tool.
+        print()
+        raise SystemExit(130)
     if not answer:
         return default
     return answer in ("y", "yes")

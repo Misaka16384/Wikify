@@ -539,6 +539,14 @@ CASES: list[Case] = [
         target="tests/test_reflect_propose.py -k during_the_model_call",
     ),
     Case(
+        area="cli",
+        label="Ctrl+C at a setup prompt answers yes",
+        path="src/magi/setup_cmd.py",
+        fixed="    except KeyboardInterrupt:",
+        broken="    except (KeyboardInterrupt, RuntimeError) if False else EOFError:",
+        target="tests/test_setup_prompts.py -k ctrl_c_aborts",
+    ),
+    Case(
         area="skills",
         label="a flat command file is rendered without the origin mark",
         path="src/magi/skills_cmd.py",
