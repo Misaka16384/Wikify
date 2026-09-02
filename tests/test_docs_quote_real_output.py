@@ -87,7 +87,8 @@ _BY_DEFAULT = re.compile(r"默认|by default", re.IGNORECASE)
 
 
 def test_the_docs_do_not_promise_the_old_search_default():
-    """`--scope` defaults to `local`. Three chapters said it federated.
+    """Searching does not reach other projects unless asked. Three chapters
+    said it did.
 
     Checked by shape, not by spelling. The first version of this test banned
     the exact string "默认联邦检索", and the vocabulary sweep rewrote the same
@@ -100,8 +101,16 @@ def test_the_docs_do_not_promise_the_old_search_default():
     """
     from magi import retrieval
 
-    assert retrieval.build_parser().parse_args(["search", "q"]).scope == "local", (
-        "the default changed — this test is now guarding the wrong claim")
+    # The precondition is the *behaviour*, not the flag's spelling. The default
+    # is `auto`, which resolves to this project alone unless the project names
+    # companions in `research.search_projects` — so an unqualified "searching
+    # federates by default" is still false for every project that names none,
+    # which is every project until somebody edits the config. Asserting
+    # `scope == "local"` pinned the label, and the label is the part that moved.
+    assert retrieval.build_parser().parse_args(["search", "q"]).scope == "auto", (
+        "the default changed again — check this is still the right claim to guard")
+    assert retrieval._project_kbs(None) == set(), (
+        "a project naming no companions must still search only itself")
 
     offenders = []
     for name, text in _all_docs():
