@@ -180,3 +180,14 @@ def test_a_non_ascii_filename_reads_as_itself(project):
     got = _lines(project)
     assert "中文笔记.md" in got
     assert "\344" not in got
+
+
+def test_a_file_magi_regenerates_is_not_work_somebody_left(project):
+    """`output/MAP.md` is rewritten by every `sync --close`, so it is modified
+    at the end of every session by definition. Listing it as left in flight is
+    how the one line that matters teaches people to skip it."""
+    _git(project, "init", "-q")
+    _commit_everything(project)
+    (project / "output" / "MAP.md").write_text("regenerated\n", encoding="utf-8")
+
+    assert "MAP.md" not in _lines(project)

@@ -216,16 +216,53 @@ def session_start(payload: dict, root=None) -> dict:
         actions = state_mod.candidates(loaded)
     except Exception:      # noqa: BLE001 — a hook has no business raising
         return {}
-    if not actions:
+    blocks = []
+    if actions:
+        top = actions[:3]
+        said = "\n".join(f"- {action.why}\n  {action.run}" for action in top)
+        more = len(actions) - len(top)
+        if more > 0:
+            said += f"\n({more} more: magi next)"
+        blocks.append("MAGI — what this project needs:\n" + said)
+
+    # What the last session left half-done, at the moment somebody walks in.
+    # It was computed only by `sync --close`, which is the wrong end: "what
+    # you are leaving behind" got said on the way out and "what you are about
+    # to walk into" was said to nobody.
+    blocks.append(_handoff_block(root))
+    blocks.append(_skills_block(root))
+
+    said = "\n\n".join(b for b in blocks if b)
+    if not said:
         return {}
-    top = actions[:3]
-    said = "\n".join(f"- {action.why}\n  {action.run}" for action in top)
-    more = len(actions) - len(top)
-    if more > 0:
-        said += f"\n({more} more: magi next)"
     return {"hookSpecificOutput": {"hookEventName": "SessionStart",
-                                   "additionalContext":
-                                   "MAGI — what this project needs:\n" + said}}
+                                   "additionalContext": said}}
+
+
+def _handoff_block(root) -> str:
+    try:
+        from . import state as state_mod
+
+        lines = state_mod.handoff_lines(root)
+    except Exception:      # noqa: BLE001 — a hook has no business raising
+        return ""
+    if not lines:
+        return ""
+    return ("Left in flight by whoever was here last:\n"
+            + "\n".join(f"- {line}" for line in lines))
+
+
+def _skills_block(root) -> str:
+    """Skills older than the CLI teach commands that no longer exist, and the
+    agent reading them is the one who cannot tell."""
+    found = []
+    try:
+        from . import sync as sync_mod
+
+        sync_mod._skills_hint(root, lambda code, text, **kw: found.append(text))
+    except Exception:      # noqa: BLE001
+        return ""
+    return "\n".join(f"- {text}" for text in found) if found else ""
 
 
 EVENTS = {"fanout": fanout, "session-start": session_start}

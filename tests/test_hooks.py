@@ -297,3 +297,57 @@ def test_a_recent_row_survives_a_prune(tmp_path):
         hook_cmd.note_spawn(tmp_path, "live", "Agent")
 
     assert hook_cmd.spawns(tmp_path, "live") == 4
+
+
+# --------------------------------------------------------------------------
+# what the last session left behind, said at the start of the next one
+# --------------------------------------------------------------------------
+
+def test_session_start_says_what_was_left_in_flight(ws):
+    """It was computed only by `sync --close`, which is the wrong end.
+
+    "What you are leaving behind" got said on the way out; "what you are about
+    to walk into" was said to nobody. The information existed and was already
+    derived from files — it just never reached the moment it was for.
+    """
+    (ws / "inbox").mkdir(exist_ok=True)
+    (ws / "inbox" / "paper.md").write_text("x", encoding="utf-8")
+
+    said = hook_cmd.session_start({}, root=ws)
+
+    context = said["hookSpecificOutput"]["additionalContext"]
+    assert "Left in flight" in context
+    assert "paper.md" in context
+
+
+def test_a_quiet_workspace_still_says_nothing(ws):
+    """A hook that speaks every time teaches people to skip it, so the extra
+    sections must not turn silence into noise."""
+    assert hook_cmd.session_start({}, root=ws) == {}
+
+
+def test_both_halves_arrive_together(ws):
+    from magi.kb import thread_cmd
+
+    thread_cmd.main(["new", "p-a", "--topic-dir", str(ws), "--kind",
+                     "proposition", "--title", "A", "--purpose", "because"])
+    (ws / "inbox").mkdir(exist_ok=True)
+    (ws / "inbox" / "paper.md").write_text("x", encoding="utf-8")
+
+    context = hook_cmd.session_start({}, root=ws)["hookSpecificOutput"]["additionalContext"]
+
+    assert "what this project needs" in context
+    assert "Left in flight" in context
+
+
+def test_a_broken_helper_cannot_take_the_session_down(ws, monkeypatch):
+    """Every path in this module ends in exit 0 with parseable JSON. Two new
+    sections are two new ways to raise inside a hook."""
+    from magi import state as state_mod
+
+    monkeypatch.setattr(state_mod, "handoff_lines",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    (ws / "inbox").mkdir(exist_ok=True)
+    (ws / "inbox" / "paper.md").write_text("x", encoding="utf-8")
+
+    assert hook_cmd.session_start({}, root=ws) == {}

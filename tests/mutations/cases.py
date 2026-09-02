@@ -564,6 +564,22 @@ CASES: list[Case] = [
     ),
     Case(
         area="state",
+        label="the session-start hook never mentions what was left in flight",
+        path="src/magi/hook_cmd.py",
+        fixed="    blocks.append(_handoff_block(root))",
+        broken="    pass",
+        target="tests/test_hooks.py -k left_in_flight",
+    ),
+    Case(
+        area="state",
+        label="a file magi regenerates is reported as work somebody left",
+        path="src/magi/state.py",
+        fixed="    return [p for p in changed if p not in _REGENERATED]",
+        broken="    return changed",
+        target="tests/test_close_handoff.py -k regenerated",
+    ),
+    Case(
+        area="state",
         label="the close gate never says what it left in flight",
         path="src/magi/state.py",
         fixed="    report.handoff = handoff_lines(root)",

@@ -1555,6 +1555,11 @@ def handoff_lines(root) -> list[str]:
     return lines
 
 
+#: Files MAGI rewrites on its own schedule, so a diff in one of them says
+#: nothing about what a person was doing.
+_REGENERATED = frozenset({"output/MAP.md"})
+
+
 def _uncommitted(root: Path) -> list[str]:
     """Paths git reports as changed, or `[]` when this is not a repo.
 
@@ -1587,8 +1592,12 @@ def _uncommitted(root: Path) -> list[str]:
         return []
     if out.returncode != 0:
         return []
-    return [line[3:].strip().strip('"') for line in out.stdout.splitlines()
-            if line.strip()]
+    changed = [line[3:].strip().strip('"') for line in out.stdout.splitlines()
+               if line.strip()]
+    # `output/MAP.md` is rewritten by every `sync --close`, so it is modified
+    # at the end of every session by definition. Reporting it as work somebody
+    # left in flight is how a line that matters teaches people to skip it.
+    return [p for p in changed if p not in _REGENERATED]
 
 
 def render_close(report: CloseReport) -> str:
