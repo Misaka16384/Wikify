@@ -162,6 +162,23 @@ def _last_post_time(note):
     return max(stamps) if stamps else None
 
 
+def _created_at(note):
+    """The note's `created:` frontmatter, as an aware datetime.
+
+    YAML turns an unquoted `created: 2026-09-02` into a `date` and a quoted one
+    into a string, and both spellings are out there — our writer quotes, a
+    person editing the file by hand does not. `parse_at` is for the timestamps
+    we wrote ourselves and takes a string, so the coercion belongs here rather
+    than loosening that one for every caller.
+    """
+    raw = note.frontmatter.get("created")
+    if isinstance(raw, dt.datetime):
+        return raw if raw.tzinfo else raw.replace(tzinfo=dt.timezone.utc)
+    if isinstance(raw, dt.date):
+        return dt.datetime(raw.year, raw.month, raw.day, tzinfo=dt.timezone.utc)
+    return parse_at(raw)
+
+
 def _waiting_since(note):
     """When this note started waiting.
 
@@ -173,8 +190,7 @@ def _waiting_since(note):
     posted = _last_post_time(note)
     if posted is not None:
         return posted
-    created = parse_at(note.frontmatter.get("created"))
-    return created or dt.datetime.min.replace(tzinfo=dt.timezone.utc)
+    return _created_at(note) or dt.datetime.min.replace(tzinfo=dt.timezone.utc)
 
 
 # ---------------------------------------------------------------- loading

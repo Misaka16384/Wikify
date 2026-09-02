@@ -524,6 +524,14 @@ CASES: list[Case] = [
     ),
     Case(
         area="state",
+        label="a created date YAML parsed as a date crashes the dashboard",
+        path="src/magi/state.py",
+        fixed="    if isinstance(raw, dt.date):",
+        broken="    if False:",
+        target="tests/test_state.py -k without_quotes",
+    ),
+    Case(
+        area="state",
         label="two note-less threads tie at the floor and rank by chance",
         path="src/magi/state.py",
         fixed="    return min(owned, key=_waiting_since)",

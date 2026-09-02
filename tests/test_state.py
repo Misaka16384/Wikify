@@ -1520,3 +1520,20 @@ def test_two_notes_with_no_posts_are_ranked_by_when_they_opened(ws):
     work = [a for a in state.candidates(load(ws)) if a.key == "work"]
     assert work[0].slug == "p-old"
     assert "2020-01-01" in work[0].why
+
+
+def test_a_created_written_without_quotes_is_still_a_date(ws):
+    """YAML turns an unquoted `created: 2026-09-02` into a `date` object, and
+    a person who edits a note by hand writes it unquoted. Reading it through
+    the post-timestamp parser called `.strip()` on a date and took the whole
+    dashboard down with an AttributeError.
+    """
+    line(ws)
+    path = proposition(ws, "p-by-hand")
+    today = dt.date.today().isoformat()
+    path.write_text(path.read_text(encoding="utf-8").replace(
+        f"created: '{today}'", f"created: {today}"), encoding="utf-8")
+
+    work = [a for a in state.candidates(load(ws)) if a.key == "work"]
+    assert work, "the note still loads"
+    assert today in work[0].why
