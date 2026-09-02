@@ -515,6 +515,14 @@ CASES: list[Case] = [
     ),
 
     Case(
+        area="skills",
+        label="uninstall deletes a skill the person wrote themselves",
+        path="src/magi/skills_cmd.py",
+        fixed="            if not _ours(path):",
+        broken="            if False:",
+        target="tests/test_skills_origin.py -k leaves_a_skill_the_person_wrote",
+    ),
+    Case(
         area="state",
         label="the close gate never says what it left in flight",
         path="src/magi/state.py",

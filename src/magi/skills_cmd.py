@@ -355,6 +355,7 @@ def uninstall_host(host: Host, skills: List[Skill], scope: str, dry_run: bool,
                    project_root: Optional[Path] = None,
                    override_dir: Optional[Path] = None) -> Dict:
     removed: List[str] = []
+    kept: List[str] = []
     for target in host.drops:
         dest = override_dir if override_dir is not None else target_dir(target, scope, project_root)
         if dest is None:
@@ -362,6 +363,15 @@ def uninstall_host(host: Host, skills: List[Skill], scope: str, dry_run: bool,
         for sk in skills:
             path = (dest / sk.name) if target.layout == "dir" else (dest / f"{sk.name}.md")
             if not path.exists():
+                continue
+            if not _ours(path):
+                # Somebody's own skill under a name we also ship. Install
+                # already refuses to overwrite one; removing has to ask the
+                # same question, or `magi skills uninstall` takes their prompt
+                # and their reference files with it. Reported rather than
+                # skipped in silence — an uninstall that leaves a file behind
+                # and says nothing reads as a bug.
+                kept.append(str(path))
                 continue
             removed.append(str(path))
             if dry_run:
@@ -375,7 +385,8 @@ def uninstall_host(host: Host, skills: List[Skill], scope: str, dry_run: bool,
                     pass
         if override_dir is not None:
             break
-    return {"host": host.key, "label": host.label, "scope": scope, "removed": removed}
+    return {"host": host.key, "label": host.label, "scope": scope,
+            "removed": removed, "kept": kept}
 
 
 def detected_hosts(config: Optional[dict] = None) -> List[Host]:
@@ -652,6 +663,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                 print(f"      note: {r['note']}")
         else:
             print(f"  {r['label']} ({r['scope']}): {verb}remove {len(r['removed'])} item(s)")
+            for path in r.get("kept", []):
+                print(f"      kept {path} — yours, not ours "
+                      f"(no '{ORIGIN_MARK}'); delete it by hand if you meant to")
     if not args.dry_run and cmd == "install":
         print("\nRestart the agent CLI (or start a new session) for it to pick them up.")
     return 0

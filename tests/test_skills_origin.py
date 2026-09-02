@@ -167,3 +167,80 @@ def test_an_unknown_host_lists_both_spellings():
         skills_cmd._resolve_hosts(["nope"])
     said = str(caught.value)
     assert "gemini" in said and "antigravity" in said
+
+
+# --------------------------------------------------------------------------
+# removing asks the same question as writing
+# --------------------------------------------------------------------------
+
+def _claude():
+    return skills_cmd.catalog(None)["claude"]
+
+
+def _install_into(dest: Path) -> None:
+    target = next(t for t in _claude().drops if t.kind == "skill")
+    for sk in skills_cmd.load_skills():
+        path, text = skills_cmd.files_for(sk, target, dest)[0]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+
+
+def _plant_a_persons_own(dest: Path, name: str) -> Path:
+    """A skill they wrote, under a name we also ship. No mark: not ours."""
+    d = dest / name
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "SKILL.md").write_text(
+        "---\nname: %s\ndescription: mine\n---\n\n# my own\n" % name,
+        encoding="utf-8")
+    (d / "REFERENCE.md").write_text("my reference material\n", encoding="utf-8")
+    return d
+
+
+def test_uninstall_leaves_a_skill_the_person_wrote(home, tmp_path):
+    """`_ours` was written for exactly this and nothing called it.
+
+    Its own docstring describes the bug — "somebody's own
+    `~/.claude/skills/research/` — their prompt, their reference files — went
+    with one `magi skills uninstall`" — so the guard existed at a layer that
+    could not be wrong while the one call site that could was never wired.
+    Reproduced against a real install before this test was written: 9 removed,
+    including the person's directory and the reference file inside it.
+    """
+    dest = tmp_path / ".claude" / "skills"
+    _install_into(dest)
+    mine = _plant_a_persons_own(dest, "research")
+
+    result = skills_cmd.uninstall_host(_claude(), skills_cmd.load_skills(),
+                                       "project", dry_run=False,
+                                       override_dir=dest)
+
+    assert mine.is_dir(), "the person's skill was deleted"
+    assert (mine / "REFERENCE.md").is_file(), "their reference file went too"
+    assert str(mine) in result["kept"]
+    assert str(mine) not in result["removed"]
+
+
+def test_uninstall_still_removes_what_magi_wrote(home, tmp_path):
+    dest = tmp_path / ".claude" / "skills"
+    _install_into(dest)
+
+    result = skills_cmd.uninstall_host(_claude(), skills_cmd.load_skills(),
+                                       "project", dry_run=False,
+                                       override_dir=dest)
+
+    assert result["removed"], "nothing was removed at all"
+    assert not (dest / "adopt").exists()
+    assert result["kept"] == []
+
+
+def test_what_was_kept_is_said_out_loud(home, tmp_path, capsys):
+    """An uninstall that leaves a file behind and says nothing reads as a bug,
+    and the person never learns why it is still there."""
+    dest = tmp_path / ".claude" / "skills"
+    _install_into(dest)
+    _plant_a_persons_own(dest, "research")
+
+    skills_cmd.main(["uninstall", "--host", "claude", "--dir", str(dest)])
+
+    out = capsys.readouterr().out
+    assert "kept" in out and "research" in out
