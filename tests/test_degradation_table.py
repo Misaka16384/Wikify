@@ -101,12 +101,16 @@ def test_one_unreadable_host_still_does_not_stop_the_sweep():
         "the sweep must report what it could not read rather than raise"
 
 
-def test_the_budget_is_still_counted_in_calls():
-    """Calls, not money: a headless CLI does not say what a request cost, and a
-    budget denominated in a number nobody can measure never refuses anything."""
+def test_the_ledger_counts_and_does_not_cap():
+    """The weekly budget was cancelled on 2026-09-03 (the person's call; the
+    module says why). What must survive is the count — calls, not money, since
+    a headless CLI does not say what a request cost — and the one refusal that
+    is left, the master switch. A cap creeping back in here would be a second
+    limit nobody asked for."""
     body = (REPO / "src" / "magi" / "core" / "ledger.py").read_text(encoding="utf-8")
-    assert "DEFAULT_WEEKLY" in body
-    assert "budget is spent" in body
+    assert "DEFAULT_WEEKLY" not in body and "OverBudget" not in body
+    assert "class SwitchedOff" in body
+    assert "nothing counts as reviewed" in body
 
 
 def test_the_document_states_its_own_gaps():

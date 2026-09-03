@@ -42,10 +42,14 @@ def _host(**over):
 # the chain
 # --------------------------------------------------------------------------
 
-def test_nothing_configured_gets_the_cheap_tier():
-    """The point of the whole exercise: "I set nothing" must stop meaning
-    "charge me the most"."""
-    assert _host(cheap="mycli-mini").pick_model() == "mycli-mini"
+def test_nothing_configured_gets_the_strong_tier():
+    """"I set nothing" means the reader that reads. It meant the cheap tier
+    until 2026-09-03, when a day of real reviews showed the cheap reader
+    waving substantive errors through; the last link is `strong` now, and
+    `cheap` is an option somebody names."""
+    assert _host(strong="mycli-max", cheap="mycli-mini").pick_model() == "mycli-max"
+    assert _host(cheap="mycli-mini").pick_model() == "", "no strong tier, no guess"
+    assert _host(strong="mycli-max", cheap="mycli-mini").pick_model("mycli-mini") == "mycli-mini"
 
 
 def test_the_workspace_setting_beats_the_cheap_tier():
@@ -123,10 +127,10 @@ def test_plan_walks_the_chain_for_a_named_host():
     assert effort == "low"
 
 
-def test_plan_reaches_the_cheap_tier_when_nothing_is_set():
+def test_plan_reaches_the_strong_tier_when_nothing_is_set():
     _entry, model, effort = review.plan("claude", None, None, review.Settings())
-    assert model == "haiku"
-    assert effort == ""
+    assert model == "opus"
+    assert effort == "high", "the strong tier brings its own level"
 
 
 def test_plan_refuses_a_host_with_no_headless_mode():

@@ -125,6 +125,10 @@ class State:
     notes: list = field(default_factory=list)
     wip_limit: int = WIP_LIMIT
     coaching: str = vocab.DEFAULT_COACHING
+    #: Carried so `candidates` can derive how long an open proposition may
+    #: wait before the router's tone changes (half of this). One knob for "how
+    #: patient is this project", not two.
+    stall_days: int = STALL_DAYS
     #: Violations of the rules this library promoted for itself. Not debt —
     #: debt is work somebody did without recording it, and this is work that
     #: broke a rule a person accepted.
@@ -225,7 +229,7 @@ def load(root, wip_limit: int | None = None, stall_days: int = STALL_DAYS,
     except (TypeError, ValueError):
         limit = WIP_LIMIT
     state = State(root=root, notes=notes, wip_limit=max(1, limit),
-                  coaching=coaching)
+                  coaching=coaching, stall_days=max(1, int(stall_days or STALL_DAYS)))
     state.lines = _lines(notes, now=now, stall_days=stall_days, limit=state.wip_limit)
     state.queue = _queue(notes, state.lines) + _proposals(root)
     state.debt = unreadable + _debt(root, notes)
@@ -300,6 +304,12 @@ def _missing_bets(notes) -> list:
             continue
         if note.frontmatter.get("bet"):
             continue
+        # A finding was computed before it was written down (`found:`), so
+        # there was never a moment for a prediction to be honest. Asking for
+        # one produces a bet placed after the answer, which is worth nothing
+        # and which strict mode would then hold a session closed for.
+        if note.frontmatter.get("found"):
+            continue
         out.append(DebtItem(
             slug=note.slug, path=note.path,
             why="work started with no prediction on record, and coaching is strict "
@@ -351,7 +361,10 @@ def _queue(notes, lines) -> list:
             items.append(QueueItem(kind=note.status, slug=note.slug, why=why, line=line))
         elif (note.kind == vocab.PROPOSITION
               and note.status in ("conjectured", "testing")
-              and not note.frontmatter.get("bet")):
+              and not note.frontmatter.get("bet")
+              # `found:` says the result came before the note. There is no
+              # prediction to ask for — it would be placed after the answer.
+              and not note.frontmatter.get("found")):
             items.append(QueueItem(
                 kind="bet", slug=note.slug, line=line,
                 why="work has started and nobody wrote down what they expect; "
@@ -495,9 +508,16 @@ def _unrecorded_decisions(root: Path, note) -> list:
             continue
         if _decisions_mention(root, note.slug):
             continue
+        # The remedy is spelled out as a command and the one wrong move is
+        # named. An agent told only "sign the post" re-ran the flip, and
+        # every unsigned repeat is one more decision owed — a session on
+        # 2026-09-03 dug itself deeper with each retry.
         out.append((f"{post.src} → {post.dst} is a person's call and nothing "
-                    f"records that they made it — sign the post `--host human` "
-                    f"or write it into {DECISIONS}", post.at))
+                    f"records that they made it — this move needs `--host human`: "
+                    f"`magi thread post {note.slug} --host human --text '<what they "
+                    f"said>'` or an entry in {DECISIONS}. Do not repeat the move; "
+                    f"an unsigned repeat is another signature owed, not a fix",
+                    post.at))
     return out
 
 
@@ -570,6 +590,69 @@ def _stale_derivation(root: Path, note, links):
             where = target.name
         return where, moved.strftime("%Y-%m-%dT%H:%M:%SZ")
     return None
+
+
+#: An absolute path as it appears in prose: a Windows drive path, or a POSIX
+#: path under the roots where temporary and home directories live. Anything
+#: relative is left alone — "see tools/check.m2" is a library path and
+#: `e.g.` is not a path at all.
+_ABS_PATH_RE = __import__("re").compile(
+    r"(?<![\w/\\])(?:[A-Za-z]:[\\/][^\s\"'`)\]>]+"
+    r"|/(?:tmp|home|Users|var|private|mnt|opt|root)/[^\s\"'`)\]>]+)")
+
+#: A CLI's scratch directory, named as such. Fifteen scripts lived there on
+#: the day this was written, cited from posts as `scratchpad <name>`; a path
+#: that says "scratchpad" is outside the library whatever else it says.
+_SCRATCH_WORDS = ("scratchpad",)
+
+
+def evidence_outside(root, note, links=None) -> list:
+    """Why a reviewer could not read this note's evidence, one sentence each.
+
+    Two shapes. A `derivation:` or `evidence:` entry that resolves to no file
+    in the library — the path was typed wrong, or the file was never moved
+    in. And an absolute path in a post that points outside the library: the
+    evidence exists, on this machine, where only its author can open it. Both
+    are the same failure for the reviewer, who reads inside the workspace and
+    nowhere else; both are reported rather than blocked, because a session
+    that ended with its scripts in the wrong directory is a session that
+    stopped somewhere reasonable, and the fix is a move and a post.
+    """
+    if note is None or note.kind != vocab.PROPOSITION:
+        return []
+    root = Path(root)
+    try:
+        resolved_root = root.resolve()
+    except OSError:
+        resolved_root = root
+    out: list = []
+    for field in ("derivation", "evidence"):
+        for link in threads.as_list(note.frontmatter.get(field)):
+            target = _resolve(root, str(link), links)
+            if target is None or not target.exists():
+                out.append(f"`{field}:` names {link}, which is not a file in the project")
+    seen: set = set()
+    for post in note.posts:
+        text = post.text or ""
+        for match in _ABS_PATH_RE.finditer(text):
+            found = match.group(0).rstrip(".,;:")
+            if found in seen:
+                continue
+            seen.add(found)
+            try:
+                inside = (Path(found).resolve() == resolved_root
+                          or resolved_root in Path(found).resolve().parents)
+            except (OSError, ValueError):
+                inside = False
+            if not inside:
+                out.append(f"a post cites {found}, which is outside the project — "
+                           "a reviewer cannot read it")
+        for word in _SCRATCH_WORDS:
+            if word in text.lower() and word not in seen:
+                seen.add(word)
+                out.append(f"a post cites a {word} path — a CLI's scratch directory is "
+                           "outside the project, and a reviewer cannot read it")
+    return out
 
 
 #: Where a `[[wikilink]]` may point, in the order a tie is broken. Drafts
@@ -650,7 +733,19 @@ _QUEUE_ACTION = {
 }
 
 
-def candidates(state: State) -> list:
+def nudge_days(state: State) -> int:
+    """How long an open proposition waits before `next` changes its tone.
+
+    Half the line's stall threshold. Research runs on weeks: a proposition
+    opened yesterday is not owed anything, and a router that says "post what
+    you found, or move it" about it on day one is a router people learn to
+    skim. One knob — `research.stall_days` — answers both questions, because
+    they are the same question about the same project.
+    """
+    return max(1, int(state.stall_days) // 2)
+
+
+def candidates(state: State, now=None) -> list:
     """Everything worth doing, most-owed first. Proposes; never acts.
 
     Debt is first because every other line of this list is computed from notes
@@ -659,6 +754,7 @@ def candidates(state: State) -> list:
     machine work. Then the work itself.
     """
     actions: list = []
+    now = now or dt.datetime.now(dt.timezone.utc)
 
     dump = unfiled(state.root)
     if dump:
@@ -714,6 +810,54 @@ def candidates(state: State) -> list:
             why=f"{name} has nothing open — what is the next question?",
             run=f"magi thread new <slug> --kind proposition{scope} …"))
 
+    # Two more things for the person, kept beside the queue so the block
+    # `render` draws is one block. Both are lists, not one item per claim:
+    # seven "don't know"s asked about one per turn were seven interruptions.
+    back = retrospective(state)
+    if back["unknown_open"]:
+        names = ", ".join(back["unknown_open"])
+        actions.append(Action(
+            key="bets", slug=back["unknown_open"][0], cost="human",
+            why=f"{len(back['unknown_open'])} proposition(s) carry `bet: unknown` — "
+                f"if you now lean either way, say so: {names}",
+            run="magi thread bet <slug> <supported|refuted> --text '<why>'"))
+    weak = [slug for slug in weakly(state) if slug in by_slug]
+    if weak:
+        actions.append(Action(
+            key="reread", slug=weak[0], cost="human",
+            line=(by_slug[weak[0]].lines or [None])[0],
+            why=f"{len(weak)} claim(s) were reviewed only by the cheap tier — say "
+                f"which deserve a strong reader: {', '.join(weak)}",
+            run="magi review <slug>"))
+
+    # Evidence a reviewer cannot open. The agent's to fix — a move and a post
+    # — and ahead of the rest of its work, because a review run before the
+    # move comes back `unclear` after minutes and money.
+    links = _link_index(state.root)
+    for note in sorted(state.notes, key=lambda n: n.slug):
+        for why in evidence_outside(state.root, note, links):
+            actions.append(Action(
+                key="evidence", slug=note.slug, cost="llm",
+                line=(note.lines or [None])[0],
+                why=f"{note.slug}: {why}",
+                run=f"move it under tools/ (or drafts/), then `magi thread post "
+                    f"{note.slug} --evidence <path> --text 'moved into the project'`"))
+
+    # A reviewer agreed with the conclusion and not with the words. That is
+    # the author's to fix and nobody else's, so it ranks ahead of the rest of
+    # the agent's work: the claim is in limbo until the words change.
+    for slug in restating(state):
+        note = by_slug.get(slug)
+        if note is None:
+            continue
+        actions.append(Action(
+            key="restate", slug=slug, cost="llm",
+            line=(note.lines or [None])[0],
+            why=f"{slug}: a reviewer says the conclusion holds and the statement "
+                f"or derivation must change — its post says what",
+            run=f"fix threads/{slug}.md or its derivation as the post says, then "
+                f"`magi thread status {slug} supported --text '<what changed>'`"))
+
     for slug in unreviewed(state):
         note = by_slug.get(slug)
         if note is None:
@@ -726,17 +870,26 @@ def candidates(state: State) -> list:
             why=f"{slug} says it is solved and nobody independent has read it",
             run=f"magi review {slug}"))
 
+    patience = nudge_days(state)
     for view in state.lines:
         if view.slug in spoken_for or view.status in ("closed", "dormant"):
             continue
         oldest = _oldest_open(state.notes, view.slug)
         if oldest is None:
             continue
-        since = _waiting_since(oldest).date().isoformat()
+        waiting = _waiting_since(oldest)
+        since = waiting.date().isoformat()
+        # Two sentences for one fact. Under the threshold this is the oldest
+        # open work and nothing more; past it, the router says what it wants.
+        # A proposition opened this week is not being chased.
+        if (now - waiting).days >= patience:
+            why = (f"{oldest.slug} has been {oldest.status} since {since} — "
+                   f"post what you found, or move it")
+        else:
+            why = (f"{oldest.slug} is the oldest open work here "
+                   f"({oldest.status} since {since})")
         actions.append(Action(
-            key="work", slug=oldest.slug, line=view.slug, cost="llm",
-            why=f"{oldest.slug} has been {oldest.status} since {since} — "
-                f"post what you found, or move it",
+            key="work", slug=oldest.slug, line=view.slug, cost="llm", why=why,
             run=f"magi thread status {oldest.slug} <status> --text '<what happened>'"))
     return actions
 
@@ -812,10 +965,51 @@ def render(state: State, actions: list) -> str:
 
     labels = {"certain": "", "llm": " [needs an agent]", "human": " [needs you]"}
     out.append("Next")
+    # The ranking is `candidates`'s and is kept. What changes is the shape:
+    # everything that needs the person is printed as one block under one
+    # heading, so an agent reading this puts the bet, the disputed claim and
+    # the line's phase to them in one message. Asked one per turn, each was
+    # an interruption; asked together they are the one conversation a person
+    # expects to have (design-v2 §1.5).
+    in_block = False
     for index, action in enumerate(actions, 1):
+        human = action.cost == "human"
+        if human and not in_block:
+            out.append("")
+            out.append("  For the person — put these to them together, in one message, "
+                       "not one per turn:")
+            in_block = True
+        elif not human and in_block:
+            out.append("")
+            out.append("  Then:")
+            in_block = False
         out.append(f"  {index}. {action.why}{labels.get(action.cost, '')}")
         out.append(f"     {action.run}")
+    out.extend(_scoreboard(state))
     return "\n".join(out)
+
+
+def _scoreboard(state: State) -> list:
+    """One line on what the bets have been worth, when there are any.
+
+    The point of asking for a prediction before the work is that it can be
+    checked after; a hit rate nobody sees trains nothing. `MAP.md` carries the
+    full table under "Looking back"; the router carries the one line, so it is
+    seen on the turn it changes.
+    """
+    back = retrospective(state)
+    if not (back["scored"] or back["open"] or back["superseded"]):
+        return []
+    parts = []
+    if back["scored"]:
+        parts.append(f"{back['hits']}/{back['scored']} predictions right")
+    if back["unknown"]:
+        parts.append(f"{back['unknown']} settled as \"don't know\"")
+    if back["open"]:
+        parts.append(f"{len(back['open'])} open")
+    if back["superseded"]:
+        parts.append(f"{len(back['superseded'])} retired unscored (superseded)")
+    return ["", "Bets: " + " · ".join(parts) + "  (the table: output/MAP.md, Looking back)"]
 
 
 def to_json(state: State, actions: list) -> dict:
@@ -823,6 +1017,7 @@ def to_json(state: State, actions: list) -> dict:
         "root": str(state.root),
         "lines": [vars(view) for view in state.lines],
         "pinned": pinned(state),
+        "retrospective": retrospective(state),
         "queue": [vars(item) for item in state.queue],
         "debt": [{"slug": item.slug, "why": item.why,
                   "path": str(item.path) if item.path else None}
@@ -1004,6 +1199,26 @@ def unreviewed(state: State) -> list:
         return []
 
 
+def weakly(state: State) -> list:
+    """Claims whose only review came from the cheap tier. Same seam as above."""
+    try:
+        from . import review as review_mod
+
+        return review_mod.weakly_reviewed(state.root, notes=state.notes)
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def restating(state: State) -> list:
+    """Claims a reviewer sent back for rewording, still waiting on their author."""
+    try:
+        from . import review as review_mod
+
+        return review_mod.restating(state.root, notes=state.notes)
+    except Exception:  # noqa: BLE001
+        return []
+
+
 # ---------------------------------------------------------------- feed
 
 
@@ -1084,9 +1299,25 @@ def retrospective(state: State, limit: int = 8) -> dict:
     the one answer that keeps the rest of the numbers meaningful.
     """
     scored, unknown, late = [], 0, 0
+    open_bets, unknown_open, superseded = [], [], []
     for note in state.notes:
         bet = note.frontmatter.get("bet")
-        if note.kind != vocab.PROPOSITION or not bet or note.status not in _SETTLED:
+        if note.kind != vocab.PROPOSITION or not bet:
+            continue
+        # The scoreboard's other half: bets still waiting for an answer, and
+        # the "don't know"s among them a person might now have a view on. A
+        # bet retired by `superseded` is paired with nothing — the claim was
+        # replaced, not answered — and is listed so it is not mistaken for
+        # a bet nobody scored.
+        if note.status in _OPEN_STATUSES:
+            open_bets.append(note.slug)
+            if bet == "unknown":
+                unknown_open.append(note.slug)
+            continue
+        if note.status == "superseded":
+            superseded.append(note.slug)
+            continue
+        if note.status not in _SETTLED:
             continue
         settled_at, bet_at = None, None
         for index, post in enumerate(note.posts):
@@ -1121,6 +1352,9 @@ def retrospective(state: State, limit: int = 8) -> dict:
         "unknown": unknown,
         "late": late,
         "rate": round(hits / len(scored), 2) if scored else None,
+        "open": sorted(open_bets),
+        "unknown_open": sorted(unknown_open),
+        "superseded": sorted(superseded),
         "decisions": _recent_decisions(state.root, limit),
     }
 
@@ -1151,9 +1385,7 @@ def budget(root) -> dict:
         config = load_config(start=root)
         if not bool(config_get(config, "research.llm_calls", True)):
             return {"off": True}
-        return ledger.summary(
-            root, limit=config_get(config, "research.weekly_calls",
-                                   ledger.DEFAULT_WEEKLY))
+        return ledger.summary(root)
     except Exception:  # noqa: BLE001
         return {}
 
@@ -1244,12 +1476,18 @@ def render_map(state: State, now=None) -> str:
                     "MAGI's own model calls are switched off "
                     "(`research.llm_calls: false`). Nothing is reviewed until "
                     "somebody turns them back on."])
-    elif "limit" in spent:
-        line = (f"{spent['spent']}/{spent['limit']} model calls this week "
-                f"({spent['week']}), refilling {spent['until']}.")
-        if spent.get("over"):
-            line += (" The reviewer is off until then — and nothing counts as "
-                     "reviewed in the meantime.")
+    elif "spent" in spent:
+        # A count, not a quota. The weekly budget was cancelled (ledger.py
+        # says why); what is left is the number a person opens this section
+        # to read — how many calls, of what kind, how many failed.
+        kinds = spent.get("by_kind") or {}
+        line = (f"{spent['spent']} model call(s) this week ({spent['week']}): "
+                f"{kinds.get('review', 0)} review, {kinds.get('reflect', 0)} reflect.")
+        if spent.get("failed"):
+            line += f" {spent['failed']} failed."
+        tiers = spent.get("by_tier") or {}
+        if tiers:
+            line += " By tier: " + ", ".join(f"{k} {v}" for k, v in sorted(tiers.items())) + "."
         out.extend(["", "## Spending", "", line])
 
     out.append("")
@@ -1295,6 +1533,17 @@ class CloseReport:
     #: this session" beside a map saying "waiting on you" makes the reader
     #: reconcile two sentences that were never in conflict.
     waiting: list = field(default_factory=list)
+    #: Claims whose only review came from the cheap tier. Reported beside
+    #: `unreviewed`, never blocking: a verdict exists, and whether it is worth
+    #: a second, stronger reader is a choice.
+    weakly_reviewed: list = field(default_factory=list)
+    #: Claims a reviewer sent back for rewording. The author's, not a
+    #: person's, and not debt — the reviewer's post is the record.
+    restating: list = field(default_factory=list)
+    #: `(slug, why)` for evidence a reviewer could not read: a path outside
+    #: the library, or a `derivation:`/`evidence:` entry that names no file.
+    #: Reported, not blocking — the fix is a move and a post.
+    outside: list = field(default_factory=list)
     #: What the next session — or another one running right now — would walk
     #: into. Computed at render time from files that already exist, never
     #: stored: `log.md` was retired in v2 precisely because writing the same
@@ -1425,6 +1674,11 @@ def close(root, window_hours: int = CLOSE_WINDOW_HOURS, write: bool = True,
     report.waiting = [f"{item.kind}: {item.slug} — {item.why}"
                       for item in state.queue if item.kind != "wip"]
     report.unreviewed = unreviewed(state)
+    report.weakly_reviewed = weakly(state)
+    report.restating = restating(state)
+    links = _link_index(root)
+    report.outside = [(note.slug, why) for note in state.notes
+                      for why in evidence_outside(root, note, links)]
     report.handoff = handoff_lines(root)
 
     if write:
@@ -1640,6 +1894,25 @@ def render_close(report: CloseReport) -> str:
         out.append(f"Waiting on a second reader, not blocking "
                    f"({len(report.unreviewed)}):")
         out.extend(f"  magi review {slug}" for slug in report.unreviewed[:5])
+    if report.weakly_reviewed:
+        out.append("")
+        out.append(f"Reviewed only by the cheap tier — a strong reader has not seen "
+                   f"these, not blocking ({len(report.weakly_reviewed)}):")
+        out.extend(f"  magi review {slug}" for slug in report.weakly_reviewed[:5])
+    if report.restating:
+        out.append("")
+        out.append(f"Sent back by a reviewer for restating — the author's to fix, "
+                   f"not blocking ({len(report.restating)}):")
+        out.extend(f"  {slug}: change the words as its last post says, then "
+                   f"`magi thread status {slug} supported --text '<what changed>'`"
+                   for slug in report.restating[:5])
+    if report.outside:
+        out.append("")
+        out.append(f"Evidence outside the project — a reviewer cannot read it, not "
+                   f"blocking ({len(report.outside)}):")
+        out.extend(f"  {slug}: {why}" for slug, why in report.outside[:5])
+        out.append("  move it under tools/ (or drafts/), then "
+                   "`magi thread post <slug> --evidence <path> --text 'moved in'`")
     if report.older:
         out.append("")
         out.append(f"Older debt, not blocking ({len(report.older)}):")

@@ -225,8 +225,8 @@ def run(root, *, host=None, model=None, timeout: int = TIMEOUT, dry_run: bool = 
         return report
 
     try:
-        ledger.check(root, limit=settings.limit, enabled=settings.enabled)
-    except (ledger.OverBudget, ledger.SwitchedOff) as exc:
+        ledger.check(root, enabled=settings.enabled)
+    except ledger.SwitchedOff as exc:
         report.note = str(exc)
         report.failed = True
         return report
@@ -534,7 +534,7 @@ def main(argv=None) -> int:
     parser.add_argument("--project-dir", "--topic-dir", dest="topic_dir", help="Project directory (default: discovered from cwd)")
     parser.add_argument("--host", help="Which CLI reads (default: config, then PATH)")
     parser.add_argument("--model", help="Pin the reader's model (default: this "
-                                        "host's cheap tier)")
+                                        "host's strong tier)")
     parser.add_argument("--effort", choices=host_table.EFFORTS,
                         help="Reasoning level, where the host takes one")
     parser.add_argument("--timeout", type=int, default=TIMEOUT)

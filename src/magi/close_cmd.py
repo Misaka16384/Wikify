@@ -28,6 +28,7 @@ from pathlib import Path
 from .core import vocab
 from .core.workspace import find_workspace_root
 from .kb import threads
+from .kb.thread_cmd import via_name
 
 #: Statuses that mean "still somebody's problem". Same set `state` ranks work
 #: by, and the reason a closed line's members would go quiet.
@@ -82,13 +83,17 @@ def _settle_line(item: dict) -> str:
 
 
 def close(root, line: str, text: str, anyway: bool = False,
-          host: str = vocab.HUMAN) -> dict:
+          host: str = vocab.HUMAN, via: str | None = None) -> dict:
     """Close one line. Returns what happened; raises nothing a caller expects.
 
     With work still open and `anyway` unset, nothing is written and the report
     says what is in the way. With `anyway`, the post names every slug that was
     left open — the record has to say what was orphaned, because after this the
     router never will.
+
+    `via` is who typed it when the signature is a person's: the CLI that
+    transcribed the decision, or `webui`. It travels into the signature as
+    `human · via <cli>` (see `threads.format_post`).
     """
     found = survey(root, line)
     if not found["exists"]:
@@ -108,7 +113,7 @@ def close(root, line: str, text: str, anyway: bool = False,
                  + ", ".join(item["slug"] for item in found["open"]))
     try:
         threads.set_status(Path(root) / "threads" / f"{line}.md", "closed",
-                           said, host=host, line=line)
+                           said, host=host, line=line, via=via)
     except (threads.IllegalTransition, OSError, ValueError) as exc:
         return dict(found, ok=False, error=str(exc))
     return dict(found, ok=True, changed=True, error="", note=f"{line} → closed")
@@ -182,7 +187,11 @@ def main(argv=None) -> int:
         print("say why: magi close <line> --text '<why>'", file=sys.stderr)
         return 1
 
-    result = close(root, args.line, args.text, anyway=args.anyway)
+    # Signed `human` (a ritual action, design-v2 §1.6); `via` says which CLI
+    # transcribed the person's words, so the record does not read as their
+    # own keystrokes.
+    result = close(root, args.line, args.text, anyway=args.anyway,
+                   via=via_name(vocab.HUMAN))
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:

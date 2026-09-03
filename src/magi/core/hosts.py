@@ -80,10 +80,13 @@ class Host:
     drops: Tuple[Drop, ...] = ()
     argv: Tuple[str, ...] = ()   # headless template; () -> not callable headless
     model_flag: str = ""         # how a model is named on that command line
-    model: str = ""              # which model to ask for; "" -> fall through to `cheap`
-    cheap: str = ""              # the cheap tier, used when nobody asked for one
+    model: str = ""              # which model to ask for; "" -> fall through to `strong`
+    strong: str = ""             # the strong tier: what a review runs on when nobody chose
+    strong_effort: str = ""      # the reasoning level that goes with `strong`, if the CLI takes one
+    cheap: str = ""              # the cheap tier, kept as a named option (`--model`, `review_model`)
     effort_argv: Tuple[str, ...] = ()   # how a reasoning level is asked for
     effort: str = ""             # which level; "" -> the CLI own default
+    run_argv: Tuple[str, ...] = ()      # what lets a headless call execute code; () -> it cannot
     list_models: Tuple[str, ...] = ()   # argv that prints this host models
     models: Tuple[str, ...] = ()        # what it offers, when it will not say
     reader: str = ""             # transcripts adapter; "" -> sessions unreadable
@@ -98,23 +101,55 @@ class Host:
         """Which model this call asks for.
 
         In order: what the command line said, what this host record says, what
-        the workspace says, and finally the cheap tier. `cheap` is last so it
-        never overrides a choice, and present at all so that "nobody
-        configured anything" stops meaning "whatever that CLI charges most
-        for" — which is what §11 asks for and what free text never delivered.
+        the workspace says, and finally the strong tier. The last link used to
+        be `cheap`, on the theory that a review reads one claim and does not
+        need much. Measured on one day of real reviews (2026-09-03, KW Duality:
+        twelve Haiku verdicts, one useful remark, four substantive errors
+        waved through with "the proof is on line N" and no line read) the
+        cheap tier is not a cheaper review, it is confidence without a review.
+        The strong tier found the real proof gap. `strong` is last so it never
+        overrides a choice; it is present so that "nobody configured anything"
+        means the reviewer that actually reads.
         """
-        return asked or self.model or configured or self.cheap
+        return asked or self.model or configured or self.strong
 
-    def pick_effort(self, asked: str = "", configured: str = "") -> str:
-        """Which reasoning level. Same order, and no default at the end.
+    def pick_effort(self, asked: str = "", configured: str = "", model: str = "") -> str:
+        """Which reasoning level. Same order, then the strong tier's own.
 
-        There is no cheap effort to fall back to: the model already carries
-        the tier, and asking for `low` on a host whose default is already low
-        is a flag that only adds a way to be wrong.
+        The final link applies only when the model *is* the strong tier — a
+        person who pinned `haiku` asked for a cheap call, and quietly adding
+        `--effort high` to it would hand them something else. A model whose id
+        already names its level (`gemini-3.8-flash-high`) never reaches this:
+        `headless` drops the flag for those.
         """
-        return asked or self.effort or configured
+        chosen = asked or self.effort or configured
+        if chosen:
+            return chosen
+        if self.strong_effort and (model or "") == (self.strong or ""):
+            return self.strong_effort
+        return ""
 
-    def headless(self, prompt: str, model: str = "", effort: str = "") -> List[str]:
+    def tier_of(self, model: str) -> str:
+        """Which tier a resolved model name is: `strong`, `cheap`, or `pinned`.
+
+        Written into the review post beside the model, because a verdict from
+        a cheap reader and one from a strong reader are different evidence and
+        the post is the only record that outlives the ledger. `pinned` is a
+        model somebody named that is neither tier; `default` is no model at
+        all — the CLI's own choice, which for a host with no `strong` (Codex)
+        is its strongest.
+        """
+        model = model or ""
+        if not model:
+            return "default"
+        if model == self.strong:
+            return "strong"
+        if model == self.cheap:
+            return "cheap"
+        return "pinned"
+
+    def headless(self, prompt: str, model: str = "", effort: str = "",
+                 allow_run: bool = False) -> List[str]:
         """The command line that asks this host one question.
 
         Empty when the host declares no headless mode. A CLI that has one but
@@ -124,6 +159,11 @@ class Host:
         `model` and `effort` are final — `pick_model` and `pick_effort` decide
         them. With neither, nothing is added and the CLI uses whatever it would
         use interactively.
+
+        `allow_run` adds the record's `run_argv` — whatever lets this CLI
+        execute a script instead of only reading. A host with none declared
+        is asked the same question without it and answers from reading alone;
+        the caller says so rather than pretending the flag did something.
         """
         if not self.argv:
             return []
@@ -135,7 +175,14 @@ class Host:
         # as well would ask for two different things in one command.
         if effort and self.effort_argv and not names_its_effort(model):
             line += [part.format(effort=effort) for part in self.effort_argv]
+        if allow_run and self.run_argv:
+            line += list(self.run_argv)
         return line
+
+    @property
+    def can_run(self) -> bool:
+        """Whether a headless call from this host can be allowed to execute code."""
+        return bool(self.run_argv)
 
 
 #: Reasoning levels, in the spelling all three tier-1 CLIs use.
@@ -198,10 +245,19 @@ BUILTIN: Tuple[Host, ...] = (
                  invoke="/{name}"),
         ),
         argv=("{bin}", "-p", "{prompt}"), model_flag="--model",
-        # `haiku` rather than a dated id: Claude Code takes the alias and
-        # resolves it to whatever the current cheap model is, so this does not
-        # rot into a name the CLI no longer knows.
+        # Aliases rather than dated ids: Claude Code resolves `opus` and
+        # `haiku` to whatever currently wears the name, so neither rots into a
+        # model the CLI no longer knows. `opus` at `high` is the reader that
+        # found a real proof gap on 2026-09-03; `haiku` on the same claims
+        # found none of four.
+        strong="opus", strong_effort="high",
         cheap="haiku", effort_argv=("--effort", "{effort}"),
+        # `--allowedTools Bash` is the documented way to let a `-p` session run
+        # a command without a person at the keyboard to approve it. Only added
+        # when a review asks for `--allow-run`: a reviewer that can execute a
+        # derivation's script is a better reviewer, and one that can execute
+        # anything is a decision the person running it should make each time.
+        run_argv=("--allowedTools", "Bash"),
         # Claude Code has no command that lists models, so these are the
         # aliases its own `--help` documents. Aliases rather than dated ids on
         # purpose: the CLI resolves each to whatever currently wears the name,
@@ -232,13 +288,19 @@ BUILTIN: Tuple[Host, ...] = (
                  invoke="$" + "{name}  (Codex-native location)"),
         ),
         argv=("{bin}", "exec", "{prompt}"), model_flag="-m",
-        # No `cheap` for Codex. It does not list its models and its ids are
-        # dated (`gpt-5-codex`, and whatever replaces it), so a name written
-        # here is a name that becomes an "unknown model" error on some future
-        # release — a failed call that still costs a slot in the budget. Its
-        # own default is the safer bet; a person who wants cheaper writes
-        # `model:` on this record, which is exactly what records are for.
+        # No `strong` or `cheap` model for Codex. It does not list its models
+        # and its ids are dated (`gpt-5-codex`, and whatever replaces it), so a
+        # name written here is a name that becomes an "unknown model" error on
+        # some future release — a failed call, and a claim left unreviewed. Its
+        # own default is its strongest model, so the strong tier here is "no
+        # model flag, high effort"; a person who wants cheaper writes `model:`
+        # on this record, which is exactly what records are for.
+        strong_effort="high",
         effort_argv=("-c", "model_reasoning_effort={effort}"),
+        # `codex exec` defaults to a read-only sandbox; `workspace-write` is
+        # its documented step up, and the smallest one that lets a script in
+        # the workspace run.
+        run_argv=("--sandbox", "workspace-write"),
         reader="codex",
         note="Codex skills are not slash commands: type $<name> to force one, or let it "
              "choose by description.",
@@ -258,8 +320,13 @@ BUILTIN: Tuple[Host, ...] = (
         # CLI took the short form, which is exactly the kind of near-miss that
         # only shows up on the call you needed.
         argv=("{bin}", "-p", "{prompt}"), model_flag="--model",
-        # Measured from `agy models` on 2026-08-29: the ids carry the effort,
-        # and Flash-Low is the cheapest of the fourteen it offers.
+        # From `agy models` (2026-08-29, re-read 2026-09-03): the ids carry
+        # the effort. Flash-Low is the cheapest of the fourteen it offers;
+        # `gemini-3.8-flash-high` is the strong tier because it is the one that
+        # was measured — ten reviews on 2026-09-03, four refutations, all four
+        # correct — and the `pro` ids on the list are an older generation
+        # nobody has run a review on.
+        strong="gemini-3.8-flash-high",
         cheap="gemini-3.7-flash-low", effort_argv=("--effort", "{effort}"),
         list_models=("{bin}", "models"),
         reader="antigravity",
@@ -481,10 +548,14 @@ def host_from(raw) -> Optional[Host]:
                 argv=argv,
                 model_flag=str(raw.get("model_flag") or ""),
                 model=str(raw.get("model") or ""),
+                strong=str(raw.get("strong") or ""),
+                strong_effort=str(raw.get("strong_effort") or ""),
                 cheap=str(raw.get("cheap") or ""),
                 effort_argv=tuple(str(part) for part in raw.get("effort_argv") or []
                                   if str(part)),
                 effort=str(raw.get("effort") or ""),
+                run_argv=tuple(str(part) for part in raw.get("run_argv") or []
+                               if str(part)),
                 list_models=tuple(str(part) for part in raw.get("list_models") or []
                                   if str(part)),
                 models=tuple(str(m) for m in raw.get("models") or [] if str(m)),

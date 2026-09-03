@@ -210,6 +210,19 @@ def _run_route(route: str, entry, staging: Path, topic: Path | None = None,
     """
     staging.mkdir(parents=True, exist_ok=True)
 
+    if entry.source_type == "doi":
+        # `cmd_run` resolves DOIs to arXiv ids before anything runs; one that
+        # is still a DOI here is one Semantic Scholar had no arXiv id for (or
+        # the lookup failed — the `[identity]` line above says which). The
+        # arXiv rungs would fail with "not an arXiv identifier", once per DOI,
+        # and every rung below them wants a PDF. So the failure names the one
+        # thing that works instead of the string that does not parse.
+        return ConversionResult.failed(
+            f"{entry.value} could not be mapped to an arXiv id via Semantic "
+            "Scholar (no arXiv version, or the lookup failed). Every route "
+            "needs either an arXiv id or a PDF: download the PDF and "
+            "`magi ingest add <pdf>`. Rejecting this item requeues nothing.")
+
     if route == "arxiv-html":
         from magi.ingest import arxiv_html
         return arxiv_html.convert(entry.value, staging,
@@ -442,6 +455,47 @@ def _source_census(value: str):
         return Census(False)
 
 
+def _resolve_dois(queued: list) -> list:
+    """Queued DOIs as arXiv entries where Semantic Scholar knows the mapping.
+
+    One batch lookup for all of them, not one per DOI: the endpoint takes a
+    hundred ids at once and the anonymous rate limit is shared with everyone.
+    A DOI that resolves is carried on as an arXiv entry, the arXiv id as its
+    value and the router's own reading of it as its type — that is what it is
+    from here on, and it is what a later `reject` needs to requeue it on the
+    `tex` rung. One that does not resolve is left as it was, and fails
+    honestly in `_run_route`.
+    """
+    from magi.ingest import identity, routing
+
+    dois = [entry for entry in queued if entry.source_type == "doi" and not entry.route]
+    if not dois:
+        return queued
+    titles = {entry.value.lower(): entry.title for entry in dois if entry.title}
+    try:
+        found = identity.resolve_dois([entry.value for entry in dois], titles=titles)
+    except Exception as exc:  # noqa: BLE001 — the run must not die on a lookup
+        print(f"[batch] DOI lookup failed ({exc}); the DOIs run as themselves and fail",
+              file=sys.stderr)
+        found = {}
+    out = []
+    for entry in queued:
+        if entry.source_type != "doi" or entry.route:
+            out.append(entry)
+            continue
+        ident = found.get(entry.value.lower())
+        arxiv = getattr(ident, "arxiv_id", None) if ident else None
+        if arxiv:
+            print(f"[batch] {entry.value} → arXiv {arxiv} (Semantic Scholar)")
+            # The type comes from the router's own reading of the new value,
+            # not from a literal here: `routing` owns the vocabulary.
+            out.append(entry._replace(source_type=routing.infer_source_type(arxiv),
+                                      value=arxiv))
+        else:
+            out.append(entry)
+    return out
+
+
 def cmd_run(args) -> int:
     topic = _resolve_topic(args.topic_dir)
     if topic is None:
@@ -456,6 +510,15 @@ def cmd_run(args) -> int:
     if not queued:
         print("nothing queued.")
         return 0
+
+    # DOIs become arXiv ids here, in one Semantic Scholar call for the whole
+    # batch, before anything runs. `ingest url` accepts a DOI and the ladder's
+    # top rungs read arXiv, so a DOI used to reach `arxiv_html.convert` as
+    # itself and fail with "not an arXiv identifier" — seven times in a row on
+    # the day this was written, while `identity.resolve_dois` sat wired only
+    # into the Zotero import. A DOI with no arXiv version stays a DOI and
+    # fails with the one remedy there is (see `_run_route`).
+    queued = _resolve_dois(queued)
 
     batch_id = ledger.start_batch(topic)
     print(f"[batch] {batch_id}: {len(queued)} item(s)")
@@ -627,11 +690,18 @@ def cmd_decide(args) -> int:
         ledger.record_decision(topic, batch_id, args.item, args.decision)
         print(f"{args.item}: {args.decision}")
 
-        if args.decision == "reject":
+        if args.decision == "discard":
+            print("  dropped — nothing is requeued and nothing lands in raw/. "
+                  "The staged conversion stays under output/ingest/ with the batch.")
+        elif args.decision == "reject":
             nxt = ledger.requeue_next_rung(topic, item)
             if nxt:
                 print(f"  requeued on the next route down: {nxt} "
                       "(it will appear in the next batch)")
+            elif (item.source_type or "") == "doi":
+                print("  a DOI with no arXiv version has nothing below it: every "
+                      "remaining route needs a PDF. Download it and "
+                      "`magi ingest add <pdf>`, or `--decision discard` to drop it.")
             else:
                 # Never silently escalate to the per-page vision fan-out — that
                 # is the failure this pipeline exists to prevent. Say what it
@@ -702,7 +772,15 @@ def cmd_commit(args) -> int:
             continue
         undecided = ledger.blocking_commit(items)
         if undecided:
-            skipped_batches.append((batch_id, undecided))
+            # Held, with the count of what it is holding. The batch is
+            # all-or-nothing by design (a half-committed batch is one nobody
+            # finished deciding), and the report has to say so in a way that
+            # cannot be read as "committed": a line saying "N committed" from
+            # one batch beside "left alone" for another was read as the
+            # approved items having landed. They had not.
+            held = sum(1 for item in items
+                       if item.decision == "approve" and not item.committed_path)
+            skipped_batches.append((batch_id, undecided, held))
             continue
 
         for item in items:
@@ -783,10 +861,14 @@ def cmd_commit(args) -> int:
               "the concept graph are refreshed.")
         print("Next: 'magi index' to make them searchable, and the "
               "magi:compile skill to turn them into reference cards.")
+    elif skipped_batches:
+        print("\nnothing committed.")
     else:
         print("nothing to commit.")
-    for batch_id, undecided in skipped_batches:
-        print(f"  {batch_id}: left alone, {len(undecided)} item(s) still undecided")
+    for batch_id, undecided, held in skipped_batches:
+        print(f"  {batch_id}: HELD — {len(undecided)} item(s) still undecided, so its "
+              f"{held} approved item(s) were NOT committed. Decide them "
+              f"(--item <id> --decision approve|reject|discard), then --commit again:")
         # Named, not counted. A batch of 37 with one row blocking it sent the
         # reader back to the listing to find out which one.
         for item in undecided[:5]:
@@ -806,12 +888,14 @@ _VERBS = {
     "list": ("magi ingest batch-list",
              "Show batches awaiting approval, with findings."),
     "decide": ("magi ingest batch-decide",
-               "Approve, reject or undo one item. **Rejecting is not "
+               "Approve, reject, discard or undo one item. **Rejecting is not "
                "discarding**: it requeues the item on the next rung of the "
                "conversion ladder (arxiv-html -> tex -> textlayer -> mineru "
-               "-> ocr), which is how you walk a stubborn paper down it."),
+               "-> ocr), which is how you walk a stubborn paper down it. "
+               "**Discarding drops it**: nothing is requeued, nothing lands."),
     "commit": ("magi ingest batch-commit",
-               "Move approved documents into raw/. Refuses a batch with undecided items."),
+               "Move approved documents into raw/. Holds a whole batch while any "
+               "item in it is undecided, and says so."),
     "review": ("magi ingest review",
                "The approval step, in one command: list what is waiting, decide one "
                "item (--item/--decision), or commit what is approved (--commit)."),
@@ -851,15 +935,17 @@ def main(argv=None) -> int:
     if verb == "decide":
         parser.add_argument("--item", required=True, help="Item id (see the listing)")
         parser.add_argument("--decision", required=True,
-                            choices=["approve", "reject", "reset"])
+                            choices=list(ledger.DECISIONS))
     if verb == "review":
         # One command for a three-step loop that is really one activity:
         # look at what is waiting, say yes or no to a row, and land the yeses.
         # Three separate commands made the middle step feel like a different
         # tool from the one that showed you the row.
         parser.add_argument("--item", help="Item id from the listing")
-        parser.add_argument("--decision", choices=["approve", "reject", "reset"],
-                            help="What to do with --item")
+        parser.add_argument("--decision", choices=list(ledger.DECISIONS),
+                            help="What to do with --item: approve lands it, reject "
+                                 "walks it one rung down the ladder, discard drops "
+                                 "it, reset undoes")
         parser.add_argument("--commit", action="store_true",
                             help="Move everything approved into raw/")
 

@@ -19,8 +19,9 @@ working out the derivation a proposition depends on.
 2. Write to `drafts/<slug>.md`. Drafts are yours to edit freely; they are not
    compiled and they never move into `wiki/`.
 3. A draft that supports a proposition is its derivation. Point the
-   proposition at it (`derivation:` in the note's frontmatter) so that editing
-   one shows up as debt on the other until somebody says what changed.
+   proposition at it (`--derivation drafts/<slug>.md`) so that editing one shows
+   up as debt on the other. Scripts that check it live in `tools/`, never in a
+   CLI's scratch directory, and are named with `--evidence tools/<script>`.
 4. Exploratory prose that is not yet a claim goes in a `> [!draft]` callout,
    so a later reader can tell working-out from conclusion.
 5. Citations: `magi bib --all` for what the draft cites, `--fetch` to fill in

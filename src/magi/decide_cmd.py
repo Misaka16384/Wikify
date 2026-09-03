@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -162,11 +163,14 @@ def record(root, text: str, about: str | None = None, bet: str | None = None,
     written = [str(append_decision(root, text, about, kind))]
     if path is not None:
         try:
+            # Signed `human`, typed by whichever CLI is running: the signature
+            # says whose decision it is, `via` says who transcribed it.
+            via = os.environ.get("MAGI_HOST") or "cli"
             if bet:
                 threads.set_field(path, "bet", bet, host=vocab.HUMAN, text=text,
-                                  line=line)
+                                  line=line, via=via)
             else:
-                threads.append_post(path, text, host=vocab.HUMAN, line=line)
+                threads.append_post(path, text, host=vocab.HUMAN, line=line, via=via)
         except (ValueError, OSError) as exc:
             raise Refused(f"recorded in {DECISIONS}, but {path.name} did not "
                           f"take it: {exc}")

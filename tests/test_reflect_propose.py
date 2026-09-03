@@ -227,17 +227,6 @@ def test_what_was_turned_down_goes_back_into_the_prompt(ws):
 # cost
 # --------------------------------------------------------------------------
 
-def test_over_budget_nothing_is_proposed(ws, monkeypatch):
-    recurring(ws)
-    (ws / "config.yaml").write_text("research:\n  weekly_calls: 1\n", encoding="utf-8")
-    ledger.record(ws, ledger.REFLECT, "codex")
-    called = []
-    monkeypatch.setattr("magi.reflect.propose.ask",
-                        lambda *a, **k: called.append(1) or "")
-
-    report = propose.run(ws, host="codex", now=TODAY)
-    assert not called and "budget" in report.note
-
 
 def test_a_pass_that_could_not_run_proposes_nothing(ws, monkeypatch):
     recurring(ws)

@@ -480,7 +480,7 @@ def test_the_plan_says_who_and_what_is_left_before_anything_is_spent(
     plan = get(client, "/api/workspace/review/plan", slug="p-gap")
 
     assert plan["host"] == "codex"
-    assert plan["budget"]["limit"] and plan["budget"]["left"] >= 1
+    assert plan["spending"]["spent"] == 0 and plan["tier"]
     assert not called, "planning spent a call"
     assert ledger.entries(client.ws) == []
 
@@ -514,7 +514,8 @@ def test_reviewing_from_the_browser_writes_the_same_record(client, monkeypatch):
 
     assert res["verdict"] == "stands"
     assert "sweep supports it" in res["reason"]
-    assert res["budget"]["spent"] == 1
+    assert res["spending"]["spent"] == 1
+    assert res["tier"], "the browser sees which tier answered, as the post does"
     note = threads.read_note(client.ws / "threads" / "p-gap.md")
     assert note.posts[-1].host == "reviewer"
 
@@ -540,15 +541,14 @@ def test_the_endpoint_reviews_one_claim_and_never_a_batch(client, monkeypatch):
     assert "p-two" in review_mod.pending(client.ws)
 
 
-def test_a_spent_budget_refuses_and_says_so(client, monkeypatch):
-    """409, not 500: the server is fine and the answer is "not this week"."""
+def test_a_switched_off_workspace_refuses_and_says_so(client, monkeypatch):
+    """409, not 500: the server is fine and the answer is "not while the switch
+    is off". (There is no weekly budget any more; the switch is the one refusal.)"""
     from magi import review as review_mod
-    from magi.core import ledger
 
     _solved(client.ws)
     (client.ws / "config.yaml").write_text(
-        "research:\n  weekly_calls: 1\n", encoding="utf-8")
-    ledger.record(client.ws, ledger.REVIEW, "codex", slug="earlier")
+        "research:\n  llm_calls: false\n", encoding="utf-8")
     called = []
     monkeypatch.setattr(review_mod, "installed_hosts", lambda *_a, **_k: ["codex"])
     monkeypatch.setattr(review_mod, "ask", lambda *a, **k: called.append(1) or "")
@@ -557,7 +557,7 @@ def test_a_spent_budget_refuses_and_says_so(client, monkeypatch):
                       json={"workspace": str(client.ws), "slug": "p-gap"})
 
     assert res.status_code == 409
-    assert "budget" in res.json()["detail"]
+    assert "switched off" in res.json()["detail"]
     assert not called
 
 
@@ -572,7 +572,8 @@ def test_the_dashboard_can_see_what_the_week_cost(client):
     payload = get(client, "/api/workspace/map")
 
     assert payload["budget"]["spent"] == 1
-    assert payload["budget"]["limit"] >= 1
+    assert payload["budget"]["by_kind"]["review"] == 1
+    assert "limit" not in payload["budget"], "a count, not a quota"
 
 
 # --------------------------------------------------------------------------

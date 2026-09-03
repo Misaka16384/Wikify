@@ -38,6 +38,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
   wiki/topics/         温·共享：综述（research skill 的唯一长文产物）
   drafts/              温·线内：草稿、推导（line:、supports: 字段）
   threads/             命题 / 问题 / 线（论坛式跟帖）
+  tools/               验证脚本与小程序，命题的 evidence: 指向它（2026-09-03 加：证据必须在库内，复核者才读得到）
   inbox/               待摄入论文 + notes.md（人的堆放区）
   output/              派生物与账本：graph.db index.db MAP.md ingest 账本 llm-ledger.jsonl
   scratch/             废纸篓
@@ -70,7 +71,11 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 | `question` | 开放式问题，无真值；子节点是命题 | `open → answered \| abandoned` |
 | `line` | 研究线；body 即 STATUS（到哪了、卡点、下一步、交接话） | `exploring → active → writing → dormant → closed`；相位由项目级 `next` 提示、人确认；`closed` 只有人写 |
 
-命题附加字段：`depends_on: [[概念]]`、`answers: [[question]]`、`bet:`（人的预测：`supported | refuted | unknown`）、`derivation: [[drafts/…]]`、`superseded_by:`；结案时 `key_move: new-method | known-method-new-setting | reduction-to-known | brute-force | lucky-observation`（词表由人维护）。**结果卡不是独立对象**，是命题结案时写入的一节。
+命题附加字段：`depends_on: [[概念]]`、`answers: [[question]]`、`bet:`（人的预测：`supported | refuted | unknown`）、`found:`（日期；见下）、`claim:`（被复核的精确陈述，标题只是名字；见下）、`evidence:`（库内文件列表——脚本、数据、笔记本——复核者要读、能跑就跑；见下）、`derivation: [[drafts/…]]`、`superseded_by:`；结案时 `key_move: new-method | known-method-new-setting | reduction-to-known | brute-force | lucky-observation`（词表由人维护）。**结果卡不是独立对象**，是命题结案时写入的一节。
+
+**猜想与发现**（2026-09-03 用户反馈后加）：流程假定命题先开、后押注、再推导，而真实研究里命题多半是算出来之后才开的——押注全是事后的，问也白问，一天里被问了五次。所以命题分两种来路，用一个字段而不是一个 kind：**没有 `found:` 的是猜想**，`next` 在 `conjectured / testing` 时问一次预测，`coaching: strict` 下没预测不许推导；**带 `found: <日期>` 的是发现**，结果先于 note，记「发现于」哪天，不要求也不追问 bet（事后的预测不是预测）。`magi thread new … --found [DATE]` 写它；kind 仍是 `proposition`，全部生命周期、审核触发一字不变——区分的只是「有没有一个诚实押注的时刻」。押注本身有了自己的命令 `magi thread bet <slug> <supported|refuted|unknown> [--text]`，默认签 `human`：此前只能在 `thread new --bet` 或 `magi decide --bet` 时写，事后押注只剩手改 frontmatter，与「状态只走 CLI」矛盾。
+
+**标题与陈述分开、证据在库内**（2026-09-03 第二批反馈）：`--title` 此前既是名字又是被复核的精确主张，为了精确把标题写成两行公式，复核者按字面判「写宽」两次都是标题的锅。所以 `claim:` 是被复核的对象（`thread new --claim`，`thread claim <slug> --text` 重述并记成跟帖），标题回到短名，列表显示 title、复核读 claim、没有 claim 时才读标题。`evidence:` 是复核者必须读的库内文件（`thread new/post --evidence <path>`，可多次）；写入时就拒绝库外路径与不存在的文件——一天里 15 个验证脚本写在 CLI 的 scratchpad 里、帖子引用「scratchpad b8_haah.m2」，复核者一个都读不到，等于证据在库外。`tools/` 是脚本的家（LAYOUT 加一行：不改写、不索引、不 lint、不建图）。`thread new --derivation` 补上此前只能手写的 `derivation:`。
 
 非命题式研究单元的归属：
 
@@ -88,7 +93,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 
 ## 5. 论坛模型（多写者规则）
 
-- 每个 note = 正文（创建者所有）+ `## Discussion`（append-only）。帖子头 `### <ISO 时间> · <host>/<line>`；不改、不删他人帖子。
+- 每个 note = 正文（创建者所有）+ `## Discussion`（append-only）。帖子头 `### <ISO 时间> · <host>/<line>`，签 `human` 的帖子再带 `· via <cli>`——谁誊写的（2026-09-03 加：人在聊天里说「改成 supported」由 agent 用 `--host human` 代跑，账本上与人亲手敲的此前不可区分；这是诚实问题不是安全问题，`via` 是来源不是另一个签名，`sync --close` 仍把它当人的决定）；不改、不删他人帖子。
 - **状态跃迁必须伴随一条跟帖**（审计）。审核器裁决、人的预测与决定、跨线评论都是跟帖。
 - 唯一可变字段是 `status`：last-writer-wins；5 分钟内被不同写者翻两次 → `conflict`，进决策队列。
 - 追加**要加锁**（M0 实测修正）：每篇 note 一把 `filelock`，只在一次"读+追加"期间持有。原本的理由是"追加模式下一次小写入由操作系统串行化"——POSIX 成立，Windows 不成立（MSVCRT 把 `O_APPEND` 实现成 seek-to-end 再 write 两步）。8 线程并发追加实测丢 2 条帖子。锁是每篇 note 的，不同命题之间互不等待。
@@ -98,7 +103,9 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 ## 6. 状态原则与硬触发
 
 - **最近者写状态。** 会话内改了文件的 agent 负责在停机前把 status / 跟帖 / line STATUS 写完；`magi sync --close` 检查。Claude Code 用 Stop hook 阻止未记账的停机；其他宿主尽力。
-- **CLI 对跃迁做硬反应，不对叙述做反应。** `testing → supported` 触发审核；`→ disputed / conflict`、线相位提议 → 决策队列。不看 AI 在跟帖里怎么说。
+- **CLI 对跃迁做硬反应，不对叙述做反应。** `testing → supported` 触发审核；`→ disputed / conflict`、线相位提议 → 决策队列。不看 AI 在跟帖里怎么说。审核的 `restate`（结论成立、文字须改）把命题打回 `testing`，作者改完再标 `supported` 就再审一次——**不进决策队列**（2026-09-03 加：一天五次进队列，四次是措辞，人每次都得来一趟说「保留」）。
+- **证据在库外，复核者读不到**（2026-09-03 第二批加）：`derivation:` / `evidence:` 解析不到库内文件、帖子里出现库外绝对路径或 scratchpad 路径，`sync --close` 与 `next` 列出「evidence outside the library」——报告不拦，修法是搬进 `tools/` 再 `thread post --evidence`；`magi review` 花钱之前也警告一次。写入面（`thread new/post --evidence`）直接拒绝库外路径，所以这条主要抓帖子正文里的引用。
+- **问人的事合并着问**（2026-09-03 加）。押注、处置、线相位在流程里各自冒头，一次一问，人被打断五次；§1.5 说人被要求写字的时刻应当是同一组事件。`magi next` 的排序不变（记账债 → 人的事 → 机器活），但所有 `[needs you]` 项渲染成一个块，skill 要求 agent 一次性摆给人、不逐条问。
 - **派生只查记账债**（有改动、无状态更新）。异常终止后由下次 `next` 第一条还债。
 - **只有三类事件叫人**：命题被宣称解决且审核后仍 `disputed`、温层与冷层矛盾、线的方向变化。其余永不打断人。
 - `magi close <line>` / `magi publish` 只有人调用。两者的正事是翻转**之前的勘察**（M7 实现时定）：线是视图，关掉它不动文件、动的是注意力——`candidates()` 从此整条跳过，线上还开着的命题再没有东西会举手。所以默认**拒绝**并把每条连同 settle 它的命令列出来；`--anyway` 照做，但关闭帖写下每一个被留下的 slug——路由器不再说了，那条帖是唯一还能说的地方。publish 在两件事上分开拒绝：`disputed`（发论文盖过异议不是回答它，是删掉它）和还开着的活；论文进 `raw/` 成冷层，线上命题 `superseded_by: [[raw/papers/…]]` 并转 `superseded`（question 走 `answered`，`superseded` 不在它词表里）；字段先写、状态后写——中途崩溃留下「指向论文但没退休」的 note 人能收尾，反过来是一个没出口的终态却不知被什么替代。
@@ -147,11 +154,12 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 
 ## 11. 审核契约（`magi review`）
 
-- 无头调用：命令由宿主注册表（§9）的模板生成，不在 `review.py` 里逐宿主写死；内置 `claude -p` / `codex exec` / `agy -p`，第二梯队 `qwen -p`、opencode 按其文档化的非交互模式各一条记录，做不成就算。Antigravity 的非交互模式：`agy -p`，模型用 `--model`（不是 `-m`），`--print-timeout` 默认 5 分钟，`--json-schema` 可强制结构化输出——裁决走结构化输出比正则扫文本可靠（2026-08-29 补）。**不做 `gemini -p` 适配器**：Gemini CLI 已废弃。argv[0] 用 `shutil.which` 的解析结果而不是裸名字：Windows 只自动补 `.exe`，npm 装的 `.cmd` shim 裸名字起不来；固定提示词；只给读文件 + 冷层检索；**模型钉便宜档**——每条宿主记录带 `cheap` 默认模型（claude → `haiku` 别名，antigravity → `gemini-3.7-flash-low`；**codex 留空**：它不列模型、id 带日期，写死的名字迟早变成 unknown model 而失败调用照样扣预算——不拿一个会烂的名字换「看起来配全了」），`review_model` 空时用它而不是宿主默认，宿主默认往往是最贵档（2026-08-29 补：实现之前一直是「空 = 宿主默认」，等于没钉）。模型和 effort **按宿主配**（`research.hosts[].model / .effort`），全局 `review_model` / `review_effort` 只作兜底——一个字符串对所有厂商没有意义。模型名能从 CLI 读的就读（agy 有 `models` 子命令，输出 `id 	 标签`；claude / codex 没有列表命令，用记录里的静态别名表），读不到退回自由文本；填错模型名是一次失败调用且扣预算，所以选择器不是装饰。agy 的模型 id 自带档位（`-low/-medium/-high`），模型名已含档位时不再追加 effort，否则一条命令里两个互相矛盾的东西。WebUI：host → model → effort 三级下拉；`magi review --dry-run` 打印三者。
+- 无头调用：命令由宿主注册表（§9）的模板生成，不在 `review.py` 里逐宿主写死；内置 `claude -p` / `codex exec` / `agy -p`，第二梯队 `qwen -p`、opencode 按其文档化的非交互模式各一条记录，做不成就算。Antigravity 的非交互模式：`agy -p`，模型用 `--model`（不是 `-m`），`--print-timeout` 默认 5 分钟，`--json-schema` 可强制结构化输出——裁决走结构化输出比正则扫文本可靠（2026-08-29 补）。**不做 `gemini -p` 适配器**：Gemini CLI 已废弃。argv[0] 用 `shutil.which` 的解析结果而不是裸名字：Windows 只自动补 `.exe`，npm 装的 `.cmd` shim 裸名字起不来；固定提示词；只给读文件 + 冷层检索；**模型钉强档**（2026-09-03 用户定，推翻 08-29 的「钉便宜档」）——每条宿主记录带 `strong` 默认模型与 `strong_effort`（claude → `opus` + `high`，antigravity → `gemini-3.8-flash-high`；**codex 留空模型、effort high**：它不列模型、id 带日期，写死的名字迟早变成 unknown model，而它自己的默认就是最强的那个），`cheap` 保留为可点名的选项（`--model haiku`）。改的理由是数据不是口味：同一批命题上 haiku 12 次判决，1 处有效意见、4 处实质问题全部放过，帖子写「证明在第 N 行」却没核实；gemini-3.8-flash-high 10 次、4 处驳回全部成立但都是文字层；opus high 2 次，1 处驳回是真正的证明缺口。**制造信心的复核比没有复核更糟**，便宜档不是更便宜的复核，是没有复核。帖子必须记 host + model + effort + tier，`sync --close` 和 `next` 把「只被便宜档复核过」单列出来、提议再审但不自动重跑。模型和 effort **按宿主配**（`research.hosts[].model / .effort`），全局 `review_model` / `review_effort` 只作兜底——一个字符串对所有厂商没有意义。模型名能从 CLI 读的就读（agy 有 `models` 子命令，输出 `id 	 标签`；claude / codex 没有列表命令，用记录里的静态别名表），读不到退回自由文本；填错模型名是一次失败调用且扣预算，所以选择器不是装饰。agy 的模型 id 自带档位（`-low/-medium/-high`），模型名已含档位时不再追加 effort，否则一条命令里两个互相矛盾的东西。WebUI：host → model → effort 三级下拉；`magi review --dry-run` 打印三者。
 - 触发：`magi sync --close` **列出**本会话翻到 `supported` 的命题；`magi next` 提议，实际调用手动或由还在干活的 agent 发起。不在每次写文件时审。（M4 实现时改：一次无头调用是几分钟延迟加真金白银，塞进 stop hook 而预算闸门在 M6，两样都没有护栏；而要等五分钟的 stop hook 是会被卸掉的 stop hook。）
-- 看什么：命题 + 推导（`derivation`）+ 冷层。**不看对话、不看 line 叙述**——"远"指不共享上下文，不指不给证据。
-- 默认跨厂商：探测 PATH 上的 CLI，选与作者宿主不同的；没有则同宿主便宜模型；零配置，config 可指定。
-- 裁决以跟帖写回；驳回 → `disputed`，不自动翻回；进决策队列。
+- 看什么：命题（`claim:` 是被复核的陈述，没有就是标题）+ 推导（`derivation`）+ `evidence:` 列的库内文件（要读，能跑就跑）+ 冷层，以及推导倚赖的 `drafts/`、`wiki/`、`tools/`。库外路径 → `unclear` 并点名缺什么。默认超时 600 s（原 300，opus high 读 400 行推导会超），按推导与证据体积加长（>20k 字节 +300，>60k +600；`--timeout` 指定则不放大）（2026-09-03 第二批）。**不看对话、不看 line 叙述、不看别的 threads**——"远"指不共享上下文，不指不给证据。**帖子是评论不是证据**（2026-09-03 改）：`## Discussion` 可读作背景，但帖子里的推导笔误不是命题的缺陷，`refuted` 只能以 `drafts/` 或 `raw/` 为据——那天有一条命题因为评论里一个指标写错被驳回。
+- 提示词查什么（2026-09-03 按当天命中率定，顺序即优先级）：① 标题量词与证据范围（「对一切 h」vs 只证了一片）；② 定义是否真是它声称的对象（d²≠0 的「复形」）；③ 推导里的计数与指标；④ 证明是否覆盖声称的全部定义域还是一个代表元切片；⑤ 数值证据是否独立于有缺陷的步骤；⑥ **承重假设**——点名命题最依赖的一个定义或假设，说换成合理替代结论是否幸存。并**强制一条「我独立核实了什么」**（重算了哪个式子 / 重推了哪一步 / 跑了哪个脚本并报输出）——「证明在第 N 行」不是复核。`--allow-run` 让宿主允许执行脚本（宿主记录 `run_argv`：claude `--allowedTools Bash`，codex `--sandbox workspace-write`；agy 没有，说明白）。旧提示词只问「文字是否自洽」且禁读别的，所以结构上不会质疑基础定义。
+- 默认跨厂商：探测 PATH 上的 CLI，选与作者宿主不同的；作者从把命题翻到 `supported` 的那条帖子签名读出（不再要求 `--author`，WebUI 因此也能避开作者）；没有别家则同宿主。**选中的宿主没答上来就换下一个**（2026-09-03 加：一天里 agy 配额耗尽连败四次，另两个 CLI 装着闲着）——配额、超时、崩掉都算，帖子写明「X 先被问、失败原因」，同一批里失败过的宿主不再被问。零配置，config 可指定。
+- 裁决四值（2026-09-03 由二值扩）：`stands` / `restate`（结论成立，陈述或推导文字须改，作者可自行修正；→ `testing`，不进人队列）/ `refuted`（须给反例或指出不成立的具体步骤；→ `disputed`，不自动翻回，进决策队列）/ `unclear`（不算答案，命题回队列）。以跟帖写回，帖子记 host · model · effort · tier。
 - **没跑成的复核什么都不写**（M4 实现时补）：一条 reviewer 的跟帖会让命题不再排队，所以只有真读过才写——CLI 没装、超时、进程崩了都不动 note。读不懂的回答写帖（原文附在里面）但不算答案，命题回队列。否则一个坏掉的适配器就是一枚橡皮图章，比没有复核更糟。
 
 ## 12. 慢环（`magi reflect`，backpass 式）
@@ -168,7 +176,7 @@ MAGI v2 = 人指挥、AI 执行、产物人机共读的科研工作环境。约�
 
 ## 13. 成本治理
 
-- MAGI 只硬管**它自己发起的**调用（review、reflect、堆放区分类）：`output/llm-ledger.jsonl` 记账；周预算 + 每类工作用哪个模型 + 总开关；超预算拒绝启动并在 MAP 说明。WebUI 配置。
+- MAGI 只硬管**它自己发起的**调用（review、reflect、堆放区分类）：`output/llm-ledger.jsonl` 记账（host、model、effort、tier、成败、耗时）；每类工作用哪个模型 + 总开关。**周预算取消**（2026-09-03 用户定）：大家基本都在 token plan 上，按次数封顶没有必要；review 的作用比预期大得多，不该被配额卡住；而取消当天它拦住的正是四次撞上厂商自己配额的失败调用——一道只在该保护的东西身上起作用的闸门。账本照记（MAP「Spending」与 WebUI 显示本周次数、按类、按档、失败数），`research.llm_calls` 总开关保留。配置里残留的 `weekly_calls` 不再被读。
 - 会话内 fan-out 只有软约束：skill Rules + Claude Code PreToolUse hook 计数；其他宿主无。计数**只数不拦**（M7 实现时定：子 agent 是 agent 在人自己账号上干自己的活，拦它不是 MAGI 该做的决定），每第 25 次 `systemMessage` 报一次累计数并指回不变量，其余静默；按 session 分开。**软约束的阈值必须高于本系统自己规定的正常批量**（M7 实现时改：skill 把 fan-out 并发压在 10 并要求先报数，阈值定 10 时唯一会触发的正是已经照做了的那个工作流——一个只在误报时才响的钩子；过了 25 要么没人报数、要么报的数是错的）。计数**不进 `llm-ledger.jsonl`**，单开 `output/fanout.jsonl`——账本是周预算读的那个数，掺进 MAGI 没发起的调用会弄脏唯一能拒绝的数字。
 
 ## 14. 三核重映射

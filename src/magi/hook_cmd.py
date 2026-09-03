@@ -34,8 +34,8 @@ from pathlib import Path
 from .core.workspace import find_workspace_root
 
 #: One line per sub-agent spawn. Deliberately not `llm-ledger.jsonl`: that
-#: counts what MAGI spent and enforces a weekly budget against it, and mixing
-#: in calls MAGI did not make would corrupt the one number the budget reads.
+#: counts what MAGI itself spent, and mixing in calls MAGI did not make would
+#: corrupt the one number MAP.md and the dashboard report as MAGI's own.
 FANOUT = ("output", "fanout.jsonl")
 
 #: How often the count is worth saying out loud — every Nth spawn, not every

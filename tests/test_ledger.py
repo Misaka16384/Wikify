@@ -284,8 +284,8 @@ def test_and_it_still_splits_the_week_by_kind(tmp_path):
     ledger.record(tmp_path, ledger.REFLECT, "codex")
     ledger.record(tmp_path, ledger.REFLECT, "claude")
 
-    found = ledger.summary(tmp_path, limit=10)
+    found = ledger.summary(tmp_path)
 
-    assert found["spent"] == 3 and found["left"] == 7
+    assert found["spent"] == 3
     assert found["by_kind"][ledger.REVIEW] == 1
     assert found["by_kind"][ledger.REFLECT] == 2

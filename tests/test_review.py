@@ -187,7 +187,7 @@ def test_the_prompt_points_at_the_note_and_forbids_the_context(ws):
     prompt = review.build_prompt(ws, "p-gap")
     assert "threads/p-gap.md" in prompt
     assert "did not write it" in prompt
-    assert "VERDICT: <stands, refuted, or unclear>" in prompt
+    assert "VERDICT: <stands, restate, refuted, or unclear>" in prompt
     assert "VERDICT: stands|refuted|unclear" not in prompt, (
         "the answer template must not itself read as an answer — a host that "
         "echoes the prompt would hand back an approval we wrote ourselves")
@@ -208,9 +208,13 @@ def test_a_reviewer_that_fails_leaves_the_claim_unreviewed(ws, monkeypatch):
 
 
 def test_one_failure_does_not_stop_the_batch(ws, monkeypatch):
+    """A host that fails on one claim is followed by the next installed host
+    for that claim, and the batch goes on. With only that one host on the
+    machine the claim is `unclear` and the next one is still asked."""
     solved(ws, "p-a")
     solved(ws, "p-b")
     calls = []
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
 
     def flaky(host, prompt, cwd, model=None, timeout=0, **kw):
         calls.append(prompt)
@@ -430,12 +434,13 @@ def test_a_reviewer_that_answered_properly_is_not_quoted_twice(ws, monkeypatch):
 
 
 # --------------------------------------------------------------------------
-# what a review costs, and the two ways the budget says no
+# what a review costs, and the one way it is refused
 #
-# The refusal has to happen *before* the subprocess. A gate that stops the call
-# but lets the claim retire unreviewed would spend nothing and approve
-# everything, which is the same rubber stamp this file spends the rest of its
-# length avoiding.
+# There is no weekly budget any more (2026-09-03, the person's call; ledger.py
+# says why). The master switch is the one refusal left, and it has to happen
+# *before* the subprocess: a gate that stops the call but lets the claim retire
+# unreviewed would spend nothing and approve everything, which is the same
+# rubber stamp this file spends the rest of its length avoiding.
 # --------------------------------------------------------------------------
 
 def test_a_review_is_written_into_the_ledger(ws, monkeypatch):
@@ -467,21 +472,22 @@ def test_a_review_that_failed_is_still_written_down(ws, monkeypatch):
     assert entry["ok"] is False and entry["note"] == "RuntimeError"
 
 
-def test_over_budget_nothing_is_called(ws, monkeypatch):
-    from magi.core import ledger
 
-    solved(ws)
-    (ws / "config.yaml").write_text("research:\n  weekly_calls: 2\n", encoding="utf-8")
-    for index in range(2):
-        ledger.record(ws, ledger.REVIEW, "codex", slug=f"old-{index}")
-    called = []
+def test_the_switch_stops_a_batch_at_the_first_claim_not_once_per_claim(ws, monkeypatch):
+    """`SwitchedOff` subclasses `RuntimeError`, which `review_batch` catches to
+    turn a failed review into a not-reviewed result. Caught in that order the
+    loop would run on and produce one identical "switched off" result per
+    remaining claim — and with the results then numbering one per slug, nothing
+    downstream could tell a run that stopped from one that finished."""
+    for index in range(4):
+        solved(ws, f"p-{index}")
     monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
-    monkeypatch.setattr(review, "ask", lambda *a, **k: called.append(1) or "")
+    monkeypatch.setattr(review, "ask", lambda *a, **k: pytest.fail("it called out"))
 
-    code = review.main(["--topic-dir", str(ws), "--host", "codex"])
+    results = review.review_batch(ws, [f"p-{i}" for i in range(4)], host="codex",
+                                  settings=review.Settings(enabled=False))
 
-    assert code == 1 and not called
-    assert review.pending(ws) == ["p-gap"], "and it is still waiting for a reader"
+    assert results == [], "it stopped, it did not skip"
 
 
 def test_the_master_switch_stops_it_too(ws, monkeypatch, capsys):
@@ -508,93 +514,13 @@ def test_a_dry_run_says_what_is_left(ws, monkeypatch, capsys):
     payload = json_mod.loads(capsys.readouterr().out)
 
     assert payload["slugs"] == ["p-gap"]
-    assert payload["budget"]["left"] == payload["budget"]["limit"], "nothing spent yet"
+    assert payload["spending"]["spent"] == 0, "nothing spent yet"
+    assert payload["plans"][0]["host"] == "codex"
+    assert payload["tier"], "and it says which tier would answer"
 
 
-def test_a_batch_stops_at_the_budget_instead_of_running_past_it(ws, monkeypatch):
-    """The check was at the top of the batch and the spending was per slug, so
-    one command could run sixty calls against a limit of forty. `ledger.check`
-    calls itself "one call at the top of anything that spends"; the gate now
-    lives in `review()`, where a new caller cannot leave it out."""
-    from magi.core import ledger
-
-    for index in range(5):
-        solved(ws, f"p-{index}")
-    (ws / "config.yaml").write_text("research:\n  weekly_calls: 3\n", encoding="utf-8")
-    ledger.record(ws, ledger.REVIEW, "codex", slug="last-week")
-    called = []
-    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
-    monkeypatch.setattr(review, "ask", lambda *a, **k: called.append(1) or
-                        "VERDICT: stands\nREASON: fine.")
-
-    review.main(["--topic-dir", str(ws), "--host", "codex"])
-
-    assert len(called) == 2, "the budget was 3 and one call was already spent"
-    assert ledger.spent(ws) == 3
 
 
-def test_running_out_says_so_once_and_not_once_per_claim(ws, monkeypatch):
-    """`OverBudget` subclasses `RuntimeError`, which `review_batch` catches to
-    turn a failed review into a not-reviewed result. Caught in that order the
-    loop ran on and produced one identical "budget is spent" result per
-    remaining claim — and since the results then still numbered one per slug,
-    nothing downstream could tell a run that stopped early from one that
-    finished.
-
-    Nothing was ever written to the notes: `apply_verdict` opens with
-    `if not result.ran` and refuses to post a review that did not happen. The
-    cost was the report, not the notes — which is worth stating precisely,
-    because the first version of this test asserted the notes were clean and
-    so passed against both implementations.
-    """
-    for index in range(4):
-        solved(ws, f"p-{index}")
-    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
-    monkeypatch.setattr(review, "ask", lambda *a, **k: "VERDICT: stands\nREASON: fine.")
-
-    results = review.review_batch(ws, [f"p-{i}" for i in range(4)], host="codex",
-                                  settings=review.Settings(limit=2))
-
-    assert len(results) == 2, "the loop kept going after the budget said no"
-    assert all(r.ran for r in results), "and every result it did return is a real review"
-    assert [r.slug for r in results] == ["p-0", "p-1"], "it stopped, it did not skip"
-
-
-def test_it_says_which_ones_it_did_not_get_to(ws, monkeypatch, capsys):
-    """A short list of results is the only sign the run stopped early, and
-    counting it is not somebody's job."""
-    from magi.core import ledger
-
-    for index in range(3):
-        solved(ws, f"p-{index}")
-    (ws / "config.yaml").write_text("research:\n  weekly_calls: 1\n", encoding="utf-8")
-    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
-    monkeypatch.setattr(review, "ask", lambda *a, **k: "VERDICT: stands\nREASON: fine.")
-
-    code = review.main(["--topic-dir", str(ws), "--host", "codex"])
-
-    err = capsys.readouterr().err
-    assert code == 1
-    assert "stopped after 1 of 3" in err
-    assert "still unreviewed" in err
-    for slug in review.pending(ws):
-        assert slug in err
-
-
-def test_a_zero_limit_still_reports_what_the_week_cost(ws):
-    """`OverBudget(0, limit, ...)` hardcoded the spend, so a workspace twelve
-    calls into a switched-off week was told its budget was "spent (0/0)" —
-    which reads as a fresh week rather than as a switch somebody threw."""
-    from magi.core import ledger
-
-    for index in range(12):
-        ledger.record(ws, ledger.REVIEW, "codex", slug=f"old-{index}")
-
-    with pytest.raises(ledger.OverBudget) as caught:
-        ledger.check(ws, limit=0)
-
-    assert caught.value.spent == 12
-    assert "(12/0)" in str(caught.value)
 
 
 def test_pending_uses_the_notes_it_is_given(ws):
@@ -746,11 +672,10 @@ def test_a_real_call_says_what_it_cost_where_it_was_spent(ws, monkeypatch, capsy
     review.main(["--topic-dir", str(ws), "--host", "codex", "p-gap"])
 
     out = capsys.readouterr().out
-    assert "model calls this week" in out
-    assert "39 left" in out or "/40" in out
+    assert "1 model calls this week" in out
 
 
-def test_a_run_refused_by_the_budget_reports_no_spend(ws, monkeypatch, capsys):
+def test_a_run_refused_by_the_switch_reports_no_spend(ws, monkeypatch, capsys):
     """Nothing was asked, so there is nothing to say about a spend.
 
     What this covers is the *top-level* refusal, which returns before the
@@ -760,11 +685,8 @@ def test_a_run_refused_by_the_budget_reports_no_spend(ws, monkeypatch, capsys):
     has always been attempted, so the guard is defensive and unreachable. A
     test whose name promises coverage it does not have is worse than no test.
     """
-    from magi.core import ledger
-
     solved(ws, "p-gap")
-    (ws / "config.yaml").write_text("research:\n  weekly_calls: 1\n", encoding="utf-8")
-    ledger.record(ws, ledger.REVIEW, "codex", slug="earlier")
+    (ws / "config.yaml").write_text("research:\n  llm_calls: false\n", encoding="utf-8")
     monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["codex"])
     monkeypatch.setattr(review, "ask", lambda *a, **k: pytest.fail("it called out"))
 
@@ -838,7 +760,7 @@ def test_ask_itself_refuses_before_it_spawns_anything(monkeypatch):
     mutation case reported MISSED until this test existed.
     """
     class _Entry:
-        def headless(self, prompt, model, effort):
+        def headless(self, prompt, model, effort, allow_run=False):
             return ["claude", prompt]
 
     monkeypatch.setattr(review, "_host_os_name", lambda: "nt")

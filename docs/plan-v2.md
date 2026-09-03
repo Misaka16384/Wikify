@@ -154,7 +154,7 @@ M0 地基 → M1 结构与迁移 → M2 状态与入口 → M3 命令面/skills/
 
 ## M6 — 慢环与成本
 
-- [x] `output/llm-ledger.jsonl` + 周预算门 + 总开关；超预算时 review / reflect 拒绝启动并在 MAP 说明
+- [x] `output/llm-ledger.jsonl` + 周预算门 + 总开关；超预算时 review / reflect 拒绝启动并在 MAP 说明（**周预算门于 2026-09-03 按用户决定拆除**，账本与总开关保留，见 design-v2 §13）
 - [x] WebUI 配置：预算、模型分配、规则区预算 `research.rule_budget`（前两项从 M5 挪来——没有账本的预算数字是装饰）；三个键同时进 config 白名单 + 出厂 `config.yaml` + `magi init` 模板
 - [x] `magi reflect` 第一段：五宿主四格式 transcript 适配器（claude / codex / gemini / qwen / opencode，qwen 未实测；golden fixture 手写不拷真实 transcript、fail-soft、Windows 路径）；抽样 ≤ 8 会话（≤ 5 loss / ≤ 3 win，各截 15k）；MAGI 结构化 loss + win → `output/reflect/patterns/*.md`（一模式一页，记会话与宿主；patch 词表 append / replace / insert_after，目标须为精确子串）
 - [x] `magi reflect` 第二段：读模式页 + 提案账本 → ≤ 5 条提案，一条一个目标；≥ 2 会话、被拒不再提、90 天过期全部是对模式页 + 账本的查询，不是 prose

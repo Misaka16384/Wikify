@@ -107,7 +107,7 @@ def register(app, resolve_workspace) -> None:
         payload["wip_limit"] = st.wip_limit
         # What the week has cost. `MAP.md` has carried this under `## Spending`
         # since M6 and the dashboard had no equivalent, so the browser could
-        # set `research.weekly_calls` and never see the number it governs.
+        # see what MAGI's own calls had cost. No budget any more — a count.
         payload["budget"] = state_mod.budget(ws)
         return payload
 
@@ -132,6 +132,7 @@ def register(app, resolve_workspace) -> None:
             if entry is None or not entry.argv:
                 continue
             out[key] = host_table.models(entry, force=bool(refresh))
+            out[key]["strong"] = entry.strong
             out[key]["cheap"] = entry.cheap
             out[key]["takes_effort"] = bool(entry.effort_argv)
         if host and not out:
@@ -201,6 +202,7 @@ def register(app, resolve_workspace) -> None:
             "frontmatter": dict(note.frontmatter), "body": note.prose,
             "path": str(note.path),
             "posts": [{"at": post.at, "host": post.host, "line": post.line,
+                       "via": post.via,
                        "src": post.src, "dst": post.dst, "field": post.field,
                        "value": post.value, "text": post.text}
                       for post in note.posts],
@@ -268,24 +270,31 @@ def register(app, resolve_workspace) -> None:
         refused = review_mod.unreviewable(ws, [slug])
         out = {
             "slug": slug,
-            "budget": ledger.summary(ws, limit=settings.limit),
+            "spending": ledger.summary(ws),
             "enabled": settings.enabled,
             "refused": [{"slug": s, "why": why, "near": near}
                         for s, why, near in refused],
         }
         if refused:
-            return dict(out, host=None, model=None, effort=None)
+            return dict(out, host=None, model=None, effort=None, tier=None)
 
-        chosen = review_mod.pick_host(None, configured=settings.host,
-                                      config=settings.config)
-        if chosen is None:
-            return dict(out, host=None, model=None, effort=None,
+        # The author is read off the note, so the browser's review avoids the
+        # CLI that wrote the claim the way the command line's does. This used
+        # to pass `None` and take the first installed host, which for a claim
+        # written by that host was a same-vendor review labelled as nothing.
+        author = review_mod.author_of(review_mod._note(ws, slug), settings.config)
+        order = review_mod.reviewers(author, configured=settings.host,
+                                     config=settings.config)
+        if not order:
+            return dict(out, host=None, model=None, effort=None, tier=None,
                         refused=out["refused"] + [
                             {"slug": slug,
                              "why": "no reviewer CLI is installed on this machine",
                              "near": []}])
-        _entry, model, effort = review_mod.plan(chosen, None, None, settings)
-        return dict(out, host=chosen, model=model or None, effort=effort or None)
+        chosen = order[0]
+        entry, model, effort = review_mod.plan(chosen, None, None, settings)
+        return dict(out, host=chosen, model=model or None, effort=effort or None,
+                    tier=entry.tier_of(model), fallbacks=order[1:], author=author)
 
     @app.post("/api/workspace/review")
     def post_workspace_review(payload: dict = Body(...)) -> dict:
@@ -316,18 +325,18 @@ def register(app, resolve_workspace) -> None:
             raise HTTPException(status_code=400, detail=f"{why}.{hint}")
 
         settings = review_mod._config(ws)
-        chosen = review_mod.pick_host(None, configured=settings.host,
-                                      config=settings.config)
-        if chosen is None:
+        if not review_mod.installed_hosts(settings.config):
             raise HTTPException(
                 status_code=400,
                 detail="no reviewer CLI on this machine. The claim stays "
                        "unreviewed rather than self-approved.")
-        _entry, model, effort = review_mod.plan(chosen, None, None, settings)
         try:
-            result = review_mod.review(ws, slug, host=chosen, model=model,
-                                       effort=effort, settings=settings)
-        except (ledger.OverBudget, ledger.SwitchedOff) as exc:
+            # `review` picks the host itself: the author read off the note,
+            # the configured host honoured, and the next installed CLI tried
+            # when the first fails to answer. Passing a pre-picked host here
+            # would take all three away from the browser.
+            result = review_mod.review(ws, slug, host=settings.host, settings=settings)
+        except ledger.SwitchedOff as exc:
             raise HTTPException(status_code=409, detail=str(exc))
         except (RuntimeError, OSError) as exc:
             raise HTTPException(status_code=502, detail=str(exc))
@@ -340,8 +349,11 @@ def register(app, resolve_workspace) -> None:
                 detail=f"{slug} was reviewed and the verdict could not be "
                        f"written ({exc}) — the call was spent")
         return {"slug": slug, "verdict": result.verdict, "host": result.host,
-                "model": model or None, "reason": result.reason, "said": line,
-                "budget": ledger.summary(ws, limit=settings.limit)}
+                "model": result.model or None, "effort": result.effort or None,
+                "tier": result.tier or None, "reason": result.reason,
+                "checked": result.checked, "assumption": result.assumption,
+                "fell_back": result.fell_back, "said": line,
+                "spending": ledger.summary(ws)}
 
     @app.post("/api/workspace/thread/new")
     def post_workspace_thread_new(payload: dict = Body(...)) -> dict:
@@ -412,7 +424,7 @@ def register(app, resolve_workspace) -> None:
                 detail="say why this belongs there — the field and the sentence "
                        "explaining it are one action")
         try:
-            threads.set_field(note.path, "line", lines, host="human", text=why)
+            threads.set_field(note.path, "line", lines, host="human", via="webui", text=why)
         except (OSError, ValueError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
         return {"slug": note.slug, "lines": lines}
@@ -444,7 +456,7 @@ def register(app, resolve_workspace) -> None:
             raise HTTPException(status_code=400,
                                 detail="which line, and why it is ending")
         found = close_cmd.close(ws, line, why, anyway=bool(payload.get("anyway")),
-                                host=vocab.HUMAN)
+                                host=vocab.HUMAN, via="webui")
         if not found.get("ok"):
             raise HTTPException(status_code=409, detail=found)
         return found
@@ -474,7 +486,7 @@ def register(app, resolve_workspace) -> None:
         found = publish_cmd.publish(ws, _inside(ws, payload.get("paper") or ""),
                                     lines, why,
                                     anyway=bool(payload.get("anyway")),
-                                    host=vocab.HUMAN)
+                                    host=vocab.HUMAN, via="webui")
         if not found.get("ok"):
             raise HTTPException(status_code=409, detail=found)
         return found
@@ -548,7 +560,7 @@ def register(app, resolve_workspace) -> None:
             raise HTTPException(status_code=400, detail="the post is empty")
         note = _note(ws, payload.get("slug") or "")
         try:
-            threads.append_post(note.path, text, host="human",
+            threads.append_post(note.path, text, host="human", via="webui",
                                 line=payload.get("line") or None)
         except (ValueError, OSError) as exc:
             raise HTTPException(status_code=400, detail=str(exc))
@@ -571,7 +583,7 @@ def register(app, resolve_workspace) -> None:
                                 detail="a status change needs a reason")
         note = _note(ws, payload.get("slug") or "")
         try:
-            threads.set_status(note.path, dst, why, host="human",
+            threads.set_status(note.path, dst, why, host="human", via="webui",
                                line=payload.get("line") or None)
         except (ValueError, OSError) as exc:
             # `IllegalTransition` is a `ValueError`, and so is a note whose

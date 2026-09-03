@@ -1,14 +1,14 @@
-"""The budget, and the two ways it says no.
+"""The ledger: a count of MAGI's own calls, and the one switch that says no.
 
-The property that matters is not the arithmetic — it is what happens at the
-boundary. A budget that stops the call but lets the claim retire unreviewed
-would be worse than no budget at all: it would spend nothing and approve
-everything. So both refusals happen *before* the subprocess, and both end with
-the same sentence.
+There was a weekly budget here until 2026-09-03; the person using it cancelled
+it (ledger.py says why). What is left is the record — every call, its host,
+model, effort, tier and outcome — and the master switch, which has to refuse
+*before* the subprocess and end with the sentence every caller relies on:
+nothing counts as reviewed.
 
 The unit is calls rather than dollars because a headless CLI does not reliably
-say what a request cost, and a budget denominated in a number nobody can
-measure is a budget that quietly does nothing.
+say what a request cost, and a count denominated in a number nobody can
+measure is a count that quietly means nothing.
 """
 
 from __future__ import annotations
@@ -83,42 +83,39 @@ def test_last_weeks_calls_are_last_weeks(ws):
     assert ledger.spent(ws, when=AT) == 2
 
 
-def test_the_summary_says_what_is_left_and_when_it_refills(ws):
+def test_the_summary_counts_the_week_by_kind_and_by_failure(ws):
     fill(ws, 3, when=AT)
-    out = ledger.summary(ws, limit=10, when=AT)
+    ledger.record(ws, ledger.REVIEW, "codex", ok=False, when=AT)
+    out = ledger.summary(ws, when=AT)
 
-    assert (out["spent"], out["left"], out["over"]) == (3, 7, False)
-    assert out["until"] == "2026-08-31", "the next Monday"
-    assert out["by_kind"]["review"] == 3
+    assert (out["spent"], out["failed"]) == (4, 1)
+    assert out["by_kind"]["review"] == 4
+    assert "limit" not in out and "left" not in out, "a count, not a quota"
+
+
+def test_the_tier_is_recorded_and_tallied(ws):
+    ledger.record(ws, ledger.REVIEW, "claude", model="opus", tier="strong", when=AT)
+    ledger.record(ws, ledger.REVIEW, "claude", model="haiku", tier="cheap", when=AT)
+    ledger.record(ws, ledger.REVIEW, "codex", when=AT)
+    row = json.loads(ledger.path_for(ws).read_text(encoding="utf-8").splitlines()[0])
+    assert row["tier"] == "strong"
+    assert ledger.summary(ws, when=AT)["by_tier"] == {"strong": 1, "cheap": 1}
 
 
 # --------------------------------------------------------------------------
 # saying no
 # --------------------------------------------------------------------------
 
-def test_under_budget_says_nothing(ws):
-    fill(ws, 2, when=AT)
-    ledger.check(ws, limit=5, when=AT)   # no exception is the pass
+def test_there_is_no_limit_to_hit(ws):
+    """The weekly budget was cancelled on 2026-09-03: token plans make a
+    per-call cap pointless, and the day it went it was refusing reviews over
+    four calls that had failed on a vendor's own quota."""
+    fill(ws, 500, when=AT)
+    ledger.check(ws, when=AT)   # no exception is the pass
 
 
-def test_at_the_limit_it_refuses(ws):
-    fill(ws, 5, when=AT)
-    with pytest.raises(ledger.OverBudget) as caught:
-        ledger.check(ws, limit=5, when=AT)
-
-    said = str(caught.value)
-    assert "5/5" in said and "2026-08-31" in said
-    assert "nothing counts as reviewed" in said, (
-        "a budget that lets a claim retire unreviewed is worse than no budget")
-
-
-def test_the_master_switch_refuses_before_anything_else(ws):
-    """Off means off — not "off unless there is budget left"."""
+def test_the_master_switch_is_the_one_refusal(ws):
+    """Off means off."""
     with pytest.raises(ledger.SwitchedOff) as caught:
-        ledger.check(ws, limit=1000, enabled=False, when=AT)
+        ledger.check(ws, enabled=False, when=AT)
     assert "nothing counts as reviewed" in str(caught.value)
-
-
-def test_a_zero_budget_is_a_refusal_not_a_free_pass(ws):
-    with pytest.raises(ledger.OverBudget):
-        ledger.check(ws, limit=0, when=AT)

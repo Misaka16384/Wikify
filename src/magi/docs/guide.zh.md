@@ -512,6 +512,14 @@ magi adopt apply plan.json
 才是要人读的事。整个目录只有一个子目录时它自动往下钻一层并说明；否则一个
 `research/` 包着全部材料的仓库，盘点出来只有「112 个文件」一行，等于没说。
 
+`survey --json` 是 skill 读的那份。键：`root`（盘点的目录）、`is_project`（已经是
+MAGI 项目？）、`descended_into`（钻过的包装目录，从外到里；没钻就是空列表）、
+`entries`（每项一行：`path`、`name`、`kind`——`dir` 或 `file`——`bytes`、`types`（后缀
+直方图）、`scaffold` 与 `name_collision`（这个名字是不是 MAGI 自己的目录——已经是，或
+将来会撞上），目录多两个 `files`、`depth`，文本文件多一个 `head`，即首行）、
+`markdown_files`（个数）、`internal_links`（文件之间 `[[…]]` 与相对 markdown 链接的条数）、
+`identities`——`{"arxiv": [...], "doi": [...]}`，markdown 里出现过的全部 id，去重。
+
 计划是一个 JSON，由 agent 写、由人过目：
 
 ```json
@@ -599,6 +607,7 @@ my-topic/
 │   concepts/  概念卡    references/ 文献卡    topics/  专题综述
 ├─ threads/                命题 / 问题 / 研究线（论坛式跟帖，`magi thread`）
 ├─ drafts/                 推导与草稿
+├─ tools/                  验证推导的脚本；命题的 `evidence:` 指向它们
 ├─ output/                 graph.db、index.db、MAP.md、雷达账本
 └─ scratch/                agent 的草稿纸，可随时清空
 ```
@@ -715,6 +724,7 @@ magi ingest auto paper.pdf    # 或者指定一个文件
 
 ```powershell
 magi ingest url "https://arxiv.org/abs/2608.16520"   # 也可以是 DOI，可以一次给多个
+magi ingest url 2608.16520 --expect "fracton"   # 凭记忆敲的号：先取题名，对不上就不排
 magi ingest batch-run                                 # 抓取 + 转换，无人值守
 magi ingest review                                    # 看看转出来什么样
 magi ingest review --item <ID> --decision approve      # 逐条过
@@ -1209,11 +1219,37 @@ magi thread new p-gap --kind proposition --title "弱无序下能隙不闭合" `
   --purpose "决定要不要投一个月做数值" --line qec --bet supported
 magi thread status p-gap testing --text "L=64 起跑"   # 改状态，顺手把原因记下
 magi thread post p-gap --text "L=64 收敛，试 L=128"    # 只是说句话，不改状态
+magi thread bet p-gap refuted --text "L=128 的漂移像是真的"   # 人的预测，签 human
+magi thread new p-dual --kind proposition --title "对偶是 Z2 规范理论" `
+  --purpose "从 L=128 那一跑里冒出来的" --found 2026-09-01   # 发现：不问押注
+magi thread new p-idx --kind proposition --title "扭曲指标" --purpose "从 L=128 那一跑来的" `
+  --claim "h = 1 时扭曲指标等于 3。" --derivation drafts/index.md --evidence tools/index.m2
+magi thread post p-idx --evidence tools/index_check.py --text "第二次独立计数"
+magi thread claim p-idx --text "h = 1 与 2 时扭曲指标等于 3。"   # 重述，记成一条跟帖
 ```
+
+**标题、陈述、证据。** 标题是名字；`--claim` 是复核者要判的那句话，带量词，复核说写宽了就用
+`magi thread claim` 重述、记成跟帖。`--derivation` 指向论证，`--evidence` 指向复核者必须读或跑的
+文件（脚本、数据、笔记本），两者在击键处就检查：路径必须在项目内、文件必须存在。脚本住在
+`tools/`。CLI 的 scratch 目录在项目外，放在那里的证据没有复核者读得到：`sync --close` 与
+`magi next` 会列出引用了项目外路径的帖子，`magi review` 花钱之前也会先警告。
+
+**谁敲的。** 签 `human` 的帖子是人的决定，通常由 agent 誊写。签名会写明：`human/qec · via claude`。
+对每一道闸门它仍然是人的帖子；`via` 是来源，让读的人分得清誊写和亲手敲。
+
+**日志记在哪。** 没有日志文件。关于一条线的话写在线的 note 上（`magi thread post <line> --text …`），
+关于一条命题的写在命题上，人的决定走 `magi decide`；`magi feed` 按时间把它们都读回来。`log.md`
+是 v1 的文件，没有任何东西再往里写。
 
 命题的生命周期是 `open → conjectured → testing → supported | refuted → superseded`；
 审核驳回或证据冲突会把它打到 `disputed`，那是要人来判的。**改状态必须带一条跟帖**——
 所以 `magi thread status` 把两件事一起做了，你没法只做一半。
+
+**猜想还是发现。** 预测只在答案出来之前值钱，而真实研究里的命题多半是算出来之后才开的。
+所以带 `--found [日期]` 开的命题是**发现**：记下哪天找到的，没人会来问押注——事后的押注
+不是预测。不带它开的是**猜想**，`magi next` 在 `conjectured` 或 `testing` 时问一次预测，
+在动手之前。`magi thread bet` 在预测到来的任何时刻记下它，默认签 `human`；它取代的是
+手改 frontmatter 里的 `bet:`。
 
 每篇 note 分两半：正文归开它的人，`## Discussion` 只追加、谁都不改别人的帖子。
 **用命令而不是编辑器改**：追加是带锁的，编辑器写整个文件不带锁，两个 agent 同时写会
@@ -1251,15 +1287,31 @@ magi decide --about p-gap --bet supported --text "我赌它在体相里成立"
 里会写明是哪种。一个都没装时**什么也不算通过**——宁可留着没复核，也不能让"没人可问"变成
 "自动通过"。
 
-复核只看命题、它的 `derivation:` 和它引的 `raw/`——不看聊天记录，也不看这条线自我感觉如何。
-「远」指的是不共享上下文，不是不给证据。它**只能发表意见**：驳回把命题打到 `disputed`
-（那是要人判的事），不是 `refuted`（那会是一个结论），也不会在下一次运行时自己翻回去。
+复核看命题、它的 `derivation:`、它引的 `raw/`，以及论证倚赖的 drafts 和卡片——不看聊天
+记录，不看这条线自我感觉如何，也不看 `threads/` 里别的 note。「远」指的是不共享上下文，
+不是不给证据。note 自己的 `## Discussion` 是评论：可以读作背景，但帖子里的笔误不是命题的
+缺陷，驳回只能以 `drafts/` 或 `raw/` 为据。
 
-**不配置就跑在便宜档上。** 一次复核读一条命题、答三句话，用不着你账号上最大的那个模型，
-而预算是按次数算的——花在哪都是一次。所以每条宿主记录都写了一个便宜模型：Claude Code 是
-`haiku`，agy 是 `gemini-3.7-flash-low`，什么都不配就跑这个。Codex 没写，因为它不列出
-自己的模型、id 又是带日期的：写死在 MAGI 里的名字迟早会在某个版本变成 "unknown model"，
-而失败的调用照样扣一次预算。
+**它按顺序查什么**——这类命题真正出错的地方：标题里的量词对不对得上推导覆盖的范围；每个
+对象是不是它声称的那个东西；计数与指标；证明覆盖的是声称的全部定义域还是一个代表元切片；
+某一步坏了之后数值证据还站不站得住；以及**承重假设**——命题最依赖的那一个定义，换成合理
+的替代结论是否幸存。它还必须**自己核实一件事**——重算一个式子、重推一步、或者跑一遍推导
+点名的脚本——帖子里记下核实了什么。「证明在第 40 行」不是复核。`magi review --allow-run`
+让宿主允许执行脚本（Claude Code 和 Codex 有这条路；agy 没有，命令会说明）。
+
+**四种判决。** `stands`。`restate`：结论成立、文字不成立——量词写宽了、指标写错了、对象叫
+错了；命题退回 `testing`，作者按帖子说的改陈述或推导，再标 `supported`，就再审一次，不问
+任何人。`refuted`：给出反例或指出不成立的具体步骤；命题进 `disputed`，那是要人判的事——不是
+`refuted`（那会是一个结论），也不会在下一次运行时自己翻回去。`unclear`：不算答案，命题回队列。
+
+**不配置就跑在强档上。** 2026-09-03 之前跑的是便宜档，理由是读一条命题用不着大模型。实测
+一天说的是另一回事：同一批命题上，便宜档给了十二个判决，一处有效意见，四处实质错误全部
+放过，还报出它没读过的行号；强档找到了唯一一处真正的证明缺口。制造信心的复核比没有复核
+更糟。所以每条宿主记录写了一个强模型：Claude Code 是 `opus` 配 `high`，agy 是
+`gemini-3.8-flash-high`；Codex 用它自己的默认配 `high`，因为它不列出自己的模型、id 又是
+带日期的，写死在 MAGI 里的名字迟早变成 "unknown model"。便宜档还在，点名就能用
+（`--model haiku`），而每条判决的帖子都写明是哪一档判的，所以 `sync --close` 和 `magi next`
+能把「只被便宜档看过」的命题单列出来。
 
 决定模型的有四层，越具体越优先：
 
@@ -1267,7 +1319,7 @@ magi decide --about p-gap --bet supported --text "我赌它在体相里成立"
 magi review --model sonnet --effort high     # 1. 这一次调用
 # 2. research.hosts 里那条宿主记录的 `model:`
 # 3. config.yaml 里的 research.review_model
-# 4. 宿主记录里的便宜档
+# 4. 宿主记录里的强档
 ```
 
 `research.review_model` 是一个字符串、对所有厂商生效，而复核宿主是自动挑的——对一家
@@ -1276,16 +1328,30 @@ magi review --model sonnet --effort high     # 1. 这一次调用
 变成那个宿主真正提供的列表（agy 走 `agy models`，缓存一天；Claude Code 是它自己文档里
 的三个别名；Codex 问不出来，就还是个输入框）。
 
-`--effort low|medium|high` 是同一条链，末尾没有便宜档兜底——因为模型 id 往往已经带了
-档位：`gemini-3.7-flash-low` **就是**低档那个，所以 agy 不会在它之上再收到 `--effort`。
+`--effort low|medium|high` 是同一条链，末尾只在模型**就是**强档时才兜到强档自带的档位——
+而模型 id 已经带了档位时干脆不传：`gemini-3.8-flash-high` **就是**高档那个，所以 agy 不会
+在它之上再收到 `--effort`。
 
-`magi review --dry-run` 会打印它将用的宿主、模型和档位。一条四层的链，在花钱之前看一眼
-是最便宜的检查。
+`magi review --dry-run` 会逐条打印它将用的宿主、模型、档位和层级。一条四层的链，在花钱
+之前看一眼是最便宜的检查。
+
+**问谁。** 写下这条命题的 CLI 从把它翻到 `supported` 的那条帖子签名里读出，复核避开它；
+`--author` 可以覆盖。选中的宿主没答上来——厂商配额、超时、崩了——就问下一个装了的，跨厂商
+优先、作者自己那家最后，判决的签名行写明谁先被问、为什么没答。同一批里失败过的宿主不再
+被问下一条。
+
+**等多久。** 默认十分钟，推导和证据长就更久（`--timeout` 精确指定）。原来是五分钟，强档高档位
+读一份四百行的推导会超。
 
 **没跑成的复核什么都不写。** 一条命题之所以不再排队等复核，是因为帖子里有人读过它——所以
 CLI 没装、超时、进程崩了，note 一个字都不动，命题继续在队列里。读不懂的回答会写帖（原文附
 在里面：那是分辨"适配器坏了"和"这条真判不了"的唯一办法），但 `unclear` 也不是答案，命题
 照样回队列。
+
+**没有周预算。** 曾经有，用它的人把它取消了：token plan 让按次封顶失去意义，复核的价值远
+超一周四十次，而取消那天它数着的正是四次撞上厂商自己配额的失败调用。调用照样写进
+`output/llm-ledger.jsonl`（宿主、模型、档位、层级、耗时、成败），`MAP.md` 和面板显示本周
+次数。唯一会拒绝的是 `research.llm_calls: false`。
 
 ### 一条线怎么结束
 
@@ -1350,7 +1416,7 @@ magi reflect              # 读，并把反复发生的事写下来
 > skill 里没有、`magi next` 的建议里也没有。一个能读模式库的 agent 会开始按模式防御而不是
 > 按规则行事，那之后慢环就再也分不清它硬化的规则到底起没起作用。这是量出来的，不是猜的。
 
-读一遍花一次模型调用，和复核共用同一个周预算，超了之后拒绝的方式也一样。
+读一遍花一次模型调用，和复核记在同一本账上，拒绝的方式也一样——只有 `research.llm_calls: false`。
 
 ```bash
 magi reflect propose      # 把反复出现的那些变成至多五条提案

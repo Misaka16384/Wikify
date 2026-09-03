@@ -35,7 +35,7 @@ def workspace(tmp_path_factory):
 
 @pytest.mark.parametrize("rel", [
     "raw", "raw/papers", "wiki", "wiki/concepts", "wiki/topics", "wiki/references",
-    "threads", "drafts", "output", "inbox", "scratch",
+    "threads", "drafts", "tools", "output", "inbox", "scratch",
 ])
 def test_the_directories_a_v2_workspace_has(workspace, rel):
     assert (workspace / rel).is_dir(), rel

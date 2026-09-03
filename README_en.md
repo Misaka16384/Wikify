@@ -63,11 +63,11 @@ With the skills installed it is shorter still: say "what should I do next",
 "take this paper in", "I don't buy this one" to your agent and it reaches for
 these itself.
 
-> A review costs one external model call. `magi review` says who it will ask
-> and which model before it spends, and reports the week's usage after; the
-> browser shows the same before you press. The weekly budget is
-> `research.weekly_calls` — spent, it refuses to start rather than quietly
-> doing less.
+> A review costs one external model call. `magi review` says who it will ask,
+> which model and which tier before it spends, and reports the week's count
+> after; the browser shows the same before you press. There is no weekly
+> budget — calls are counted in `output/llm-ledger.jsonl`, and the one
+> refusal is the master switch, `research.llm_calls: false`.
 
 ---
 

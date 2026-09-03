@@ -60,9 +60,10 @@ mkdir my-topic ; cd my-topic ; magi init ; magi install
 装了 skills 之后更省事：在 agent 里直接说「我接下来该做什么」「把这篇收进来」
 「这条我觉得站不住」，它会自己去调上面这些。
 
-> 复核会花钱（一次外部模型调用）。`magi review` 事前会说要问谁、用哪个模型，
-> 事后报本周用量；浏览器里按之前也会弹出同样的信息。周预算在
-> `research.weekly_calls`，用完了它拒绝启动而不是安静地少做。
+> 复核会花钱（一次外部模型调用）。`magi review` 事前会说要问谁、用哪个模型、
+> 哪一档，事后报本周次数；浏览器里按之前也会弹出同样的信息。没有周预算——
+> 调用只记在 `output/llm-ledger.jsonl` 里，唯一会拒绝的是总开关
+> `research.llm_calls: false`。
 
 ---
 

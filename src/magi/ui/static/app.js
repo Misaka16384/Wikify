@@ -143,23 +143,25 @@
       publish_loose_ends: "尚有未收尾事项：{slugs}。如仍要发表，请说明原因（将写入记录）。",
       published: "已归档,相关工作已退役",
       btn_review_running: "正在问…",
-      review_hint: "由另一家厂商的 CLI 独立复核该命题（不含本对话上下文），消耗一次周预算。",
-      review_confirm: "要问 {host}（模型 {model}）复核这条命题吗？\n\n这会花掉本周预算的一次:还剩 {left}/{limit}。\n一般十几秒。",
+      review_hint: "由另一家厂商的 CLI 独立复核该命题（不含本对话上下文），一次外部模型调用。",
+      review_confirm: "要问 {host}（模型 {model}）复核这条命题吗？\n\n本周 MAGI 已自动调用 {spent} 次。\n一般十几秒到几分钟。",
+      review_restate: "「重述」：复核方认同结论,但陈述或推导文字须改。命题已退回 testing,作者改好后再标 supported 即自动重审——不需要你拍板。",
       review_running: "已经在问 {host} 了,通常十几秒。",
       review_switched_off: "模型调用已关闭（research.llm_calls）。开启后才能复核。",
       review_by: "{host} 判的（{model}）",
       review_unclear: "「说不清」：复核方认为按现有证据无法判定。命题仍在待复核队列中。",
-      review_budget_left: "本周还剩 {left}/{limit} 次调用。",
+      review_budget_left: "本周 MAGI 已自动调用 {spent} 次。",
+      review_tier_line: "{host} · {model} · {tier} 档",
       dash_spending: "本周自动调用",
-      dash_spending_line: "{spent}/{limit} 次,还剩 {left}",
+      dash_spending_line: "{spent} 次（复核 {review}，慢环 {reflect}）",
+      dash_spending_failed: "{failed} 次失败",
       kb_hide_gone: "隐藏目录已不存在的 ({n})",
       cfg_review_host_auto: "自动（探测 PATH，选一个不是作者的）",
       cfg_f_review_host: "执行复核的 CLI。留空则自动选择非作者的宿主。",
       cfg_f_coaching: "结束会话时这道门推得多紧。off = 不拦；light = 缺记账就提醒；strict = 没写下预测就不许开始推导。",
       cfg_f_wip_limit: "一条线上同时开着几个命题算多。七是工作记忆的数字,不是测量值:再多人就抓不住这条线上到底有什么没结。",
       cfg_f_stall_days: "多少天没动静就把一条线标成安静。久到休一周不算,短到被忘掉的线一个月内会浮上来。",
-      cfg_f_weekly_calls: "MAGI 每周可自动发起的模型调用次数（复核、慢环、随手记归档）。按次计数，失败的调用也计入。",
-      cfg_f_llm_calls: "MAGI 自动调用的总开关。关闭后不再发起任何调用；你直接指派 agent 的工作不受影响。",
+      cfg_f_llm_calls: "MAGI 自动调用的总开关。关闭后不再发起任何调用；你直接指派 agent 的工作不受影响。没有周预算——调用只记账不封顶。",
       cfg_f_rule_budget: "AGENTS.md 规则段的最大行数。每次会话都会读取该段。",
       cfg_f_rules: "本项目的规则，使用封闭词汇，每次运行都会检查。由 `magi reflect promote` 添加，可在此退役。",
       cfg_f_search_projects: "本项目的检索额外覆盖哪些已注册项目。留空则只搜本项目。",
@@ -547,6 +549,9 @@
       ingest_approve: "通过",
       ingest_reject: "拒绝",
       ingest_undo: "撤销",
+      ingest_discard: "丢弃",
+      ingest_discard_hint: "丢掉：不重排到下一档，也不进 raw/。「拒绝」是往下走一档。",
+      ingest_discarded: "已丢弃——不重排，不落地。",
       ingest_badge_undecided: "{n} 条待决定",
       ingest_badge_ready: "可提交",
       ingest_requeued: "已拒绝，自动改走下一档：{route}（会出现在下一批）",
@@ -1009,23 +1014,25 @@
       publish_loose_ends: "Open items remain: {slugs}. To publish anyway, give a reason (it is recorded).",
       published: "Filed, and the work it reports is retired",
       btn_review_running: "asking…",
-      review_hint: "An independent review by another vendor's CLI, without this conversation's context. Uses one call from the weekly budget.",
-      review_confirm: "Ask {host} (model {model}) to review this claim?\n\nThis spends one call from this week's budget: {left}/{limit} left.\nUsually about fifteen seconds.",
+      review_hint: "An independent review by another vendor's CLI, without this conversation's context. One external model call.",
+      review_confirm: "Ask {host} (model {model}) to review this claim?\n\nMAGI has made {spent} call(s) of its own this week.\nUsually fifteen seconds to a few minutes.",
+      review_restate: "\"Restate\": the reviewer agrees with the conclusion and not with the words. The proposition is back at testing; its author fixes the statement and marks it supported again, and it is re-reviewed. Nothing here is yours to decide.",
       review_running: "Asking {host} — usually about fifteen seconds.",
       review_switched_off: "Model calls are off (research.llm_calls). Turn them on to review.",
       review_by: "{host} decided ({model})",
       review_unclear: "\"Unclear\": the reviewer could not decide on the available evidence. The proposition stays in the review queue.",
-      review_budget_left: "{left}/{limit} calls left this week.",
+      review_budget_left: "MAGI has made {spent} call(s) of its own this week.",
+      review_tier_line: "{host} · {model} · {tier} tier",
       dash_spending: "Automatic calls this week",
-      dash_spending_line: "{spent}/{limit} used, {left} left",
+      dash_spending_line: "{spent} ({review} review, {reflect} reflect)",
+      dash_spending_failed: "{failed} failed",
       kb_hide_gone: "Hide the {n} whose directory is gone",
       cfg_review_host_auto: "auto (probe PATH for one that is not the author)",
       cfg_f_review_host: "Which CLI runs reviews. Empty picks a host other than the author.",
       cfg_f_coaching: "How hard the end-of-session gate pushes. off = never blocks; light = asks for missing bookkeeping; strict = no derivation starts without a written prediction.",
       cfg_f_wip_limit: "How many propositions may be open on one line at once. Seven is a working-memory number, not a measurement: past it nobody can hold what is still unsettled on that line.",
       cfg_f_stall_days: "Days of silence before a line is called quiet. Long enough that a week off is not a flag, short enough that a forgotten line surfaces within a month.",
-      cfg_f_weekly_calls: "Model calls MAGI may make on its own per week (review, slow loop, note filing). Counted per call; failed calls count.",
-      cfg_f_llm_calls: "Master switch for MAGI's automatic calls. Off makes none; work you assign to your agent is unaffected.",
+      cfg_f_llm_calls: "Master switch for MAGI's automatic calls. Off makes none; work you assign to your agent is unaffected. There is no weekly budget — calls are counted, not capped.",
       cfg_f_rule_budget: "Maximum lines in the AGENTS.md rules section. Every session reads it.",
       cfg_f_rules: "This project's rules, in a closed vocabulary, checked on every run. Added by `magi reflect promote`; retire them here.",
       cfg_f_search_projects: "Other registered projects this project's searches include. Empty means this project only.",
@@ -1413,6 +1420,9 @@
       ingest_approve: "Approve",
       ingest_reject: "Reject",
       ingest_undo: "Undo",
+      ingest_discard: "Discard",
+      ingest_discard_hint: "Drop it: nothing requeued, nothing lands in raw/. Reject walks it one route down instead.",
+      ingest_discarded: "Discarded — nothing requeued, nothing lands.",
       ingest_badge_undecided: "{n} undecided",
       ingest_badge_ready: "ready to commit",
       ingest_requeued: "Rejected — retrying on the next route down: {route} (it appears in the next batch)",
@@ -3608,19 +3618,22 @@
   }
 
   function renderSpending(b) {
-    // design-v2 §13 asks for the weekly budget to be configured in the
-    // WebUI and explained when it runs out. It was configurable and never
-    // shown, so the one number the configuration governs could only be
-    // read by opening MAP.md or the ledger by hand.
+    // What MAGI's own calls cost this week, as a count. There is no budget
+    // any more (core/ledger.py says why); the number is still the one a
+    // person opens the dashboard to see, and it could only be read from
+    // MAP.md or the ledger by hand before this.
     const box = document.getElementById("spending");
     if (!box) return;
-    if (b.limit === undefined || b.limit === null) { box.innerHTML = ""; return; }
-    const tone = b.over ? "badge-danger" : "badge-muted";
+    if (b.spent === undefined || b.spent === null) { box.innerHTML = ""; return; }
+    const kinds = b.by_kind || {};
+    const failed = b.failed
+      ? ` <span class="badge badge-danger">${escapeHtml(t("dash_spending_failed", { failed: b.failed }))}</span>`
+      : "";
     box.innerHTML = `<div class="stack-row"><div>`
       + `<strong>${escapeHtml(t("dash_spending"))}</strong> `
-      + `<span class="badge ${tone}">`
-      + escapeHtml(t("dash_spending_line", { spent: b.spent, limit: b.limit, left: b.left }))
-      + `</span></div></div>`;
+      + `<span class="badge badge-muted">`
+      + escapeHtml(t("dash_spending_line", { spent: b.spent, review: kinds.review || 0, reflect: kinds.reflect || 0 }))
+      + `</span>${failed}</div></div>`;
   }
 
   function renderLookingBack(box, back) {
@@ -3766,7 +3779,8 @@
         ? ` <span class="badge badge-muted">${escapeHtml(post.field)} = ${escapeHtml(String(post.value))}</span>` : "";
       return `<div class="stack-row"><div>
         <code>${escapeHtml(post.at)}</code> · <strong>${escapeHtml(post.host)}</strong>`
-        + `${post.line ? "/" + escapeHtml(post.line) : ""}${move}${set}
+        + `${post.line ? "/" + escapeHtml(post.line) : ""}`
+        + `${post.via ? ` <span class="card-subtitle">via ${escapeHtml(post.via)}</span>` : ""}${move}${set}
         <p>${escapeHtml(post.text || "").replace(/\n/g, "<br>")}</p>
       </div></div>`;
     }).join("");
@@ -3867,11 +3881,11 @@
       out.innerHTML = `<p class="card-subtitle">${escapeHtml(t("review_switched_off"))}</p>`;
       return;
     }
-    const b = plan.budget || {};
+    const b = plan.spending || plan.budget || {};
     inlineConfirm(out, {
       body: `<p class="card-subtitle">${escapeHtml(t("review_confirm", {
         host: plan.host, model: plan.model || t("cfg_model_default"),
-        left: b.left, limit: b.limit }))}</p>`,
+        spent: b.spent === undefined ? "?" : b.spent }))}</p>`,
       askReason: false,
       go: t("btn_review"),
       onGo: () => runReview(slug, plan, btn, out),
@@ -3932,18 +3946,27 @@
     const out = document.getElementById("thread-review-out");
     if (!out) return;
     const tone = res.verdict === "stands" ? "badge-sage"
-      : res.verdict === "refuted" ? "badge-danger" : "badge-muted";
-    // `unclear` is spelled out. On the CLI it printed as one word and told the
-    // reader neither what was decided nor what to do about it.
-    const gloss = res.verdict === "unclear" ? `<p class="card-subtitle">${escapeHtml(t("review_unclear"))}</p>` : "";
-    const b = res.budget || {};
+      : res.verdict === "refuted" ? "badge-danger"
+      : res.verdict === "restate" ? "badge-terracotta" : "badge-muted";
+    // `unclear` and `restate` are spelled out. On the CLI each printed as one
+    // word and told the reader neither what was decided nor what to do about it.
+    const gloss = res.verdict === "unclear" ? `<p class="card-subtitle">${escapeHtml(t("review_unclear"))}</p>`
+      : res.verdict === "restate" ? `<p class="card-subtitle">${escapeHtml(t("review_restate"))}</p>` : "";
+    const b = res.spending || res.budget || {};
+    const tier = res.tier
+      ? `<span class="card-subtitle">${escapeHtml(t("review_tier_line", { host: res.host, model: res.model || t("cfg_model_default"), tier: res.tier }))}</span>`
+      : `<span class="card-subtitle">${escapeHtml(t("review_by", { host: res.host, model: res.model || "" }))}</span>`;
+    const checked = res.checked ? `<p class="card-subtitle">Checked: ${escapeHtml(res.checked)}</p>` : "";
+    const assumption = res.assumption ? `<p class="card-subtitle">Load-bearing: ${escapeHtml(res.assumption)}</p>` : "";
     out.innerHTML = `
       <div class="stack-row"><div>
         <span class="badge ${tone}">${escapeHtml(res.verdict)}</span>
-        <span class="card-subtitle">${escapeHtml(t("review_by", { host: res.host, model: res.model || "" }))}</span>
+        ${tier}
         ${gloss}
         <p>${escapeHtml(res.reason || "").replace(/\n/g, "<br>")}</p>
-        <p class="card-subtitle">${escapeHtml(t("review_budget_left", { left: b.left, limit: b.limit }))}</p>
+        ${checked}
+        ${assumption}
+        <p class="card-subtitle">${escapeHtml(t("review_budget_left", { spent: b.spent === undefined ? "?" : b.spent }))}</p>
       </div></div>`;
   }
 
@@ -5734,7 +5757,6 @@
     "research.coaching": "cfg_f_coaching",
     "research.wip_limit": "cfg_f_wip_limit",
     "research.stall_days": "cfg_f_stall_days",
-    "research.weekly_calls": "cfg_f_weekly_calls",
     "research.llm_calls": "cfg_f_llm_calls",
     "research.rule_budget": "cfg_f_rule_budget",
     "research.rules": "cfg_f_rules",
@@ -8166,6 +8188,7 @@
       <div class="row-btns">
         <button class="btn btn-sm ${approveClass}" data-act="approve"${decided || item.error ? " disabled" : ""} title="${item.error ? escapeHtml(t("ingest_cannot_approve")) : ""}">${t("ingest_approve")}</button>
         <button class="btn btn-sm ${rejectClass}" data-act="reject"${decided ? " disabled" : ""}>${t("ingest_reject")}</button>
+        <button class="btn btn-sm btn-ghost" data-act="discard"${decided ? " disabled" : ""} title="${escapeHtml(t("ingest_discard_hint"))}">${t("ingest_discard")}</button>
         <button class="btn btn-sm btn-ghost" data-act="reset">${t("ingest_undo")}</button>
       </div>
     </div>`;
@@ -8194,13 +8217,15 @@
         }),
       });
       row.dataset.decision = decision === "reset" ? "" : decision;
-      row.querySelectorAll('[data-act="approve"],[data-act="reject"]').forEach((b) => {
+      row.querySelectorAll('[data-act="approve"],[data-act="reject"],[data-act="discard"]').forEach((b) => {
         b.disabled = decision !== "reset";
       });
       // Rejecting is not discarding. Say where it went, or the user reasonably
-      // assumes the paper is gone.
+      // assumes the paper is gone — and when it *is* gone, say that too.
       if (res.requeued_on) {
         showToast(t("ingest_requeued", { route: res.requeued_on }), "info");
+      } else if (decision === "discard") {
+        showToast(t("ingest_discarded"), "info");
       }
       applyIngestFilter(row.closest(".ingest-items"));
       loadIngest();

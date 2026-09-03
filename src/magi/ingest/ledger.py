@@ -224,13 +224,13 @@ class BatchItem(NamedTuple):
     staged_md: str | None
     findings: list
     error: str | None
-    decision: str | None       # None | "approve" | "reject"
+    decision: str | None       # None | "approve" | "reject" | "discard"
     committed_path: str | None
     retry_of: str | None
 
     @property
     def decided(self) -> bool:
-        return self.decision in ("approve", "reject")
+        return self.decision in FINAL_DECISIONS
 
     @property
     def ok(self) -> bool:
@@ -273,10 +273,19 @@ def record_item(topic, batch_id: str, *, req_id: str, route: str,
     return item_id
 
 
+#: The three words that settle an item, and the one that unsettles it.
+#: `reject` walks the item down one rung of the ladder; `discard` drops it —
+#: nothing requeued, nothing committed. They were one word until a run left
+#: orphans a person wanted gone and "reject" put each of them straight back
+#: into the next batch, one rung down (2026-09-03).
+FINAL_DECISIONS = ("approve", "reject", "discard")
+DECISIONS = FINAL_DECISIONS + ("reset",)
+
+
 def record_decision(topic, batch_id: str, item_id: str, decision: str) -> None:
-    """Approve, reject, or undo. Undo is just another appended record — the fold
-    takes the last one, exactly as the radar's triage log does."""
-    if decision not in ("approve", "reject", "reset"):
+    """Approve, reject, discard, or undo. Undo is just another appended record —
+    the fold takes the last one, exactly as the radar's triage log does."""
+    if decision not in DECISIONS:
         raise ValueError(f"unknown decision: {decision!r}")
     _append(batch_path(topic, batch_id),
             {"kind": "decision", "item_id": item_id,
@@ -423,6 +432,12 @@ def requeue_next_rung(topic, item) -> str | None:
     if not nxt:
         return None
     source_type = item.source_type or routing.infer_source_type(item.source_value)
+    # A DOI that reached a batch as a DOI is one Semantic Scholar could not
+    # map to arXiv. Every rung below the top two wants a PDF on disk, and a
+    # DOI is not one, so the ladder has nothing for it: requeuing would fail
+    # the same way one rung down and call that progress.
+    if source_type == "doi":
+        return None
     enqueue(topic, source_type=source_type, value=item.source_value,
             route=nxt, retry_of=item.item_id, title=item.title)
     return nxt

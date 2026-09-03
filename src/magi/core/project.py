@@ -106,6 +106,16 @@ LAYOUT: dict[str, Dir] = {
              "post. Not in `documents`: linted by its own walker in "
              "`kb/threads.py`, because a note is not shaped like a card.",
     ),
+    "tools": Dir(
+        what="Scripts and small programs that check a derivation; named from a "
+             "proposition's `evidence:` so a reviewer can run them.",
+        rewritten=False, searchable=False, documents=False, graphed=False,
+        note="Not prose. Nothing here is a card or a note, so no pass rewrites, "
+             "indexes, lints or graphs it — it is read by the reviewer the "
+             "proposition points at it. It exists because evidence written in a "
+             "CLI's scratch directory outside the project was cited fifteen "
+             "times in one day and no reviewer could open any of it (2026-09-03).",
+    ),
     "inbox": Dir(
         what="Staging: sources waiting to be ingested, and notes.md.",
         rewritten=False, searchable=False, documents=False, graphed=False,

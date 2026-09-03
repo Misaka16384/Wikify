@@ -123,6 +123,8 @@ ROOT_ALLOWED = {
     "AGENTS.md",
     "log.md",
     "scratch",
+    # Verification scripts a proposition's `evidence:` names (core/project.LAYOUT).
+    "tools",
     "raw",
     "wiki",
     "drafts",

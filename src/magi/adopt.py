@@ -42,7 +42,7 @@ from magi.core.workspace import find_workspace_root, is_topic_root
 # MAGI's own furniture. Adopting a folder must never propose moving the
 # scaffold that was just written into it.
 SCAFFOLD = {
-    "raw", "wiki", "drafts", "threads", "inbox", "output", "scratch",
+    "raw", "wiki", "drafts", "threads", "tools", "inbox", "output", "scratch",
     "AGENTS.md", "CLAUDE.md", "config.md", "config.yaml", "log.md",
     "decisions.md", "_index.md", ".gitignore", ".claude", ".agents",
     ".opencode", ".backup",

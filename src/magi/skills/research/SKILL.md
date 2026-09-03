@@ -21,8 +21,8 @@ what", which is this skill with an adversarial brief, not a separate one.
    finding, `SOURCE` pointing into `raw/`.
 3. Collect into `scratch/`, then `magi verify <the scratch/ file you just wrote> --project-dir . --json`. Unverified findings are
    reported as unverified, in their own section — never merged into the rest.
-4. Every finding that has a truth value becomes a proposition:
-   `magi thread new <slug> --kind proposition --title "<claim>" --purpose "<why>"`.
+4. Every finding that has a truth value becomes a proposition: `magi thread new
+   <slug> --kind proposition --title "<name>" --claim "<statement>" --purpose "<why>"`.
    A contradiction is one proposition with both sources posted to it, which
    puts it on the decision queue where a person will see it.
 5. At most one long-form output: `wiki/topics/<slug>.md` with `type: synthesis`.

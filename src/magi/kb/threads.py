@@ -50,10 +50,16 @@ POST_HEADING = "## Discussion"
 #: wrong rather than busy.
 APPEND_TIMEOUT = 30.0
 
-#: `### <ISO time> · <host>/<line>`. The line suffix is optional: a post about
-#: a note that belongs to no line still needs a signature.
+#: `### <ISO time> · <host>/<line>` or `… · <host>/<line> · via <cli>`. The
+#: line suffix is optional: a post about a note that belongs to no line still
+#: needs a signature. `via` is who typed a post signed `human`: design-v2 §10
+#: has the agent transcribe what the person said, and a record where a person's
+#: own keystrokes and an agent's transcription look identical is a record that
+#: overstates what it knows (2026-09-03). Honesty, not security — the agent
+#: writes both; the point is that a reader can tell them apart afterwards.
 _POST_HEADER = re.compile(
-    r"^###[ \t]+(?P<at>\S+)[ \t]*·[ \t]*(?P<host>[^/\s]+)(?:/(?P<line>[^\s]+))?[ \t]*$"
+    r"^###[ \t]+(?P<at>\S+)[ \t]*·[ \t]*(?P<host>[^/\s·]+)(?:/(?P<line>[^\s·]+))?"
+    r"(?:[ \t]*·[ \t]*via[ \t]+(?P<via>[A-Za-z0-9._-]+))?[ \t]*$"
 )
 
 #: The first line of a post that carries a transition. `->` is accepted next to
@@ -91,6 +97,9 @@ KIND_OPTIONAL = {
         "depends_on",      # [[concept]] this proposition is stated in terms of
         "answers",         # [[question]] it is an answer to
         "bet",             # the human's prediction, recorded before the work
+        "found",           # the date the result was found, when it came before the note
+        "claim",           # the precise statement under review; the title is a name
+        "evidence",        # files in the library a reviewer must read: scripts, data, notebooks
         "derivation",      # [[drafts/...]] where the argument actually lives
         "superseded_by",   # [[raw/...]] or [[threads/...]] that replaced it
         "key_move",        # how it was resolved, written at closing time
@@ -103,7 +112,7 @@ KIND_OPTIONAL = {
 #: Fields whose value must be a list even when it has one element. YAML makes
 #: `line: foo` and `line: [foo]` different types, and every reader downstream
 #: would otherwise have to normalise.
-LIST_FIELDS = ("line", "tags", "depends_on", "answers", "derivation")
+LIST_FIELDS = ("line", "tags", "depends_on", "answers", "derivation", "evidence")
 
 #: Statuses at which a proposition is closed and `key_move` becomes meaningful.
 _CLOSED_PROPOSITION = frozenset({"supported", "refuted", "superseded"})
@@ -114,6 +123,8 @@ class Post:
     at: str
     host: str
     line: str | None = None
+    #: Who typed a post signed `human`, when it was an agent transcribing.
+    via: str | None = None
     src: str | None = None
     dst: str | None = None
     field: str | None = None
@@ -254,7 +265,7 @@ def parse_posts(body: str) -> list:
             if header:
                 flush()
                 current = Post(at=header.group("at"), host=header.group("host"),
-                               line=header.group("line"))
+                               line=header.group("line"), via=header.group("via"))
                 buffer = []
                 continue
             if current is not None and current.src is None:
@@ -382,15 +393,17 @@ def _signature_part(value: str, what: str) -> str:
 
 def format_post(text: str, host: str, line: str | None = None, at: str | None = None,
                 src: str | None = None, dst: str | None = None,
-                field: str | None = None, value=None) -> str:
+                field: str | None = None, value=None, via: str | None = None) -> str:
     """One post, heading included, ending in exactly one blank line.
 
-    `host` and `line` are checked rather than trusted: they land in the
+    `host`, `line` and `via` are checked rather than trusted: they land in the
     signature, and a value carrying a newline would end the heading and start
     a second post under a name nobody wrote.
     """
     host = _signature_part(host, "host")
     signature = host if not line else f"{host}/{_signature_part(line, 'line')}"
+    if via:
+        signature += f" · via {_signature_part(via, 'via')}"
     out = [f"### {at or utcnow()} · {signature}"]
     if src and dst:
         out.append(f"status: {src} → {dst}")
@@ -422,7 +435,7 @@ def lock_path(path) -> Path:
 def append_post(path, text: str, host: str, line: str | None = None,
                 at: str | None = None, src: str | None = None,
                 dst: str | None = None, field: str | None = None,
-                value=None) -> str:
+                value=None, via: str | None = None) -> str:
     """Append one signed post under a short per-note lock. Returns the post.
 
     Creates the `## Discussion` heading when the note has none. Raises
@@ -438,7 +451,7 @@ def append_post(path, text: str, host: str, line: str | None = None,
         raise FileNotFoundError(str(path))
 
     post = format_post(text, host=host, line=line, at=at, src=src, dst=dst,
-                       field=field, value=value)
+                       field=field, value=value, via=via)
     lock = lock_path(path)
     lock.parent.mkdir(parents=True, exist_ok=True)
 
@@ -465,7 +478,7 @@ class IllegalTransition(ValueError):
 
 
 def set_status(path, dst: str, text: str, host: str, line: str | None = None,
-               at: str | None = None) -> str:
+               at: str | None = None, via: str | None = None) -> str:
     """Flip a note's status and post the reason, both under one lock.
 
     These are one action, so they are one function. Splitting them is how a
@@ -505,14 +518,15 @@ def set_status(path, dst: str, text: str, host: str, line: str | None = None,
             atomic_write(path, _replace_status(current, dst), newline=ending)
         post = format_post(text, host=host, line=line, at=at,
                            src=src if src != dst else None,
-                           dst=dst if src != dst else None)
+                           dst=dst if src != dst else None, via=via)
         with open(path, "a", encoding="utf-8", newline=ending) as handle:
             handle.write(_join_chunk(_read(path), post))
     return post
 
 
 def set_field(path, key: str, value, host: str, text: str = "",
-              line: str | None = None, at: str | None = None) -> None:
+              line: str | None = None, at: str | None = None,
+              via: str | None = None) -> None:
     """Set one frontmatter field, under the lock, with a post saying who.
 
     Used for the fields a person owns — `bet:` above all. A prediction that
@@ -537,7 +551,8 @@ def set_field(path, key: str, value, host: str, text: str = "",
         # `bet:` in the note, is a record of a decision that left no trace.
         if read_note(path).frontmatter.get(key) != value:
             raise ValueError(f"{path.name}: {key} did not take")
-        post = format_post(text, host=host, line=line, at=at, field=key, value=value)
+        post = format_post(text, host=host, line=line, at=at, field=key, value=value,
+                           via=via)
         with open(path, "a", encoding="utf-8", newline=ending) as handle:
             handle.write(_join_chunk(_read(path), post))
 
@@ -730,6 +745,27 @@ def validate(note: Note) -> list:
         out.append(("warning",
                     f"Invalid bet: {fm['bet']!r}; expected one of {list(vocab.BETS)}.", False))
 
+    # `found:` is a date and nothing else. Its presence says "this result came
+    # before the note, so no prediction is owed"; a value that is not a date
+    # is somebody using the field as a flag, and the date is the whole point —
+    # a finding nobody can place in time is a claim with a missing provenance.
+    if "found" in fm and not _is_date(fm["found"]):
+        out.append(("warning",
+                    f"found must be a date (YYYY-MM-DD), not {fm['found']!r}.", False))
+
+    # `claim:` is the statement a reviewer judges, so it is one string. The
+    # title stays a name: a title written as two lines of formula so that it
+    # could be judged literally was judged literally, twice, and called too
+    # broad both times (2026-09-03) — the claim gets its own field instead.
+    if "claim" in fm and not isinstance(fm["claim"], str):
+        out.append(("warning", "claim is one statement, as a string.", False))
+    if "evidence" in fm and isinstance(fm["evidence"], (list, tuple)):
+        for item in fm["evidence"]:
+            if not isinstance(item, str):
+                out.append(("warning",
+                            f"evidence names files in the library, as strings, not {item!r}.",
+                            False))
+
     if "key_move" in fm:
         if fm["key_move"] not in vocab.KEY_MOVES:
             out.append(("warning",
@@ -744,6 +780,19 @@ def validate(note: Note) -> list:
 
     out.extend(_validate_history(note, kind, status))
     return out
+
+
+def _is_date(value) -> bool:
+    """A calendar date, however YAML delivered it (quoted string or `date`)."""
+    if isinstance(value, (dt.date, dt.datetime)):
+        return True
+    if not isinstance(value, str):
+        return False
+    try:
+        dt.date.fromisoformat(value.strip())
+    except ValueError:
+        return False
+    return True
 
 
 def _validate_history(note: Note, kind: str, status) -> list:

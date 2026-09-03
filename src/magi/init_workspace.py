@@ -108,6 +108,10 @@ def main(argv=None):
         # existing workspaces keep theirs until `magi migrate` moves it.
         "threads",
         "drafts",
+        # Verification scripts a proposition's `evidence:` names. Inside the
+        # library so the reviewer can read them; a CLI's own scratch directory
+        # is outside it, and evidence left there is evidence nobody can check.
+        "tools",
         "output",
         "inbox",
         "inbox/.processed",
@@ -216,14 +220,18 @@ research:
                        # no longer hold what is open and the line stops being one
   stall_days: 21       # days of silence before a line is called quiet — long
                        # enough that a week off is not a flag, short enough that
-                       # a forgotten line surfaces within a month
-  review_host:         # empty = probe PATH for a CLI that is not the author
-  review_model:        # empty = that host's cheap tier (haiku, flash-low, …)
+                       # a forgotten line surfaces within a month; half of it is
+                       # how long `magi next` lets an open proposition sit before
+                       # it starts asking for it to move
+  review_host:         # empty = probe PATH for a CLI that is not the author;
+                       # a host that fails to answer falls back to the next one
+  review_model:        # empty = that host's strong tier (opus, flash-high, …)
+                       # — measured: the cheap tier passes errors it did not read
                        # one string for every vendor: pin review_host too, or
                        # put `model:` on a research.hosts record instead
-  review_effort:       # low | medium | high; empty = that host's own default
-  weekly_calls: 40     # MAGI's own model calls per week; failed ones count
-  llm_calls: true      # master switch for MAGI's own calls
+  review_effort:       # low | medium | high; empty = the strong tier's own
+  llm_calls: true      # master switch for MAGI's own calls (there is no weekly
+                       # budget; calls are recorded in output/llm-ledger.jsonl)
   rule_budget: 7       # lines the AGENTS.md rule section may hold
   rules: []            # rules this library earned; `magi reflect promote` adds them
   hosts: []            # agent CLIs beyond the built-in ones; `magi skills where` lists all

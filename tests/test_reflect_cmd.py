@@ -199,16 +199,6 @@ def test_a_pass_that_could_not_run_writes_nothing(ws, sessions, monkeypatch):
     assert ledger.entries(ws)[-1]["ok"] is False, "and it still cost what it cost"
 
 
-def test_over_budget_nothing_is_read(ws, sessions, monkeypatch):
-    (ws / "config.yaml").write_text("research:\n  weekly_calls: 1\n", encoding="utf-8")
-    ledger.record(ws, ledger.REVIEW, "codex", slug="earlier")
-    called = []
-    monkeypatch.setattr(cmd, "ask", lambda *a, **k: called.append(1) or "")
-
-    report = cmd.run(ws, host="codex", now=TODAY)
-
-    assert not called and "budget" in report.note
-
 
 def test_the_master_switch_stops_the_slow_loop_too(ws, sessions, monkeypatch):
     (ws / "config.yaml").write_text("research:\n  llm_calls: false\n", encoding="utf-8")

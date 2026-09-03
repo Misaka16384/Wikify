@@ -52,6 +52,54 @@ from magi.setup_cmd import doctor_rows, find_legacy_copies
 from magi.sync import build_report
 from magi.ui.jobs import task_manager
 
+#: One rebuild at a time. Two browser tabs opening the map together would
+#: otherwise both find the graph stale and both start `graph build`; the
+#: second finds the lock taken and serves what is on disk, which is at worst
+#: the graph from a moment ago.
+_GRAPH_REBUILD = __import__("threading").Lock()
+
+
+def _ensure_graph_fresh(ws: Path) -> bool:
+    """Rebuild `output/graph.db` in-process when a note or card is newer than it.
+
+    The graph endpoints read a derived file, and nothing but `graph build` (or
+    an ingest commit, which runs it) ever wrote it. So a proposition opened
+    with `magi thread new` was not on the map until somebody remembered the
+    command — and on the day this was written, nobody did: the new note
+    simply "disappeared" from the WebUI. design-v2 §5 says derived files are
+    rebuilt idempotently; here is the place that needed to do it.
+
+    Returns whether a rebuild ran. Never raises: a build that fails leaves
+    the previous graph in place and the endpoint serves that — a stale map is
+    a map, a 500 is not.
+    """
+    try:
+        from magi import sync as sync_mod
+
+        if not sync_mod.graph_stale(ws):
+            return False
+    except Exception:  # noqa: BLE001
+        return False
+    if not _GRAPH_REBUILD.acquire(blocking=False):
+        return False
+    try:
+        import argparse
+        import contextlib
+        import io
+
+        from magi.kb import llmwiki
+
+        # `run_graph` prints progress for a terminal; a request handler has
+        # no terminal, and the server log is not where a person looks for
+        # "your graph was rebuilt".
+        with contextlib.redirect_stdout(io.StringIO()):
+            llmwiki.run_graph(argparse.Namespace(path=str(ws), local=False))
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+    finally:
+        _GRAPH_REBUILD.release()
+
 
 # --------------------------------------------------------------------------
 # Request / Response Models
@@ -968,7 +1016,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         from magi.ingest import ledger
 
         ws = _resolve_workspace(req.workspace)
-        if req.decision not in ("approve", "reject", "reset"):
+        if req.decision not in ledger.DECISIONS:
             raise HTTPException(status_code=400,
                                 detail=f"unknown decision: {req.decision}")
         items = {i.item_id: i for i in ledger.load_batch(ws, req.batch_id)}
@@ -1363,6 +1411,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             if not node:
                 raise HTTPException(status_code=400, detail="pass path= or node=")
             graph_db = ws / "output" / "graph.db"
+            _ensure_graph_fresh(ws)
             if not graph_db.is_file():
                 raise HTTPException(
                     status_code=404,
@@ -1445,6 +1494,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
     ) -> dict:
         ws = _resolve_workspace(workspace)
         graph_db = ws / "output" / "graph.db"
+        _ensure_graph_fresh(ws)
         if not graph_db.is_file():
             raise HTTPException(
                 status_code=404,
@@ -1520,6 +1570,7 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=f"Unknown view: {view}")
         ws = _resolve_workspace(workspace)
         graph_db = ws / "output" / "graph.db"
+        _ensure_graph_fresh(ws)
         if not graph_db.is_file():
             raise HTTPException(
                 status_code=404,
@@ -1721,22 +1772,20 @@ def create_app(extra_allowed_hosts: list[str] | None = None) -> FastAPI:
         # offers and the API rejects.
         "research.review_host": {"type": "str",
                                  "choices": [""] + _review_host_names()},
-        # What a model may be pinned to. Empty no longer means "that CLI's own
-        # default": it falls through to the host record's cheap tier, because
-        # design-v2 §11 asks for a cheap reviewer and a setting nobody fills in
-        # was quietly getting the most expensive model on the account. Naming a
-        # model MAGI cannot reach still turns every review into an error, which
-        # is why the WebUI offers a list where the host can produce one.
+        # What a model may be pinned to. Empty means the host record's strong
+        # tier (design-v2 §11, 2026-09-03: the cheap tier was measured passing
+        # substantive errors it had not read). Naming a model MAGI cannot
+        # reach still turns every review into an error, which is why the WebUI
+        # offers a list where the host can produce one.
         "research.review_model": {"type": "str", "nullable": True},
-        # How hard the reviewer thinks. Empty means that host's own default —
-        # unlike the model, there is no cheap tier to fall back to, because the
-        # model id usually already carries the level.
+        # How hard the reviewer thinks. Empty means the strong tier's own
+        # level, or that host's default when a model is pinned — the model id
+        # usually already carries the level.
         "research.review_effort": {"type": "str",
                                    "choices": ["", "low", "medium", "high"]},
-        # Calls per calendar week before the gate refuses, and the switch that
-        # turns MAGI's own calls off entirely. Counted in calls because a
-        # headless CLI does not say what a request cost.
-        "research.weekly_calls": {"type": "int"},
+        # The switch that turns MAGI's own calls off entirely. There is no
+        # weekly budget any more (core/ledger.py says why); the ledger still
+        # counts every call so the dashboard can show what a week cost.
         "research.llm_calls": {"type": "bool"},
         # How many lines the rule section in AGENTS.md may hold. Small on
         # purpose: the block is read at the start of every session on every

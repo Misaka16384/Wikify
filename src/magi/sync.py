@@ -67,6 +67,47 @@ def _newest_md_mtime(root: Path) -> float:
     return _scan_wiki(root).newest
 
 
+def _newest_threads_mtime(topic: Path) -> float:
+    """Newest note under `threads/`, which is on the graph too.
+
+    A proposition is a node with its status as category and its `depends_on`
+    as edges (`test_graph_threads.py`), so a new note or a flipped status is a
+    graph change. Freshness used to be measured against `wiki/` alone, and a
+    project that opened three propositions and compiled nothing read as
+    "graph fresh" while the map showed none of them — the WebUI's canvas
+    reads `graph.db`, and nothing rebuilt it (2026-09-03).
+    """
+    newest = 0.0
+    directory = topic / "threads"
+    if not directory.is_dir():
+        return newest
+    for note in directory.glob("*.md"):
+        try:
+            newest = max(newest, note.stat().st_mtime)
+        except OSError:
+            continue
+    return newest
+
+
+def graph_stale(topic: Path, scan: "_WikiScan | None" = None) -> bool:
+    """Whether `output/graph.db` is older than something it is a map of.
+
+    Missing counts as stale when there is anything to map. One answer for
+    `magi sync`, the dashboard and the graph endpoints, so they cannot
+    disagree about the same file.
+    """
+    topic = Path(topic)
+    graph_db = topic / "output" / "graph.db"
+    scan = scan if scan is not None else _scan_wiki(topic / "wiki")
+    newest = max(scan.newest, _newest_threads_mtime(topic))
+    if not graph_db.is_file():
+        return bool(newest)
+    try:
+        return _graph_written_at(graph_db) < newest
+    except OSError:
+        return False
+
+
 class _WikiScan(NamedTuple):
     """One walk of a wiki tree, answering every question the report asks of it."""
     newest: float
@@ -111,13 +152,15 @@ def melchior_status(topic: Path, scan: _WikiScan | None = None) -> dict:
     references = scan.counts.get("references", 0)
     topics_n = scan.counts.get("topics", 0)
 
-    newest = scan.newest
+    # `threads/` counts too: notes are graph nodes, and a project whose only
+    # content so far is three propositions has a graph to be stale about.
+    newest = max(scan.newest, _newest_threads_mtime(topic))
     if not graph_db.is_file():
         graph_state = "missing" if newest else "empty-wiki"
         # missing-with-content scores like stale (both mean "run magi graph
         # build") so compiling the first card never drops the sync ratio
         freshness = 0.3 if newest else 1.0
-    elif _graph_written_at(graph_db) >= newest:
+    elif not graph_stale(topic, scan):
         graph_state, freshness = "fresh", 1.0
     else:
         graph_state, freshness = "stale", 0.3
@@ -651,6 +694,9 @@ def _close(args) -> int:
             "older": [{"slug": item.slug, "why": item.why} for item in report.older],
             "conflicts": report.conflicts,
             "unreviewed": report.unreviewed,
+            "weakly_reviewed": report.weakly_reviewed,
+            "restating": report.restating,
+            "outside": [{"slug": slug, "why": why} for slug, why in report.outside],
             "handoff": report.handoff,
             "map": report.map_path,
         }, ensure_ascii=False))

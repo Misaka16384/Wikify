@@ -1043,28 +1043,16 @@ def test_the_map_says_what_the_week_has_cost(ws):
     from magi.core import ledger
 
     line(ws)
-    (ws / "config.yaml").write_text("research:\n  weekly_calls: 10\n", encoding="utf-8")
     for index in range(3):
         ledger.record(ws, ledger.REVIEW, "codex", slug=f"p-{index}")
+    ledger.record(ws, ledger.REVIEW, "codex", slug="p-x", ok=False)
 
     text = state.render_map(load(ws), now=NOW)
 
     assert "## Spending" in text
-    assert "3/10 model calls this week" in text
+    assert "4 model call(s) this week" in text and "4 review" in text
+    assert "1 failed" in text
 
-
-def test_a_spent_budget_says_nothing_counts_as_reviewed(ws):
-    """The failure to avoid is a gate that stops the call and lets the claim
-    retire anyway — that would spend nothing and approve everything."""
-    from magi.core import ledger
-
-    line(ws)
-    (ws / "config.yaml").write_text("research:\n  weekly_calls: 2\n", encoding="utf-8")
-    for index in range(2):
-        ledger.record(ws, ledger.REVIEW, "codex", slug=f"p-{index}")
-
-    text = state.render_map(load(ws), now=NOW)
-    assert "nothing counts as reviewed" in text
 
 
 def test_the_master_switch_is_said_out_loud(ws):
@@ -1077,7 +1065,7 @@ def test_the_master_switch_is_said_out_loud(ws):
 def test_a_workspace_with_no_ledger_still_draws_its_map(ws):
     line(ws)
     text = state.render_map(load(ws), now=NOW)
-    assert "0/40 model calls" in text, "the default limit, nothing spent"
+    assert "0 model call(s) this week" in text, "nothing spent, and the section still draws"
 
 
 # --------------------------------------------------------------------------

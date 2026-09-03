@@ -528,6 +528,17 @@ the whole folder sits under one wrapper directory it descends and says so —
 otherwise a repo with everything under `research/` inventories as a single row
 reading "112 files", which tells nobody anything.
 
+`survey --json` is what the skill reads. Its keys: `root` (the folder surveyed),
+`is_project` (already a MAGI project?), `descended_into` (the wrapper
+directories it stepped through, outermost first; empty when it stayed put),
+`entries` (one row per item: `path`, `name`, `kind` — `dir` or `file` —
+`bytes`, `types` (a suffix histogram), `scaffold` and `name_collision` (does
+the name belong to MAGI's own layout — already, or would it), and for a
+directory `files` and `depth`, for a text file `head`, its first line),
+`markdown_files` (count), `internal_links` (count of `[[…]]` and relative
+markdown links between the files), and `identities` — `{"arxiv": [...],
+"doi": [...]}`, every id found in the markdown, deduplicated.
+
 The plan is JSON, written by the agent and read by a person:
 
 ```json
@@ -627,6 +638,7 @@ my-topic/
 │   concepts/  concept cards    references/ reference cards    topics/  topic pages
 ├─ threads/                propositions, questions, research lines (a forum; `magi thread`)
 ├─ drafts/                 derivations and working-out
+├─ tools/                  scripts that check a derivation; a proposition's `evidence:` names them
 ├─ output/                 graph.db, index.db, MAP.md, the radar ledger
 └─ scratch/                the agent's scratch pad, safe to clear anytime
 ```
@@ -751,6 +763,7 @@ don't download anything. Hand it over and let MAGI pick the route:
 
 ```powershell
 magi ingest url "https://arxiv.org/abs/2608.16520"   # or a DOI, or several at once
+magi ingest url 2608.16520 --expect "fracton"   # an id from memory: fetch the title, refuse a mismatch
 magi ingest batch-run                                 # fetch + convert, unattended
 magi ingest review                                    # see what came out
 magi ingest review --item <ID> --decision approve      # one at a time
@@ -1267,12 +1280,48 @@ magi thread new p-gap --kind proposition --title "The gap survives weak disorder
   --purpose "Decide before committing a month of numerics" --line qec --bet supported
 magi thread status p-gap testing --text "Started at L=64"   # move it, and say why
 magi thread post p-gap --text "L=64 converged; trying L=128"  # just a remark
+magi thread bet p-gap refuted --text "the L=128 drift looks real"   # the person's prediction, signed human
+magi thread new p-dual --kind proposition --title "The dual is a Z2 gauge theory" \
+  --purpose "Came out of the L=128 run" --found 2026-09-01   # a finding: no bet is asked for
+magi thread new p-idx --kind proposition --title "Twisted index" --purpose "From the L=128 run" \
+  --claim "For h = 1, the twisted index equals 3." --derivation drafts/index.md --evidence tools/index.m2
+magi thread post p-idx --evidence tools/index_check.py --text "second, independent count"
+magi thread claim p-idx --text "For h = 1 and 2, the twisted index equals 3."   # restate, as a recorded change
 ```
+
+**Title, claim, evidence.** The title is a name; `--claim` is the statement a
+reviewer judges, quantifiers included, and `magi thread claim` restates it as a
+recorded change when a reviewer says the words are too wide. `--derivation`
+points at the argument, `--evidence` at the files a reviewer must read or run
+(scripts, data, notebooks), and both are checked at the keystroke: the path has
+to be inside the project and has to exist. Scripts live in `tools/`. A CLI's
+scratch directory is outside the project, and evidence left there is evidence
+no reviewer can open: `sync --close` and `magi next` list any post that cites a
+path outside the project, and `magi review` warns before it spends.
+
+**Who typed it.** A post signed `human` is the person's decision, usually
+transcribed by an agent. The signature says so: `human/qec · via claude`. It is
+still the person's post to every gate; `via` is provenance, so a reader can
+tell a transcription from their own keystrokes.
+
+**Where the log goes.** There is no journal file. A remark about a line goes
+on the line's note (`magi thread post <line> --text …`), a remark about a claim
+on the claim's, a person's decision through `magi decide`; `magi feed` reads
+them all back in time order. `log.md` is a v1 file that nothing writes.
 
 A proposition runs `open → conjectured → testing → supported | refuted →
 superseded`; a review rejection or a clash of evidence puts it in `disputed`,
 which is a person's call. **A status change carries a post** — which is why
 `magi thread status` does both, so you cannot do half of it.
+
+**Conjecture or finding.** A prediction is only worth anything before the
+answer, and most propositions in real work are opened *after* the number came
+out. So a proposition opened with `--found [DATE]` is a **finding**: it records
+when the result was found and nobody is asked to bet on it — a bet placed after
+the answer is not a prediction. One opened without it is a **conjecture**, and
+`magi next` asks for the bet once, at `conjectured` or `testing`, before the
+work. `magi thread bet` records it whenever it arrives, signed `human` unless
+you say otherwise; hand-editing `bet:` in the frontmatter is what it replaces.
 
 Each note has two halves: the body belongs to whoever opened it, and
 `## Discussion` is append-only — nobody edits anybody's post. **Use the command
@@ -1321,20 +1370,47 @@ the verdict says which kind it was. With none installed **nothing passes**:
 better an unreviewed claim than "no reviewer available" quietly meaning
 "approved".
 
-The reviewer sees the proposition, its `derivation:`, and the `raw/` it cites —
-not the chat, not the line's own account of how it is going. "Far" means not
-sharing context, not being denied evidence. And it may only **offer an
-opinion**: a rejection moves the claim to `disputed`, which is a question for a
-person. Not `refuted`, which would be a finding, and never back to `supported`
-on the next run.
+The reviewer sees the proposition, its `derivation:`, the `raw/` it cites, and
+the drafts and cards the argument leans on — not the chat, not the line's own
+account of how it is going, not the other notes in `threads/`. "Far" means not
+sharing context, not being denied evidence. The note's own `## Discussion` is
+commentary: it may read it for context, but a slip in a post is not a flaw in
+the claim, and a refutation has to rest on `drafts/` or `raw/`.
 
-**It runs on the cheap tier unless you say otherwise.** A review reads one claim
-and answers in three sentences; the largest model on your account is not what that
-needs, and the budget is counted in calls whatever you spend them on. So each host
-record names a cheap model — `haiku` for Claude Code, `gemini-3.7-flash-low` for
-agy — and that is what runs when nothing is configured. Codex has none, because it
-will not list its models and its ids are dated: a name written into MAGI becomes an
-"unknown model" error on some future release, and a failed call still spends a slot.
+**What it checks, in order** — the places claims of this kind actually fail:
+the title's quantifiers against what the derivation covers; whether each object
+is what it is called; counts and indices; whether the proof covers the whole
+claimed domain or a slice of representatives; whether the numerics survive a
+broken step; and the **load-bearing assumption** — the one definition the claim
+leans on most, and whether the conclusion survives a reasonable alternative.
+It must also **verify one thing itself** — recompute a formula, re-derive a
+step, or rerun a script the derivation names — and the post records what it
+checked. "The proof is on line 40" is not a review. `magi review --allow-run`
+lets the host execute scripts where it has a way to (Claude Code and Codex do;
+agy does not, and the command says so).
+
+**Four verdicts.** `stands`. `restate`: the conclusion holds and the words do
+not — a quantifier written too wide, a wrong index, a mislabelled object; the
+claim goes back to `testing`, its author fixes the statement or the derivation
+as the post says, marks it `supported` again, and it is reviewed again. Nobody
+is asked. `refuted`: a counterexample or a specific step that does not hold;
+the claim moves to `disputed`, which is a question for a person — not
+`refuted`, which would be a finding, and never back to `supported` on the next
+run. `unclear`: not an answer; the claim comes back.
+
+**It runs on the strong tier unless you say otherwise.** It ran on the cheap
+tier until 2026-09-03, on the theory that reading one claim does not need much
+model. One measured day said otherwise: on the same propositions the cheap
+reader gave twelve verdicts, one useful remark, and waved through all four
+substantive errors while reporting line numbers it had not read; the strong
+reader found the one real proof gap. A review that manufactures confidence is
+worse than none. So each host record names a strong model — `opus` at `high`
+for Claude Code, `gemini-3.8-flash-high` for agy; Codex runs its own default
+at `high`, because it will not list its models and a dated id written into
+MAGI becomes an "unknown model" error on some future release. The cheap tier
+is still there by name (`--model haiku`), and every verdict's post says which
+tier answered, so `sync --close` and `magi next` can list the claims only a
+cheap reader has seen.
 
 Four things decide the model, most specific first:
 
@@ -1342,7 +1418,7 @@ Four things decide the model, most specific first:
 magi review --model sonnet --effort high     # 1. this call
 # 2. `model:` on that host's record in research.hosts
 # 3. research.review_model in config.yaml
-# 4. the host record's cheap tier
+# 4. the host record's strong tier
 ```
 
 `research.review_model` is one string and the reviewer host is picked automatically,
@@ -1352,12 +1428,25 @@ config panel does this for you — pin a host and the model field becomes a list
 what that host actually offers (`agy models`, cached for a day; Claude Code's three
 aliases; a text box for Codex, which cannot be asked).
 
-`--effort low|medium|high` is the same chain with no cheap tier at the end, because
-the model id often carries the level already: `gemini-3.7-flash-low` **is** the low
-one, so agy is not sent `--effort` on top of it.
+`--effort low|medium|high` is the same chain, ending in the strong tier's own level
+only when the model *is* the strong tier — and dropped when the model id already
+carries the level: `gemini-3.8-flash-high` **is** the high one, so agy is not sent
+`--effort` on top of it.
 
-`magi review --dry-run` prints the host, the model and the effort it would use, which
-is the cheap way to check a four-link chain before spending a call.
+`magi review --dry-run` prints the host, the model, the effort and the tier it would
+use, per claim, which is the cheap way to check a four-link chain before spending a
+call.
+
+**Who is asked.** The CLI that wrote the claim is read off the post that moved
+it to `supported`, and the reviewer avoids it; `--author` overrides. When the
+host picked fails to answer — its vendor's quota, a timeout, a crash — the next
+installed CLI is asked, cross-vendor first and the author's own last, and the
+verdict's signature says who failed first and why. A host that failed once in a
+batch is not asked about the next claim.
+
+**How long it waits.** Ten minutes by default, longer when the derivation and
+evidence run long (`--timeout` sets it exactly). It was five, and a strong
+reader at high effort on a four-hundred-line derivation ran past it.
 
 **A review that could not run writes nothing.** A claim stops being offered for
 review the moment a reviewer posts on it, so a missing CLI, a timeout or a
@@ -1365,6 +1454,14 @@ crashed process leaves the note untouched and the claim on the list. A reply
 nobody can parse is posted — with the reply quoted, since that is the only way
 to tell a broken adapter from a claim that genuinely cannot be judged — but
 `unclear` is not an answer either, and the claim comes back.
+
+**There is no weekly budget.** There was one, and the person using it cancelled
+it: token plans make a per-call cap pointless, review turned out to be worth far
+more than forty calls a week, and on the day it went the cap was counting four
+calls that had failed on a vendor's own quota. Calls are still written to
+`output/llm-ledger.jsonl` with host, model, effort, tier, duration and outcome;
+`MAP.md` and the dashboard show the week's count. The one refusal left is
+`research.llm_calls: false`.
 
 ### Ending a line
 
@@ -1450,8 +1547,8 @@ recurring* before what it produced is questioned.
 > instead of following the rules, and then the loop can no longer tell whether
 > the rules it hardened are doing anything. That is measured, not assumed.
 
-Reading costs one model call per pass, counted against the same weekly budget
-as the reviewer, and refused the same way when it is spent.
+Reading costs one model call per pass, written to the same ledger as the
+reviewer's calls, and refused the same way — by `research.llm_calls: false`.
 
 ```bash
 magi reflect propose      # turn what recurred into at most five proposals

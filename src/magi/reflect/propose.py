@@ -245,8 +245,8 @@ def run(root, *, host=None, model=None, effort=None, timeout: int = TIMEOUT,
         return report
 
     try:
-        ledger.check(root, limit=settings.limit, enabled=settings.enabled)
-    except (ledger.OverBudget, ledger.SwitchedOff) as exc:
+        ledger.check(root, enabled=settings.enabled)
+    except ledger.SwitchedOff as exc:
         report.note = str(exc)
         report.failed = True
         return report

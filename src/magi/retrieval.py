@@ -295,6 +295,15 @@ class _EmbedGone(Exception):
     a refusal. Only this kind of failure is worth restarting and retrying."""
 
 
+def _is_timeout(exc: Exception) -> bool:
+    try:
+        import requests
+
+        return isinstance(exc, requests.exceptions.Timeout)
+    except ImportError:  # pragma: no cover - requests is a dependency
+        return False
+
+
 def _wrap_transport(exc: Exception) -> Exception:
     """Decide whether a failed request is worth restarting Ollama over.
 
@@ -457,14 +466,20 @@ class Embedder:
 
         payload = [t[:8000] for t in texts]
 
-        # One retry, and only for a server that went away: an index run is
-        # long enough that Ollama can be OOM-killed or restarted underneath
-        # it, and autostart already knows how to bring it back — it just used
-        # to run once, at startup, and never again. A malformed request or a
-        # missing model is not retried; it would fail identically.
+        # One retry, for two kinds of failure. A server that went away: an
+        # index run is long enough that Ollama can be OOM-killed or restarted
+        # underneath it, and autostart already knows how to bring it back — it
+        # just used to run once, at startup, and never again. And a timeout on
+        # an *index* run (never on a search — a search passes its own short
+        # ceiling and must give up on time): the first request after Ollama
+        # loads a model can take longer than the ceiling on a busy machine,
+        # and one such timeout used to switch vectors off for the whole run,
+        # leaving every remaining chunk BM25-only for a hiccup. A malformed
+        # request or a missing model is not retried; it would fail identically.
+        ceiling = timeout
         for attempt in (0, 1):
             try:
-                return self._post_batch(payload, timeout)
+                return self._post_batch(payload, ceiling)
             except _EmbedGone as exc:
                 if attempt == 0:
                     self._preflighted = False
@@ -475,9 +490,29 @@ class Embedder:
                 self._disable(exc.__cause__ or exc)
                 return None
             except Exception as exc:
+                if attempt == 0 and timeout is None and _is_timeout(exc):
+                    ceiling = 2 * (60 + 10 * len(payload))
+                    print("note: the embedding request timed out (a cold model load "
+                          "can take a minute); retrying once with a longer ceiling",
+                          file=sys.stderr)
+                    continue
                 self._disable(exc)
                 return None
         return None
+
+    def rearm(self) -> bool:
+        """Forget a mid-run disable and ask once more. True when worth trying.
+
+        The cooldown exists for a `magi ui` process that lives for days. An
+        index run that lost Ollama for one batch and has a hundred chunks left
+        to embed should not leave them BM25-only because the cooldown has not
+        elapsed; the backfill pass calls this first.
+        """
+        if self.available is not False:
+            return True
+        self.available = None
+        self._preflighted = False
+        return self._preflight()
 
     def _post_batch(self, payload: list[str],
                     timeout: float | None = None) -> list[list[float]]:
@@ -865,7 +900,12 @@ def cmd_index(args: argparse.Namespace) -> int:
         # the longest phase of the command by far — batched, reported, and
         # committed as it goes, because an interrupted run that threw away twenty
         # minutes of embedding was worse than one that stops half-done.
-        if dims is not None and _has_vec_table(conn, vec_loaded) and not args.no_vectors and embedder.available:
+        # `rearm` first: an embedder disabled by one mid-run failure would
+        # otherwise skip this pass and leave the chunks it just dropped for the
+        # *next* run to pick up — "rerun to backfill" printed by a command that
+        # was still running and could have backfilled itself.
+        if (dims is not None and _has_vec_table(conn, vec_loaded) and not args.no_vectors
+                and embedder.rearm()):
             missing = conn.execute(
                 "SELECT id, content FROM chunks WHERE id NOT IN (SELECT rowid FROM chunks_vec)"
             ).fetchall()

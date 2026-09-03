@@ -34,6 +34,7 @@ from . import close_cmd
 from .core import vocab
 from .core.workspace import find_workspace_root
 from .kb import threads
+from .kb.thread_cmd import via_name
 
 #: Where a published paper lands. The same shelf as everything else we read:
 #: our own result is cold layer on the day it exists, not a special category.
@@ -137,8 +138,11 @@ def file_paper(root, paper: Path) -> Path:
 
 
 def publish(root, paper, lines, text: str, anyway: bool = False,
-            host: str = vocab.HUMAN) -> dict:
-    """File the paper, supersede the line's work, close the line."""
+            host: str = vocab.HUMAN, via: str | None = None) -> dict:
+    """File the paper, supersede the line's work, close the line.
+
+    `via` is who typed it for the person — see `close_cmd.close`.
+    """
     root = Path(root)
     paper = Path(paper)
     if not paper.is_file():
@@ -172,16 +176,16 @@ def publish(root, paper, lines, text: str, anyway: bool = False,
             # back out.
             if item["kind"] == vocab.PROPOSITION:
                 threads.set_field(path, "superseded_by", link, host=host,
-                                  text=f"published as {link}")
+                                  text=f"published as {link}", via=via)
             threads.set_status(path, "superseded" if item["kind"] == vocab.PROPOSITION
-                               else "answered", said, host=host)
+                               else "answered", said, host=host, via=via)
             superseded.append(item["slug"])
         except (threads.IllegalTransition, OSError, ValueError) as exc:
             refused.append({"slug": item["slug"], "why": str(exc)})
 
     closed = []
     for line in lines:
-        result = close_cmd.close(root, line, said, anyway=True, host=host)
+        result = close_cmd.close(root, line, said, anyway=True, host=host, via=via)
         if result.get("ok"):
             closed.append(line)
         else:
@@ -269,7 +273,8 @@ def main(argv=None) -> int:
               "--text '<what it reports>'", file=sys.stderr)
         return 1
 
-    result = publish(root, args.paper, args.line, args.text, anyway=args.anyway)
+    result = publish(root, args.paper, args.line, args.text, anyway=args.anyway,
+                     via=via_name(vocab.HUMAN))
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
     else:
