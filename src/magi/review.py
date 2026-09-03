@@ -35,7 +35,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from .core import hosts as host_table
 from .core import ledger, vocab
@@ -300,6 +300,21 @@ def plan(host: str, model=None, effort=None, settings: "Settings | None" = None,
             entry.pick_effort(effort or "", (settings.effort if settings else "") or ""))
 
 
+def _host_os_name() -> str:
+    """`os.name`, read through a seam a test can replace.
+
+    Faking Windows by setting `os.name` itself makes `pathlib.Path`
+    uninstantiable everywhere else on a POSIX machine, and pytest builds a
+    `Path` while formatting a failure — so one failed assertion inside such a
+    test aborts the whole session with an INTERNALERROR instead of reporting
+    the one case. It happened: the guard below raised `NotImplementedError`
+    where the test expected `RuntimeError`, and the Linux and macOS runs died
+    on the spot with a thousand tests unrun. Patch this and the platform is
+    fake for the guard and for nothing else.
+    """
+    return os.name
+
+
 def _refuse_truncating_wrapper(argv: list[str]) -> None:
     """A batch wrapper silently keeps the first line of a multiline argument.
 
@@ -316,17 +331,20 @@ def _refuse_truncating_wrapper(argv: list[str]) -> None:
     flag reads its prompt differently, and guessing would trade a loud failure
     for a quiet one again.
     """
-    if os.name != "nt" or not argv:
+    if _host_os_name() != "nt" or not argv:
         return
     if not argv[0].lower().endswith((".cmd", ".bat")):
         return
     if not any("\n" in str(a) for a in argv[1:]):
         return
     raise RuntimeError(
-        f"{Path(argv[0]).name} is a batch wrapper, and Windows would cut the "
-        "prompt at its first line without saying so. Install this host as a "
-        "real executable (its native installer rather than npm), or review "
-        "with a host that is one — `magi review --host <other>`.")
+        # Windows semantics are already established by the guard above, so say
+        # so: `Path` on POSIX reads `C:\npm\claude.CMD` as one long filename.
+        f"{PureWindowsPath(argv[0]).name} is a batch wrapper, and Windows "
+        "would cut the prompt at its first line without saying so. Install "
+        "this host as a real executable (its native installer rather than "
+        "npm), or review with a host that is one — "
+        "`magi review --host <other>`.")
 
 
 def ask(host: str, prompt: str, cwd, model: str | None = None,

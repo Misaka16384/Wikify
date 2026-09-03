@@ -804,25 +804,28 @@ def test_a_cmd_wrapper_with_a_multiline_prompt_is_refused(monkeypatch):
     real fix and has to be settled per host, because each vendor's headless
     flag reads its prompt differently.
     """
-    monkeypatch.setattr(review.os, "name", "nt")
+    monkeypatch.setattr(review, "_host_os_name", lambda: "nt")
     with pytest.raises(RuntimeError) as caught:
         review._refuse_truncating_wrapper([r"C:\npm\claude.CMD", "line one\nline two"])
     assert "first line" in str(caught.value)
+    # The wrapper is named by its basename, on whichever platform the guard is
+    # exercised — `Path` on POSIX would quote the whole `C:\npm\claude.CMD`.
+    assert str(caught.value).startswith("claude.CMD ")
 
 
 def test_a_real_executable_takes_a_multiline_prompt(monkeypatch):
-    monkeypatch.setattr(review.os, "name", "nt")
+    monkeypatch.setattr(review, "_host_os_name", lambda: "nt")
     review._refuse_truncating_wrapper([r"C:\bin\claude.EXE", "line one\nline two"])
 
 
 def test_a_wrapper_is_fine_when_nothing_is_multiline(monkeypatch):
     """The truncation needs a newline. A one-line argument survives cmd.exe."""
-    monkeypatch.setattr(review.os, "name", "nt")
+    monkeypatch.setattr(review, "_host_os_name", lambda: "nt")
     review._refuse_truncating_wrapper([r"C:\npm\claude.CMD", "one line only"])
 
 
 def test_posix_has_no_batch_wrappers_to_refuse(monkeypatch):
-    monkeypatch.setattr(review.os, "name", "posix")
+    monkeypatch.setattr(review, "_host_os_name", lambda: "posix")
     review._refuse_truncating_wrapper(["/usr/bin/claude.cmd", "line one\nline two"])
 
 
@@ -838,7 +841,7 @@ def test_ask_itself_refuses_before_it_spawns_anything(monkeypatch):
         def headless(self, prompt, model, effort):
             return ["claude", prompt]
 
-    monkeypatch.setattr(review.os, "name", "nt")
+    monkeypatch.setattr(review, "_host_os_name", lambda: "nt")
     monkeypatch.setattr(review, "plan", lambda *a, **k: (_Entry(), "m", None))
     monkeypatch.setattr(review.shutil, "which", lambda *a, **k: r"C:\npm\claude.CMD")
 
