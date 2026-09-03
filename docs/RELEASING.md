@@ -42,16 +42,22 @@ What each step has to show:
 | Step | What proves it worked |
 |---|---|
 | `installed_hosts()` | all three, probed by **binary** — Antigravity's is `agy`, and probing for the key answered "not installed" for a CLI sitting on PATH |
-| Each `--dry-run` | the host, and the model it would use: `haiku`, `its own default` (Codex declares no cheap tier), `gemini-3.7-flash-low` |
-| The real call | `refuted`, with the reviewer naming the file and line that contradicts the claim |
-| `threads/<slug>.md` | `status: disputed` — a rejection is a question for a person, never `refuted` and never silently back to `supported` |
-| `output/llm-ledger.jsonl` | one line, with `host`, `model`, `effort`, `seconds` and `ok` |
+| Each `--dry-run` | the host, the model it would use and its tier — since v2.5.0 the **strong** tier: `opus, effort high; strong tier`, `its own default, effort high; default tier` (Codex declares no model), `gemini-3.8-flash-high; strong tier` — plus the fallback order and the author it avoids |
+| The real call | `refuted` or `restate`, with the reviewer naming the file and line that contradicts the claim; since v2.5.0 the post also carries a `Checked:` line (what it recomputed or ran) and a `Load-bearing:` line |
+| `threads/<slug>.md` | `status: disputed` on `refuted` — a rejection is a question for a person, never `refuted` and never silently back to `supported`; `status: testing` on `restate` — the words are the author's to fix, and nobody is asked |
+| `output/llm-ledger.jsonl` | one line, with `host`, `model`, `effort`, `tier`, `seconds` and `ok` |
 | `magi next` | the human decision above the agent work |
 | `magi sync --close` | the gate runs and the MAP is written |
 
-**Last run:** 2026-09-02 (v2.4.0), on Windows 11. `agy -p` with
-`gemini-3.7-flash-low`, 19.8 s, verdict `refuted`, citing the proposition and
-the single-family measurement it over-reaches, each by line.
+**Last run:** 2026-09-03 (v2.5.0), on Windows 11. All three dry-runs named the
+strong tier and the fallback order. Two real calls, both on a proposition whose
+`claim:` says "for every h" over a derivation that treats h = 1: `codex exec`
+(default model, effort high), 58 s, `restate`, citing `threads/p-all-h.md`
+line 11 against `drafts/index-h1.md` line 5; `agy -p` with
+`gemini-3.8-flash-high`, 65 s, `restate`, same two citations, and it ran the two
+`tools/` scripts the note's `evidence:` named and reported their output under
+`Checked:` without being passed `--allow-run`. Both notes went back to
+`testing`; both ledger rows carry `tier`.
 
 Since v2.3.0 the close gate exists on three hosts rather than one, and only two
 of those are provable here: Claude Code and Codex are exercised by the suite,
