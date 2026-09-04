@@ -87,6 +87,12 @@ class Host:
     effort_argv: Tuple[str, ...] = ()   # how a reasoning level is asked for
     effort: str = ""             # which level; "" -> the CLI own default
     run_argv: Tuple[str, ...] = ()      # what lets a headless call execute code; () -> it cannot
+    #: How this CLI is told how long to wait, `{timeout}` being whole seconds.
+    #: () -> it has no such flag and waits however long it waits. A host with
+    #: its *own* ceiling and no way to raise it makes MAGI's ceiling a
+    #: decoration: `agy` defaults to 5 minutes and exited at ~310 s on reviews
+    #: MAGI was willing to wait 600 for (measured 2026-09-03, twice).
+    timeout_argv: Tuple[str, ...] = ()
     list_models: Tuple[str, ...] = ()   # argv that prints this host models
     models: Tuple[str, ...] = ()        # what it offers, when it will not say
     reader: str = ""             # transcripts adapter; "" -> sessions unreadable
@@ -149,7 +155,7 @@ class Host:
         return "pinned"
 
     def headless(self, prompt: str, model: str = "", effort: str = "",
-                 allow_run: bool = False) -> List[str]:
+                 allow_run: bool = False, timeout: int | None = None) -> List[str]:
         """The command line that asks this host one question.
 
         Empty when the host declares no headless mode. A CLI that has one but
@@ -164,6 +170,11 @@ class Host:
         execute a script instead of only reading. A host with none declared
         is asked the same question without it and answers from reading alone;
         the caller says so rather than pretending the flag did something.
+
+        `timeout` (whole seconds) fills the record's `timeout_argv`, so a CLI
+        that keeps its own ceiling is told the same number MAGI is waiting.
+        Without this a host's default silently wins: raising MAGI's ceiling to
+        ten minutes did nothing for a CLI that stops at five.
         """
         if not self.argv:
             return []
@@ -177,7 +188,14 @@ class Host:
             line += [part.format(effort=effort) for part in self.effort_argv]
         if allow_run and self.run_argv:
             line += list(self.run_argv)
+        if timeout and self.timeout_argv:
+            line += [part.format(timeout=int(timeout)) for part in self.timeout_argv]
         return line
+
+    @property
+    def keeps_its_own_clock(self) -> bool:
+        """Whether this CLI has a wait ceiling of its own that MAGI can set."""
+        return bool(self.timeout_argv)
 
     @property
     def can_run(self) -> bool:
@@ -328,6 +346,13 @@ BUILTIN: Tuple[Host, ...] = (
         # nobody has run a review on.
         strong="gemini-3.8-flash-high",
         cheap="gemini-3.7-flash-low", effort_argv=("--effort", "{effort}"),
+        # `--print-timeout` defaults to 5m0s and is agy's own clock, not ours.
+        # Unset, it ended two real reviews at ~310 s that MAGI was waiting 600
+        # for — and the fallback then asked another vendor, so the failure read
+        # as "agy is slow" rather than "nobody told agy to wait". With the flag
+        # the same two finished in 214 s and 373 s (measured 2026-09-03). Go
+        # duration syntax, so whole seconds carry an `s`.
+        timeout_argv=("--print-timeout", "{timeout}s"),
         list_models=("{bin}", "models"),
         # No `run_argv`: agy documents no flag for this, and none is
         # guessed at. That is not the same as a reviewer that only reads —
@@ -563,6 +588,8 @@ def host_from(raw) -> Optional[Host]:
                 effort=str(raw.get("effort") or ""),
                 run_argv=tuple(str(part) for part in raw.get("run_argv") or []
                                if str(part)),
+                timeout_argv=tuple(str(part) for part in raw.get("timeout_argv") or []
+                                   if str(part)),
                 list_models=tuple(str(part) for part in raw.get("list_models") or []
                                   if str(part)),
                 models=tuple(str(m) for m in raw.get("models") or [] if str(m)),

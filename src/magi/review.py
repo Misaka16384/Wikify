@@ -67,6 +67,11 @@ TIMEOUT = 600
 _LONG_BYTES = 20_000
 _VERY_LONG_BYTES = 60_000
 
+#: How much longer MAGI waits than the ceiling it hands a host that keeps its
+#: own clock. Enough for that CLI to notice, print its own message and exit;
+#: short enough that a hung one is still cut off.
+_CLOCK_MARGIN = 30
+
 VERDICT_STANDS = "stands"
 VERDICT_RESTATE = "restate"
 VERDICT_REFUTED = "refuted"
@@ -280,7 +285,7 @@ def pick_host(author: str | None, installed=None, configured: str | None = None,
 
 
 def reviewers(author: str | None, installed=None, configured: str | None = None,
-              config=None, skip=()) -> list:
+              config=None, skip=(), fallback: bool = True) -> list:
     """Every host to try for one claim, in order. Empty when none is installed.
 
     The first entry is `pick_host`'s answer. The rest are the fallbacks for
@@ -293,11 +298,18 @@ def reviewers(author: str | None, installed=None, configured: str | None = None,
     `skip` is what a batch has already watched fail this run. Five minutes is
     the timeout, and a host that has just spent five minutes not answering
     should not be asked the same question about the next claim.
+
+    `fallback=False` returns at most the first choice. For comparing two
+    reviewers on one claim the chain is the enemy: `--host antigravity`
+    failing and quietly landing on Claude produces a verdict labelled as the
+    thing it is, in a table where somebody is reading the row as agy's.
     """
     available = [name for name in
                  (installed if installed is not None else installed_hosts(config))
                  if name not in skip]
     first = pick_host(author, installed=available, configured=configured, config=config)
+    if not fallback:
+        return [first] if first else []
     order = [first] if first else []
     order += [name for name in available if name != author and name not in order]
     order += [name for name in available if name not in order]
@@ -572,9 +584,19 @@ def _refuse_truncating_wrapper(argv: list[str]) -> None:
 def ask(host: str, prompt: str, cwd, model: str | None = None,
         timeout: int = TIMEOUT, effort: str | None = None,
         settings: "Settings | None" = None, allow_run: bool = False) -> str:
-    """Run one headless review. Returns the reply, or raises."""
+    """Run one headless review. Returns the reply, or raises.
+
+    The host is told the same ceiling MAGI is waiting, where it has a flag for
+    one, and MAGI then waits a little longer. Two clocks set to the same second
+    race, and the one that should win is the host's: it knows it gave up, says
+    so in its own words, and may still have printed something. `agy` was the
+    case — its own five-minute default ended reviews MAGI was patiently waiting
+    ten minutes for, and the message came back as a bare non-zero exit.
+    """
     entry, model, effort = plan(host, model, effort, settings)
-    argv = entry.headless(prompt, model, effort, allow_run=allow_run)
+    argv = entry.headless(prompt, model, effort, allow_run=allow_run, timeout=timeout)
+    if timeout and entry.keeps_its_own_clock:
+        timeout = timeout + _CLOCK_MARGIN
     # The path `which` found, not the bare name. On Windows `CreateProcess`
     # completes `.exe` and nothing else, so an npm-installed host — `gemini`
     # is `gemini.CMD` — was never actually run: every review failed with
@@ -603,7 +625,7 @@ def _brief(exc: BaseException) -> str:
 def review(root, slug: str, author: str | None = None, host: str | None = None,
            model: str | None = None, timeout: int | None = None,
            effort: str | None = None, settings: "Settings | None" = None,
-           skip=(), allow_run: bool = False) -> Verdict:
+           skip=(), allow_run: bool = False, fallback: bool = True) -> Verdict:
     """Ask another CLI whether one proposition holds.
 
     Every call is written into the ledger whether it worked or not: a review
@@ -621,7 +643,8 @@ def review(root, slug: str, author: str | None = None, host: str | None = None,
         author = author_of(_note(root, slug), config)
     if timeout is None:
         timeout = timeout_for(root, slug)
-    order = reviewers(author, configured=host, config=config, skip=skip)
+    order = reviewers(author, configured=host, config=config, skip=skip,
+                      fallback=fallback)
     if not order:
         raise RuntimeError("no reviewer CLI on PATH "
                            f"(looked for {', '.join(host_names(config))})")
@@ -840,7 +863,7 @@ def _excerpt(raw: str, limit: int = 1200) -> str:
 def review_batch(root, slugs, author: str | None = None, host: str | None = None,
                  model: str | None = None, timeout: int | None = None,
                  effort: str | None = None, settings: "Settings | None" = None,
-                 allow_run: bool = False) -> list:
+                 allow_run: bool = False, fallback: bool = True) -> list:
     """Review several propositions. One failure does not stop the rest.
 
     The master switch is the one thing that does. It stops the loop, and the
@@ -858,7 +881,7 @@ def review_batch(root, slugs, author: str | None = None, host: str | None = None
         try:
             result = review(root, slug, author=author, host=host, model=model,
                             timeout=timeout, effort=effort, settings=settings,
-                            skip=dead, allow_run=allow_run)
+                            skip=dead, allow_run=allow_run, fallback=fallback)
         except ledger.SwitchedOff:
             # Before the `RuntimeError` clause, which it subclasses. Nothing
             # reaches the notes either way — `apply_verdict` refuses to post a
@@ -1041,6 +1064,10 @@ def main(argv=None) -> int:
                                         "strong tier — the one that reads)")
     parser.add_argument("--effort", choices=host_table.EFFORTS,
                         help="Reasoning level, where the host takes one")
+    parser.add_argument("--no-fallback", dest="fallback", action="store_false",
+                        help="Ask only the chosen host. A failure is a failure rather "
+                             "than another vendor's verdict under the first one's name "
+                             "— for comparing two reviewers on one claim.")
     parser.add_argument("--allow-run", action="store_true",
                         help="Let the reviewer execute scripts the derivation names, "
                              "where the host has a way to allow that")
@@ -1126,7 +1153,8 @@ def main(argv=None) -> int:
         plans = []
         for slug in slugs:
             author = args.author or author_of(_note(root, slug), settings.config)
-            order = reviewers(author, configured=wanted_host, config=settings.config)
+            order = reviewers(author, configured=wanted_host, config=settings.config,
+                              fallback=args.fallback)
             first = order[0] if order else chosen
             entry_s, model_s, effort_s = plan(first, args.model if first == chosen else None,
                                               args.effort, settings)
@@ -1181,7 +1209,8 @@ def main(argv=None) -> int:
     results = review_batch(root, slugs, author=args.author,
                            host=wanted_host, model=args.model,
                            timeout=args.timeout, effort=args.effort,
-                           settings=settings, allow_run=args.allow_run)
+                           settings=settings, allow_run=args.allow_run,
+                           fallback=args.fallback)
     lines = []
     for result in results:
         try:

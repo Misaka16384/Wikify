@@ -760,7 +760,9 @@ def test_ask_itself_refuses_before_it_spawns_anything(monkeypatch):
     mutation case reported MISSED until this test existed.
     """
     class _Entry:
-        def headless(self, prompt, model, effort, allow_run=False):
+        keeps_its_own_clock = False
+
+        def headless(self, prompt, model, effort, allow_run=False, timeout=None):
             return ["claude", prompt]
 
     monkeypatch.setattr(review, "_host_os_name", lambda: "nt")

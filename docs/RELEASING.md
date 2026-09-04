@@ -59,6 +59,13 @@ line 11 against `drafts/index-h1.md` line 5; `agy -p` with
 `Checked:` without being passed `--allow-run`. Both notes went back to
 `testing`; both ledger rows carry `tier`.
 
+**v2.7.0 (2026-09-04):** one real `agy -p` call, 70 s, `restate` — run
+specifically to prove the new `--print-timeout` in the argv does not break the
+invocation. `--no-fallback` was used so a failure could not be papered over by
+another vendor. **A host's own clock is part of this table now**: before this
+release `agy` stopped at its own five-minute default while MAGI waited ten, and
+the smoke never caught it because a smoke claim answers in about a minute.
+
 **v2.5.1 (2026-09-03, same day):** the three dry-runs were re-run and unchanged;
 the two paid calls were **not** repeated. What changed since v2.5.0 is one
 message in `apply_verdict`, one prose-scanning rule in `state`, one stderr line

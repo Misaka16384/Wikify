@@ -1475,6 +1475,20 @@ batch is not asked about the next claim.
 evidence run long (`--timeout` sets it exactly). It was five, and a strong
 reader at high effort on a four-hundred-line derivation ran past it.
 
+A CLI that keeps *its own* ceiling is told the same number: `agy` defaults to
+five minutes, and until MAGI passed `--print-timeout` its default quietly won —
+two real reviews died at about 310 seconds while MAGI sat waiting ten minutes,
+and the fallback then asked another vendor, so it read as "agy is slow" rather
+than "nobody told agy to wait". With the flag the same two finished in 214 and
+373 seconds. MAGI then waits half a minute longer than the number it handed
+over, so the host's own timeout fires first and says so in its own words. A
+host you declare yourself takes `timeout_argv` in its `research.hosts` record.
+
+**`--no-fallback`** asks only the host you named. The fallback chain is right
+for getting a claim read; it is wrong when you are comparing two reviewers,
+because `--host antigravity` failing and quietly landing on Claude gives you a
+verdict filed under the wrong name.
+
 **A review that could not run writes nothing.** A claim stops being offered for
 review the moment a reviewer posts on it, so a missing CLI, a timeout or a
 crashed process leaves the note untouched and the claim on the list. A reply

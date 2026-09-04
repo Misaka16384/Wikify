@@ -1082,4 +1082,29 @@ CASES: list[Case] = [
         broken="    found.set_defaults(func=cmd_claim)",
         target="tests/test_findings_and_bets.py -k thread_found_marks_an_existing",
     ),
+
+    Case(
+        area="review",
+        label="a host's own timeout is left at its default",
+        path="src/magi/core/hosts.py",
+        fixed='        timeout_argv=("--print-timeout", "{timeout}s"),',
+        broken="",
+        target="tests/test_review_tiers.py -k told_the_number_magi_is_waiting",
+    ),
+    Case(
+        area="review",
+        label="magi and the host race on the same second",
+        path="src/magi/review.py",
+        fixed="    if timeout and entry.keeps_its_own_clock:\n        timeout = timeout + _CLOCK_MARGIN",
+        broken="    pass",
+        target="tests/test_review_tiers.py -k waits_longer_than_the_host",
+    ),
+    Case(
+        area="review",
+        label="--no-fallback quietly asks another vendor anyway",
+        path="src/magi/review.py",
+        fixed="    if not fallback:\n        return [first] if first else []",
+        broken="    if False:\n        return [first] if first else []",
+        target="tests/test_review_tiers.py -k no_fallback_asks_one_host",
+    ),
 ]

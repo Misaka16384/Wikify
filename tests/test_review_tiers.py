@@ -399,3 +399,89 @@ def test_the_switch_is_the_only_refusal(ws, monkeypatch):
     with pytest.raises(ledger.SwitchedOff):
         review.review(ws, "p-gap", author="claude",
                       settings=review.Settings(enabled=False))
+
+
+# --------------------------------------------------------------------------
+# a host that keeps its own clock
+#
+# Reported from real use on 2026-09-03: `agy --print-timeout` defaults to 5m0s
+# and MAGI never passed it, so raising TIMEOUT to 600 did nothing — two real
+# reviews died at ~310 s and fell through to another vendor. With the flag the
+# same two finished in 214 s and 373 s.
+# --------------------------------------------------------------------------
+
+def test_a_host_with_its_own_ceiling_is_told_the_number_magi_is_waiting():
+    agy = hosts.catalog()["antigravity"]
+    assert agy.keeps_its_own_clock
+    argv = agy.headless("Q", "gemini-3.8-flash-high", "", timeout=900)
+    assert argv[-2:] == ["--print-timeout", "900s"], "Go duration syntax"
+    assert "--print-timeout" not in agy.headless("Q", "gemini-3.8-flash-high", "")
+
+
+def test_a_host_without_one_is_unchanged():
+    claude = hosts.catalog()["claude"]
+    assert not claude.keeps_its_own_clock
+    assert claude.headless("Q", "opus", "high", timeout=900) == \
+        claude.headless("Q", "opus", "high")
+
+
+def test_a_config_record_can_declare_its_own_clock():
+    entry = hosts.host_from({
+        "key": "mycli", "bin": "mycli", "marker": "{home}/.mycli",
+        "drops": [{"global_dir": "{home}/.mycli/skills"}],
+        "argv": ["{bin}", "-p", "{prompt}"],
+        "timeout_argv": ["--wait", "{timeout}"],
+    })
+    assert entry.headless("Q", timeout=120)[-2:] == ["--wait", "120"]
+
+
+def test_magi_waits_longer_than_the_host_it_set(ws, monkeypatch):
+    """Two clocks on the same second race. The host's should win: it knows it
+    gave up, says so in its own words, and may have printed something first."""
+    seen = {}
+
+    def fake_run(argv, **kw):
+        seen["argv"] = argv
+        seen["timeout"] = kw.get("timeout")
+        return __import__("types").SimpleNamespace(returncode=0, stdout="VERDICT: stands\nREASON: ok", stderr="")
+
+    monkeypatch.setattr(review.shutil, "which", lambda *a, **k: None)
+    monkeypatch.setattr(review.subprocess, "run", fake_run)
+    review.ask("antigravity", "Q", cwd=ws, model="gemini-3.8-flash-high", timeout=600)
+    assert "--print-timeout" in seen["argv"] and "600s" in seen["argv"]
+    assert seen["timeout"] == 600 + review._CLOCK_MARGIN
+
+    review.ask("claude", "Q", cwd=ws, model="opus", timeout=600)
+    assert seen["timeout"] == 600, "a host with no clock of its own gets no margin"
+
+
+# --------------------------------------------------------------------------
+# --no-fallback
+# --------------------------------------------------------------------------
+
+def test_no_fallback_asks_one_host_and_stops():
+    order = review.reviewers("claude", installed=["claude", "codex", "antigravity"],
+                             configured="antigravity", fallback=False)
+    assert order == ["antigravity"]
+
+
+def test_no_fallback_still_refuses_a_host_that_is_not_installed():
+    assert review.reviewers("claude", installed=["claude"], configured="qwen",
+                            fallback=False) == []
+
+
+def test_without_fallback_a_failure_is_a_failure(ws, monkeypatch):
+    """The comparison this exists for: a verdict labelled `antigravity` that
+    Claude actually produced is worse than no row at all."""
+    solved(ws)
+    asked = []
+
+    def fake_ask(host, prompt, cwd, model=None, timeout=None, effort=None,
+                 settings=None, allow_run=False):
+        asked.append(host)
+        raise RuntimeError("quota")
+
+    monkeypatch.setattr(review, "ask", fake_ask)
+    with pytest.raises(RuntimeError, match="no reviewer answered"):
+        review.review(ws, "p-gap", author="claude", host="antigravity", fallback=False)
+    assert asked == ["antigravity"], "it did not go looking for another vendor"
