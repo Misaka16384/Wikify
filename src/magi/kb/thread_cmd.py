@@ -229,6 +229,37 @@ def cmd_bet(args) -> int:
                    f"{args.slug}: bet {args.value} (signed {host})")
 
 
+def cmd_found(args) -> int:
+    """Mark an existing proposition as a finding: the result came before the note.
+
+    `thread new --found` only covers a note being opened, and the propositions
+    that most need this are the ones already sitting there being asked for a
+    prediction they can no longer honestly give — which is exactly the case
+    that produced this command (2026-09-03: ten of them, and the only way to
+    fix one was to hand-edit its frontmatter).
+    """
+    path = _path(args, args.slug)
+    try:
+        note = threads.read_note(path)
+    except FileNotFoundError:
+        print(f"no note at {path} — `magi thread new` opens one", file=sys.stderr)
+        return 1
+    if note.kind != vocab.PROPOSITION:
+        raise Refused(f"--found is a proposition's: it says the result came before "
+                      f"the note, and {args.slug} is a {note.kind}")
+    when = _found_date(args.date if args.date is not None else "today")
+    host = host_name(args.host)
+    threads.set_field(path, "found", when, host=host, text=args.text or "",
+                      line=args.line, via=via_name(host, getattr(args, "via", None)))
+    said = f"{args.slug}: found {when} — no prediction is asked for on it"
+    if note.frontmatter.get("bet"):
+        said += (f"\n  its `bet: {note.frontmatter['bet']}` is left as it is; a "
+                 "prediction on record stays on record, and the scoreboard reads "
+                 "it the same way")
+    return _report(args, {"slug": args.slug, "path": str(path), "found": when,
+                          "bet": note.frontmatter.get("bet")}, said)
+
+
 def _warn_if_a_persons_call(args, path, host: str) -> None:
     """Say, at the keystroke, that this flip needs a person's signature.
 
@@ -437,6 +468,18 @@ def build_parser() -> argparse.ArgumentParser:
                                     "prediction, transcribed)")
     bet.add_argument("--via", help=via_help)
     bet.set_defaults(func=cmd_bet)
+
+    found = sub.add_parser("found", parents=[common],
+                           help="Mark an existing proposition as a finding (the result "
+                                "came before the note); no prediction is asked for")
+    found.add_argument("slug")
+    found.add_argument("date", nargs="?", metavar="DATE",
+                       help="When it was found, YYYY-MM-DD (default: today)")
+    found.add_argument("--text", help="What was found, if worth saying")
+    found.add_argument("--line")
+    found.add_argument("--host", help="Signature (default: $MAGI_HOST, else 'cli')")
+    found.add_argument("--via", help=via_help)
+    found.set_defaults(func=cmd_found)
 
     claim = sub.add_parser("claim", parents=[common],
                            help="Restate a proposition's claim, as a recorded change")

@@ -1031,4 +1031,55 @@ CASES: list[Case] = [
         broken="    if False:\n        return base + 300",
         target="tests/test_evidence_and_claims.py -k the_ceiling_grows",
     ),
+
+    # ------------------------------------- 2026-09-03 · reported from real use
+    Case(
+        area="state",
+        label="the outside-evidence warning stops being answerable",
+        path="src/magi/state.py",
+        fixed="        if index <= moved_in:\n            continue",
+        broken="        if False:\n            continue",
+        target="tests/test_evidence_and_claims.py -k recording_evidence_answers",
+    ),
+    Case(
+        area="review",
+        label="a restate claims a review runs itself",
+        path="src/magi/review.py",
+        fixed='f"back on the review queue, and `magi review {result.slug}` asks "',
+        broken='f"and it is reviewed again. Also "',
+        target="tests/test_evidence_and_claims.py -k restate_says_it_queues",
+    ),
+    Case(
+        area="review",
+        label="--allow-run promises a reviewer that only reads",
+        path="src/magi/review.py",
+        fixed='        print(f"note: MAGI has no flag to pass {chosen} for this, so `--allow-run` "',
+        broken='        print(f"note: {chosen} reads only, so `--allow-run` "',
+        target="tests/test_evidence_and_claims.py -k does_not_promise_a_reader",
+    ),
+
+    Case(
+        area="state",
+        label="a prediction is asked for with slugs and no claim",
+        path="src/magi/state.py",
+        fixed="        detail = [line for card in shown for line in _card_lines(card)]",
+        broken="        detail = []",
+        target="tests/test_findings_and_bets.py -k bet_item_carries_each_claim",
+    ),
+    Case(
+        area="state",
+        label="a proposition whose work is done is nagged for a bet anyway",
+        path="src/magi/state.py",
+        fixed='    if card["has_work"]:',
+        broken="    if False:",
+        target="tests/test_findings_and_bets.py -k offered_found_instead_of_nagged",
+    ),
+    Case(
+        area="thread",
+        label="an existing proposition cannot be marked a finding",
+        path="src/magi/kb/thread_cmd.py",
+        fixed='    found.set_defaults(func=cmd_found)',
+        broken="    found.set_defaults(func=cmd_claim)",
+        target="tests/test_findings_and_bets.py -k thread_found_marks_an_existing",
+    ),
 ]

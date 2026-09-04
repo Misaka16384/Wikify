@@ -238,3 +238,128 @@ def test_each_unsigned_repeat_is_one_more_debt_which_is_why_the_warning_exists(w
     run(ws, "status", "p-gap", "testing", "--text", "rewording again")
     second = len([i for i in state.load(ws, now=NOW).debt if i.slug == "p-gap"])
     assert second == first + 1
+
+
+# --------------------------------------------------------------------------
+# a prediction is asked for with the claim in front of the person
+#
+# Reported by the person himself on 2026-09-03: asked to bet, all he saw was a
+# list of slugs. He could not answer, and was right not to — the router named
+# ten notes and never said what any of them claimed.
+# --------------------------------------------------------------------------
+
+def _with_claim(ws, slug, claim, **extra):
+    return proposition(ws, slug, status="testing", **dict(extra, claim=claim))
+
+
+def _draft(ws, name="d.md"):
+    """A real file for a `derivation:` to point at — the card reports whether
+    what a note names is readable, so it has to be."""
+    (ws / "drafts").mkdir(exist_ok=True)
+    (ws / "drafts" / name).write_text("# D\n", encoding="utf-8")
+    return f"drafts/{name}"
+
+
+def test_the_bet_item_carries_each_claim(ws):
+    _with_claim(ws, "p-idx", "For h = 1, the twisted index equals 3.")
+    st = state.load(ws, now=NOW)
+    item = [a for a in state.candidates(st, now=NOW) if a.key == "bets"][0]
+    body = "\n".join(item.detail)
+    assert "For h = 1, the twisted index equals 3." in body
+    assert "magi thread bet p-idx" in body
+    assert "For h = 1" in state.render(st, state.candidates(st, now=NOW))
+
+
+def test_a_card_says_what_evidence_exists_and_whether_anybody_reviewed_it(ws):
+    _draft(ws)
+    _with_claim(ws, "p-has", "Claim with work.", derivation=["drafts/d.md"])
+    _with_claim(ws, "p-bare", "Claim with nothing.")
+    cards = {c["slug"]: c for c in state.bets_waiting(state.load(ws, now=NOW))}
+    assert cards["p-has"]["derivation"] == {"named": 1, "readable": 1}
+    assert cards["p-has"]["has_work"] is True
+    assert cards["p-bare"]["has_work"] is False
+    assert cards["p-bare"]["reviewed"] is False
+    lines = "\n".join(state._card_lines(cards["p-bare"]))
+    assert "no derivation" in lines and "not reviewed" in lines
+
+
+def test_a_proposition_with_working_out_is_offered_found_instead_of_nagged(ws):
+    _draft(ws)
+    _with_claim(ws, "p-has", "Already computed.", derivation=["drafts/d.md"])
+    st = state.load(ws, now=NOW)
+    item = [a for a in state.candidates(st, now=NOW) if a.key == "bets"][0]
+    body = "\n".join(item.detail)
+    assert "magi thread found p-has" in body
+    assert "already has its working-out" in item.why
+
+
+def test_the_claim_falls_back_to_the_title_and_json_carries_every_one(ws):
+    proposition(ws, "p-untitled", status="testing")
+    for n in range(7):
+        _with_claim(ws, f"p-{n}", f"Claim number {n}.")
+    st = state.load(ws, now=NOW)
+    cards = state.bets_waiting(st)
+    assert len(cards) == 8
+    assert {c["slug"] for c in cards} >= {"p-untitled", "p-0", "p-6"}
+    assert [c for c in cards if c["slug"] == "p-untitled"][0]["claim"] == "P-UNTITLED"
+    # The terminal shows five and says how many it did not.
+    item = [a for a in state.candidates(st, now=NOW) if a.key == "bets"][0]
+    assert "and 3 more" in "\n".join(item.detail)
+    assert state.to_json(st, [])["bets_waiting"] == cards
+
+
+def test_one_bet_item_replaces_the_per_note_asks(ws):
+    """Ten missing predictions were ten separate items. They are one."""
+    for n in range(4):
+        _with_claim(ws, f"p-{n}", f"Claim {n}.")
+    actions = state.candidates(state.load(ws, now=NOW), now=NOW)
+    assert len([a for a in actions if a.key == "bets"]) == 1
+    assert not [a for a in actions if a.key == "bet"], "no per-note bet asks"
+
+
+def test_a_finding_is_not_on_the_card_list(ws):
+    _with_claim(ws, "p-found", "Computed first.", found="2026-09-01")
+    _with_claim(ws, "p-guess", "Not yet computed.")
+    assert [c["slug"] for c in state.bets_waiting(state.load(ws, now=NOW))] == ["p-guess"]
+
+
+def test_the_scoreboard_separates_placed_from_waiting(ws):
+    _with_claim(ws, "p-waiting", "Nobody has bet on this.")
+    path = proposition(ws, "p-placed", status="testing", bet="supported")
+    text = state.render(state.load(ws, now=NOW),
+                        state.candidates(state.load(ws, now=NOW), now=NOW))
+    assert "1 placed and still open" in text
+    assert "1 waiting on you" in text
+
+
+# --------------------------------------------------------------------------
+# magi thread found, for a proposition that already exists
+# --------------------------------------------------------------------------
+
+def test_thread_found_marks_an_existing_proposition(ws):
+    proposition(ws, "p-gap", status="testing")
+    assert run(ws, "found", "p-gap", "2026-09-01") == 0
+    got = note(ws, "p-gap")
+    assert str(got.frontmatter["found"]) == "2026-09-01"
+    assert got.posts[-1].field == "found"
+    assert not [i for i in state.load(ws, now=NOW).queue if i.kind == "bet"]
+
+
+def test_thread_found_defaults_to_today_and_keeps_any_bet_already_placed(ws, capsys):
+    import datetime
+
+    proposition(ws, "p-gap", status="testing", bet="unknown")
+    assert run(ws, "found", "p-gap") == 0
+    got = note(ws, "p-gap")
+    assert str(got.frontmatter["found"]) == datetime.date.today().isoformat()
+    assert got.frontmatter["bet"] == "unknown", "a prediction on record stays on record"
+    assert "left as it is" in capsys.readouterr().out
+
+
+def test_thread_found_refuses_a_question_and_a_bad_date(ws, capsys):
+    threads.create(ws / "threads" / "q.md", vocab.QUESTION, "Q?", "Why.")
+    assert run(ws, "found", "q") == 1
+    assert "proposition" in capsys.readouterr().err
+    proposition(ws, "p-gap")
+    assert run(ws, "found", "p-gap", "yesterday") == 1
+    assert "YYYY-MM-DD" in capsys.readouterr().err

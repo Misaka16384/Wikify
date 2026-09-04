@@ -114,6 +114,10 @@ class Action:
     cost: str          # "certain" | "llm" | "human"
     slug: str | None = None
     line: str | None = None
+    #: Lines printed under the action, indented. For the things a person
+    #: cannot answer from a slug: a prediction needs the claim in front of
+    #: them. `why` stays one sentence, because the ranking is read as a list.
+    detail: list = field(default_factory=list)
 
 
 @dataclass
@@ -617,6 +621,16 @@ def evidence_outside(root, note, links=None) -> list:
     nowhere else; both are reported rather than blocked, because a session
     that ended with its scripts in the wrong directory is a session that
     stopped somewhere reasonable, and the fix is a move and a post.
+
+    **The prose half defers to the field half.** Scanning post text is a
+    heuristic — the precise signal is `evidence:` — and a heuristic on prose
+    has to be answerable in prose, or it becomes a warning nobody can clear.
+    It was: somebody did exactly what the message asked, posted `--evidence
+    tools/m2/x.m2 --text "the earlier scratchpad file is now here"`, and the
+    warning stayed, because their correction contains the word (2026-09-03).
+    So a post that *sets* `evidence:` is a post that moved something in: its
+    own text is not scanned, and it answers every prose citation before it.
+    Only prose after the last such post is still a finding.
     """
     if note is None or note.kind != vocab.PROPOSITION:
         return []
@@ -631,8 +645,17 @@ def evidence_outside(root, note, links=None) -> list:
             target = _resolve(root, str(link), links)
             if target is None or not target.exists():
                 out.append(f"`{field}:` names {link}, which is not a file in the project")
+    # The last post that recorded evidence in the project. Everything before
+    # it has been answered; the post itself is the answer and is not scanned.
+    moved_in = -1
+    for index, post in enumerate(note.posts):
+        if post.field == "evidence":
+            moved_in = index
+
     seen: set = set()
-    for post in note.posts:
+    for index, post in enumerate(note.posts):
+        if index <= moved_in:
+            continue
         text = post.text or ""
         for match in _ABS_PATH_RE.finditer(text):
             found = match.group(0).rstrip(".,;:")
@@ -733,6 +756,115 @@ _QUEUE_ACTION = {
 }
 
 
+def claim_of(note) -> str:
+    """The sentence a person is being asked to judge.
+
+    `claim:` when the note has one, the title otherwise — the same order the
+    reviewer's prompt reads them in, so a person and the reviewer are looking
+    at the same words.
+    """
+    claim = note.frontmatter.get("claim")
+    if isinstance(claim, str) and claim.strip():
+        return " ".join(claim.split())
+    return note.title
+
+
+def bet_card(root, note, links=None, now=None) -> dict:
+    """One proposition, as much as somebody needs to answer about it.
+
+    A person asked for a prediction was shown a list of slugs. They could not
+    answer, and said so (2026-09-03): the router named the notes and never
+    said what any of them claimed. So the row carries the claim, what evidence
+    already exists, and whether anybody has reviewed it — the three things
+    that decide both whether you can bet and whether betting is the right
+    question at all.
+    """
+    links = _link_index(root) if links is None else links
+    has = {}
+    for field_name in ("derivation", "evidence"):
+        entries = threads.as_list(note.frontmatter.get(field_name))
+        resolved = [e for e in entries
+                    if (_resolve(root, str(e), links) or Path("/nowhere")).exists()]
+        has[field_name] = {"named": len(entries), "readable": len(resolved)}
+    reviewed = False
+    try:
+        from . import review as review_mod
+
+        reviewed = any(review_mod._is_answer(post) for post in note.posts)
+    except Exception:  # noqa: BLE001
+        reviewed = False
+    waiting = _waiting_since(note)
+    return {
+        "slug": note.slug,
+        "claim": claim_of(note),
+        "purpose": str(note.frontmatter.get("purpose", "")),
+        "status": note.status,
+        "line": (note.lines or [None])[0],
+        "bet": note.frontmatter.get("bet"),
+        "found": str(note.frontmatter.get("found") or "") or None,
+        "derivation": has["derivation"],
+        "evidence": has["evidence"],
+        "reviewed": reviewed,
+        "since": waiting.date().isoformat() if waiting else "",
+        # A proposition whose working-out already exists is one where a
+        # prediction can no longer be honest. Asking for one produces a bet
+        # placed after the answer, which is the thing `found:` exists to
+        # stop — so the row says so rather than nagging.
+        "has_work": bool(has["derivation"]["named"] or has["evidence"]["named"]),
+    }
+
+
+def bets_waiting(state: State, now=None) -> list:
+    """Every proposition a person is being asked to predict, as cards.
+
+    Both shapes in one list, because they are one question to whoever is
+    reading: a proposition with no prediction recorded, and one recorded as
+    `unknown` that they might now have a view on.
+    """
+    links = _link_index(state.root)
+    out = []
+    for note in sorted(state.notes, key=lambda n: n.slug):
+        if note.kind != vocab.PROPOSITION or note.frontmatter.get("found"):
+            continue
+        if note.status not in _OPEN_STATUSES:
+            continue
+        bet = note.frontmatter.get("bet")
+        if bet and bet != "unknown":
+            continue
+        if not bet and note.status not in ("conjectured", "testing"):
+            continue
+        out.append(bet_card(state.root, note, links, now=now))
+    return out
+
+
+def _card_lines(card: dict, limit_claim: int = 160) -> list:
+    """One card as the two or three lines a person reads in a terminal."""
+    claim = card["claim"]
+    if len(claim) > limit_claim:
+        cut = claim.rfind(" ", 0, limit_claim)
+        claim = claim[:cut if cut > limit_claim // 2 else limit_claim].rstrip() + " […]"
+    marks = []
+    for field_name in ("derivation", "evidence"):
+        got = card[field_name]
+        if not got["named"]:
+            marks.append(f"no {field_name}")
+        elif got["readable"] < got["named"]:
+            marks.append(f"{field_name} {got['readable']}/{got['named']} readable")
+        else:
+            marks.append(f"{field_name} ✓")
+    marks.append("reviewed" if card["reviewed"] else "not reviewed")
+    marks.append(f"{card['status']} since {card['since']}")
+    lines = [f"     · {card['slug']}: {claim}",
+             f"       {' · '.join(marks)}"]
+    if card["has_work"]:
+        lines.append(f"       the working-out already exists — if the result came "
+                     f"first this is a finding, not a bet: "
+                     f"magi thread found {card['slug']}")
+    lines.append(f"       magi thread bet {card['slug']} <supported|refuted|unknown> "
+                 f"--text '<why>'")
+    return lines
+
+
 def nudge_days(state: State) -> int:
     """How long an open proposition waits before `next` changes its tone.
 
@@ -781,12 +913,17 @@ def candidates(state: State, now=None) -> list:
             run=f"fix it, or retire the rule: magi reflect list"))
 
     for item in state.queue:
+        # `bet` items are rendered below as one card list instead. They are
+        # still on `state.queue` — `MAP.md` and the dashboard read it — but
+        # one action per missing prediction is the shape a person met as ten
+        # separate asks, each naming a slug and none saying what it claimed.
+        if item.kind == "bet":
+            continue
         prompt, run = _QUEUE_ACTION.get(item.kind, ("decide", "magi thread status {slug} …"))
-        status = "testing" if item.kind == "bet" else "<status>"
         actions.append(Action(
             key=item.kind, slug=item.slug, line=item.line, cost="human",
             why=f"{item.why} — {prompt}",
-            run=run.format(slug=item.slug, status=status)))
+            run=run.format(slug=item.slug, status="<status>")))
 
     # A line already on the queue is not idle — it is waiting on the person,
     # and asking them for a new proposition on top of that is noise. A note can
@@ -814,13 +951,26 @@ def candidates(state: State, now=None) -> list:
     # `render` draws is one block. Both are lists, not one item per claim:
     # seven "don't know"s asked about one per turn were seven interruptions.
     back = retrospective(state)
-    if back["unknown_open"]:
-        names = ", ".join(back["unknown_open"])
+    cards = bets_waiting(state, now=now)
+    if cards:
+        shown = cards[:5]
+        detail = [line for card in shown for line in _card_lines(card)]
+        if len(cards) > len(shown):
+            detail.append(f"     … and {len(cards) - len(shown)} more: "
+                          f"magi next --json (bets_waiting) has every claim")
+        findings = sum(1 for card in cards if card["has_work"])
+        tail = ("" if not findings else
+                f" {findings} of them already {'has' if findings == 1 else 'have'} "
+                f"{'its' if findings == 1 else 'their'} working-out, so the honest "
+                f"answer there may be `magi thread found <slug>` rather than a bet.")
         actions.append(Action(
-            key="bets", slug=back["unknown_open"][0], cost="human",
-            why=f"{len(back['unknown_open'])} proposition(s) carry `bet: unknown` — "
-                f"if you now lean either way, say so: {names}",
-            run="magi thread bet <slug> <supported|refuted> --text '<why>'"))
+            key="bets", slug=cards[0]["slug"], cost="human",
+            why=(f"{len(cards)} proposition"
+                 f"{' is' if len(cards) == 1 else 's are'} waiting on your prediction. "
+                 f"Read {'the' if len(cards) == 1 else 'each'} claim below and say which "
+                 f"way you lean — `unknown` is a real answer.{tail}"),
+            run="magi thread bet <slug> <supported|refuted|unknown> --text '<why>'",
+            detail=detail))
     weak = [slug for slug in weakly(state) if slug in by_slug]
     if weak:
         actions.append(Action(
@@ -984,7 +1134,9 @@ def render(state: State, actions: list) -> str:
             out.append("  Then:")
             in_block = False
         out.append(f"  {index}. {action.why}{labels.get(action.cost, '')}")
-        out.append(f"     {action.run}")
+        out.extend(action.detail)
+        if not action.detail:
+            out.append(f"     {action.run}")
     out.extend(_scoreboard(state))
     return "\n".join(out)
 
@@ -998,7 +1150,8 @@ def _scoreboard(state: State) -> list:
     seen on the turn it changes.
     """
     back = retrospective(state)
-    if not (back["scored"] or back["open"] or back["superseded"]):
+    waiting = bets_waiting(state)
+    if not (back["scored"] or back["open"] or back["superseded"] or waiting):
         return []
     parts = []
     if back["scored"]:
@@ -1006,7 +1159,12 @@ def _scoreboard(state: State) -> list:
     if back["unknown"]:
         parts.append(f"{back['unknown']} settled as \"don't know\"")
     if back["open"]:
-        parts.append(f"{len(back['open'])} open")
+        parts.append(f"{len(back['open'])} placed and still open")
+    # Said separately from `open`, which counts predictions already made. A
+    # line reading "1 open" above a list of two propositions waiting on the
+    # person is two true numbers that look like one wrong one.
+    if waiting:
+        parts.append(f"{len(waiting)} waiting on you")
     if back["superseded"]:
         parts.append(f"{len(back['superseded'])} retired unscored (superseded)")
     return ["", "Bets: " + " · ".join(parts) + "  (the table: output/MAP.md, Looking back)"]
@@ -1018,6 +1176,10 @@ def to_json(state: State, actions: list) -> dict:
         "lines": [vars(view) for view in state.lines],
         "pinned": pinned(state),
         "retrospective": retrospective(state),
+        # Every claim a person is being asked to predict, in full. The
+        # terminal shows five and says so; an agent putting the question to
+        # somebody reads this and presents the claim, not the slug.
+        "bets_waiting": bets_waiting(state),
         "queue": [vars(item) for item in state.queue],
         "debt": [{"slug": item.slug, "why": item.why,
                   "path": str(item.path) if item.path else None}

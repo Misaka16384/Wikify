@@ -59,6 +59,19 @@ line 11 against `drafts/index-h1.md` line 5; `agy -p` with
 `Checked:` without being passed `--allow-run`. Both notes went back to
 `testing`; both ledger rows carry `tier`.
 
+**v2.5.1 (2026-09-03, same day):** the three dry-runs were re-run and unchanged;
+the two paid calls were **not** repeated. What changed since v2.5.0 is one
+message in `apply_verdict`, one prose-scanning rule in `state`, one stderr line
+and the docs — none of them on the call, the argv or the parsing path, and
+v2.5.0's calls plus five more on a real project the same day are the evidence
+for those. Skipping a paid step is worth saying out loud rather than leaving a
+reader to assume the table above was re-derived.
+
+> **`--allow-run` describes what MAGI passes, not what the CLI does.** In both
+> of the v2.5.0 calls, and in five more on a real project, `agy -p` ran the
+> scripts the note's `evidence:` named and reported their output — on calls that
+> passed no such flag. A host with no `run_argv` is not a host that only reads.
+
 Since v2.3.0 the close gate exists on three hosts rather than one, and only two
 of those are provable here: Claude Code and Codex are exercised by the suite,
 while Antigravity's `hooks.json` is written from its own bundled docs and

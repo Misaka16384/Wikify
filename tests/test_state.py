@@ -977,8 +977,14 @@ def test_the_nudge_survives_before_work_starts(ws):
     """Strict blocks where the derivation is, which is `testing`. A conjecture
     nobody has started on has none yet, so the earlier ask stays an ask."""
     proposition(ws, "p-a", status="conjectured")
-    keys = [(action.key, action.slug) for action in state.candidates(load(ws, coaching="strict"))]
-    assert ("bet", "p-a") in keys and ("debt", "p-a") not in keys
+    actions = state.candidates(load(ws, coaching="strict"))
+    keys = [(action.key, action.slug) for action in actions]
+    # `bets`, not `bet`: the ask is one card list rather than one action per
+    # note (a person met ten of those as ten slugs and could answer none).
+    # What this test is about is unchanged — it is asked, and it is not debt.
+    assert ("bets", "p-a") in keys and ("debt", "p-a") not in keys
+    card = [a for a in actions if a.key == "bets"][0]
+    assert "p-a" in "\n".join(card.detail)
 
 
 # --------------------------------------------------------------------------

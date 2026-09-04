@@ -746,8 +746,9 @@ def apply_verdict(root, result: Verdict) -> str:
             threads.set_status(path, "testing", posted, host=vocab.REVIEWER)
             return (f"{result.slug}: restate — back to testing. Change the statement "
                     f"or the derivation as the post says, then `magi thread status "
-                    f"{result.slug} supported --text '<what changed>'` and it is "
-                    "reviewed again. Nobody needs to be asked.")
+                    f"{result.slug} supported --text '<what changed>'`; that puts it "
+                    f"back on the review queue, and `magi review {result.slug}` asks "
+                    "again. Nobody needs to be asked.")
         threads.append_post(path, posted, host=vocab.REVIEWER)
         return (f"{result.slug}: restate — left at `{note.status}`; the post says "
                 "what to change")
@@ -1108,9 +1109,15 @@ def main(argv=None) -> int:
     entry, model, effort = plan(chosen, args.model, args.effort, settings)
     tier = entry.tier_of(model)
     if args.allow_run and not entry.can_run:
-        print(f"note: {chosen} has no way to let a headless call run code; the "
-              "reviewer reads only, and `--allow-run` changes nothing here.",
-              file=sys.stderr)
+        # Deliberately not "the reviewer reads only". That is a claim about
+        # the vendor's default, and it is false for at least one host:
+        # `agy -p` was observed running the scripts a note's `evidence:`
+        # named, and reporting their output, on a call that passed no such
+        # flag (2026-09-03, twice — a release smoke and a real project).
+        # MAGI can say what it passes; it cannot promise what a CLI does.
+        print(f"note: MAGI has no flag to pass {chosen} for this, so `--allow-run` "
+              "adds nothing to the command. Whether it runs anything is that CLI's "
+              "own default, which MAGI does not control.", file=sys.stderr)
 
     if args.dry_run:
         # Per claim, because the author is read off each note and the pick

@@ -90,6 +90,8 @@ _COMMANDS: dict[tuple[str, ...], tuple[str, list[str], str]] = {
                       "Record the person's prediction on a proposition (signed human)"),
     ("thread", "claim"): ("magi.kb.thread_cmd", ["claim"],
                         "Restate a proposition's claim, as a recorded change"),
+    ("thread", "found"): ("magi.kb.thread_cmd", ["found"],
+                        "Mark a proposition as a finding: the result came before the note"),
     # graph
     ("graph", "build"): ("magi.kb.llmwiki", ["graph"], "Build/refresh the SQLite knowledge graph"),
     ("graph", "query"): ("magi.kb.graph_query", [], "Read-only SQL over output/graph.db"),

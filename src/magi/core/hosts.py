@@ -329,6 +329,13 @@ BUILTIN: Tuple[Host, ...] = (
         strong="gemini-3.8-flash-high",
         cheap="gemini-3.7-flash-low", effort_argv=("--effort", "{effort}"),
         list_models=("{bin}", "models"),
+        # No `run_argv`: agy documents no flag for this, and none is
+        # guessed at. That is not the same as a reviewer that only reads —
+        # measured twice on 2026-09-03, `agy -p` ran the scripts a note's
+        # `evidence:` named and reported their output on a call that passed
+        # nothing of the sort. What a vendor does by default is not ours to
+        # promise, so the `--allow-run` message says what MAGI passes rather
+        # than what the CLI will do.
         reader="antigravity",
         note="agy has no per-skill slash command — /skills browses what is loaded.",
     ),

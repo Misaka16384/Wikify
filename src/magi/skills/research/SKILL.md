@@ -36,4 +36,5 @@ what", which is this skill with an adversarial brief, not a separate one.
 - **Never** let a sub-agent answer from its own knowledge. The project is the
   only source; a finding with no `SOURCE:` in `raw/` is not a finding.
 - Gather the questions the angles could not ask (Invariant 4) and ask the
-  human once, at the end.
+  human once, at the end. Asking for a prediction means quoting the **claim**,
+  what evidence already exists, and what would falsify it — never a bare slug.

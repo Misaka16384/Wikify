@@ -45,6 +45,7 @@ COMMAND_HELP_ZH: dict[tuple[str, ...], str] = {
     ("thread", "status"): "改状态，同时把原因写成跟帖（两件事一次做完）",
     ("thread", "bet"): "记下人的预测（supported / refuted / unknown），默认签 human",
     ("thread", "claim"): "重述一条命题的精确陈述（复核读的是它，标题只是名字），记成一条跟帖",
+    ("thread", "found"): "把一条已存在的命题标成发现（结果先于 note），从此不问押注",
     # 文献摄入
     ("ingest", "auto"): "自动选路摄入（按文件类型选转换器并自动收尾；不给路径就处理整个 inbox/）",
     ("ingest", "add"): "规范化收件箱文档并归档进 raw/",

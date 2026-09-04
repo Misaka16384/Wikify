@@ -283,9 +283,12 @@ def test_next_prints_one_line_of_scoreboard_and_asks_about_the_dont_knows_once(w
     st = state.load(ws, now=NOW)
     actions = state.candidates(st, now=NOW)
     text = state.render(st, actions)
-    assert "Bets:" in text and "1 open" in text
+    assert "Bets:" in text and "1 placed and still open" in text
     bets = [a for a in actions if a.key == "bets"]
-    assert len(bets) == 1 and bets[0].cost == "human" and "p-open" in bets[0].why
+    assert len(bets) == 1 and bets[0].cost == "human"
+    # The slug is on the card, not in the sentence: a person asked to predict
+    # needs the claim, and `why` is one line of the ranking.
+    assert "p-open" in "\n".join(bets[0].detail)
     assert "For the person" in text
 
 
@@ -341,3 +344,87 @@ def test_an_explicit_timeout_is_not_scaled(ws, monkeypatch):
     assert seen["timeout"] == 42
     review.review(ws, "p-gap", host="codex")
     assert seen["timeout"] == review.TIMEOUT
+
+
+# --------------------------------------------------------------------------
+# the warning has to be answerable
+#
+# Reported from real use on 2026-09-03, one day after this shipped: somebody
+# did exactly what the message asked — moved the scripts in and posted
+# `--evidence tools/m2/x.m2 --text "the earlier scratchpad file is now here"`
+# — and the warning stayed, because their correction contains the word. A
+# heuristic on prose that cannot be cleared in prose is a warning people learn
+# to ignore.
+# --------------------------------------------------------------------------
+
+def test_recording_evidence_answers_an_earlier_outside_citation(ws):
+    path = proposition(ws)
+    threads.append_post(path, "the script is scratchpad b8_haah.m2", host="claude")
+    assert state.evidence_outside(ws, note(ws, "p-gap")), "warned before the move"
+
+    (ws / "tools" / "b8_haah.m2").write_text("-- moved in\n", encoding="utf-8")
+    run(ws, "post", "p-gap", "--evidence", "tools/b8_haah.m2",
+        "--text", "moved into the project: the earlier scratchpad b8_haah.m2 is now here")
+
+    assert state.evidence_outside(ws, note(ws, "p-gap")) == [], (
+        "the correction names the word it is correcting; saying so must clear it")
+
+
+def test_a_citation_after_the_move_is_still_reported(ws):
+    """Answered, not switched off. Evidence written outside *after* the note
+    recorded some is the same failure again."""
+    path = proposition(ws, evidence=["tools/check.m2"])
+    threads.set_field(path, "evidence", ["tools/check.m2"], host="claude",
+                      text="moved in")
+    threads.append_post(path, "new run lives in /tmp/later/run.py", host="claude")
+    found = state.evidence_outside(ws, note(ws, "p-gap"))
+    assert len(found) == 1 and "/tmp/later/run.py" in found[0]
+
+
+def test_a_field_that_names_nothing_is_still_reported_after_a_move(ws):
+    """The precise half does not defer to anything: a path that resolves to no
+    file is a broken reference whenever it was written."""
+    path = proposition(ws)
+    threads.set_field(path, "evidence", ["tools/gone.m2"], host="claude", text="moved in")
+    found = state.evidence_outside(ws, note(ws, "p-gap"))
+    assert found == ["`evidence:` names tools/gone.m2, which is not a file in the project"]
+
+
+# --------------------------------------------------------------------------
+# what a restate triggers, and what --allow-run promises
+# --------------------------------------------------------------------------
+
+def test_a_restate_says_it_queues_a_review_rather_than_running_one(ws):
+    """MAGI lists and never spends unasked (design-v2 §11). The first wording
+    said the claim "is reviewed again", and a reader reasonably waited for a
+    review that was never going to start."""
+    path = proposition(ws, bet="supported")
+    threads.set_status(path, "testing", "go", host="claude")
+    threads.set_status(path, "supported", "done", host="claude")
+    line = review.apply_verdict(ws, review.Verdict(
+        slug="p-gap", verdict=review.VERDICT_RESTATE, reason="too wide", host="codex"))
+    assert "back on the review queue" in line
+    assert "magi review p-gap" in line
+    assert "is reviewed again" not in line
+
+    # And the claim really is queued once its author re-supports it.
+    threads.set_status(path, "supported", "reworded", host="claude")
+    assert review.pending(ws) == ["p-gap"]
+
+
+def test_allow_run_on_a_host_with_no_flag_does_not_promise_a_reader_that_only_reads(
+        ws, monkeypatch, capsys):
+    """`agy -p` was measured running a note's `evidence:` scripts on a call
+    that passed no such flag. MAGI may say what it passes; it must not make a
+    claim about a vendor's default that the vendor contradicts."""
+    path = proposition(ws, bet="supported")
+    threads.set_status(path, "testing", "go", host="claude")
+    threads.set_status(path, "supported", "done", host="claude")
+    monkeypatch.setattr(review, "installed_hosts", lambda *_a, **_k: ["antigravity"])
+    monkeypatch.setattr(review, "ask", lambda *a, **k: "VERDICT: stands\nREASON: fine")
+
+    review.main(["--topic-dir", str(ws), "--host", "antigravity", "--allow-run", "p-gap"])
+
+    err = capsys.readouterr().err
+    assert "no flag to pass" in err and "own default" in err
+    assert "reads only" not in err

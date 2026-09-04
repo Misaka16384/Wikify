@@ -1323,6 +1323,22 @@ the answer is not a prediction. One opened without it is a **conjecture**, and
 work. `magi thread bet` records it whenever it arrives, signed `human` unless
 you say otherwise; hand-editing `bet:` in the frontmatter is what it replaces.
 
+A note already open becomes a finding with `magi thread found <slug> [DATE]` —
+the case that matters most, because a proposition being asked for a prediction
+it can no longer honestly give is one somebody opened yesterday. Any prediction
+already recorded stays: a bet on record is on record, and the scoreboard reads
+it the same way.
+
+**Asking somebody to predict means showing them the claim.** `magi next` prints
+one card per waiting proposition — the claim, whether a `derivation:` and
+`evidence:` exist and are readable, whether anybody has reviewed it, and how
+long it has been open — and `magi next --json` carries all of them under
+`bets_waiting`. A list of slugs is not a question anybody can answer, which is
+how this was found: somebody was asked to bet on ten of them and could not.
+Where a card shows the working-out already exists, it offers `magi thread
+found` alongside the bet, because there the honest answer is usually that it
+was never a prediction.
+
 Each note has two halves: the body belongs to whoever opened it, and
 `## Discussion` is append-only — nobody edits anybody's post. **Use the command
 rather than an editor**: appending takes a lock and writing the whole file in an
@@ -1386,14 +1402,25 @@ leans on most, and whether the conclusion survives a reasonable alternative.
 It must also **verify one thing itself** — recompute a formula, re-derive a
 step, or rerun a script the derivation names — and the post records what it
 checked. "The proof is on line 40" is not a review. `magi review --allow-run`
-lets the host execute scripts where it has a way to (Claude Code and Codex do;
-agy does not, and the command says so).
+adds the flag that lets a host execute scripts, where MAGI knows one — Claude
+Code and Codex have one, agy has none and the command says so.
+
+> **A host without that flag is not a host that only reads.** `agy -p` has been
+> observed running the scripts a note's `evidence:` named and reporting their
+> output, on calls that passed nothing of the sort — twice, on two different
+> machines. MAGI can tell you what it passes; what a vendor's CLI does by
+> default is the vendor's choice. Treat anything under `evidence:` as something
+> a reviewer may execute, whatever flags you used.
 
 **Four verdicts.** `stands`. `restate`: the conclusion holds and the words do
 not — a quantifier written too wide, a wrong index, a mislabelled object; the
 claim goes back to `testing`, its author fixes the statement or the derivation
-as the post says, marks it `supported` again, and it is reviewed again. Nobody
-is asked. `refuted`: a counterexample or a specific step that does not hold;
+as the post says, and marks it `supported` again. That puts it back on the
+review queue — `magi next` and `sync --close` list it, and `magi review <slug>`
+asks again. **Nothing re-runs a review on its own**: a model call is minutes and
+money, so MAGI lists and never spends unasked (design-v2 §11). Nobody is asked
+either, which is the point — a restate is the author's to fix, not a person's
+to rule on. `refuted`: a counterexample or a specific step that does not hold;
 the claim moves to `disputed`, which is a question for a person — not
 `refuted`, which would be a finding, and never back to `supported` on the next
 run. `unclear`: not an answer; the claim comes back.

@@ -15,18 +15,18 @@ Any turn in a MAGI project where you do not already know what you are doing.
 1. `magi next` — it reads the notes and ranks what is owed. It never acts.
 2. Do the first item, unless the human just asked for something else: their
    sentence outranks the list. Everything under **"For the person"** goes to them
-   in **one message**; record answers with `magi thread bet <slug>
-   <supported|refuted|unknown> --text '<their words>'` or `magi decide --about <slug> --text '<their words>'`.
+   in **one message**, and **asking for a prediction means showing the claim** —
+   `next` prints it under the item, `--json` has it in `bets_waiting`. A slug is
+   not a question anybody can answer.
 3. When an item names a skill, call it. When it names a command, run it.
-4. A result that came before its note is a finding — `magi thread new <slug>
-   --kind proposition --title '<claim>' --purpose '<why>' --found` asks no bet.
-   A reviewer's `restate` is yours, not the person's: fix the words as its post
-   says, then `magi thread status <slug> supported --text '<what changed>'`.
-5. Anything the human says in passing worth keeping goes into `inbox/notes.md`
-   as one line, untidied. A later `magi next` files it.
+4. A result that came before its note is a finding: open it with `--found`, or
+   mark an existing one `magi thread found <slug>`. Neither is asked to bet. A
+   reviewer's `restate` is yours: fix the words as its post says, then
+   `magi thread status <slug> supported --text '<what changed>'`.
+5. Anything the human says in passing worth keeping goes into `inbox/notes.md`, one line, untidied; a later `magi next` files it.
 6. Before stopping: `magi sync --close`. It refuses while something happened that
-   nobody wrote down — clear each item with `magi thread post <slug> --text '<what
-   happened>' --host human` or `magi decide --about <slug> --text '<what they decided>'`, then close again.
+   nobody wrote down — clear each with `magi thread post <slug> --text '<what happened>'
+   --host human` or `magi decide --about <slug> --text '<their words>'`, then close again.
 
 ## Rules
 - **Never** invent a next step while `magi next` has one. That list is derived
